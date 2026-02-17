@@ -65,6 +65,7 @@ class CopilotClient:
         self._lock = threading.Lock()
         self._reader_thread = None
         self.workspace_root = "/tmp/copilot-workspace"
+        self.verbose = False
         self.client_mcp: ClientMCPManager | None = None  # Client-side MCP bridge
 
     def _read_auth(self) -> dict:
@@ -530,7 +531,8 @@ class CopilotClient:
         # Check client-side MCP tools first
         if self.client_mcp and self.client_mcp.is_mcp_tool(tool_name):
             result_text = self.client_mcp.call_tool(tool_name, tool_input)
-            print(f"[tool] {tool_name} -> {result_text[:200]}")
+            if self.verbose:
+                print(f"[tool] {tool_name} -> {result_text[:200]}")
             return [{"content": [{"value": result_text}], "status": "success"}, None]
 
         executor = TOOL_EXECUTORS.get(tool_name)
@@ -799,7 +801,8 @@ def _load_mcp_config(mcp_arg: str | None) -> dict | None:
 
 def _init_client(workspace: str, agent_mode: bool = False,
                  mcp_config: dict = None,
-                 proxy_url: str = None, no_ssl_verify: bool = False) -> CopilotClient:
+                 proxy_url: str = None, no_ssl_verify: bool = False,
+                 verbose: bool = False) -> CopilotClient:
     """Start and initialize a CopilotClient.
 
     Args:
@@ -808,6 +811,7 @@ def _init_client(workspace: str, agent_mode: bool = False,
     """
     client = CopilotClient()
     client.workspace_root = os.path.abspath(workspace)
+    client.verbose = verbose
     client.start(proxy_url=proxy_url)
     # Pass proxy into initialize so the server has it BEFORE token exchange
     # (Node.js ignores HTTP_PROXY env vars - needs networkProxy in init options)
@@ -862,17 +866,18 @@ def _init_client(workspace: str, agent_mode: bool = False,
             print(f"[*] Opened {doc_count} workspace files")
     return client
 
-def _proxy_kwargs(args) -> dict:
-    """Extract proxy keyword args from parsed CLI args."""
+def _common_kwargs(args) -> dict:
+    """Extract common keyword args from parsed CLI args."""
     return {
         "proxy_url": getattr(args, "proxy", None),
         "no_ssl_verify": getattr(args, "no_ssl_verify", False),
+        "verbose": getattr(args, "verbose", False),
     }
 
 def cmd_mcp(args):
     """MCP server management subcommand."""
     mcp_config = _load_mcp_config(getattr(args, "mcp", None))
-    client = _init_client(args.workspace, mcp_config=mcp_config, **_proxy_kwargs(args))
+    client = _init_client(args.workspace, mcp_config=mcp_config, **_common_kwargs(args))
     try:
         action = args.mcp_action
         if action == "list":
@@ -908,7 +913,7 @@ def cmd_mcp(args):
 def cmd_models(args):
     """List available Copilot models."""
     mcp_config = _load_mcp_config(getattr(args, "mcp", None))
-    client = _init_client(args.workspace, mcp_config=mcp_config, **_proxy_kwargs(args))
+    client = _init_client(args.workspace, mcp_config=mcp_config, **_common_kwargs(args))
     try:
         resp = client.list_models()
         models = resp.get("result", [])
@@ -933,7 +938,7 @@ def cmd_complete(args):
                 ".rs": "rust", ".java": "java", ".c": "c", ".cpp": "cpp", ".rb": "ruby"}
     lang = lang_map.get(ext, "plaintext")
 
-    client = _init_client(args.workspace, **_proxy_kwargs(args))
+    client = _init_client(args.workspace, **_common_kwargs(args))
     try:
         uri = path_to_file_uri(file_path)
         client.open_document(uri, lang, text)
@@ -962,7 +967,7 @@ def cmd_chat(args):
     workspace = os.path.abspath(args.workspace)
     mcp_config = _load_mcp_config(getattr(args, "mcp", None))
     client = _init_client(workspace, agent_mode=agent_mode, mcp_config=mcp_config,
-                          **_proxy_kwargs(args))
+                          **_common_kwargs(args))
 
     try:
         workspace_uri = path_to_file_uri(workspace)
@@ -1023,6 +1028,8 @@ def main():
                         help="Proxy URL (e.g. http://host:port or http://user:pass@host:port)")
     parser.add_argument("--no-ssl-verify", action="store_true", default=False,
                         help="Disable SSL certificate verification for proxy connections")
+    parser.add_argument("-v", "--verbose", action="store_true", default=False,
+                        help="Show full tool call results (default: only show tool invocation lines)")
     sub = parser.add_subparsers(dest="command")
 
     # --- models ---
