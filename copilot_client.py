@@ -66,6 +66,7 @@ class CopilotClient:
         self._reader_thread = None
         self.workspace_root = "/tmp/copilot-workspace"
         self.verbose = False
+        self._spinner_clear = None  # callable set by cmd_chat to clear spinner
         self.client_mcp: ClientMCPManager | None = None  # Client-side MCP bridge
 
     def _read_auth(self) -> dict:
@@ -452,6 +453,8 @@ class CopilotClient:
             result = result[0] if result else {}
         conversation_id = result.get("conversationId", "")
         model_name = result.get("modelName", "unknown")
+        if self._spinner_clear:
+            self._spinner_clear()
         print(f"[*] Created conversation: {conversation_id} (model: {model_name})")
 
         # Collect streamed response from progress notifications
@@ -505,7 +508,9 @@ class CopilotClient:
         elif method == "conversation/invokeClientTool":
             tool_name = params.get("name", params.get("toolName", "unknown"))
             tool_input = params.get("input", params.get("arguments", {}))
-            print(f"[tool] {tool_name}({json.dumps(tool_input)[:150]})")
+            if self._spinner_clear:
+                self._spinner_clear()
+            print(f"\033[37m[tool] {tool_name}({json.dumps(tool_input)[:150]})\033[0m")
             result = self._execute_client_tool(tool_name, tool_input)
             # Client-side MCP tools already return the tuple format.
             # Registered (non-built-in) tools must return result as a tuple
@@ -532,7 +537,7 @@ class CopilotClient:
         if self.client_mcp and self.client_mcp.is_mcp_tool(tool_name):
             result_text = self.client_mcp.call_tool(tool_name, tool_input)
             if self.verbose:
-                print(f"[tool] {tool_name} -> {result_text[:200]}")
+                print(f"\033[37m[tool] {tool_name} -> {result_text[:200]}\033[0m")
             return [{"content": [{"value": result_text}], "status": "success"}, None]
 
         executor = TOOL_EXECUTORS.get(tool_name)
@@ -961,6 +966,31 @@ def cmd_complete(args):
     finally:
         client.stop()
 
+def _print_banner(workspace: str, model: str, agent_mode: bool, tool_count: int,
+                  mcp_count: int):
+    """Print a welcome banner with session info."""
+    mode = "Agent" if agent_mode else "Chat"
+    model_name = model or "default"
+    ws_display = os.path.basename(workspace) or workspace
+
+    # Build info line
+    parts = [mode, model_name]
+    if agent_mode:
+        parts.append(f"{tool_count} tools")
+        if mcp_count:
+            parts.append(f"{mcp_count} mcp")
+
+    info = " \033[90m·\033[0m ".join(parts)
+    ws_line = f"\033[90m  {ws_display}\033[0m"
+
+    print()
+    print(f"  \033[94m╭─ Copilot CLI\033[0m")
+    print(f"  \033[94m│\033[0m  {info}")
+    print(f"  \033[94m│\033[0m {ws_line}")
+    print(f"  \033[94m╰─\033[0m")
+    print()
+
+
 def cmd_chat(args):
     """Interactive chat session."""
     agent_mode = args.agent
@@ -974,13 +1004,21 @@ def cmd_chat(args):
         conversation_id = None
         model = args.model
 
+        # Print welcome banner
+        tool_count = len(TOOL_SCHEMAS) + 15  # registered + built-in
+        mcp_count = 0
+        if client.client_mcp:
+            mcp_count = sum(len(s.tools) for s in client.client_mcp.servers.values())
+            tool_count += mcp_count
+        _print_banner(workspace, model, agent_mode, tool_count, mcp_count)
+
         # If a prompt was passed on the command line, use it
         prompt = " ".join(args.prompt) if args.prompt else None
 
         while True:
             if prompt is None:
                 try:
-                    prompt = input("\nyou> ").strip()
+                    prompt = input("you> ").strip()
                 except (EOFError, KeyboardInterrupt):
                     print()
                     break
@@ -990,19 +1028,63 @@ def cmd_chat(args):
             if prompt.lower() in ("exit", "quit", "/quit", "/exit"):
                 break
 
+            # Spinner while waiting for first token
+            spinner_stop = threading.Event()
+            streaming_started = threading.Event()
+            def _clear_spinner():
+                """Clear the spinner line — safe to call multiple times."""
+                if not spinner_stop.is_set():
+                    spinner_stop.set()
+                    print("\r\033[K", flush=True)  # clear line and newline
+
+            client._spinner_clear = _clear_spinner
+
+            def _spinner():
+                chars = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+                i = 0
+                while not spinner_stop.is_set():
+                    print(f"\r\033[33m{chars[i % len(chars)]} thinking...\033[0m", end="", flush=True)
+                    i += 1
+                    spinner_stop.wait(0.1)
+
+            def _on_progress(kind, data):
+                _clear_spinner()
+                if kind == "delta":
+                    delta = data.get("delta", "")
+                    if delta:
+                        if not streaming_started.is_set():
+                            streaming_started.set()
+                            print(f"\n\033[94mcopilot>\033[0m ", end="", flush=True)
+                        print(delta, end="", flush=True)
+                elif kind == "done":
+                    if streaming_started.is_set():
+                        print()  # final newline after streamed response
+
+            spinner_thread = threading.Thread(target=_spinner, daemon=True)
+            spinner_thread.start()
+
             if conversation_id is None:
                 result = client.conversation_create(
                     prompt, model=model, agent_mode=agent_mode,
                     workspace_folder=workspace_uri if agent_mode else None,
+                    on_progress=_on_progress,
                 )
                 conversation_id = result["conversationId"]
             else:
                 result = client.conversation_turn(
                     conversation_id, prompt, model=model, agent_mode=agent_mode,
+                    on_progress=_on_progress,
                 )
 
-            if result["reply"]:
-                print(f"\ncopilot> {result['reply']}")
+            _clear_spinner()
+            client._spinner_clear = None
+            spinner_thread.join(timeout=1)
+
+            # If streaming didn't fire (e.g. empty reply), print the full reply
+            if not streaming_started.is_set() and result["reply"]:
+                print(f"\n\033[94mcopilot>\033[0m {result['reply']}")
+
+            print()  # blank line before next prompt
 
             # One-shot mode: if prompt came from argv, exit after first reply
             if args.prompt:

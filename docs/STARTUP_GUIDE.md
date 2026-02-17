@@ -273,6 +273,7 @@ Flags:
   --mcp <config.json>         Enable MCP tools
   --proxy <url>               Set proxy URL
   --no-ssl-verify             Skip SSL certificate checks
+  -v, --verbose               Show full tool call results
 
 Examples:
   python3 copilot_client.py chat "Explain async/await"
