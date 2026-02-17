@@ -1,7 +1,7 @@
 # Copilot CLI Configuration
 # All paths support ~ expansion
 
-copilot_binary = "~/Library/Application Support/JetBrains/*.3/plugins/github-copilot-intellij/copilot-agent/native/darwin-arm64/copilot-language-server"
+copilot_binary = "~/Library/Application Support/JetBrains/*/plugins/github-copilot-intellij/copilot-agent/native/darwin-arm64/copilot-language-server"
 apps_json = "~/.config/github-copilot/apps.json"
 default_model = "gpt-4.1"
 
