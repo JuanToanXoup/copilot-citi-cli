@@ -16,6 +16,7 @@ import uuid
 from urllib.parse import urlparse
 
 from copilot_mcp import ClientMCPManager
+from platform_utils import path_to_file_uri, default_copilot_binary, default_apps_json
 from tools import TOOL_SCHEMAS, TOOL_EXECUTORS, BUILTIN_TOOL_NAMES, ToolContext
 
 try:
@@ -26,12 +27,8 @@ except ModuleNotFoundError:
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "copilot_config.toml")
 
 # Defaults (overridden by copilot_config.toml and CLI args)
-COPILOT_BINARY = (
-    "~/Library/Application Support/JetBrains/*/plugins/"
-    "github-copilot-intellij/copilot-agent/native/darwin-arm64/"
-    "copilot-language-server"
-)
-APPS_JSON = "~/.config/github-copilot/apps.json"
+COPILOT_BINARY = default_copilot_binary()
+APPS_JSON = default_apps_json()
 
 def _load_config() -> dict:
     """Load config from copilot_config.toml next to this script.
@@ -137,13 +134,11 @@ class CopilotClient:
 
     def _reader_loop(self):
         """Background thread: read stdout and parse messages."""
-        import select
         while self.process and self.process.poll() is None:
-            # Use select to avoid blocking indefinitely
-            ready, _, _ = select.select([self.process.stdout], [], [], 0.1)
-            if not ready:
-                continue
-            data = self.process.stdout.read1(4096)  # read1 = non-blocking read
+            try:
+                data = self.process.stdout.read1(4096)
+            except OSError:
+                break
             if not data:
                 break
             with self._lock:
@@ -357,7 +352,7 @@ class CopilotClient:
         If the document was previously opened, sends didChange with incremented version.
         Otherwise, opens it as a new document.
         """
-        uri = "file://" + file_path
+        uri = path_to_file_uri(file_path)
 
         if uri in self._doc_versions:
             # Increment version and send full-content change
@@ -816,7 +811,7 @@ def _init_client(workspace: str, agent_mode: bool = False,
     client.start(proxy_url=proxy_url)
     # Pass proxy into initialize so the server has it BEFORE token exchange
     # (Node.js ignores HTTP_PROXY env vars - needs networkProxy in init options)
-    client.initialize(root_uri=f"file://{client.workspace_root}",
+    client.initialize(root_uri=path_to_file_uri(client.workspace_root),
                       github_app_id=client._auth.get("app_id"),
                       proxy_url=proxy_url)
     time.sleep(1)
@@ -859,7 +854,7 @@ def _init_client(workspace: str, agent_mode: bool = False,
                     ".sh": "shellscript", ".yaml": "yaml", ".yml": "yaml",
                 }
                 if ext in lang_map:
-                    uri = f"file://{os.path.abspath(fpath)}"
+                    uri = path_to_file_uri(fpath)
                     with open(fpath, "r", errors="replace") as f:
                         client.open_document(uri, lang_map[ext], f.read())
                     doc_count += 1
@@ -940,7 +935,7 @@ def cmd_complete(args):
 
     client = _init_client(args.workspace, **_proxy_kwargs(args))
     try:
-        uri = f"file://{file_path}"
+        uri = path_to_file_uri(file_path)
         client.open_document(uri, lang, text)
         time.sleep(0.5)
 
@@ -970,7 +965,7 @@ def cmd_chat(args):
                           **_proxy_kwargs(args))
 
     try:
-        workspace_uri = f"file://{workspace}"
+        workspace_uri = path_to_file_uri(workspace)
         conversation_id = None
         model = args.model
 

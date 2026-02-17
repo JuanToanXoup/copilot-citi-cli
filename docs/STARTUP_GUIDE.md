@@ -8,7 +8,7 @@
 
 Before you begin, confirm you have these:
 
-- [ ] **Python 3.10+** — verify with `python3 --version`
+- [ ] **Python 3.10+** — verify with `python3 --version` (macOS/Linux) or `python --version` (Windows)
 - [ ] **GitHub Copilot license** — active individual or org subscription
 - [ ] **JetBrains IDE installed** (IntelliJ, PyCharm, WebStorm, etc.) — needed for the language server binary
 - [ ] **Signed into GitHub Copilot in your IDE at least once** — this creates the auth token file
@@ -84,8 +84,14 @@ default_model = "gpt-4.1"
 
 Make sure your GitHub Copilot token exists:
 
+**macOS / Linux:**
 ```bash
 cat ~/.config/github-copilot/apps.json
+```
+
+**Windows (PowerShell):**
+```powershell
+Get-Content "$env:APPDATA\github-copilot\apps.json"
 ```
 
 You should see JSON with an `oauth_token` field. If this file doesn't exist, open your JetBrains IDE, sign into GitHub Copilot, then check again.
@@ -96,8 +102,14 @@ You should see JSON with an `oauth_token` field. If this file doesn't exist, ope
 
 Run the simplest command to verify everything works:
 
+**macOS / Linux:**
 ```bash
 python3 copilot_client.py models
+```
+
+**Windows:**
+```powershell
+python copilot_client.py models
 ```
 
 If you see a list of models (e.g., `gpt-4.1`, `claude-sonnet-4`), you're good to go.
