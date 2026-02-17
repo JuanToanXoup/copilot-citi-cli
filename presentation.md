@@ -114,18 +114,20 @@ The agent has access to a rich set of tools out of the box:
 
 ```mermaid
 mindmap
-  root((Copilot CLI<br/>Tools))
+  root((Copilot CLI<br/>22 Tools))
     File Operations
       read_file
       create_file
-      insert_edit
-      replace_string
+      create_directory
+      insert_edit_into_file
+      replace_string_in_file
+      multi_replace_string
       apply_patch
     Search
       grep_search
       file_search
       find_test_files
-      search_symbols
+      search_workspace_symbols
     Execution
       run_in_terminal
       run_tests
@@ -138,6 +140,7 @@ mindmap
       get_changed_files
       github_repo
       get_project_setup_info
+      get_doc_info
       fetch_web_page
 ```
 
@@ -312,7 +315,7 @@ Adding a new tool is as simple as creating one file:
 SCHEMA = {
     "name": "my_custom_tool",
     "description": "Does something useful",
-    "parameters": {
+    "inputSchema": {
         "type": "object",
         "properties": {
             "input": {"type": "string", "description": "The input to process"}

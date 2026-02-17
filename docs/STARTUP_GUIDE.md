@@ -18,8 +18,8 @@ Before you begin, confirm you have these:
 ## Step 1: Clone the Repo
 
 ```bash
-git clone <repo-url> copilot-cli
-cd copilot-cli
+git clone <repo-url>
+cd copilot-citi-cli
 ```
 
 No `pip install`, no virtual env, no dependencies. It's pure Python.
@@ -60,21 +60,22 @@ Create `copilot_config.toml` in the project root:
 
 ```toml
 # Copilot CLI Configuration
-# All paths support ~ expansion
+# All paths support ~ expansion and * wildcards
 
-copilot_binary = "~/Library/Application Support/JetBrains/*.3/plugins/github-copilot-intellij/copilot-agent/native/darwin-arm64/copilot-language-server"
+copilot_binary = "~/Library/Application Support/JetBrains/*/plugins/github-copilot-intellij/copilot-agent/native/darwin-arm64/copilot-language-server"
 apps_json = "~/.config/github-copilot/apps.json"
 default_model = "gpt-4.1"
 
-[proxy]
-url = "http://webproxy.wlb2.nam.nsroot.net:19015"
-no_ssl_verify = false
+# Uncomment and set your proxy if behind a corporate network
+# [proxy]
+# url = "http://your-proxy:8080"
+# no_ssl_verify = false
 
-# MCP servers - auto-routes to server-side if org allows,
+# MCP servers (optional) - auto-routes to server-side if org allows,
 # otherwise falls back to client-side
-[mcp.playwright]
-command = "npx"
-args = ["-y", "@playwright/mcp@latest"]
+# [mcp.playwright]
+# command = "npx"
+# args = ["-y", "@playwright/mcp@latest"]
 ```
 
 ---
@@ -185,7 +186,7 @@ MCP lets you give the agent access to external tools like browsers, databases, a
   "servers": {
     "playwright": {
       "command": "npx",
-      "args": ["@anthropic/mcp-playwright"]
+      "args": ["-y", "@playwright/mcp@latest"]
     }
   }
 }

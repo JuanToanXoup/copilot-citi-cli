@@ -21,17 +21,19 @@ The language server sees client-MCP tools as regular registered client tools —
 
 ## Quick Start
 
+The CLI auto-routes MCP: if your org allows server-side MCP, the language server manages it. If blocked, the CLI transparently falls back to client-side MCP. You always use the same `--mcp` flag.
+
 ```bash
 # Create a config file
 echo '{"playwright":{"command":"npx","args":["-y","@playwright/mcp@latest"]}}' > mcp.json
 
-# Run with --client-mcp (not --mcp)
-python3 copilot_client.py --client-mcp mcp.json agent "Navigate to example.com"
+# Run with --mcp — auto-routes to client-side if org blocks server-side MCP
+python3 copilot_client.py --mcp mcp.json agent "Navigate to example.com"
 ```
 
 ## Config Format
 
-Same JSON format as `--mcp`. Each key is a server name, value defines how to run it:
+Each key is a server name, value defines how to run it:
 
 ```json
 {
@@ -43,11 +45,13 @@ Same JSON format as `--mcp`. Each key is a server name, value defines how to run
 }
 ```
 
-Only stdio transport is supported for client-side MCP (the CLI spawns the process directly). HTTP/streamable transport requires `--mcp` (server-side).
+Only stdio transport is supported for client-side MCP (the CLI spawns the process directly). HTTP/streamable transport is only available when the language server manages MCP (server-side route).
 
-## --client-mcp vs --mcp
+## Server-Side vs Client-Side MCP
 
-| | `--mcp` (server-side) | `--client-mcp` (client-side) |
+The `--mcp` flag auto-detects which route to use. You don't need to choose manually.
+
+| | Server-Side (org allows MCP) | Client-Side (org blocks MCP) |
 |---|---|---|
 | Who manages the MCP server | Language server | CLI (Python) |
 | MCP protocol | Language server ↔ MCP server | CLI ↔ MCP server |
@@ -56,8 +60,6 @@ Only stdio transport is supported for client-side MCP (the CLI spawns the proces
 | Supports stdio | Yes | Yes |
 | Supports HTTP/streamable | Yes | No |
 | Tool name format | `browser_navigate` | `mcp_playwright_browser_navigate` |
-
-Both flags can be used together. If your org allows MCP, `--mcp` is simpler. If MCP is blocked, `--client-mcp` is the workaround.
 
 ## Examples
 
@@ -73,7 +75,7 @@ Both flags can be used together. If your org allows MCP, `--mcp` is simpler. If 
 ```
 
 ```bash
-python3 copilot_client.py --client-mcp mcp.json agent "Navigate to example.com and take a screenshot"
+python3 copilot_client.py --mcp mcp.json agent "Navigate to example.com and take a screenshot"
 ```
 
 Output:
@@ -118,7 +120,7 @@ Output:
 
 ```bash
 python3 copilot_client.py \
-  --client-mcp mcp.json \
+  --mcp mcp.json \
   --proxy http://localhost:3128 \
   agent "your prompt"
 ```
@@ -192,7 +194,7 @@ client_mcp.py
 └── ClientMCPManager   — manages multiple servers, builds tool map, bridges calls
 
 copilot_client.py
-├── --client-mcp flag  — loads config, passes to _init_client()
+├── --mcp flag         — loads config, auto-routes to server or client-side
 ├── _init_client()     — creates ClientMCPManager, calls start_all()
 ├── register_client_tools() — includes client-MCP tool schemas
 ├── _execute_client_tool()  — checks client-MCP first, forwards tools/call

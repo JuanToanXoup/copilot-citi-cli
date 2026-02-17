@@ -148,7 +148,7 @@ Server-side MCP (--mcp, blockable):
                ↑
          policy blocks here
 
-Client-side MCP (--client-mcp, not blockable):
+Client-side MCP (auto-fallback, not blockable):
   CLI → spawns MCP server process (stdio)
   CLI → MCP handshake (initialize → tools/list)
   CLI → registers tools via conversation/registerTools
@@ -201,7 +201,7 @@ This conversion happens in `_execute_client_tool()` before the result reaches `_
 
 #### Key Difference from Server-Side MCP
 
-| Aspect | Server-side (`--mcp`) | Client-side (`--client-mcp`) |
+| Aspect | Server-side (org allows) | Client-side (auto-fallback) |
 |---|---|---|
 | Protocol framing | `Content-Length` headers (LSP-style) | Newline-delimited JSON |
 | Process management | Language server spawns/manages | CLI spawns/manages |
