@@ -15,6 +15,7 @@ headers.
 
 import json
 import os
+import shutil
 import subprocess
 import threading
 import time
@@ -43,13 +44,15 @@ class MCPServer:
         env = os.environ.copy()
         env.update(self.env)
 
+        # Resolve command via PATH so .cmd/.bat wrappers work on Windows
+        resolved = shutil.which(self.command) or self.command
         self.process = subprocess.Popen(
-            [self.command] + self.args,
+            [resolved] + self.args,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             env=env,
-            )
+        )
         self._reader_thread = threading.Thread(target=self._reader_loop, daemon=True)
         self._reader_thread.start()
 
