@@ -275,11 +275,15 @@ const App = window.App = {
         const modelEl = document.getElementById('agent-model');
         const wsEl = document.getElementById('agent-workspace');
         const promptEl = document.getElementById('system-prompt');
+        const proxyUrlEl = document.getElementById('proxy-url');
+        const proxySslEl = document.getElementById('proxy-no-ssl');
 
         nameEl.addEventListener('input', () => { this.state.config.name = nameEl.value; });
         descEl.addEventListener('input', () => { this.state.config.description = descEl.value; });
         modelEl.addEventListener('change', () => { this.state.config.model = modelEl.value; });
         wsEl.addEventListener('input', () => { this.state.config.workspace_root = wsEl.value; });
+        proxyUrlEl.addEventListener('input', () => { this.state.config.proxy.url = proxyUrlEl.value; });
+        proxySslEl.addEventListener('change', () => { this.state.config.proxy.no_ssl_verify = proxySslEl.checked; });
         promptEl.addEventListener('input', () => { this.state.config.system_prompt = promptEl.value; });
 
         // Template
@@ -363,6 +367,9 @@ const App = window.App = {
         document.getElementById('agent-model').value = c.model || 'gpt-4.1';
         document.getElementById('agent-workspace').value = c.workspace_root || '';
         document.getElementById('system-prompt').value = c.system_prompt || '';
+        const proxy = c.proxy || {};
+        document.getElementById('proxy-url').value = proxy.url || '';
+        document.getElementById('proxy-no-ssl').checked = !!proxy.no_ssl_verify;
         this._renderTools();
         this._renderServers();
         this._updateToolCount();
