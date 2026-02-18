@@ -6,11 +6,11 @@ import tempfile
 import shutil
 import unittest
 
-# Ensure the project root is on the path
+# Ensure the cli source is on the path
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, PROJECT_ROOT)
+sys.path.insert(0, os.path.join(PROJECT_ROOT, "cli", "src"))
 
-from tools import TOOL_SCHEMAS, TOOL_EXECUTORS, BUILTIN_TOOL_NAMES, ToolContext
+from copilot_cli.tools import TOOL_SCHEMAS, TOOL_EXECUTORS, BUILTIN_TOOL_NAMES, ToolContext
 
 
 def _make_ctx(workspace_root: str) -> ToolContext:
@@ -333,8 +333,8 @@ class TestWrapRegisteredToolResult(unittest.TestCase):
     """Test _wrap_registered_tool_result response format."""
 
     def setUp(self):
-        # Import the method from copilot_client
-        from copilot_client import CopilotClient
+        # Import the method from copilot_cli.client
+        from copilot_cli.client import CopilotClient
         self.wrap = CopilotClient._wrap_registered_tool_result
 
     def test_list_result(self):

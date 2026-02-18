@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+dist/
+.pytest_cache/
+
+# Virtual environment
+.venv/
+venv/
+
+# Gradle
+.gradle/
+build/
+
+# IDE
+.idea/
+
+# OS
+.DS_Store
+
+# Project
+images/
+presentation.zip

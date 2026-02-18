@@ -1,0 +1,69 @@
+# Copilot CLI Configuration
+# All paths support ~ expansion
+
+# macOS (Apple Silicon):
+#copilot_binary = "~/Library/Application Support/JetBrains/*/plugins/github-copilot-intellij/copilot-agent/native/darwin-arm64/copilot-language-server"
+#apps_json = "~/.config/github-copilot/apps.json"
+
+# macOS (Intel):
+# copilot_binary = "~/Library/Application Support/JetBrains/*/plugins/github-copilot-intellij/copilot-agent/native/darwin-x64/copilot-language-server"
+
+# Windows:
+# copilot_binary = "~/AppData/Local/JetBrains/*/plugins/github-copilot-intellij/copilot-agent/native/win32-x64/copilot-language-server.exe"
+# apps_json = "%APPDATA%/github-copilot/apps.json"
+
+# Linux:
+# copilot_binary = "~/.local/share/JetBrains/*/plugins/github-copilot-intellij/copilot-agent/native/linux-x64/copilot-language-server"
+
+# Available models: "gpt-4.1", "gemini-2.5-pro", "claude-sonnet-4"
+default_model = "gpt-4.1"
+
+#[proxy]
+#url = "http://webproxy.wlb2.nam.nsroot.net:19015"
+#no_ssl_verify = false
+
+# LSP servers for code intelligence (auto-detected if installed)
+# Servers start lazily on first tool use.
+[lsp.python]
+command = "pyright-langserver"
+args = ["--stdio"]
+
+[lsp.typescript]
+command = "typescript-language-server"
+args = ["--stdio"]
+
+[lsp.java]
+command = "jdtls"
+args = []
+
+[lsp.kotlin]
+command = "kotlin-language-server"
+args = []
+
+[lsp.gherkin]
+command = "npx"
+args = ["-y", "@cucumber/language-server", "--stdio"]
+
+#[lsp.go]
+#command = "gopls"
+#args = ["serve"]
+
+#[lsp.rust]
+#command = "rust-analyzer"
+#args = []
+
+# MCP servers - auto-routes to server-side if org allows,
+# otherwise falls back to client-side
+[mcp.playwright]
+command = "npx"
+args = ["-y", "@playwright/mcp@latest"]
+
+[mcp.mermaid]
+command = "npx"
+args = ["-y", "@peng-shawn/mermaid-mcp-server"]
+env = { HTTP_PROXY = "http://webproxy.wlb2.nam.nsroot.net:19015", HTTPS_PROXY = "http://webproxy.wlb2.nam.nsroot.net:19015" }
+
+[mcp.qdrant]
+command = "npx"
+args = ["-y", "@qdrant/mcp-server-qdrant"]
+env = { HTTP_PROXY = "http://webproxy.wlb2.nam.nsroot.net:19015", HTTPS_PROXY = "http://webproxy.wlb2.nam.nsroot.net:19015" }

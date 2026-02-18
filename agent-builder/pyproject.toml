@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "copilot-agent-builder"
+version = "0.1.0"
+description = "Agent Builder web UI for visual agent composition"
+requires-python = ">=3.10"
+dependencies = [
+    "copilot-cli",
+]
+
+[project.scripts]
+copilot-builder = "agent_builder.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+agent_builder = ["static/*"]
