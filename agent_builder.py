@@ -452,7 +452,7 @@ def start_server(port=8420, open_browser=True):
     ThreadingHTTPServer.allow_reuse_address = True
     server = ThreadingHTTPServer(("127.0.0.1", port), BuilderHandler)
     print(f"\n  \033[94m╭─ Agent Builder\033[0m")
-    print(f"  \033[94m│\033[0m  http://127.0.0.1:{port}")
+    print(f"  \033[94m│\033[0m  http://localhost:{port}")
     print(f"  \033[94m╰─\033[0m\n")
 
     # Start session cleanup thread
@@ -461,7 +461,7 @@ def start_server(port=8420, open_browser=True):
 
     if open_browser:
         import webbrowser
-        webbrowser.open(f"http://127.0.0.1:{port}")
+        webbrowser.open(f"http://localhost:{port}")
 
     try:
         server.serve_forever()

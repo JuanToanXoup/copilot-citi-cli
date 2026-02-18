@@ -18,9 +18,9 @@
 # Available models: "gpt-4.1", "gemini-2.5-pro", "claude-sonnet-4"
 default_model = "gpt-4.1"
 
-#[proxy]
-#url = "http://webproxy.wlb2.nam.nsroot.net:19015"
-#no_ssl_verify = false
+[proxy]
+url = "http://webproxy.wlb2.nam.nsroot.net:19015"
+no_ssl_verify = false
 
 # LSP servers for code intelligence (auto-detected if installed)
 # Override built-in defaults here. Servers start lazily on first tool use.
