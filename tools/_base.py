@@ -35,3 +35,4 @@ class ToolContext:
     workspace_root: str
     sync_file_to_server: Callable[[str, str], None]  # (file_path, content) -> None
     open_document: Callable[[str, str, str], None]    # (uri, lang, text) -> None
+    lsp_bridge: object = None  # LSPBridgeManager instance (None = no LSP available)

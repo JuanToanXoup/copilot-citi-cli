@@ -34,6 +34,12 @@ _COMMENT_BLOCK = re.compile(
     re.MULTILINE,
 )
 
+# Patterns to find definition lines (for LSP hover)
+_DEF_LINE = re.compile(
+    r'^[ \t]*(def|class|function|func|fn|const|let|var|type|interface|struct|enum)\s+(\w+)',
+    re.MULTILINE,
+)
+
 
 def _extract_python_docs(content: str) -> str:
     """Extract Python docstrings with their signatures."""
@@ -56,6 +62,41 @@ def _extract_comment_blocks(content: str) -> str:
     return "\n\n".join(parts) if parts else ""
 
 
+def _lsp_get_doc_info(fp: str, content: str, ctx: ToolContext) -> str | None:
+    """Try LSP hover at each definition in the file. Returns docs or None."""
+    bridge = ctx.lsp_bridge
+    if not bridge:
+        return None
+
+    server = bridge.get_server_for_file(fp)
+    if not server:
+        return None
+
+    lines = content.split("\n")
+    parts = []
+    for match in _DEF_LINE.finditer(content):
+        keyword = match.group(1)
+        name = match.group(2)
+        # Find the line number of this match
+        line_start = content[:match.start()].count("\n")
+        col = match.start(2) - content.rfind("\n", 0, match.start(2)) - 1
+
+        hover_text = server.hover(fp, line_start, col, content)
+        if hover_text:
+            parts.append(f"{keyword} {name} (line {line_start + 1}):\n{hover_text}")
+        else:
+            # Include the signature line even without hover info
+            if line_start < len(lines):
+                parts.append(f"{keyword} {name} (line {line_start + 1}):\n{lines[line_start].strip()}")
+
+        if len(parts) >= 50:
+            break
+
+    if not parts:
+        return None
+    return "\n\n".join(parts)
+
+
 def execute(tool_input: dict, ctx: ToolContext) -> list:
     file_paths = tool_input.get("filePaths", [])
     results = []
@@ -70,6 +111,13 @@ def execute(tool_input: dict, ctx: ToolContext) -> list:
             results.append(f"## {fp}\nError reading file: {e}")
             continue
 
+        # Try LSP hover for rich type info
+        lsp_docs = _lsp_get_doc_info(fp, content, ctx)
+        if lsp_docs:
+            results.append(f"## {fp}\n{lsp_docs}")
+            continue
+
+        # Fallback: regex-based extraction
         ext = os.path.splitext(fp)[1].lower()
         docs = ""
         if ext == ".py":
