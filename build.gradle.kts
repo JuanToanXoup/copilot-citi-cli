@@ -17,6 +17,26 @@ val pip = if (isWindows)
 else
     venvDir.file("bin/pip").asFile.absolutePath
 
+// Read proxy URL from config.toml [proxy] section or HTTPS_PROXY env var.
+// Corporate networks need this for pip to reach pypi.org.
+val proxyUrl: String? by lazy {
+    val configFile = rootProject.file("cli/src/copilot_cli/config.toml")
+    if (configFile.exists()) {
+        val lines = configFile.readLines()
+        var inProxy = false
+        for (line in lines) {
+            val trimmed = line.trim()
+            if (trimmed == "[proxy]") { inProxy = true; continue }
+            if (trimmed.startsWith("[") && inProxy) break
+            if (inProxy && trimmed.startsWith("url")) {
+                val match = Regex("""url\s*=\s*"(.+?)"""").find(trimmed)
+                if (match != null) return@lazy match.groupValues[1]
+            }
+        }
+    }
+    System.getenv("HTTPS_PROXY") ?: System.getenv("HTTP_PROXY")
+}
+
 // Find a Python >=3.10 interpreter for venv creation.
 // Gradle inherits a minimal PATH that may not include /opt/local/bin, /usr/local/bin, etc.
 val systemPython: String by lazy {
@@ -48,19 +68,23 @@ tasks.register<Exec>("upgradePip") {
     description = "Upgrade pip and setuptools in the venv"
     group = "python"
     dependsOn("createVenv")
-    commandLine(python, "-m", "pip", "install", "--upgrade", "pip", "setuptools")
+    val cmd = mutableListOf(python, "-m", "pip", "install", "--upgrade", "pip", "setuptools")
+    proxyUrl?.let { cmd.addAll(listOf("--proxy", it)) }
+    commandLine(cmd)
 }
 
 tasks.register<Exec>("installDeps") {
     description = "Install both modules in editable mode plus dev dependencies"
     group = "python"
     dependsOn("upgradePip")
-    commandLine(
+    val cmd = mutableListOf(
         pip, "install",
         "-e", project(":cli").projectDir.absolutePath,
         "-e", project(":agent-builder").projectDir.absolutePath,
         "pytest", "ruff"
     )
+    proxyUrl?.let { cmd.addAll(listOf("--proxy", it)) }
+    commandLine(cmd)
 }
 
 tasks.register<Exec>("test") {
