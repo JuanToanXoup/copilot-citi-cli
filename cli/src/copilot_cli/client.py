@@ -871,12 +871,14 @@ def _init_client(workspace: str, agent_mode: bool = False,
     client.check_status()
     time.sleep(0.5)
 
-    # Substitute {workspace} in MCP server args
+    # Substitute {workspace} in MCP server args and URLs
     if mcp_config:
         for srv_cfg in mcp_config.values():
             if "args" in srv_cfg:
                 srv_cfg["args"] = [a.replace("{workspace}", client.workspace_root)
                                    for a in srv_cfg["args"]]
+            if "url" in srv_cfg:
+                srv_cfg["url"] = srv_cfg["url"].replace("{workspace}", client.workspace_root)
 
     # Auto-route MCP: server-side if allowed, client-side if blocked
     if mcp_config:
