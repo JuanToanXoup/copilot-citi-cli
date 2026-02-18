@@ -466,7 +466,22 @@ class BuilderHandler(BaseHTTPRequestHandler):
 def start_server(port=8420, open_browser=True):
     """Start the Agent Builder HTTP server."""
     ThreadingHTTPServer.allow_reuse_address = True
-    server = ThreadingHTTPServer(("127.0.0.1", port), BuilderHandler)
+    try:
+        server = ThreadingHTTPServer(("127.0.0.1", port), BuilderHandler)
+    except OSError as e:
+        if e.errno == 48:  # Address already in use
+            print(f"\n  Port {port} is already in use. Attempting to stop the existing server...")
+            import signal
+            import subprocess
+            result = subprocess.run(["lsof", "-ti", f":{port}"], capture_output=True, text=True)
+            if result.stdout.strip():
+                for pid in result.stdout.strip().split("\n"):
+                    os.kill(int(pid), signal.SIGTERM)
+                import time
+                time.sleep(1)
+            server = ThreadingHTTPServer(("127.0.0.1", port), BuilderHandler)
+        else:
+            raise
     print(f"\n  \033[94m╭─ Agent Builder\033[0m")
     print(f"  \033[94m│\033[0m  http://localhost:{port}")
     print(f"  \033[94m╰─\033[0m\n")
