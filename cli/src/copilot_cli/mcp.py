@@ -27,11 +27,13 @@ class MCPServer:
     Each message is a single line of JSON followed by a newline character.
     """
 
-    def __init__(self, name: str, command: str, args: list = None, env: dict = None):
+    def __init__(self, name: str, command: str, args: list = None,
+                 env: dict = None, init_timeout: int = 60):
         self.name = name
         self.command = command
         self.args = args or []
         self.env = env or {}
+        self.init_timeout = init_timeout
         self.process = None
         self.tools = []  # Discovered MCP tools
         self._responses = {}
@@ -140,7 +142,7 @@ class MCPServer:
                 "name": "copilot-cli-mcp-bridge",
                 "version": "0.1.0",
             },
-        }, timeout=60)
+        }, timeout=self.init_timeout)
         result = resp.get("result", {})
         server_info = result.get("serverInfo", {})
 
@@ -243,6 +245,7 @@ class ClientMCPManager:
                 command=server_config["command"],
                 args=server_config.get("args", []),
                 env=server_config.get("env", {}),
+                init_timeout=int(server_config.get("init_timeout", 60)),
             )
             self.servers[name] = server
 

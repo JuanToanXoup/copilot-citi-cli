@@ -66,3 +66,8 @@ args = ["-y", "@peng-shawn/mermaid-mcp-server"]
 [mcp.qdrant]
 command = "uvx"
 args = ["mcp-server-qdrant"]
+
+[mcp.intellij-index]
+command = "/Users/johndoan/IdeaProjects/ide-index/headless-idea.sh"
+args = ["/Users/johndoan/IdeaProjects/copilot-citi-cli"]
+init_timeout = 300
