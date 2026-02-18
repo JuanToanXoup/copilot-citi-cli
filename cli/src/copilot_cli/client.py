@@ -9,6 +9,7 @@ import base64
 import glob
 import json
 import os
+import readline  # noqa: F401 – enables arrow-key editing in input()
 import shutil
 import subprocess
 import threading

@@ -42,6 +42,11 @@ import sys
 import threading
 import time
 
+try:
+    import readline  # noqa: F401 – enables arrow-key editing in input()
+except ImportError:
+    pass
+
 # Ensure the parent directory is on the path so imports work
 _here = os.path.dirname(os.path.abspath(__file__))
 _parent = os.path.dirname(_here)
@@ -246,8 +251,11 @@ def build_agent(config: dict, output_dir: str,
     entry_path = _generate_entry_point(config, output_dir)
     _emit("log", f"  Entry point: {entry_path}")
 
-    # Locate project root (where copilot_client.py lives)
-    project_root = os.path.dirname(os.path.abspath(__file__))
+    # Locate package roots for PyInstaller --paths
+    project_root = os.path.dirname(os.path.abspath(__file__))  # agent_builder pkg
+    # copilot_cli lives in cli/src/ relative to the repo root
+    repo_root = os.path.normpath(os.path.join(project_root, "..", "..", ".."))
+    cli_src = os.path.join(repo_root, "cli", "src")
 
     # Check for PyInstaller — try each candidate and verify it works
     _emit("step", "Checking for PyInstaller...")
@@ -293,6 +301,7 @@ def build_agent(config: dict, output_dir: str,
         "--hidden-import", "copilot_cli.log",
         "--hidden-import", "copilot_cli.tools",
         "--hidden-import", "agent_builder.templates",
+        "--hidden-import", "readline",
     ]
 
     cmd = [
@@ -305,6 +314,7 @@ def build_agent(config: dict, output_dir: str,
         *add_data,
         *hidden,
         "--paths", project_root,
+        "--paths", cli_src,
         entry_path,
     ]
 

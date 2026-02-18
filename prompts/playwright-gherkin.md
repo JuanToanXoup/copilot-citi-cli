@@ -44,7 +44,7 @@ Map each Selenium action to the equivalent Playwright MCP call:
 | `waitForElement` / `waitForElementTextToLoad` | `browser_snapshot`, check text |
 | `verifyElementPresent` / assertions | `browser_snapshot`, verify element exists |
 
-Execute actions sequentially. Take a `browser_snapshot` after each key interaction to verify page state. If a step fails, report which Gherkin step failed and the error.
+Execute actions sequentially. Take a `browser_snapshot` after page has fully loaded after each key interaction to verify page state. If a step fails, report which Gherkin step failed and the error.
 
 ## Execution order
 1. Resolve ALL step definitions and variables BEFORE executing anything.
