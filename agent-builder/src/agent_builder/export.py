@@ -31,10 +31,7 @@ def _generate_entry_point(config: dict, output_dir: str) -> str:
     system_prompt_escaped = system_prompt.replace("\\", "\\\\").replace('"""', '\\"\\"\\"')
     description_escaped = description.replace("\\", "\\\\").replace('"""', '\\"\\"\\"')
 
-    config_json = json.dumps(config, indent=4)
-    # Indent the config JSON to match the AGENT_CONFIG assignment
-    config_lines = config_json.split('\n')
-    config_indented = config_lines[0] + '\n' + '\n'.join(config_lines[1:])
+    config_json_str = json.dumps(json.dumps(config))  # double-encode: JSON string literal
 
     script = f'''#!/usr/bin/env python3
 """Auto-generated agent entry point: {name}"""
@@ -53,7 +50,7 @@ if _parent not in sys.path:
 if _here not in sys.path:
     sys.path.insert(0, _here)
 
-AGENT_CONFIG = {config_indented}
+AGENT_CONFIG = json.loads({config_json_str})
 
 def _filter_tools():
     """Restrict TOOL_SCHEMAS/TOOL_EXECUTORS to only enabled tools."""
