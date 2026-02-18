@@ -100,6 +100,9 @@ const Components = {
         // Custom (non-known) MCP servers as removable cards
         for (const [name, config] of Object.entries(enabledServers)) {
             if (name in knownServers) continue;
+            const detail = config.url
+                ? 'SSE: ' + this._esc(config.url)
+                : this._esc(config.command || '') + ' ' + (config.args || []).join(' ');
             const card = document.createElement('div');
             card.className = 'server-card';
             card.style.marginTop = '8px';
@@ -108,7 +111,7 @@ const Components = {
                     <span class="server-card-name">${this._esc(name)}</span>
                     <button class="btn btn-sm btn-danger" data-remove-mcp="${this._esc(name)}">Remove</button>
                 </div>
-                <div class="server-card-detail">${this._esc(config.command)} ${(config.args || []).join(' ')}</div>
+                <div class="server-card-detail">${detail}</div>
             `;
             card.querySelector('[data-remove-mcp]').addEventListener('click', () => {
                 window.App.removeMcpServer(name);

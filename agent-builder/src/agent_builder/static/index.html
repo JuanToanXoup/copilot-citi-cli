@@ -107,12 +107,27 @@
                             <input type="text" id="mcp-name" placeholder="my-server">
                         </div>
                         <div class="field">
-                            <label>Command</label>
-                            <input type="text" id="mcp-command" placeholder="npx">
+                            <label>Transport</label>
+                            <select id="mcp-transport">
+                                <option value="stdio">stdio (command)</option>
+                                <option value="sse">SSE (url)</option>
+                            </select>
                         </div>
-                        <div class="field">
-                            <label>Args (comma-separated)</label>
-                            <input type="text" id="mcp-args" placeholder="-y, @some/mcp-server">
+                        <div id="mcp-stdio-fields">
+                            <div class="field">
+                                <label>Command</label>
+                                <input type="text" id="mcp-command" placeholder="npx">
+                            </div>
+                            <div class="field">
+                                <label>Args (comma-separated)</label>
+                                <input type="text" id="mcp-args" placeholder="-y, @some/mcp-server">
+                            </div>
+                        </div>
+                        <div id="mcp-sse-fields" style="display:none">
+                            <div class="field">
+                                <label>URL</label>
+                                <input type="text" id="mcp-url" placeholder="http://127.0.0.1:8080/sse">
+                            </div>
                         </div>
                         <button class="btn btn-sm" id="btn-add-mcp">+ Add Custom MCP</button>
                     </div>

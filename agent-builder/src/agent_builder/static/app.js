@@ -308,6 +308,11 @@ const App = window.App = {
             this._updateToolCount();
         });
 
+        // MCP transport toggle
+        document.getElementById('mcp-transport').addEventListener('change', (e) => {
+            document.getElementById('mcp-stdio-fields').style.display = e.target.value === 'stdio' ? '' : 'none';
+            document.getElementById('mcp-sse-fields').style.display = e.target.value === 'sse' ? '' : 'none';
+        });
         // MCP add
         document.getElementById('btn-add-mcp').addEventListener('click', () => this._addMcpServer());
         // LSP add
@@ -396,16 +401,28 @@ const App = window.App = {
 
     _addMcpServer() {
         const name = document.getElementById('mcp-name').value.trim();
-        const cmd = document.getElementById('mcp-command').value.trim();
-        const argsStr = document.getElementById('mcp-args').value.trim();
-        if (!name || !cmd) return;
+        const transport = document.getElementById('mcp-transport').value;
+        if (!name) return;
 
-        const args = argsStr ? argsStr.split(',').map(a => a.trim()).filter(Boolean) : [];
-        this.state.config.mcp_servers[name] = { command: cmd, args, env: {} };
+        if (transport === 'sse') {
+            const url = document.getElementById('mcp-url').value.trim();
+            if (!url) return;
+            this.state.config.mcp_servers[name] = { url };
+            document.getElementById('mcp-url').value = '';
+        } else {
+            const cmd = document.getElementById('mcp-command').value.trim();
+            const argsStr = document.getElementById('mcp-args').value.trim();
+            if (!cmd) return;
+            const args = argsStr ? argsStr.split(',').map(a => a.trim()).filter(Boolean) : [];
+            this.state.config.mcp_servers[name] = { command: cmd, args, env: {} };
+            document.getElementById('mcp-command').value = '';
+            document.getElementById('mcp-args').value = '';
+        }
 
         document.getElementById('mcp-name').value = '';
-        document.getElementById('mcp-command').value = '';
-        document.getElementById('mcp-args').value = '';
+        document.getElementById('mcp-transport').value = 'stdio';
+        document.getElementById('mcp-stdio-fields').style.display = '';
+        document.getElementById('mcp-sse-fields').style.display = 'none';
         this._renderServers();
     },
 
