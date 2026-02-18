@@ -469,10 +469,12 @@ class CopilotClient:
 
     def conversation_turn(self, conversation_id: str, message: str,
                           model: str = None, agent_mode: bool = False,
+                          workspace_folder: str = None,
                           on_progress: callable = None) -> dict:
         """Send a follow-up message in an existing conversation.
 
         Args:
+            workspace_folder: Workspace root URI for agent mode context.
             on_progress: Optional streaming callback ``(kind, data) -> None``.
         """
         work_done_token = f"copilot-chat-{uuid.uuid4().hex[:8]}"
@@ -485,6 +487,9 @@ class CopilotClient:
         if agent_mode:
             params["chatMode"] = "Agent"
             params["needToolCallConfirmation"] = True
+        if workspace_folder:
+            params["workspaceFolder"] = workspace_folder
+            params["workspaceFolders"] = [{"uri": workspace_folder, "name": os.path.basename(workspace_folder)}]
         if model:
             params["model"] = model
 
@@ -1130,6 +1135,7 @@ def cmd_chat(args):
             else:
                 result = client.conversation_turn(
                     conversation_id, prompt, model=model, agent_mode=agent_mode,
+                    workspace_folder=workspace_uri if agent_mode else None,
                     on_progress=_on_progress,
                 )
 
