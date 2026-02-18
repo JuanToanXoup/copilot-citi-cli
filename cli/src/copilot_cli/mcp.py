@@ -76,15 +76,8 @@ class MCPServer:
                 if text.lstrip().startswith(("at ", "Caused by:", "...")):
                     in_stacktrace = True
                     continue
-                # Suppress noisy IntelliJ warnings (WARN lines with timestamps)
-                if "WARN" in text and any(s in text for s in (
-                    "BundledSharedIndex", "asyncLoad", "preload=TRUE",
-                    "WorkspaceModelCache", "IdeVersionedData", "updateAllMaven",
-                    "MissingTypeMetadata", "Port 29170",
-                )):
-                    continue
-                # Suppress SEVERE lines (IntelliJ internal errors behind proxy)
-                if "SEVERE" in text:
+                # Suppress all WARN and SEVERE lines (IntelliJ internal noise)
+                if "WARN" in text or "SEVERE" in text:
                     continue
                 # Suppress Java VM warnings
                 if text.startswith(("Java HotSpot", "java.", "com.intellij", "org.jetbrains",
