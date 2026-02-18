@@ -58,8 +58,10 @@ class MCPServer:
         self._reader_thread = threading.Thread(target=self._reader_loop, daemon=True)
         self._reader_thread.start()
 
-        # Forward stderr so npx download progress is visible
+        # Forward stderr — show download progress and key status lines,
+        # suppress Java stack traces and harmless IDE warnings.
         def _stderr_reader():
+            in_stacktrace = False
             while self.process and self.process.poll() is None:
                 try:
                     line = self.process.stderr.readline()
@@ -68,8 +70,28 @@ class MCPServer:
                 if not line:
                     break
                 text = line.decode("utf-8", errors="replace").rstrip()
-                if text:
-                    print(f"[client-mcp:{self.name}] {text}")
+                if not text:
+                    continue
+                # Suppress Java stack traces (lines starting with "at " or "Caused by:")
+                if text.lstrip().startswith(("at ", "Caused by:", "...")):
+                    in_stacktrace = True
+                    continue
+                # Suppress noisy IntelliJ warnings (WARN lines with timestamps)
+                if "WARN" in text and any(s in text for s in (
+                    "BundledSharedIndex", "asyncLoad", "preload=TRUE",
+                    "WorkspaceModelCache", "IdeVersionedData", "updateAllMaven",
+                    "MissingTypeMetadata", "Port 29170",
+                )):
+                    continue
+                # Suppress SEVERE lines (IntelliJ internal errors behind proxy)
+                if "SEVERE" in text:
+                    continue
+                # Suppress Java VM warnings
+                if text.startswith(("Java HotSpot", "java.", "com.intellij", "org.jetbrains",
+                                    "kotlin.", "kotlinx.", "sun.", "jdk.")):
+                    continue
+                in_stacktrace = False
+                print(f"[client-mcp:{self.name}] {text}")
         threading.Thread(target=_stderr_reader, daemon=True).start()
 
     def _next_id(self) -> int:

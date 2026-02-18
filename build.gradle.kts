@@ -38,23 +38,27 @@ val proxyUrl: String? by lazy {
 }
 
 // Find a Python >=3.10 interpreter for venv creation.
-// Gradle inherits a minimal PATH that may not include /opt/local/bin, /usr/local/bin, etc.
+// Prefer the active python3 from PATH first (respects conda/venv/pyenv — has SSL
+// certs and pip config). Then fall back to searching versioned binaries in common
+// install dirs (Gradle inherits a minimal PATH that may miss some locations).
 val systemPython: String by lazy {
-    val names = listOf("python3.13", "python3.12", "python3.11", "python3.10", "python3")
-    val searchDirs = listOf("/opt/local/bin", "/usr/local/bin", "/opt/homebrew/bin", "")
-    val candidates = searchDirs.flatMap { dir ->
-        names.map { name -> if (dir.isEmpty()) name else "$dir/$name" }
+    fun checkPython(cmd: String): Boolean = try {
+        val proc = ProcessBuilder(cmd, "--version")
+            .redirectErrorStream(true).start()
+        val out = proc.inputStream.bufferedReader().readText()
+        proc.waitFor()
+        val match = Regex("""Python 3\.(\d+)""").find(out)
+        match != null && match.groupValues[1].toInt() >= 10
+    } catch (_: Exception) { false }
+
+    // Check active python3 first — it inherits the user's SSL and pip config
+    if (checkPython("python3")) "python3"
+    else {
+        val names = listOf("python3.13", "python3.12", "python3.11", "python3.10")
+        val searchDirs = listOf("/opt/local/bin", "/usr/local/bin", "/opt/homebrew/bin")
+        val candidates = searchDirs.flatMap { dir -> names.map { "$dir/$it" } }
+        candidates.firstOrNull { checkPython(it) } ?: "python3"
     }
-    candidates.firstOrNull { cmd ->
-        try {
-            val proc = ProcessBuilder(cmd, "--version")
-                .redirectErrorStream(true).start()
-            val out = proc.inputStream.bufferedReader().readText()
-            proc.waitFor()
-            val match = Regex("""Python 3\.(\d+)""").find(out)
-            match != null && match.groupValues[1].toInt() >= 10
-        } catch (_: Exception) { false }
-    } ?: "python3"
 }
 
 tasks.register<Exec>("createVenv") {
