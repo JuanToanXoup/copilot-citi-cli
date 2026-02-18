@@ -69,8 +69,50 @@ def _python_symbol_search(symbol: str, root: str) -> str:
     return "\n".join(lines)
 
 
+def _lsp_symbol_search(symbol: str, ctx: ToolContext) -> str | None:
+    """Try workspace/symbol via LSP. Returns formatted output or None."""
+    from lsp_bridge import _SYMBOL_KINDS, _uri_to_path
+    bridge = ctx.lsp_bridge
+    if not bridge:
+        return None
+
+    # Try each workspace language until one returns results
+    results = []
+    for lang in bridge.get_workspace_languages():
+        server = bridge.get_server(lang)
+        if not server:
+            continue
+        symbols = server.workspace_symbol(symbol)
+        for sym in symbols:
+            name = sym.get("name", "")
+            kind_num = sym.get("kind", 0)
+            kind = _SYMBOL_KINDS.get(kind_num, "Symbol")
+            loc = sym.get("location", {})
+            uri = loc.get("uri", "")
+            rng = loc.get("range", {}).get("start", {})
+            line = rng.get("line", 0) + 1  # 0-indexed -> 1-indexed
+            path = _uri_to_path(uri)
+            container = sym.get("containerName", "")
+            container_str = f"  ({container})" if container else ""
+            results.append(f"{path}:{line}: [{kind}] {name}{container_str}")
+        if results:
+            break  # Got results from this language
+    if not results:
+        return None
+    return "\n".join(results[:100])  # Cap at 100 results
+
+
 def execute(tool_input: dict, ctx: ToolContext) -> list:
     symbol = tool_input.get("symbolName", "")
+
+    # Try LSP first
+    lsp_output = _lsp_symbol_search(symbol, ctx)
+    if lsp_output:
+        count = lsp_output.count("\n") + 1
+        logger.debug("search_workspace_symbols '%s': %d matches (LSP)", symbol, count)
+        return [{"type": "text", "value": lsp_output}]
+
+    # Fallback: grep-based search
     def_pattern = "|".join(_DEF_PATTERNS)
 
     grep_bin = find_grep()

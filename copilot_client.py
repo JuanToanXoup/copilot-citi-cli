@@ -16,6 +16,7 @@ import uuid
 from urllib.parse import urlparse
 
 from copilot_mcp import ClientMCPManager
+from lsp_bridge import LSPBridgeManager
 from platform_utils import path_to_file_uri, default_copilot_binary, default_apps_json
 from tools import TOOL_SCHEMAS, TOOL_EXECUTORS, BUILTIN_TOOL_NAMES, ToolContext
 
@@ -68,6 +69,7 @@ class CopilotClient:
         self.verbose = False
         self._spinner_clear = None  # callable set by cmd_chat to clear spinner
         self.client_mcp: ClientMCPManager | None = None  # Client-side MCP bridge
+        self.lsp_bridge: LSPBridgeManager | None = None  # LSP bridge for code intelligence
 
     def _read_auth(self) -> dict:
         """Read OAuth token from apps.json."""
@@ -550,6 +552,7 @@ class CopilotClient:
             workspace_root=self.workspace_root,
             sync_file_to_server=self._sync_file_to_server,
             open_document=self.open_document,
+            lsp_bridge=self.lsp_bridge,
         )
         try:
             result = executor(tool_input, ctx)
@@ -776,7 +779,9 @@ class CopilotClient:
         return servers
 
     def stop(self):
-        """Shutdown the language server and client-side MCP servers."""
+        """Shutdown the language server, MCP servers, and LSP bridge."""
+        if self.lsp_bridge:
+            self.lsp_bridge.stop_all()
         if self.client_mcp:
             self.client_mcp.stop_all()
         try:
@@ -847,6 +852,10 @@ def _init_client(workspace: str, agent_mode: bool = False,
             manager.add_servers(mcp_config)
             manager.start_all()
             client.client_mcp = manager
+
+    # Create LSP bridge for code intelligence (lazy — servers start on demand)
+    lsp_config = CONFIG.get("lsp", {})
+    client.lsp_bridge = LSPBridgeManager(client.workspace_root, lsp_config)
 
     if agent_mode:
         client.register_client_tools()

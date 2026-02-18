@@ -22,6 +22,24 @@ default_model = "gpt-4.1"
 #url = "http://webproxy.wlb2.nam.nsroot.net:19015"
 #no_ssl_verify = false
 
+# LSP servers for code intelligence (auto-detected if installed)
+# Override built-in defaults here. Servers start lazily on first tool use.
+#[lsp.python]
+#command = "pyright-langserver"
+#args = ["--stdio"]
+
+#[lsp.typescript]
+#command = "typescript-language-server"
+#args = ["--stdio"]
+
+#[lsp.go]
+#command = "gopls"
+#args = ["serve"]
+
+#[lsp.rust]
+#command = "rust-analyzer"
+#args = []
+
 # MCP servers - auto-routes to server-side if org allows,
 # otherwise falls back to client-side
 [mcp.playwright]
