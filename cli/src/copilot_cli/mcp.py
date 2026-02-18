@@ -19,6 +19,8 @@ import shutil
 import subprocess
 import threading
 import time
+import urllib.request
+import urllib.error
 
 class MCPServer:
     """Manages a single MCP server process and communicates via JSON-RPC over stdio.
@@ -191,6 +193,149 @@ class MCPServer:
                     pass
         pass  # Silent cleanup
 
+class MCPSSEServer:
+    """Connects to an MCP server over SSE (Server-Sent Events) transport.
+
+    SSE transport flow:
+    1. GET the SSE endpoint — server sends an 'endpoint' event with a POST URL
+    2. POST JSON-RPC requests to that URL
+    3. Server sends responses as SSE 'message' events
+    """
+
+    def __init__(self, name: str, url: str, init_timeout: int = 60):
+        self.name = name
+        self.url = url
+        self.init_timeout = init_timeout
+        self.tools = []
+        self._post_url = None
+        self._responses = {}
+        self._request_id = 0
+        self._lock = threading.Lock()
+        self._reader_thread = None
+        self._connected = threading.Event()
+
+    def start(self):
+        """Connect to the SSE endpoint and discover the POST URL."""
+        self._reader_thread = threading.Thread(target=self._sse_loop, daemon=True)
+        self._reader_thread.start()
+        # Wait for the endpoint event
+        if not self._connected.wait(timeout=self.init_timeout):
+            raise TimeoutError(f"MCP server '{self.name}': SSE endpoint did not send endpoint event")
+
+    def _sse_loop(self):
+        """Background thread: read SSE events from the server."""
+        try:
+            req = urllib.request.Request(self.url)
+            req.add_header("Accept", "text/event-stream")
+            resp = urllib.request.urlopen(req, timeout=self.init_timeout)
+        except Exception as e:
+            print(f"[client-mcp:{self.name}] SSE connect failed: {e}")
+            return
+
+        event_type = None
+        data_lines = []
+        for raw_line in resp:
+            line = raw_line.decode("utf-8", errors="replace").rstrip("\n\r")
+            if line.startswith("event:"):
+                event_type = line[6:].strip()
+            elif line.startswith("data:"):
+                data_lines.append(line[5:].strip())
+            elif line == "":
+                # End of event
+                data = "\n".join(data_lines)
+                data_lines = []
+                if event_type == "endpoint" and data:
+                    # Resolve relative URL against SSE base
+                    if data.startswith("/"):
+                        from urllib.parse import urlparse
+                        parsed = urlparse(self.url)
+                        self._post_url = f"{parsed.scheme}://{parsed.netloc}{data}"
+                    else:
+                        self._post_url = data
+                    self._connected.set()
+                elif event_type == "message" and data:
+                    try:
+                        msg = json.loads(data)
+                        with self._lock:
+                            msg_id = msg.get("id")
+                            if msg_id is not None:
+                                self._responses[msg_id] = msg
+                    except json.JSONDecodeError:
+                        pass
+                event_type = None
+
+    def _next_id(self) -> int:
+        self._request_id += 1
+        return self._request_id
+
+    def send_request(self, method: str, params: dict = None, timeout: int = 30) -> dict:
+        if not self._post_url:
+            raise RuntimeError(f"MCP server '{self.name}': not connected (no POST URL)")
+
+        msg_id = self._next_id()
+        msg = {"jsonrpc": "2.0", "id": msg_id, "method": method}
+        if params is not None:
+            msg["params"] = params
+
+        body = json.dumps(msg).encode("utf-8")
+        req = urllib.request.Request(self._post_url, data=body,
+                                     headers={"Content-Type": "application/json"})
+        try:
+            urllib.request.urlopen(req, timeout=10)
+        except Exception as e:
+            return {"error": {"message": f"POST failed: {e}"}}
+
+        start = time.time()
+        while time.time() - start < timeout:
+            with self._lock:
+                if msg_id in self._responses:
+                    return self._responses.pop(msg_id)
+            time.sleep(0.05)
+        raise TimeoutError(f"MCP server '{self.name}': no response for {method}")
+
+    def send_notification(self, method: str, params: dict = None):
+        if not self._post_url:
+            return
+        msg = {"jsonrpc": "2.0", "method": method}
+        if params is not None:
+            msg["params"] = params
+        body = json.dumps(msg).encode("utf-8")
+        req = urllib.request.Request(self._post_url, data=body,
+                                     headers={"Content-Type": "application/json"})
+        try:
+            urllib.request.urlopen(req, timeout=10)
+        except Exception:
+            pass
+
+    def initialize(self):
+        """Perform MCP initialize handshake."""
+        resp = self.send_request("initialize", {
+            "protocolVersion": "2024-11-05",
+            "capabilities": {},
+            "clientInfo": {
+                "name": "copilot-cli-mcp-bridge",
+                "version": "0.1.0",
+            },
+        }, timeout=self.init_timeout)
+        self.send_notification("notifications/initialized", {})
+        return resp.get("result", {})
+
+    def list_tools(self) -> list:
+        resp = self.send_request("tools/list", {})
+        self.tools = resp.get("result", {}).get("tools", [])
+        return self.tools
+
+    def call_tool(self, tool_name: str, arguments: dict) -> dict:
+        resp = self.send_request("tools/call", {
+            "name": tool_name,
+            "arguments": arguments,
+        }, timeout=120)
+        return resp.get("result", {})
+
+    def stop(self):
+        pass  # SSE connection closes when thread ends
+
+
 def _sanitize_schema(schema: dict):
     """Fix JSON Schema constructs that the Copilot server rejects.
 
@@ -252,16 +397,26 @@ class ClientMCPManager:
         }
         """
         for name, server_config in config.items():
-            if "command" not in server_config:
-                print(f"[client-mcp] Skipping '{name}': no 'command' (HTTP transport not supported client-side)")
+            init_timeout = int(server_config.get("init_timeout", 60))
+            if "url" in server_config:
+                # SSE transport
+                server = MCPSSEServer(
+                    name=name,
+                    url=server_config["url"],
+                    init_timeout=init_timeout,
+                )
+            elif "command" in server_config:
+                # Stdio transport
+                server = MCPServer(
+                    name=name,
+                    command=server_config["command"],
+                    args=server_config.get("args", []),
+                    env=server_config.get("env", {}),
+                    init_timeout=init_timeout,
+                )
+            else:
+                print(f"[client-mcp] Skipping '{name}': need 'command' (stdio) or 'url' (SSE)")
                 continue
-            server = MCPServer(
-                name=name,
-                command=server_config["command"],
-                args=server_config.get("args", []),
-                env=server_config.get("env", {}),
-                init_timeout=int(server_config.get("init_timeout", 60)),
-            )
             self.servers[name] = server
 
     def start_all(self, on_progress=None):

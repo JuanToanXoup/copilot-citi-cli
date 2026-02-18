@@ -71,7 +71,9 @@ args = ["-y", "@peng-shawn/mermaid-mcp-server"]
 command = "uvx"
 args = ["mcp-server-qdrant"]
 
+# IntelliJ IDE index MCP — use url (SSE) if IDE is running, or command (stdio) for headless
 [mcp.intellij-index]
-command = "/Users/johndoan/IdeaProjects/ide-index/headless-idea.sh"
-args = ["{workspace}"]
-init_timeout = 300
+url = "http://127.0.0.1:29170/index-mcp/sse"
+#command = "/Users/johndoan/IdeaProjects/ide-index/headless-idea.sh"
+#args = ["{workspace}"]
+#init_timeout = 300
