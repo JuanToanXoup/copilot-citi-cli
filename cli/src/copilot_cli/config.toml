@@ -15,6 +15,10 @@
 # Linux:
 # copilot_binary = "~/.local/share/JetBrains/*/plugins/github-copilot-intellij/copilot-agent/native/linux-x64/copilot-language-server"
 
+# Default workspace directory (used when -w is not specified).
+# Also available as {workspace} in MCP server args.
+#workspace = "~/IdeaProjects/copilot-citi-cli"
+
 # Available models: "gpt-4.1", "gemini-2.5-pro", "claude-sonnet-4"
 default_model = "gpt-4.1"
 
@@ -69,5 +73,5 @@ args = ["mcp-server-qdrant"]
 
 [mcp.intellij-index]
 command = "/Users/johndoan/IdeaProjects/ide-index/headless-idea.sh"
-args = ["/Users/johndoan/IdeaProjects/copilot-citi-cli"]
+args = ["{workspace}"]
 init_timeout = 300

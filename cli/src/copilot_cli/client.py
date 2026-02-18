@@ -848,6 +848,13 @@ def _init_client(workspace: str, agent_mode: bool = False,
     client.check_status()
     time.sleep(0.5)
 
+    # Substitute {workspace} in MCP server args
+    if mcp_config:
+        for srv_cfg in mcp_config.values():
+            if "args" in srv_cfg:
+                srv_cfg["args"] = [a.replace("{workspace}", client.workspace_root)
+                                   for a in srv_cfg["args"]]
+
     # Auto-route MCP: server-side if allowed, client-side if blocked
     if mcp_config:
         _emit("Starting MCP servers...")
@@ -1151,8 +1158,11 @@ def main():
         prog="copilot",
         description="GitHub Copilot Language Server CLI",
     )
-    parser.add_argument("-w", "--workspace", default=os.getcwd(),
-                        help="Workspace directory (default: /tmp/copilot-workspace)")
+    config_workspace = CONFIG.get("workspace")
+    if config_workspace:
+        config_workspace = os.path.expanduser(config_workspace)
+    parser.add_argument("-w", "--workspace", default=config_workspace or os.getcwd(),
+                        help="Workspace directory (default: config.toml workspace or cwd)")
     parser.add_argument("--mcp", default=None,
                         help="MCP server config: path to JSON file or inline JSON string. "
                              "Auto-routes to server-side or client-side based on org policy.")
