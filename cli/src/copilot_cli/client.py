@@ -1183,6 +1183,46 @@ def cmd_chat(args):
     finally:
         client.stop()
 
+def cmd_orchestrate(args):
+    """Multi-agent orchestrator mode."""
+    from copilot_cli.orchestrator import run_orchestrator_cli, WorkerConfig
+
+    workspace = os.path.abspath(args.workspace)
+    goal = " ".join(args.prompt)
+    model = args.model
+
+    # Parse custom worker configs if provided
+    workers = None
+    workers_arg = getattr(args, "workers", None)
+    if workers_arg:
+        # Load from file or inline JSON
+        if os.path.isfile(workers_arg):
+            with open(workers_arg, "r") as f:
+                worker_defs = json.load(f)
+        else:
+            worker_defs = json.loads(workers_arg)
+
+        workers = [
+            WorkerConfig(
+                role=w["role"],
+                system_prompt=w.get("system_prompt", ""),
+                model=w.get("model", model),
+                tools_enabled=w.get("tools_enabled", "__ALL__"),
+                agent_mode=w.get("agent_mode", True),
+            )
+            for w in worker_defs
+        ]
+
+    run_orchestrator_cli(
+        workspace=workspace,
+        goal=goal,
+        workers=workers,
+        model=model,
+        proxy_url=getattr(args, "proxy", None),
+        no_ssl_verify=getattr(args, "no_ssl_verify", False),
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="copilot",
@@ -1224,6 +1264,14 @@ def main():
     p_agent.add_argument("prompt", nargs="*", help="Prompt (omit for interactive mode)")
     p_agent.add_argument("-m", "--model", default=None, help="Model ID")
 
+    # --- orchestrate (multi-agent orchestrator) ---
+    p_orch = sub.add_parser("orchestrate", help="Multi-agent orchestrator mode")
+    p_orch.add_argument("prompt", nargs="+", help="High-level goal for the orchestrator")
+    p_orch.add_argument("-m", "--model", default=None, help="Model ID for orchestrator and workers")
+    p_orch.add_argument("--workers", default=None,
+                        help="Worker config: JSON file or inline JSON array of "
+                             '{role, system_prompt, model, tools_enabled}')
+
     # --- mcp (MCP server management) ---
     p_mcp = sub.add_parser("mcp", help="MCP server management")
     p_mcp.add_argument("mcp_action", choices=["list", "tools", "start", "stop", "restart"],
@@ -1256,6 +1304,8 @@ def main():
         cmd_chat(args)
     elif args.command == "chat":
         cmd_chat(args)
+    elif args.command == "orchestrate":
+        cmd_orchestrate(args)
     elif args.command == "mcp":
         cmd_mcp(args)
     else:
