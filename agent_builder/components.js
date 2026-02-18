@@ -62,11 +62,47 @@ const Components = {
         }
     },
 
-    renderMcpServers(servers, container) {
+    renderMcpCheckboxes(knownServers, enabledServers, container) {
         container.innerHTML = '';
-        for (const [name, config] of Object.entries(servers)) {
+
+        // Known MCP servers as checkboxes
+        for (const [name, info] of Object.entries(knownServers)) {
+            const checked = name in enabledServers;
+            const item = document.createElement('div');
+            item.className = 'tool-item';
+
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = checked;
+            cb.dataset.mcp = name;
+            cb.addEventListener('change', () => {
+                window.App.toggleMcp(name, cb.checked);
+            });
+
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'tool-item-info';
+
+            const nameSpan = document.createElement('div');
+            nameSpan.className = 'tool-item-name';
+            nameSpan.textContent = info.description || name;
+
+            const desc = document.createElement('div');
+            desc.className = 'tool-item-desc';
+            desc.textContent = `${info.command} ${(info.args || []).join(' ')}`;
+
+            infoDiv.appendChild(nameSpan);
+            infoDiv.appendChild(desc);
+            item.appendChild(cb);
+            item.appendChild(infoDiv);
+            container.appendChild(item);
+        }
+
+        // Custom (non-known) MCP servers as removable cards
+        for (const [name, config] of Object.entries(enabledServers)) {
+            if (name in knownServers) continue;
             const card = document.createElement('div');
             card.className = 'server-card';
+            card.style.marginTop = '8px';
             card.innerHTML = `
                 <div class="server-card-header">
                     <span class="server-card-name">${this._esc(name)}</span>

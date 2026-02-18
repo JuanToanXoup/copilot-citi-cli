@@ -1,5 +1,13 @@
 /* Main state management + event wiring for Agent Builder */
 
+const KNOWN_MCP_SERVERS = {
+    playwright: { command: "npx", args: ["-y", "@playwright/mcp@latest"], env: {}, description: "Playwright (browser automation)" },
+    mermaid:    { command: "npx", args: ["-y", "@peng-shawn/mermaid-mcp-server"], env: {}, description: "Mermaid (diagram generation)" },
+    qdrant:     { command: "npx", args: ["-y", "@qdrant/mcp-server-qdrant"], env: {}, description: "Qdrant (vector search)" },
+};
+
+const DEFAULT_MCP = ["playwright", "mermaid", "qdrant"];
+
 const KNOWN_LSP_SERVERS = {
     python:   { command: "pyright-langserver", args: ["--stdio"], description: "Python (Pyright)" },
     java:     { command: "jdtls", args: [], description: "Java (Eclipse JDT)" },
@@ -25,6 +33,7 @@ const App = window.App = {
             mcp_servers: {
                 "playwright": { command: "npx", args: ["-y", "@playwright/mcp@latest"], env: {} },
                 "mermaid": { command: "npx", args: ["-y", "@peng-shawn/mermaid-mcp-server"], env: {} },
+                "qdrant": { command: "npx", args: ["-y", "@qdrant/mcp-server-qdrant"], env: {} },
             },
             lsp_servers: {},
             proxy: { url: '', no_ssl_verify: false },
@@ -105,7 +114,8 @@ const App = window.App = {
     },
 
     _renderServers() {
-        Components.renderMcpServers(
+        Components.renderMcpCheckboxes(
+            KNOWN_MCP_SERVERS,
             this.state.config.mcp_servers,
             document.getElementById('mcp-server-list')
         );
@@ -114,6 +124,18 @@ const App = window.App = {
             this.state.config.lsp_servers,
             document.getElementById('lsp-server-list')
         );
+        this._updateServerCounts();
+    },
+
+    toggleMcp(name, checked) {
+        if (checked) {
+            const known = KNOWN_MCP_SERVERS[name];
+            if (known) {
+                this.state.config.mcp_servers[name] = { command: known.command, args: [...known.args], env: {} };
+            }
+        } else {
+            delete this.state.config.mcp_servers[name];
+        }
         this._updateServerCounts();
     },
 

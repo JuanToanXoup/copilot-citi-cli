@@ -81,11 +81,12 @@
 
                 <!-- MCP panel -->
                 <div class="tab-panel" data-panel="mcp">
-                    <div id="mcp-server-list" class="server-list"></div>
-                    <div class="add-server-form" id="mcp-add-form">
+                    <div id="mcp-server-list"></div>
+                    <div class="add-server-form mt-8" id="mcp-add-form">
+                        <div class="text-sm text-muted mb-8">Custom MCP Server</div>
                         <div class="field">
                             <label>Server Name</label>
-                            <input type="text" id="mcp-name" placeholder="playwright">
+                            <input type="text" id="mcp-name" placeholder="my-server">
                         </div>
                         <div class="field">
                             <label>Command</label>
@@ -93,9 +94,9 @@
                         </div>
                         <div class="field">
                             <label>Args (comma-separated)</label>
-                            <input type="text" id="mcp-args" placeholder="-y, @playwright/mcp@latest">
+                            <input type="text" id="mcp-args" placeholder="-y, @some/mcp-server">
                         </div>
-                        <button class="btn btn-sm" id="btn-add-mcp">+ Add MCP Server</button>
+                        <button class="btn btn-sm" id="btn-add-mcp">+ Add Custom MCP</button>
                     </div>
                 </div>
 
