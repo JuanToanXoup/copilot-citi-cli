@@ -8,7 +8,7 @@ const KNOWN_MCP_SERVERS = {
     n8n:        { command: "npx", args: ["-y", "n8n-mcp"], env: {}, description: "n8n (workflow automation)" },
 };
 
-const DEFAULT_MCP = ["playwright", "mermaid", "qdrant", "context7"];
+const DEFAULT_MCP = ["playwright"];
 
 const KNOWN_LSP_SERVERS = {
     python:   { command: "pyright-langserver", args: ["--stdio"], description: "Python (Pyright)" },
@@ -34,9 +34,6 @@ const App = window.App = {
             tools: { enabled: '__ALL__', disabled: [] },
             mcp_servers: {
                 "playwright": { command: "npx", args: ["-y", "@playwright/mcp@latest"], env: {} },
-                "mermaid": { command: "npx", args: ["-y", "@peng-shawn/mermaid-mcp-server"], env: {} },
-                "qdrant": { command: "npx", args: ["-y", "@qdrant/mcp-server-qdrant"], env: {} },
-                "context7": { command: "npx", args: ["-y", "@upstash/context7-mcp"], env: {} },
             },
             lsp_servers: {},
             proxy: { url: '', no_ssl_verify: false },
