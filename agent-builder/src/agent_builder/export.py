@@ -2,6 +2,7 @@
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import textwrap
@@ -251,14 +252,22 @@ def build_agent(config: dict, output_dir: str,
     # Locate project root (where copilot_client.py lives)
     project_root = os.path.dirname(os.path.abspath(__file__))
 
-    # Check for PyInstaller
+    # Check for PyInstaller — try PATH first, then current interpreter
     _emit("step", "Checking for PyInstaller...")
-    try:
-        subprocess.run(
-            [sys.executable, "-m", "PyInstaller", "--version"],
-            capture_output=True, check=True,
-        )
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    pyinstaller_cmd = None
+    pyinstaller_bin = shutil.which("pyinstaller")
+    if pyinstaller_bin:
+        pyinstaller_cmd = [pyinstaller_bin]
+    else:
+        try:
+            subprocess.run(
+                [sys.executable, "-m", "PyInstaller", "--version"],
+                capture_output=True, check=True,
+            )
+            pyinstaller_cmd = [sys.executable, "-m", "PyInstaller"]
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            pass
+    if not pyinstaller_cmd:
         _emit("error", "PyInstaller not found. Install with: pip install pyinstaller")
         raise RuntimeError("PyInstaller not installed")
 
@@ -287,7 +296,7 @@ def build_agent(config: dict, output_dir: str,
     ]
 
     cmd = [
-        sys.executable, "-m", "PyInstaller",
+        *pyinstaller_cmd,
         "--onefile",
         "--name", name,
         "--distpath", output_dir,
