@@ -701,12 +701,17 @@ class CopilotClient:
         reply_parts = []
         agent_rounds = []
         start = time.time()
+        last_activity = start
+        inactivity_limit = 60  # seconds with no updates before giving up
         done = False
 
         while time.time() - start < timeout and not done:
             time.sleep(0.1)
             with self._lock:
                 updates = self._progress.pop(work_done_token, [])
+
+            if updates:
+                last_activity = time.time()
 
             for update in updates:
                 kind = update.get("kind")
@@ -758,6 +763,19 @@ class CopilotClient:
                         print(f"\033[90m  ⎿  {status}: {uri}\033[0m")
                     if on_progress:
                         on_progress("reference", ref)
+
+            # Fail fast if no activity for inactivity_limit seconds
+            if not done and time.time() - last_activity > inactivity_limit:
+                raise TimeoutError(
+                    f"No response from Copilot for {inactivity_limit}s. "
+                    "Check your network/proxy settings."
+                )
+
+        if not done:
+            raise TimeoutError(
+                f"Chat response timed out after {timeout}s. "
+                "Check your network/proxy settings."
+            )
 
         return {"text": "".join(reply_parts), "agent_rounds": agent_rounds}
 

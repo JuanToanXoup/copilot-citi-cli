@@ -137,6 +137,7 @@ const API = {
             const reader = res.body.getReader();
             const decoder = new TextDecoder();
             let buffer = '';
+            let gotDoneOrError = false;
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -148,6 +149,7 @@ const API = {
                     if (line.startsWith('data: ')) {
                         try {
                             const evt = JSON.parse(line.slice(6));
+                            if (evt.type === 'done' || evt.type === 'error') gotDoneOrError = true;
                             onEvent(evt);
                         } catch (_) { /* skip malformed */ }
                     }
@@ -156,8 +158,14 @@ const API = {
             // process remaining
             if (buffer.startsWith('data: ')) {
                 try {
-                    onEvent(JSON.parse(buffer.slice(6)));
+                    const evt = JSON.parse(buffer.slice(6));
+                    if (evt.type === 'done' || evt.type === 'error') gotDoneOrError = true;
+                    onEvent(evt);
                 } catch (_) {}
+            }
+            // Stream ended without a done/error event — notify the UI
+            if (!gotDoneOrError) {
+                onEvent({ type: 'error', data: 'Connection lost — no response received. Check your network/proxy settings.' });
             }
         }).catch((err) => {
             if (err.name !== 'AbortError') {
