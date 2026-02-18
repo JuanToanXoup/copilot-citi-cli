@@ -455,7 +455,8 @@ class CopilotClient:
         model_name = result.get("modelName", "unknown")
         if self._spinner_clear:
             self._spinner_clear()
-        print(f"[*] Created conversation: {conversation_id} (model: {model_name})")
+        if self.verbose:
+            print(f"\033[90m⏺ conversation created (model: {model_name})\033[0m")
 
         # Collect streamed response from progress notifications
         reply_data = self._collect_chat_reply(work_done_token, timeout=300 if agent_mode else 60,
@@ -510,7 +511,7 @@ class CopilotClient:
             tool_input = params.get("input", params.get("arguments", {}))
             if self._spinner_clear:
                 self._spinner_clear()
-            print(f"\033[37m[tool] {tool_name}({json.dumps(tool_input)[:150]})\033[0m")
+            print(f"\033[32m⏺\033[0m \033[1m{tool_name}\033[0m\033[37m({json.dumps(tool_input)[:150]})\033[0m")
             result = self._execute_client_tool(tool_name, tool_input)
             # Client-side MCP tools already return the tuple format.
             # Registered (non-built-in) tools must return result as a tuple
@@ -537,12 +538,13 @@ class CopilotClient:
         if self.client_mcp and self.client_mcp.is_mcp_tool(tool_name):
             result_text = self.client_mcp.call_tool(tool_name, tool_input)
             if self.verbose:
-                print(f"\033[37m[tool] {tool_name} -> {result_text[:200]}\033[0m")
+                for line in result_text[:200].splitlines():
+                    print(f"\033[90m  ⎿  {line}\033[0m")
             return [{"content": [{"value": result_text}], "status": "success"}, None]
 
         executor = TOOL_EXECUTORS.get(tool_name)
         if not executor:
-            print(f"[agent exec] Unknown tool: {tool_name}")
+            print(f"\033[31m  ⎿  Unknown tool: {tool_name}\033[0m")
             return {"result": "error", "message": f"Unknown tool: {tool_name}"}
         ctx = ToolContext(
             workspace_root=self.workspace_root,
@@ -553,7 +555,7 @@ class CopilotClient:
             result = executor(tool_input, ctx)
         except (OSError, subprocess.SubprocessError, json.JSONDecodeError,
                 ValueError, TypeError) as e:
-            print(f"[agent exec] Error: {e}")
+            print(f"\033[31m  ⎿  Error: {e}\033[0m")
             if tool_name not in BUILTIN_TOOL_NAMES:
                 return [{"content": [{"value": f"Error: {e}"}], "status": "error"}, None]
             return {"result": "error", "message": str(e)}
@@ -735,7 +737,7 @@ class CopilotClient:
                 # Agent mode: annotations (file edits, etc.)
                 annotations = update.get("annotations", [])
                 for ann in annotations:
-                    print(f"[agent annotation] {json.dumps(ann, indent=2)[:300]}")
+                    print(f"\033[90m  ⎿  annotation: {json.dumps(ann)[:200]}\033[0m")
                     if on_progress:
                         on_progress("annotation", ann)
                 # Agent mode: references (files being read)
@@ -744,7 +746,7 @@ class CopilotClient:
                     status = ref.get("status", "")
                     uri = ref.get("uri", "")
                     if uri:
-                        print(f"[agent ref] {status}: {uri}")
+                        print(f"\033[90m  ⎿  {status}: {uri}\033[0m")
                     if on_progress:
                         on_progress("reference", ref)
 
@@ -1018,7 +1020,18 @@ def cmd_chat(args):
         while True:
             if prompt is None:
                 try:
-                    prompt = input("you> ").strip()
+                    # Get terminal width for separator lines
+                    try:
+                        cols = os.get_terminal_size().columns
+                    except OSError:
+                        cols = 80
+                    sep = "\033[90m" + "─" * cols + "\033[0m"
+                    print(sep)
+                    prompt = input("\033[1m❯\033[0m ").strip()
+                    print(sep)
+                    # Replace separator + prompt + separator with styled prompt
+                    print("\033[A\033[2K" * 3, end="")
+                    print(f"\033[100m\033[97m ❯ {prompt} \033[0m")
                 except (EOFError, KeyboardInterrupt):
                     print()
                     break
@@ -1054,7 +1067,7 @@ def cmd_chat(args):
                     if delta:
                         if not streaming_started.is_set():
                             streaming_started.set()
-                            print(f"\n\033[94mcopilot>\033[0m ", end="", flush=True)
+                            print(f"\033[94m⏺\033[0m ", end="", flush=True)
                         print(delta, end="", flush=True)
                 elif kind == "done":
                     if streaming_started.is_set():
@@ -1082,7 +1095,7 @@ def cmd_chat(args):
 
             # If streaming didn't fire (e.g. empty reply), print the full reply
             if not streaming_started.is_set() and result["reply"]:
-                print(f"\n\033[94mcopilot>\033[0m {result['reply']}")
+                print(f"\033[94m⏺\033[0m {result['reply']}")
 
             print()  # blank line before next prompt
 
