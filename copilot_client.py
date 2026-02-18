@@ -1163,6 +1163,13 @@ def main():
     p_mcp.add_argument("server_name", nargs="?", default=None,
                        help="Server name (required for start/stop/restart)")
 
+    # --- builder (Agent Builder web UI) ---
+    p_builder = sub.add_parser("builder", help="Launch the Agent Builder web UI")
+    p_builder.add_argument("-p", "--port", type=int, default=8420,
+                           help="Server port (default: 8420)")
+    p_builder.add_argument("--no-open", action="store_true",
+                           help="Don't auto-open browser")
+
     args = parser.parse_args()
 
     # Apply config file defaults - CLI args take precedence
@@ -1190,6 +1197,9 @@ def main():
         cmd_chat(args)
     elif args.command == "mcp":
         cmd_mcp(args)
+    elif args.command == "builder":
+        from agent_builder import start_server
+        start_server(port=args.port, open_browser=not args.no_open)
     else:
         parser.print_help()
 

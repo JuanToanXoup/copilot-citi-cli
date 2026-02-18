@@ -1,0 +1,522 @@
+/* Main state management + event wiring for Agent Builder */
+
+const App = window.App = {
+    state: {
+        config: {
+            name: '',
+            description: '',
+            system_prompt: '',
+            model: 'gpt-4.1',
+            agent_mode: true,
+            workspace_root: '',
+            tools: { enabled: '__ALL__', disabled: [] },
+            mcp_servers: {},
+            lsp_servers: {},
+            proxy: { url: '', no_ssl_verify: false },
+        },
+        session: { id: null, conversationId: null },
+        templates: [],
+        tools: {},       // name → schema (with _builtin flag)
+        models: [],
+        chatAbort: null,
+    },
+
+    /* ── Initialization ──────────────────────────────────── */
+
+    async init() {
+        // Load data in parallel
+        const [tools, models, templates] = await Promise.all([
+            API.getTools(),
+            API.getModels(),
+            API.getTemplates(),
+        ]);
+
+        this.state.tools = tools;
+        this.state.models = models;
+        this.state.templates = templates;
+
+        this._populateModels();
+        this._populateTemplates();
+        this._renderTools();
+        this._renderServers();
+        this._bindEvents();
+        this._bindTabs();
+        this._bindResize();
+        this._updateToolCount();
+        this._updateServerCounts();
+    },
+
+    /* ── Data population ─────────────────────────────────── */
+
+    _populateModels() {
+        const sel = document.getElementById('agent-model');
+        sel.innerHTML = '';
+        for (const m of this.state.models) {
+            const opt = document.createElement('option');
+            opt.value = m.id || m;
+            opt.textContent = m.name || m.id || m;
+            sel.appendChild(opt);
+        }
+        sel.value = this.state.config.model;
+    },
+
+    _populateTemplates() {
+        const sel = document.getElementById('agent-template');
+        sel.innerHTML = '<option value="">— None —</option>';
+        for (const t of this.state.templates) {
+            const opt = document.createElement('option');
+            opt.value = t.id;
+            opt.textContent = t.name;
+            sel.appendChild(opt);
+        }
+    },
+
+    _renderTools() {
+        const enabled = this.state.config.tools.enabled;
+        const set = enabled === '__ALL__' ? '__ALL__' : new Set(enabled);
+        const filter = (document.getElementById('tool-search').value || '').toLowerCase();
+        Components.renderToolList(
+            this.state.tools, set, filter,
+            document.getElementById('tool-list')
+        );
+    },
+
+    _renderServers() {
+        Components.renderMcpServers(
+            this.state.config.mcp_servers,
+            document.getElementById('mcp-server-list')
+        );
+        Components.renderLspServers(
+            this.state.config.lsp_servers,
+            document.getElementById('lsp-server-list')
+        );
+        this._updateServerCounts();
+    },
+
+    _updateToolCount() {
+        const total = Object.keys(this.state.tools).length;
+        const enabled = this.state.config.tools.enabled;
+        const count = enabled === '__ALL__' ? total : enabled.length;
+        document.getElementById('tool-count').textContent = `${count} / ${total}`;
+    },
+
+    _updateServerCounts() {
+        const mcpCount = Object.keys(this.state.config.mcp_servers).length;
+        const lspCount = Object.keys(this.state.config.lsp_servers).length;
+        document.getElementById('mcp-count').textContent = String(mcpCount);
+        document.getElementById('lsp-count').textContent = String(lspCount);
+    },
+
+    _bindTabs() {
+        document.querySelectorAll('.sidebar-tab[data-tab]').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const target = tab.dataset.tab;
+                document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+                tab.classList.add('active');
+                document.querySelector(`.tab-panel[data-panel="${target}"]`).classList.add('active');
+            });
+        });
+    },
+
+    _bindResize() {
+        const handle = document.getElementById('resize-handle');
+        const sidebar = document.querySelector('.sidebar');
+        let dragging = false;
+
+        handle.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            dragging = true;
+            handle.classList.add('dragging');
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!dragging) return;
+            const newWidth = e.clientX;
+            const min = 240;
+            const max = window.innerWidth * 0.6;
+            sidebar.style.width = Math.max(min, Math.min(max, newWidth)) + 'px';
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (!dragging) return;
+            dragging = false;
+            handle.classList.remove('dragging');
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        });
+    },
+
+    /* ── Event binding ───────────────────────────────────── */
+
+    _bindEvents() {
+        // Sidebar fields → config sync
+        const nameEl = document.getElementById('agent-name');
+        const descEl = document.getElementById('agent-desc');
+        const modelEl = document.getElementById('agent-model');
+        const wsEl = document.getElementById('agent-workspace');
+        const promptEl = document.getElementById('system-prompt');
+
+        nameEl.addEventListener('input', () => { this.state.config.name = nameEl.value; });
+        descEl.addEventListener('input', () => { this.state.config.description = descEl.value; });
+        modelEl.addEventListener('change', () => { this.state.config.model = modelEl.value; });
+        wsEl.addEventListener('input', () => { this.state.config.workspace_root = wsEl.value; });
+        promptEl.addEventListener('input', () => { this.state.config.system_prompt = promptEl.value; });
+
+        // Template
+        document.getElementById('agent-template').addEventListener('change', (e) => {
+            if (e.target.value) this.applyTemplate(e.target.value);
+        });
+
+        // Tool search
+        document.getElementById('tool-search').addEventListener('input', () => {
+            this._renderTools();
+        });
+
+        // Select/clear all
+        document.getElementById('btn-select-all').addEventListener('click', () => {
+            this.state.config.tools.enabled = '__ALL__';
+            this._renderTools();
+            this._updateToolCount();
+        });
+        document.getElementById('btn-clear-all').addEventListener('click', () => {
+            this.state.config.tools.enabled = [];
+            this._renderTools();
+            this._updateToolCount();
+        });
+
+        // MCP add
+        document.getElementById('btn-add-mcp').addEventListener('click', () => this._addMcpServer());
+        // LSP add
+        document.getElementById('btn-add-lsp').addEventListener('click', () => this._addLspServer());
+
+        // Save / Load / Build
+        document.getElementById('btn-save').addEventListener('click', () => this.saveConfig());
+        document.getElementById('btn-load').addEventListener('click', () => this.showLoadDialog());
+        document.getElementById('btn-build').addEventListener('click', () => this.buildAgent());
+        document.getElementById('btn-export-script').addEventListener('click', () => this.exportScript());
+
+        // Load modal cancel
+        document.getElementById('btn-load-cancel').addEventListener('click', () => {
+            document.getElementById('load-modal').classList.remove('active');
+        });
+
+        // Build close
+        document.getElementById('btn-build-close').addEventListener('click', () => {
+            document.getElementById('build-overlay').classList.remove('active');
+        });
+
+        // Chat
+        document.getElementById('btn-new-session').addEventListener('click', () => this.startPreview());
+        document.getElementById('btn-send').addEventListener('click', () => this.sendMessage());
+        document.getElementById('chat-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                this.sendMessage();
+            }
+        });
+    },
+
+    /* ── Template application ────────────────────────────── */
+
+    async applyTemplate(templateId) {
+        const tpl = this.state.templates.find(t => t.id === templateId);
+        if (!tpl) return;
+
+        const r = await fetch(`/api/templates/${encodeURIComponent(templateId)}`);
+        const full = await r.json();
+
+        // Merge template into config (preserve name/workspace)
+        const prevName = this.state.config.name;
+        const prevWs = this.state.config.workspace_root;
+        Object.assign(this.state.config, full);
+        if (prevName) this.state.config.name = prevName;
+        if (prevWs) this.state.config.workspace_root = prevWs;
+
+        this._syncConfigToUI();
+    },
+
+    _syncConfigToUI() {
+        const c = this.state.config;
+        document.getElementById('agent-name').value = c.name || '';
+        document.getElementById('agent-desc').value = c.description || '';
+        document.getElementById('agent-model').value = c.model || 'gpt-4.1';
+        document.getElementById('agent-workspace').value = c.workspace_root || '';
+        document.getElementById('system-prompt').value = c.system_prompt || '';
+        this._renderTools();
+        this._renderServers();
+        this._updateToolCount();
+        this._updateServerCounts();
+    },
+
+    /* ── Tool toggling ───────────────────────────────────── */
+
+    toggleTool(name, checked) {
+        let enabled = this.state.config.tools.enabled;
+        if (enabled === '__ALL__') {
+            // Convert to explicit list minus this one
+            enabled = Object.keys(this.state.tools).filter(n => n !== name);
+            if (checked) enabled.push(name);
+        } else {
+            enabled = enabled.filter(n => n !== name);
+            if (checked) enabled.push(name);
+        }
+        this.state.config.tools.enabled = enabled;
+        this._updateToolCount();
+    },
+
+    /* ── Server management ───────────────────────────────── */
+
+    _addMcpServer() {
+        const name = document.getElementById('mcp-name').value.trim();
+        const cmd = document.getElementById('mcp-command').value.trim();
+        const argsStr = document.getElementById('mcp-args').value.trim();
+        if (!name || !cmd) return;
+
+        const args = argsStr ? argsStr.split(',').map(a => a.trim()).filter(Boolean) : [];
+        this.state.config.mcp_servers[name] = { command: cmd, args, env: {} };
+
+        document.getElementById('mcp-name').value = '';
+        document.getElementById('mcp-command').value = '';
+        document.getElementById('mcp-args').value = '';
+        this._renderServers();
+    },
+
+    removeMcpServer(name) {
+        delete this.state.config.mcp_servers[name];
+        this._renderServers();
+    },
+
+    _addLspServer() {
+        const lang = document.getElementById('lsp-lang').value.trim();
+        const cmd = document.getElementById('lsp-command').value.trim();
+        const argsStr = document.getElementById('lsp-args').value.trim();
+        if (!lang || !cmd) return;
+
+        const args = argsStr ? argsStr.split(',').map(a => a.trim()).filter(Boolean) : [];
+        this.state.config.lsp_servers[lang] = { command: cmd, args };
+
+        document.getElementById('lsp-lang').value = '';
+        document.getElementById('lsp-command').value = '';
+        document.getElementById('lsp-args').value = '';
+        this._renderServers();
+    },
+
+    removeLspServer(lang) {
+        delete this.state.config.lsp_servers[lang];
+        this._renderServers();
+    },
+
+    /* ── Config persistence ──────────────────────────────── */
+
+    async saveConfig() {
+        const name = this.state.config.name.trim();
+        if (!name) {
+            alert('Please enter an agent name first.');
+            return;
+        }
+        const result = await API.saveConfig(this.state.config);
+        if (result.ok) {
+            document.getElementById('btn-save').textContent = 'Saved!';
+            setTimeout(() => {
+                document.getElementById('btn-save').textContent = 'Save';
+            }, 1500);
+        }
+    },
+
+    async showLoadDialog() {
+        const configs = await API.listConfigs();
+        const container = document.getElementById('config-list');
+        Components.renderConfigList(
+            configs,
+            container,
+            async (name) => {
+                const config = await API.getConfig(name);
+                this.state.config = config;
+                this._syncConfigToUI();
+                document.getElementById('load-modal').classList.remove('active');
+            },
+            async (name) => {
+                if (confirm(`Delete "${name}"?`)) {
+                    await API.deleteConfig(name);
+                    this.showLoadDialog(); // refresh
+                }
+            }
+        );
+        document.getElementById('load-modal').classList.add('active');
+    },
+
+    /* ── Live preview ────────────────────────────────────── */
+
+    async startPreview() {
+        // Abort any in-flight streaming request
+        if (this.state.chatAbort) {
+            this.state.chatAbort();
+            this.state.chatAbort = null;
+        }
+
+        // Stop existing session
+        if (this.state.session.id) {
+            await API.stopPreview(this.state.session.id).catch(() => {});
+            this.state.session.id = null;
+            this.state.session.conversationId = null;
+        }
+
+        // Reset UI
+        document.getElementById('chat-messages').innerHTML = '';
+        document.getElementById('chat-input').disabled = false;
+        document.getElementById('btn-send').disabled = false;
+        document.getElementById('session-status').textContent = 'Starting...';
+
+        try {
+            const result = await API.startPreview(this.state.config);
+            if (result.error) {
+                document.getElementById('session-status').textContent = 'Error';
+                Components.renderChatMessage(
+                    { type: 'error', text: result.error },
+                    document.getElementById('chat-messages')
+                );
+                return;
+            }
+            this.state.session.id = result.session_id;
+            this.state.session.conversationId = null;
+            document.getElementById('session-status').textContent = 'Connected';
+            document.getElementById('chat-input').focus();
+        } catch (e) {
+            document.getElementById('session-status').textContent = 'Error';
+            Components.renderChatMessage(
+                { type: 'error', text: e.message },
+                document.getElementById('chat-messages')
+            );
+        }
+    },
+
+    async sendMessage() {
+        const input = document.getElementById('chat-input');
+        const text = input.value.trim();
+        if (!text) return;
+
+        // Auto-start session if needed
+        if (!this.state.session.id) {
+            await this.startPreview();
+            if (!this.state.session.id) return; // start failed
+        }
+
+        input.value = '';
+        const msgs = document.getElementById('chat-messages');
+
+        // Render user message
+        Components.renderChatMessage({ type: 'user', text }, msgs);
+
+        // Show spinner
+        Components.renderChatMessage({ type: 'spinner' }, msgs);
+
+        // Disable input while streaming
+        input.disabled = true;
+        document.getElementById('btn-send').disabled = true;
+
+        let assistantDiv = null;
+        let replyText = '';
+
+        this.state.chatAbort = API.streamChat(
+            this.state.session.id,
+            text,
+            this.state.session.conversationId,
+            (evt) => {
+                if (evt.type === 'delta') {
+                    Components.removeSpinner();
+                    if (!assistantDiv) {
+                        assistantDiv = Components.renderChatMessage(
+                            { type: 'assistant', text: '' }, msgs
+                        );
+                    }
+                    replyText += evt.data;
+                    Components.updateAssistantMessage(assistantDiv, replyText);
+                } else if (evt.type === 'tool_call') {
+                    Components.removeSpinner();
+                    Components.renderChatMessage(
+                        { type: 'tool_call', name: evt.name }, msgs
+                    );
+                } else if (evt.type === 'done') {
+                    Components.removeSpinner();
+                    if (evt.conversation_id) {
+                        this.state.session.conversationId = evt.conversation_id;
+                    }
+                    input.disabled = false;
+                    document.getElementById('btn-send').disabled = false;
+                    input.focus();
+                } else if (evt.type === 'error') {
+                    Components.removeSpinner();
+                    Components.renderChatMessage(
+                        { type: 'error', text: evt.data || evt.message }, msgs
+                    );
+                    input.disabled = false;
+                    document.getElementById('btn-send').disabled = false;
+                }
+            }
+        );
+    },
+
+    /* ── Build / Export ───────────────────────────────────── */
+
+    buildAgent() {
+        const name = this.state.config.name.trim();
+        if (!name) {
+            alert('Please enter an agent name first.');
+            return;
+        }
+
+        const overlay = document.getElementById('build-overlay');
+        const log = document.getElementById('build-log');
+        const closeBtn = document.getElementById('btn-build-close');
+        const title = document.getElementById('build-title');
+
+        log.innerHTML = '';
+        title.textContent = `Building "${name}"...`;
+        closeBtn.disabled = true;
+        overlay.classList.add('active');
+
+        API.streamBuild(this.state.config, (evt) => {
+            if (evt.type === 'step') {
+                Components.appendBuildLog(evt.message, 'log-step', log);
+            } else if (evt.type === 'log') {
+                Components.appendBuildLog(evt.message, null, log);
+            } else if (evt.type === 'done') {
+                Components.appendBuildLog(
+                    `\nBuild complete: ${evt.path}`, 'log-ok', log
+                );
+                title.textContent = 'Build Complete';
+                closeBtn.disabled = false;
+            } else if (evt.type === 'error') {
+                Components.appendBuildLog(
+                    `\nError: ${evt.message}`, 'log-err', log
+                );
+                title.textContent = 'Build Failed';
+                closeBtn.disabled = false;
+            }
+        });
+    },
+
+    async exportScript() {
+        const name = this.state.config.name.trim();
+        if (!name) {
+            alert('Please enter an agent name first.');
+            return;
+        }
+        try {
+            const result = await API.exportScript(this.state.config);
+            if (result.error) {
+                alert('Export failed: ' + result.error);
+                return;
+            }
+            alert(`Script exported to:\n${result.entry_point}\n${result.config_path}`);
+        } catch (e) {
+            alert('Export failed: ' + e.message);
+        }
+    },
+};
+
+// Boot
+document.addEventListener('DOMContentLoaded', () => App.init());
