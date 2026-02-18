@@ -1,26 +1,52 @@
-Read the feature file at {feature_file} and execute its scenarios using Playwright MCP directly (do NOT run Maven, Cucumber, or any test framework).
+Read the feature file at `{feature_file}`. Execute every scenario using Playwright MCP tools. Do NOT run Maven, Cucumber, or any test framework.
 
-Follow this process for each scenario:
+## Project structure
 
-1. **Parse the feature file** — extract all Gherkin steps (Given/When/Then/And).
+This is a Citi BDD project. Key conventions:
+- **Feature files:** `bdd/src/test/resources/FeatureFiles/`
+- **Step definitions:** `bdd/src/test/java/stepDef/<platform>/` (e.g. `stepDef/cbol/`, `stepDef/mbol/`)
+- **Page actions:** `bdd/src/test/java/pageActions/<platform>/`
+- **Page locators:** `bdd/src/test/java/pageLocators/<platform>/`
+- **Test data:** `bdd/src/test/java/dataProvider/` (Excel `.xlsx` files)
+- **Data annotation:** Feature files use `##@data@<path>@<sheet>` comments to reference Excel data
+- **Environment URLs:** Resolved in step def code via switch statements (e.g. `UAT1` → `https://uat01.citi.com/`)
 
-2. **Resolve step definitions** — for each step, use ide_search_text or ide_find_references to find the matching Java step definition method (look for @Given, @When, @Then, @And annotations with matching regex patterns). Read the step definition code to understand what each step does.
+## Process
 
-3. **Resolve all variables** — trace any parameterized values (environment URLs, UserIDs, passwords, file paths, test data) by searching:
-   - Feature file Examples/Scenario Outline tables
-   - Properties files (*.properties, *.yml, *.yaml, *.xml)
-   - Excel/CSV test data files referenced in the step definitions
-   - Config classes or constants referenced in the step def code
-   - Use ide_find_definition and ide_find_references to follow the chain until you reach the actual hardcoded values.
+### 1. Parse the feature file
+Extract all Gherkin steps, the Examples table, and any `##@data@` annotation.
 
-4. **Translate to Playwright actions** — convert each resolved step into Playwright MCP tool calls:
-   - Navigation → browser_navigate
-   - Click → browser_click
-   - Type text → browser_type
-   - Select dropdown → browser_select_option
-   - Assertions → browser_snapshot + verify element text/presence
-   - Waits → browser_wait_for_selector
+### 2. Resolve step definitions
+For each step text, find its Java step definition:
+1. Use `ide_find_symbol` to search for the StepDef class matching the feature name (e.g. feature `CBOL_Net_Worth` → class `AUTO_RR_CBOL_Net_Worth_StepDef`)
+2. Read the StepDef class. Match each Gherkin step to a `@Given`/`@When`/`@Then`/`@And` annotation by comparing the step text to the annotation's pattern.
+3. If a step is not in that class, search other StepDef classes in the same `stepDef/<platform>/` directory (shared steps like login are often in a separate class like `CBOL_Login_StepDef`).
+4. If still not found, use `ide_find_symbol` with keywords from the step text.
 
-5. **Execute sequentially** — run each Playwright action in order, taking a browser_snapshot after key steps to verify the page state. If a step fails, report which Gherkin step failed and why.
+### 3. Read the step definition code
+For each matched step definition method:
+1. Read the method body to understand the Selenium actions it performs.
+2. The code uses Page Object pattern: step defs call **PageActions** methods which use **PageLocators**. Use `ide_find_definition` on method calls to trace into PageActions and read the actual Selenium logic (xpaths, clicks, waits, assertions).
+3. Extract all XPath selectors, CSS selectors, URLs, and expected text values.
 
-Start by reading the feature file and finding all step definitions before executing anything.
+### 4. Resolve all variables
+Substitute `<placeholders>` from the Scenario Outline's Examples table. For environment mappings, look for `switch` or `if` statements in the step def (e.g. `"UAT1"` → `"https://uat01.citi.com/"`).
+
+### 5. Translate to Playwright and execute
+Map each Selenium action to the equivalent Playwright MCP call:
+
+| Selenium action | Playwright MCP tool |
+|---|---|
+| `driver.get(url)` | `browser_navigate` |
+| `click` / `clickElementByXpathID` | `browser_click` with the xpath |
+| `sendKeys` / enter text | `browser_type` |
+| `Select` dropdown | `browser_select_option` |
+| `waitForElement` / `waitForElementTextToLoad` | `browser_snapshot`, check text |
+| `verifyElementPresent` / assertions | `browser_snapshot`, verify element exists |
+
+Execute actions sequentially. Take a `browser_snapshot` after each key interaction to verify page state. If a step fails, report which Gherkin step failed and the error.
+
+## Execution order
+1. Resolve ALL step definitions and variables BEFORE executing anything.
+2. Then execute the Playwright actions in scenario order.
+3. Report pass/fail per Gherkin step.
