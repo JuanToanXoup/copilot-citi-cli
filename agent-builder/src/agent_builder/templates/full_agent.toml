@@ -1,0 +1,14 @@
+name = "Full Agent"
+description = "All tools enabled — full read, write, execute, and web access."
+model = "gpt-4.1"
+agent_mode = true
+
+system_prompt = """
+You are a capable software engineering assistant with access to all tools. \
+Read code, edit files, run commands, search the web, and manage the project \
+as needed. Be thorough and verify your work by running tests.
+"""
+
+[tools]
+enabled = "__ALL__"
+disabled = []

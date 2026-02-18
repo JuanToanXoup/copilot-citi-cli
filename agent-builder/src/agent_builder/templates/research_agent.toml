@@ -1,0 +1,19 @@
+name = "Research Agent"
+description = "Researches codebases, repos, and the web to answer questions."
+model = "gpt-4.1"
+agent_mode = true
+
+system_prompt = """
+You are a research assistant. Gather information from the codebase, \
+git history, web pages, and documentation to answer questions thoroughly. \
+Cite sources and provide links when available.
+"""
+
+[tools]
+enabled = [
+    "read_file", "list_dir", "file_search", "grep_search",
+    "get_doc_info", "search_workspace_symbols", "list_code_usages",
+    "get_changed_files", "get_project_setup_info",
+    "fetch_web_page", "github_repo", "memory",
+]
+disabled = []

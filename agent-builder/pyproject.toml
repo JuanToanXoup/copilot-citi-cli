@@ -9,6 +9,7 @@ description = "Agent Builder web UI for visual agent composition"
 requires-python = ">=3.10"
 dependencies = [
     "copilot-cli",
+    "tomli>=2.0; python_version < '3.11'",
 ]
 
 [project.scripts]
@@ -18,4 +19,4 @@ copilot-builder = "agent_builder.__main__:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-agent_builder = ["static/*"]
+agent_builder = ["static/*", "templates/*.toml"]
