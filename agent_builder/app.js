@@ -4,9 +4,10 @@ const KNOWN_MCP_SERVERS = {
     playwright: { command: "npx", args: ["-y", "@playwright/mcp@latest"], env: {}, description: "Playwright (browser automation)" },
     mermaid:    { command: "npx", args: ["-y", "@peng-shawn/mermaid-mcp-server"], env: {}, description: "Mermaid (diagram generation)" },
     qdrant:     { command: "npx", args: ["-y", "@qdrant/mcp-server-qdrant"], env: {}, description: "Qdrant (vector search)" },
+    context7:   { command: "npx", args: ["-y", "@upstash/context7-mcp"], env: {}, description: "Context7 (up-to-date library docs)" },
 };
 
-const DEFAULT_MCP = ["playwright", "mermaid", "qdrant"];
+const DEFAULT_MCP = ["playwright", "mermaid", "qdrant", "context7"];
 
 const KNOWN_LSP_SERVERS = {
     python:   { command: "pyright-langserver", args: ["--stdio"], description: "Python (Pyright)" },
@@ -34,6 +35,7 @@ const App = window.App = {
                 "playwright": { command: "npx", args: ["-y", "@playwright/mcp@latest"], env: {} },
                 "mermaid": { command: "npx", args: ["-y", "@peng-shawn/mermaid-mcp-server"], env: {} },
                 "qdrant": { command: "npx", args: ["-y", "@qdrant/mcp-server-qdrant"], env: {} },
+                "context7": { command: "npx", args: ["-y", "@upstash/context7-mcp"], env: {} },
             },
             lsp_servers: {},
             proxy: { url: '', no_ssl_verify: false },
