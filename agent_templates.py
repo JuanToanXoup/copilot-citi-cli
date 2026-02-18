@@ -20,8 +20,8 @@ TEMPLATES = {
             ],
             "disabled": [],
         },
-        "mcp_servers": {},
-        "lsp_servers": {},
+        "mcp_servers": {"playwright": {"command": "npx", "args": ["-y", "@playwright/mcp@latest"], "env": {}}, "mermaid": {"command": "npx", "args": ["-y", "@peng-shawn/mermaid-mcp-server"], "env": {}}},
+        "lsp_servers": {"python": {"command": "pyright-langserver", "args": ["--stdio"]}, "java": {"command": "jdtls", "args": []}, "kotlin": {"command": "kotlin-language-server", "args": []}, "gherkin": {"command": "npx", "args": ["-y", "@cucumber/language-server", "--stdio"]}},
     },
     "bug_fixer": {
         "name": "Bug Fixer",
@@ -44,8 +44,8 @@ TEMPLATES = {
             ],
             "disabled": [],
         },
-        "mcp_servers": {},
-        "lsp_servers": {},
+        "mcp_servers": {"playwright": {"command": "npx", "args": ["-y", "@playwright/mcp@latest"], "env": {}}, "mermaid": {"command": "npx", "args": ["-y", "@peng-shawn/mermaid-mcp-server"], "env": {}}},
+        "lsp_servers": {"python": {"command": "pyright-langserver", "args": ["--stdio"]}, "java": {"command": "jdtls", "args": []}, "kotlin": {"command": "kotlin-language-server", "args": []}, "gherkin": {"command": "npx", "args": ["-y", "@cucumber/language-server", "--stdio"]}},
     },
     "documentation_writer": {
         "name": "Documentation Writer",
@@ -65,8 +65,8 @@ TEMPLATES = {
             ],
             "disabled": [],
         },
-        "mcp_servers": {},
-        "lsp_servers": {},
+        "mcp_servers": {"playwright": {"command": "npx", "args": ["-y", "@playwright/mcp@latest"], "env": {}}, "mermaid": {"command": "npx", "args": ["-y", "@peng-shawn/mermaid-mcp-server"], "env": {}}},
+        "lsp_servers": {"python": {"command": "pyright-langserver", "args": ["--stdio"]}, "java": {"command": "jdtls", "args": []}, "kotlin": {"command": "kotlin-language-server", "args": []}, "gherkin": {"command": "npx", "args": ["-y", "@cucumber/language-server", "--stdio"]}},
     },
     "research_agent": {
         "name": "Research Agent",
@@ -87,8 +87,8 @@ TEMPLATES = {
             ],
             "disabled": [],
         },
-        "mcp_servers": {},
-        "lsp_servers": {},
+        "mcp_servers": {"playwright": {"command": "npx", "args": ["-y", "@playwright/mcp@latest"], "env": {}}, "mermaid": {"command": "npx", "args": ["-y", "@peng-shawn/mermaid-mcp-server"], "env": {}}},
+        "lsp_servers": {"python": {"command": "pyright-langserver", "args": ["--stdio"]}, "java": {"command": "jdtls", "args": []}, "kotlin": {"command": "kotlin-language-server", "args": []}, "gherkin": {"command": "npx", "args": ["-y", "@cucumber/language-server", "--stdio"]}},
     },
     "full_agent": {
         "name": "Full Agent",
@@ -104,8 +104,8 @@ TEMPLATES = {
             "enabled": "__ALL__",
             "disabled": [],
         },
-        "mcp_servers": {},
-        "lsp_servers": {},
+        "mcp_servers": {"playwright": {"command": "npx", "args": ["-y", "@playwright/mcp@latest"], "env": {}}, "mermaid": {"command": "npx", "args": ["-y", "@peng-shawn/mermaid-mcp-server"], "env": {}}},
+        "lsp_servers": {"python": {"command": "pyright-langserver", "args": ["--stdio"]}, "java": {"command": "jdtls", "args": []}, "kotlin": {"command": "kotlin-language-server", "args": []}, "gherkin": {"command": "npx", "args": ["-y", "@cucumber/language-server", "--stdio"]}},
     },
 }
 

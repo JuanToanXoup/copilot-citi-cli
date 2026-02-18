@@ -101,21 +101,22 @@
 
                 <!-- LSP panel -->
                 <div class="tab-panel" data-panel="lsp">
-                    <div id="lsp-server-list" class="server-list"></div>
-                    <div class="add-server-form" id="lsp-add-form">
+                    <div id="lsp-server-list"></div>
+                    <div class="add-server-form mt-8" id="lsp-add-form">
+                        <div class="text-sm text-muted mb-8">Custom LSP Server</div>
                         <div class="field">
                             <label>Language ID</label>
-                            <input type="text" id="lsp-lang" placeholder="python">
+                            <input type="text" id="lsp-lang" placeholder="ruby">
                         </div>
                         <div class="field">
                             <label>Command</label>
-                            <input type="text" id="lsp-command" placeholder="pyright-langserver">
+                            <input type="text" id="lsp-command" placeholder="solargraph stdio">
                         </div>
                         <div class="field">
                             <label>Args (comma-separated)</label>
                             <input type="text" id="lsp-args" placeholder="--stdio">
                         </div>
-                        <button class="btn btn-sm" id="btn-add-lsp">+ Add LSP Server</button>
+                        <button class="btn btn-sm" id="btn-add-lsp">+ Add Custom LSP</button>
                     </div>
                 </div>
             </div>

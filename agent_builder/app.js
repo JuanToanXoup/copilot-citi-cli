@@ -1,5 +1,17 @@
 /* Main state management + event wiring for Agent Builder */
 
+const KNOWN_LSP_SERVERS = {
+    python:   { command: "pyright-langserver", args: ["--stdio"], description: "Python (Pyright)" },
+    java:     { command: "jdtls", args: [], description: "Java (Eclipse JDT)" },
+    kotlin:   { command: "kotlin-language-server", args: [], description: "Kotlin" },
+    gherkin:  { command: "npx", args: ["-y", "@cucumber/language-server", "--stdio"], description: "Gherkin / Cucumber" },
+    typescript: { command: "typescript-language-server", args: ["--stdio"], description: "TypeScript" },
+    go:       { command: "gopls", args: ["serve"], description: "Go (gopls)" },
+    rust:     { command: "rust-analyzer", args: [], description: "Rust (rust-analyzer)" },
+};
+
+const DEFAULT_LSP = ["python", "java", "kotlin", "gherkin"];
+
 const App = window.App = {
     state: {
         config: {
@@ -10,7 +22,10 @@ const App = window.App = {
             agent_mode: true,
             workspace_root: '',
             tools: { enabled: '__ALL__', disabled: [] },
-            mcp_servers: {},
+            mcp_servers: {
+                "playwright": { command: "npx", args: ["-y", "@playwright/mcp@latest"], env: {} },
+                "mermaid": { command: "npx", args: ["-y", "@peng-shawn/mermaid-mcp-server"], env: {} },
+            },
             lsp_servers: {},
             proxy: { url: '', no_ssl_verify: false },
         },
@@ -34,6 +49,14 @@ const App = window.App = {
         this.state.tools = tools;
         this.state.models = models;
         this.state.templates = templates;
+
+        // Set default LSP servers
+        for (const lang of DEFAULT_LSP) {
+            if (!this.state.config.lsp_servers[lang]) {
+                const srv = KNOWN_LSP_SERVERS[lang];
+                this.state.config.lsp_servers[lang] = { command: srv.command, args: [...srv.args] };
+            }
+        }
 
         this._populateModels();
         this._populateTemplates();
@@ -86,10 +109,23 @@ const App = window.App = {
             this.state.config.mcp_servers,
             document.getElementById('mcp-server-list')
         );
-        Components.renderLspServers(
+        Components.renderLspCheckboxes(
+            KNOWN_LSP_SERVERS,
             this.state.config.lsp_servers,
             document.getElementById('lsp-server-list')
         );
+        this._updateServerCounts();
+    },
+
+    toggleLsp(lang, checked) {
+        if (checked) {
+            const known = KNOWN_LSP_SERVERS[lang];
+            if (known) {
+                this.state.config.lsp_servers[lang] = { command: known.command, args: [...known.args] };
+            }
+        } else {
+            delete this.state.config.lsp_servers[lang];
+        }
         this._updateServerCounts();
     },
 
