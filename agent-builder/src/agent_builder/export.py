@@ -252,23 +252,26 @@ def build_agent(config: dict, output_dir: str,
     # Locate project root (where copilot_client.py lives)
     project_root = os.path.dirname(os.path.abspath(__file__))
 
-    # Check for PyInstaller — try PATH first, then current interpreter
+    # Check for PyInstaller — try each candidate and verify it works
     _emit("step", "Checking for PyInstaller...")
     pyinstaller_cmd = None
+    candidates = []
     pyinstaller_bin = shutil.which("pyinstaller")
     if pyinstaller_bin:
-        pyinstaller_cmd = [pyinstaller_bin]
-    else:
+        candidates.append([pyinstaller_bin])
+    candidates.append([sys.executable, "-m", "PyInstaller"])
+    for candidate in candidates:
         try:
             subprocess.run(
-                [sys.executable, "-m", "PyInstaller", "--version"],
+                [*candidate, "--version"],
                 capture_output=True, check=True,
             )
-            pyinstaller_cmd = [sys.executable, "-m", "PyInstaller"]
+            pyinstaller_cmd = candidate
+            break
         except (subprocess.CalledProcessError, FileNotFoundError):
-            pass
+            continue
     if not pyinstaller_cmd:
-        _emit("error", "PyInstaller not found. Install with: pip install pyinstaller")
+        _emit("error", "PyInstaller not found (or broken). Install with: pip install pyinstaller")
         raise RuntimeError("PyInstaller not installed")
 
     # Build add-data args
