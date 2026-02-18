@@ -29,174 +29,178 @@ def _generate_entry_point(config: dict, output_dir: str) -> str:
     system_prompt_escaped = system_prompt.replace("\\", "\\\\").replace('"""', '\\"\\"\\"')
     description_escaped = description.replace("\\", "\\\\").replace('"""', '\\"\\"\\"')
 
-    script = textwrap.dedent(f'''\
-        #!/usr/bin/env python3
-        """Auto-generated agent entry point: {name}"""
+    config_json = json.dumps(config, indent=4)
+    # Indent the config JSON to match the AGENT_CONFIG assignment
+    config_lines = config_json.split('\n')
+    config_indented = config_lines[0] + '\n' + '\n'.join(config_lines[1:])
 
-        import json
-        import os
-        import sys
-        import threading
-        import time
+    script = f'''#!/usr/bin/env python3
+"""Auto-generated agent entry point: {name}"""
 
-        # Ensure the parent directory is on the path so imports work
-        _here = os.path.dirname(os.path.abspath(__file__))
-        _parent = os.path.dirname(_here)
-        if _parent not in sys.path:
-            sys.path.insert(0, _parent)
-        if _here not in sys.path:
-            sys.path.insert(0, _here)
+import json
+import os
+import sys
+import threading
+import time
 
-        AGENT_CONFIG = {json.dumps(config, indent=4)}
+# Ensure the parent directory is on the path so imports work
+_here = os.path.dirname(os.path.abspath(__file__))
+_parent = os.path.dirname(_here)
+if _parent not in sys.path:
+    sys.path.insert(0, _parent)
+if _here not in sys.path:
+    sys.path.insert(0, _here)
 
-        def _filter_tools():
-            """Restrict TOOL_SCHEMAS/TOOL_EXECUTORS to only enabled tools."""
-            from tools import TOOL_SCHEMAS, TOOL_EXECUTORS
-            enabled = AGENT_CONFIG.get("tools", {{}}).get("enabled", "__ALL__")
-            if enabled == "__ALL__":
-                return  # all tools allowed
-            enabled_set = set(enabled)
-            for name in list(TOOL_SCHEMAS.keys()):
-                if name not in enabled_set:
-                    del TOOL_SCHEMAS[name]
-            for name in list(TOOL_EXECUTORS.keys()):
-                if name not in enabled_set:
-                    del TOOL_EXECUTORS[name]
+AGENT_CONFIG = {config_indented}
 
-        def main():
-            _filter_tools()
+def _filter_tools():
+    """Restrict TOOL_SCHEMAS/TOOL_EXECUTORS to only enabled tools."""
+    from tools import TOOL_SCHEMAS, TOOL_EXECUTORS
+    enabled = AGENT_CONFIG.get("tools", {{}}).get("enabled", "__ALL__")
+    if enabled == "__ALL__":
+        return  # all tools allowed
+    enabled_set = set(enabled)
+    for name in list(TOOL_SCHEMAS.keys()):
+        if name not in enabled_set:
+            del TOOL_SCHEMAS[name]
+    for name in list(TOOL_EXECUTORS.keys()):
+        if name not in enabled_set:
+            del TOOL_EXECUTORS[name]
 
-            from copilot_client import _init_client, CopilotClient
-            from tools import TOOL_SCHEMAS, BUILTIN_TOOL_NAMES
-            from platform_utils import path_to_file_uri
+def main():
+    _filter_tools()
 
-            config = AGENT_CONFIG
-            name = config.get("name", "Agent")
-            description = """{description_escaped}"""
-            model = config.get("model", "gpt-4.1")
-            agent_mode = config.get("agent_mode", True)
-            workspace = os.path.abspath(config.get("workspace_root") or os.getcwd())
-            system_prompt = """{system_prompt_escaped}"""
+    from copilot_client import _init_client, CopilotClient
+    from tools import TOOL_SCHEMAS, BUILTIN_TOOL_NAMES
+    from platform_utils import path_to_file_uri
 
-            # MCP / proxy
-            mcp_config = config.get("mcp_servers") or None
-            proxy_cfg = config.get("proxy", {{}})
-            proxy_url = proxy_cfg.get("url") if proxy_cfg else None
-            no_ssl_verify = proxy_cfg.get("no_ssl_verify", False) if proxy_cfg else False
+    config = AGENT_CONFIG
+    name = config.get("name", "Agent")
+    description = """{description_escaped}"""
+    model = config.get("model", "gpt-4.1")
+    agent_mode = config.get("agent_mode", True)
+    workspace = os.path.abspath(config.get("workspace_root") or os.getcwd())
+    system_prompt = """{system_prompt_escaped}"""
 
-            # Banner
-            tool_count = len(TOOL_SCHEMAS) + len(BUILTIN_TOOL_NAMES)
-            print()
-            print(f"  \\033[94m╭─ {{name}}\\033[0m")
-            if description:
-                print(f"  \\033[94m│\\033[0m  {{description}}")
-            print(f"  \\033[94m│\\033[0m  {{model}} · {{tool_count}} tools")
-            print(f"  \\033[94m│\\033[0m  \\033[90m{{os.path.basename(workspace)}}\\033[0m")
-            print(f"  \\033[94m╰─\\033[0m")
-            print()
+    # MCP / proxy
+    mcp_config = config.get("mcp_servers") or None
+    proxy_cfg = config.get("proxy", {{}})
+    proxy_url = proxy_cfg.get("url") if proxy_cfg else None
+    no_ssl_verify = proxy_cfg.get("no_ssl_verify", False) if proxy_cfg else False
 
-            client = _init_client(
-                workspace,
-                agent_mode=agent_mode,
-                mcp_config=mcp_config,
-                proxy_url=proxy_url,
-                no_ssl_verify=no_ssl_verify,
-            )
+    # Banner
+    tool_count = len(TOOL_SCHEMAS) + len(BUILTIN_TOOL_NAMES)
+    print()
+    print(f"  \\033[94m╭─ {{name}}\\033[0m")
+    if description:
+        print(f"  \\033[94m│\\033[0m  {{description}}")
+    print(f"  \\033[94m│\\033[0m  {{model}} · {{tool_count}} tools")
+    print(f"  \\033[94m│\\033[0m  \\033[90m{{os.path.basename(workspace)}}\\033[0m")
+    print(f"  \\033[94m╰─\\033[0m")
+    print()
 
+    client = _init_client(
+        workspace,
+        agent_mode=agent_mode,
+        mcp_config=mcp_config,
+        proxy_url=proxy_url,
+        no_ssl_verify=no_ssl_verify,
+    )
+
+    try:
+        workspace_uri = path_to_file_uri(workspace)
+        conversation_id = None
+
+        while True:
             try:
-                workspace_uri = path_to_file_uri(workspace)
-                conversation_id = None
+                cols = os.get_terminal_size().columns
+            except OSError:
+                cols = 80
+            sep = "\\033[90m" + "─" * cols + "\\033[0m"
+            print(sep)
+            try:
+                prompt = input("\\033[1m❯\\033[0m ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print()
+                break
+            print(sep)
+            print("\\033[A\\033[2K" * 3, end="")
+            print(f"\\033[100m\\033[97m ❯ {{prompt}} \\033[0m")
 
-                while True:
-                    try:
-                        cols = os.get_terminal_size().columns
-                    except OSError:
-                        cols = 80
-                    sep = "\\033[90m" + "─" * cols + "\\033[0m"
-                    print(sep)
-                    try:
-                        prompt = input("\\033[1m❯\\033[0m ").strip()
-                    except (EOFError, KeyboardInterrupt):
+            if not prompt:
+                continue
+            if prompt.lower() in ("exit", "quit", "/quit", "/exit"):
+                break
+
+            # Prepend system prompt on first turn
+            actual_msg = prompt
+            if system_prompt and conversation_id is None:
+                actual_msg = f"<system_instructions>{{system_prompt}}</system_instructions>\\n\\n{{prompt}}"
+
+            spinner_stop = threading.Event()
+            streaming_started = threading.Event()
+
+            def _clear_spinner():
+                if not spinner_stop.is_set():
+                    spinner_stop.set()
+                    print("\\r\\033[K", flush=True)
+
+            client._spinner_clear = _clear_spinner
+
+            def _spinner():
+                chars = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+                i = 0
+                while not spinner_stop.is_set():
+                    print(f"\\r\\033[33m{{chars[i % len(chars)]}} thinking...\\033[0m", end="", flush=True)
+                    i += 1
+                    spinner_stop.wait(0.1)
+
+            def _on_progress(kind, data):
+                _clear_spinner()
+                if kind == "delta":
+                    delta = data.get("delta", "")
+                    if delta:
+                        if not streaming_started.is_set():
+                            streaming_started.set()
+                            print(f"\\033[94m⏺\\033[0m ", end="", flush=True)
+                        print(delta, end="", flush=True)
+                elif kind == "done":
+                    if streaming_started.is_set():
                         print()
-                        break
-                    print(sep)
-                    print("\\033[A\\033[2K" * 3, end="")
-                    print(f"\\033[100m\\033[97m ❯ {{prompt}} \\033[0m")
 
-                    if not prompt:
-                        continue
-                    if prompt.lower() in ("exit", "quit", "/quit", "/exit"):
-                        break
+            spinner_thread = threading.Thread(target=_spinner, daemon=True)
+            spinner_thread.start()
 
-                    # Prepend system prompt on first turn
-                    actual_msg = prompt
-                    if system_prompt and conversation_id is None:
-                        actual_msg = f"<system_instructions>{{system_prompt}}</system_instructions>\\n\\n{{prompt}}"
+            if conversation_id is None:
+                result = client.conversation_create(
+                    actual_msg, model=model, agent_mode=agent_mode,
+                    workspace_folder=workspace_uri if agent_mode else None,
+                    on_progress=_on_progress,
+                )
+                conversation_id = result["conversationId"]
+            else:
+                result = client.conversation_turn(
+                    conversation_id, actual_msg, model=model,
+                    agent_mode=agent_mode, on_progress=_on_progress,
+                )
 
-                    spinner_stop = threading.Event()
-                    streaming_started = threading.Event()
+            _clear_spinner()
+            client._spinner_clear = None
+            spinner_thread.join(timeout=1)
 
-                    def _clear_spinner():
-                        if not spinner_stop.is_set():
-                            spinner_stop.set()
-                            print("\\r\\033[K", flush=True)
+            if not streaming_started.is_set() and result.get("reply"):
+                print(f"\\033[94m⏺\\033[0m {{result['reply']}}")
 
-                    client._spinner_clear = _clear_spinner
+            print()
 
-                    def _spinner():
-                        chars = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
-                        i = 0
-                        while not spinner_stop.is_set():
-                            print(f"\\r\\033[33m{{chars[i % len(chars)]}} thinking...\\033[0m", end="", flush=True)
-                            i += 1
-                            spinner_stop.wait(0.1)
+        if conversation_id:
+            client.conversation_destroy(conversation_id)
+    finally:
+        client.stop()
 
-                    def _on_progress(kind, data):
-                        _clear_spinner()
-                        if kind == "delta":
-                            delta = data.get("delta", "")
-                            if delta:
-                                if not streaming_started.is_set():
-                                    streaming_started.set()
-                                    print(f"\\033[94m⏺\\033[0m ", end="", flush=True)
-                                print(delta, end="", flush=True)
-                        elif kind == "done":
-                            if streaming_started.is_set():
-                                print()
-
-                    spinner_thread = threading.Thread(target=_spinner, daemon=True)
-                    spinner_thread.start()
-
-                    if conversation_id is None:
-                        result = client.conversation_create(
-                            actual_msg, model=model, agent_mode=agent_mode,
-                            workspace_folder=workspace_uri if agent_mode else None,
-                            on_progress=_on_progress,
-                        )
-                        conversation_id = result["conversationId"]
-                    else:
-                        result = client.conversation_turn(
-                            conversation_id, actual_msg, model=model,
-                            agent_mode=agent_mode, on_progress=_on_progress,
-                        )
-
-                    _clear_spinner()
-                    client._spinner_clear = None
-                    spinner_thread.join(timeout=1)
-
-                    if not streaming_started.is_set() and result.get("reply"):
-                        print(f"\\033[94m⏺\\033[0m {{result['reply']}}")
-
-                    print()
-
-                if conversation_id:
-                    client.conversation_destroy(conversation_id)
-            finally:
-                client.stop()
-
-        if __name__ == "__main__":
-            main()
-    ''')
+if __name__ == "__main__":
+    main()
+'''
 
     with open(entry_path, "w") as f:
         f.write(script)
