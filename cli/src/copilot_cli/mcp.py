@@ -224,45 +224,56 @@ class MCPSSEServer:
 
     def _sse_loop(self):
         """Background thread: read SSE events from the server."""
+        import socket
         try:
             req = urllib.request.Request(self.url)
             req.add_header("Accept", "text/event-stream")
-            resp = urllib.request.urlopen(req, timeout=self.init_timeout)
+            # Short timeout for initial connect, then disable for long-lived stream
+            resp = urllib.request.urlopen(req, timeout=30)
+            # Remove socket timeout so the SSE stream stays open indefinitely
+            raw_sock = resp.fp.raw
+            if hasattr(raw_sock, '_sock'):
+                raw_sock._sock.settimeout(None)
+            elif isinstance(raw_sock, socket.socket):
+                raw_sock.settimeout(None)
         except Exception as e:
             print(f"[client-mcp:{self.name}] SSE connect failed: {e}")
             return
 
         event_type = None
         data_lines = []
-        for raw_line in resp:
-            line = raw_line.decode("utf-8", errors="replace").rstrip("\n\r")
-            if line.startswith("event:"):
-                event_type = line[6:].strip()
-            elif line.startswith("data:"):
-                data_lines.append(line[5:].strip())
-            elif line == "":
-                # End of event
-                data = "\n".join(data_lines)
-                data_lines = []
-                if event_type == "endpoint" and data:
-                    # Resolve relative URL against SSE base
-                    if data.startswith("/"):
-                        from urllib.parse import urlparse
-                        parsed = urlparse(self.url)
-                        self._post_url = f"{parsed.scheme}://{parsed.netloc}{data}"
-                    else:
-                        self._post_url = data
-                    self._connected.set()
-                elif event_type == "message" and data:
-                    try:
-                        msg = json.loads(data)
-                        with self._lock:
-                            msg_id = msg.get("id")
-                            if msg_id is not None:
-                                self._responses[msg_id] = msg
-                    except json.JSONDecodeError:
-                        pass
-                event_type = None
+        try:
+            for raw_line in resp:
+                line = raw_line.decode("utf-8", errors="replace").rstrip("\n\r")
+                if line.startswith("event:"):
+                    event_type = line[6:].strip()
+                elif line.startswith("data:"):
+                    data_lines.append(line[5:].strip())
+                elif line == "":
+                    # End of event
+                    data = "\n".join(data_lines)
+                    data_lines = []
+                    if event_type == "endpoint" and data:
+                        # Resolve relative URL against SSE base
+                        if data.startswith("/"):
+                            from urllib.parse import urlparse
+                            parsed = urlparse(self.url)
+                            self._post_url = f"{parsed.scheme}://{parsed.netloc}{data}"
+                        else:
+                            self._post_url = data
+                        self._connected.set()
+                    elif event_type == "message" and data:
+                        try:
+                            msg = json.loads(data)
+                            with self._lock:
+                                msg_id = msg.get("id")
+                                if msg_id is not None:
+                                    self._responses[msg_id] = msg
+                        except json.JSONDecodeError:
+                            pass
+                    event_type = None
+        except Exception:
+            pass  # SSE stream closed or server shut down
 
     def _next_id(self) -> int:
         self._request_id += 1
