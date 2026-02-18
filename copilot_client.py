@@ -814,16 +814,24 @@ def _load_mcp_config(mcp_arg: str | None) -> dict | None:
 def _init_client(workspace: str, agent_mode: bool = False,
                  mcp_config: dict = None,
                  proxy_url: str = None, no_ssl_verify: bool = False,
-                 verbose: bool = False) -> CopilotClient:
+                 verbose: bool = False,
+                 on_progress: callable = None) -> CopilotClient:
     """Start and initialize a CopilotClient.
 
     Args:
         mcp_config: MCP server config. Automatically routed to server-side
             (if org allows MCP) or client-side (if org blocks MCP).
+        on_progress: Optional callback ``(message: str) -> None`` for
+            startup progress reporting (used by Agent Builder SSE).
     """
+    def _emit(msg):
+        if on_progress:
+            on_progress(msg)
+
     client = CopilotClient()
     client.workspace_root = os.path.abspath(workspace)
     client.verbose = verbose
+    _emit("Starting Copilot LSP...")
     client.start(proxy_url=proxy_url)
     # Pass proxy into initialize so the server has it BEFORE token exchange
     # (Node.js ignores HTTP_PROXY env vars - needs networkProxy in init options)
@@ -831,6 +839,7 @@ def _init_client(workspace: str, agent_mode: bool = False,
                       github_app_id=client._auth.get("app_id"),
                       proxy_url=proxy_url)
     time.sleep(1)
+    _emit("Authenticating...")
     client.set_editor_info(proxy_url=proxy_url)
     time.sleep(0.5)
     if proxy_url:
@@ -840,6 +849,7 @@ def _init_client(workspace: str, agent_mode: bool = False,
 
     # Auto-route MCP: server-side if allowed, client-side if blocked
     if mcp_config:
+        _emit("Starting MCP servers...")
         # Wait briefly for featureFlagsNotification to arrive
         time.sleep(0.5)
         if client.is_server_mcp_enabled:
@@ -850,7 +860,7 @@ def _init_client(workspace: str, agent_mode: bool = False,
             print(f"[*] MCP: using client-side (org blocks server mcp)")
             manager = ClientMCPManager()
             manager.add_servers(mcp_config)
-            manager.start_all()
+            manager.start_all(on_progress=on_progress)
             client.client_mcp = manager
 
     # Create LSP bridge for code intelligence (lazy — servers start on demand)
@@ -858,8 +868,10 @@ def _init_client(workspace: str, agent_mode: bool = False,
     client.lsp_bridge = LSPBridgeManager(client.workspace_root, lsp_config)
 
     if agent_mode:
+        _emit("Registering tools...")
         client.register_client_tools()
         time.sleep(0.5)
+        _emit("Opening workspace files...")
         # Open all files in workspace so server knows about them
         doc_count = 0
         for root, _, files in os.walk(workspace):
@@ -880,6 +892,7 @@ def _init_client(workspace: str, agent_mode: bool = False,
                     doc_count += 1
         if doc_count:
             print(f"[*] Opened {doc_count} workspace files")
+    _emit("Ready")
     return client
 
 def _common_kwargs(args) -> dict:

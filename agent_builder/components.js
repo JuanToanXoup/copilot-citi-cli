@@ -188,6 +188,9 @@ const Components = {
         } else if (msg.type === 'error') {
             div.classList.add('msg-error');
             div.textContent = msg.text;
+        } else if (msg.type === 'status') {
+            div.classList.add('msg-status');
+            div.textContent = msg.text;
         } else if (msg.type === 'spinner') {
             div.classList.add('msg-spinner');
             div.id = 'chat-spinner';

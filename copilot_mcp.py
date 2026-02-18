@@ -198,10 +198,17 @@ class ClientMCPManager:
             )
             self.servers[name] = server
 
-    def start_all(self):
-        """Start all servers, initialize them, and discover tools."""
+    def start_all(self, on_progress=None):
+        """Start all servers, initialize them, and discover tools.
+
+        Args:
+            on_progress: Optional callback ``(message: str) -> None`` called
+                before each server starts.
+        """
         for name, server in self.servers.items():
             try:
+                if on_progress:
+                    on_progress(f"Starting MCP: {name}...")
                 server.start()
                 time.sleep(0.5)
                 server.initialize()

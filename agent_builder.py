@@ -249,6 +249,7 @@ class BuilderHandler(BaseHTTPRequestHandler):
     # ── API: Live Preview ────────────────────────────────────────────────
 
     def _api_preview_start(self, body):
+        self._sse_start()
         try:
             from copilot_client import _init_client, _load_config
             config = body
@@ -270,6 +271,9 @@ class BuilderHandler(BaseHTTPRequestHandler):
                 proxy_url = proxy_cfg.get("url") or None
                 no_ssl_verify = proxy_cfg.get("no_ssl_verify", False)
 
+            def on_progress(message):
+                self._sse_send({"type": "progress", "message": message})
+
             client = _init_client(
                 workspace,
                 agent_mode=agent_mode,
@@ -277,6 +281,7 @@ class BuilderHandler(BaseHTTPRequestHandler):
                 proxy_url=proxy_url,
                 no_ssl_verify=no_ssl_verify,
                 verbose=False,
+                on_progress=on_progress,
             )
 
             session_id = uuid.uuid4().hex[:12]
@@ -288,10 +293,10 @@ class BuilderHandler(BaseHTTPRequestHandler):
                     "last_active": time.time(),
                 }
 
-            self._json_response(200, {"session_id": session_id})
+            self._sse_send({"type": "done", "session_id": session_id})
 
         except Exception as e:
-            self._json_response(500, {"error": str(e)})
+            self._sse_send({"type": "error", "message": str(e)})
 
     def _api_preview_chat(self, body):
         session_id = body.get("session_id")

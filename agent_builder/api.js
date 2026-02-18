@@ -46,13 +46,61 @@ const API = {
 
     /* ── Live preview ────────────────────────────────────── */
 
-    async startPreview(config) {
-        const r = await fetch('/api/preview/start', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(config),
+    /**
+     * Start a preview session via SSE stream.
+     * Calls onEvent({ type, message|session_id }) for each event.
+     * Resolves with { session_id } on success, rejects on error.
+     */
+    startPreview(config, onEvent) {
+        return new Promise((resolve, reject) => {
+            fetch('/api/preview/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config),
+            }).then(async (res) => {
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop();
+                    for (const line of lines) {
+                        if (!line.startsWith('data: ')) continue;
+                        let evt;
+                        try { evt = JSON.parse(line.slice(6)); } catch (_) { continue; }
+                        if (onEvent) onEvent(evt);
+                        if (evt.type === 'done') {
+                            resolve({ session_id: evt.session_id });
+                            return;
+                        }
+                        if (evt.type === 'error') {
+                            reject(new Error(evt.message || 'Start failed'));
+                            return;
+                        }
+                    }
+                }
+                // Process remaining buffer
+                if (buffer.startsWith('data: ')) {
+                    try {
+                        const evt = JSON.parse(buffer.slice(6));
+                        if (onEvent) onEvent(evt);
+                        if (evt.type === 'done') {
+                            resolve({ session_id: evt.session_id });
+                            return;
+                        }
+                        if (evt.type === 'error') {
+                            reject(new Error(evt.message || 'Start failed'));
+                            return;
+                        }
+                    } catch (_) {}
+                }
+                reject(new Error('Stream ended without done/error'));
+            }).catch(reject);
         });
-        return r.json();
     },
 
     async stopPreview(sessionId) {

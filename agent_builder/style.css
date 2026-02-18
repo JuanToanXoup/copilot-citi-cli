@@ -288,6 +288,12 @@ body {
     font-size: 12px;
 }
 
+.msg-status {
+    color: var(--text-muted);
+    font-size: 12px;
+    font-style: italic;
+}
+
 .msg-spinner {
     color: var(--text-muted);
     font-size: 12px;

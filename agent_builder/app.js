@@ -426,21 +426,25 @@ const App = window.App = {
         }
 
         // Reset UI
-        document.getElementById('chat-messages').innerHTML = '';
+        const msgs = document.getElementById('chat-messages');
+        msgs.innerHTML = '';
         document.getElementById('chat-input').disabled = false;
         document.getElementById('btn-send').disabled = false;
         document.getElementById('session-status').textContent = 'Starting...';
 
         try {
-            const result = await API.startPreview(this.state.config);
-            if (result.error) {
-                document.getElementById('session-status').textContent = 'Error';
-                Components.renderChatMessage(
-                    { type: 'error', text: result.error },
-                    document.getElementById('chat-messages')
-                );
-                return;
-            }
+            const result = await API.startPreview(this.state.config, (evt) => {
+                if (evt.type === 'progress') {
+                    document.getElementById('session-status').textContent = evt.message;
+                    Components.renderChatMessage(
+                        { type: 'status', text: evt.message }, msgs
+                    );
+                }
+            });
+
+            // Remove status messages once connected
+            msgs.querySelectorAll('.msg-status').forEach(el => el.remove());
+
             this.state.session.id = result.session_id;
             this.state.session.conversationId = null;
             document.getElementById('session-status').textContent = 'Connected';
@@ -448,8 +452,7 @@ const App = window.App = {
         } catch (e) {
             document.getElementById('session-status').textContent = 'Error';
             Components.renderChatMessage(
-                { type: 'error', text: e.message },
-                document.getElementById('chat-messages')
+                { type: 'error', text: e.message }, msgs
             );
         }
     },
