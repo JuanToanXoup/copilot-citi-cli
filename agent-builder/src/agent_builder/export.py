@@ -123,7 +123,9 @@ def main():
             sep = "\\033[90m" + "─" * cols + "\\033[0m"
             print(sep)
             try:
-                prompt = input("\\033[1m❯\\033[0m ").strip()
+                sys.stdout.write("\\033[1m❯\\033[0m ")
+                sys.stdout.flush()
+                prompt = input().strip()
             except (EOFError, KeyboardInterrupt):
                 print()
                 break

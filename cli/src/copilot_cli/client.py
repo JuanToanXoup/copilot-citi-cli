@@ -9,8 +9,9 @@ import base64
 import glob
 import json
 import os
-import readline  # noqa: F401 – enables arrow-key editing in input()
+import readline
 import shutil
+import sys
 import subprocess
 import threading
 import time
@@ -1097,7 +1098,9 @@ def cmd_chat(args):
                         cols = 80
                     sep = "\033[90m" + "─" * cols + "\033[0m"
                     print(sep)
-                    prompt = input("\033[1m❯\033[0m ").strip()
+                    sys.stdout.write("\033[1m❯\033[0m ")
+                    sys.stdout.flush()
+                    prompt = input().strip()
                     print(sep)
                     # Replace separator + prompt + separator with styled prompt
                     print("\033[A\033[2K" * 3, end="")
