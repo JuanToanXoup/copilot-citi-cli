@@ -33,7 +33,15 @@ if [ -n "$PROXY_URL" ]; then
 fi
 
 # --- Find Python >= 3.10 ---
+# Prefer the active python3 from PATH first (respects conda/venv/pyenv),
+# then fall back to searching versioned binaries in common install dirs.
 find_python() {
+    # Check active python3 first — it has the user's SSL certs and pip config
+    if command -v python3 &>/dev/null; then
+        ver=$(python3 -c 'import sys; print(sys.version_info.minor)' 2>/dev/null || echo 0)
+        if [ "$ver" -ge 10 ]; then echo "python3"; return; fi
+    fi
+    # Fallback: search versioned binaries
     for name in python3.13 python3.12 python3.11 python3.10; do
         for dir in /opt/local/bin /usr/local/bin /opt/homebrew/bin ""; do
             cmd="${dir:+$dir/}$name"
@@ -43,11 +51,6 @@ find_python() {
             fi
         done
     done
-    # Fallback
-    if command -v python3 &>/dev/null; then
-        ver=$(python3 -c 'import sys; print(sys.version_info.minor)' 2>/dev/null || echo 0)
-        if [ "$ver" -ge 10 ]; then echo "python3"; return; fi
-    fi
     echo "Error: Python >= 3.10 not found" >&2; exit 1
 }
 
