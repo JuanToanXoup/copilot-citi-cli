@@ -46,6 +46,7 @@ const App = window.App = {
         tools: {},       // name → schema (with _builtin flag)
         models: [],
         chatAbort: null,
+        startAbort: null,
         sessionStarting: false,
     },
 
@@ -87,6 +88,7 @@ const App = window.App = {
 
     _updateSessionUI() {
         const hasSession = !!this.state.session.id;
+        const isStarting = this.state.sessionStarting;
         const chatInput = document.getElementById('chat-input');
         const btnSend = document.getElementById('btn-send');
         const btnEnd = document.getElementById('btn-end-session');
@@ -98,8 +100,8 @@ const App = window.App = {
             ? 'Type a message...'
             : 'Start a session to begin chatting...';
 
-        // End Session button visibility
-        btnEnd.style.display = hasSession ? '' : 'none';
+        // End Session button visibility (show during startup too)
+        btnEnd.style.display = (hasSession || isStarting) ? '' : 'none';
 
         // Sidebar config lock: read-only text fields, disabled controls
         document.querySelectorAll('.sidebar-lockable').forEach(el => {
@@ -114,6 +116,13 @@ const App = window.App = {
     },
 
     async stopSession() {
+        // Abort startup SSE stream if still connecting
+        if (this.state.startAbort) {
+            this.state.startAbort();
+            this.state.startAbort = null;
+        }
+        this.state.sessionStarting = false;
+
         if (this.state.chatAbort) {
             this.state.chatAbort();
             this.state.chatAbort = null;
@@ -491,16 +500,20 @@ const App = window.App = {
         const msgs = document.getElementById('chat-messages');
         msgs.innerHTML = '';
         document.getElementById('session-status').textContent = 'Starting...';
+        this._updateSessionUI();
+
+        const { promise, abort } = API.startPreview(this.state.config, (evt) => {
+            if (evt.type === 'progress') {
+                document.getElementById('session-status').textContent = evt.message;
+                Components.renderChatMessage(
+                    { type: 'status', text: evt.message }, msgs
+                );
+            }
+        });
+        this.state.startAbort = abort;
 
         try {
-            const result = await API.startPreview(this.state.config, (evt) => {
-                if (evt.type === 'progress') {
-                    document.getElementById('session-status').textContent = evt.message;
-                    Components.renderChatMessage(
-                        { type: 'status', text: evt.message }, msgs
-                    );
-                }
-            });
+            const result = await promise;
 
             // Remove status messages once connected
             msgs.querySelectorAll('.msg-status').forEach(el => el.remove());
@@ -511,12 +524,15 @@ const App = window.App = {
             this._updateSessionUI();
             document.getElementById('chat-input').focus();
         } catch (e) {
+            // Ignore AbortError — user cancelled via stopSession
+            if (e.name === 'AbortError') return;
             document.getElementById('session-status').textContent = 'Error';
             this._updateSessionUI();
             Components.renderChatMessage(
                 { type: 'error', text: e.message }, msgs
             );
         } finally {
+            this.state.startAbort = null;
             this.state.sessionStarting = false;
         }
     },

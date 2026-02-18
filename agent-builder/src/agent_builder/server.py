@@ -138,12 +138,14 @@ class BuilderHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def _sse_send(self, data):
+        """Send an SSE event. Returns True on success, False if client disconnected."""
         line = f"data: {json.dumps(data)}\n\n"
         try:
             self.wfile.write(line.encode())
             self.wfile.flush()
+            return True
         except (BrokenPipeError, ConnectionResetError):
-            pass
+            return False
 
     def _serve_static(self, path):
         if path == "/" or path == "":
@@ -284,16 +286,23 @@ class BuilderHandler(BaseHTTPRequestHandler):
                 on_progress=on_progress,
             )
 
+            # Check if client disconnected during init (user cancelled)
             session_id = uuid.uuid4().hex[:12]
-            with _sessions_lock:
-                _sessions[session_id] = {
-                    "client": client,
-                    "config": config,
-                    "conversation_id": None,
-                    "last_active": time.time(),
-                }
-
-            self._sse_send({"type": "done", "session_id": session_id})
+            ok = self._sse_send({"type": "done", "session_id": session_id})
+            if ok:
+                with _sessions_lock:
+                    _sessions[session_id] = {
+                        "client": client,
+                        "config": config,
+                        "conversation_id": None,
+                        "last_active": time.time(),
+                    }
+            else:
+                # Client disconnected during startup — clean up
+                try:
+                    client.stop()
+                except Exception:
+                    pass
 
         except Exception as e:
             self._sse_send({"type": "error", "message": str(e)})

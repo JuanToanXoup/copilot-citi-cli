@@ -52,11 +52,13 @@ const API = {
      * Resolves with { session_id } on success, rejects on error.
      */
     startPreview(config, onEvent) {
-        return new Promise((resolve, reject) => {
+        const ctrl = new AbortController();
+        const promise = new Promise((resolve, reject) => {
             fetch('/api/preview/start', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(config),
+                signal: ctrl.signal,
             }).then(async (res) => {
                 const reader = res.body.getReader();
                 const decoder = new TextDecoder();
@@ -101,6 +103,7 @@ const API = {
                 reject(new Error('Stream ended without done/error'));
             }).catch(reject);
         });
+        return { promise, abort: () => ctrl.abort() };
     },
 
     async stopPreview(sessionId) {
