@@ -72,7 +72,7 @@ body {
 }
 
 .main .sidebar {
-    width: 340px;
+    width: 500px;
     min-width: 240px;
     max-width: 60vw;
     flex-shrink: 0;
@@ -174,39 +174,50 @@ body {
     border-color: var(--accent-blue);
 }
 
+.sidebar-lockable {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
 .sidebar-tab-panels {
     flex: 1;
-    overflow-y: auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 .tab-panel {
     display: none;
     padding: 14px;
+    overflow-y: auto;
 }
 
 .tab-panel.active {
     display: block;
+    flex: 1;
+    min-height: 0;
+}
+
+.tab-panel-prompt.active {
+    display: flex;
+    flex-direction: column;
+}
+
+.tab-panel-prompt .prompt-textarea {
+    flex: 1;
+    min-height: 120px;
+    resize: none;
 }
 
 /* ── Content Area ───────────────────────────────────────── */
 
 .content {
     display: grid;
-    grid-template-rows: auto 1fr;
+    grid-template-rows: 1fr;
     overflow: hidden;
-}
-
-.prompt-section {
-    padding: 16px 20px;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.prompt-section h3 {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--text-muted);
-    margin-bottom: 8px;
 }
 
 /* ── Chat Preview ───────────────────────────────────────── */
@@ -643,6 +654,29 @@ label {
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
 /* ── Utility ────────────────────────────────────────────── */
+
+/* ── Sidebar Lock ──────────────────────────────────────── */
+
+/* sidebar-lockable is defined in the Sidebar section */
+
+.sidebar-locked input[readonly],
+.sidebar-locked textarea[readonly] {
+    opacity: 0.7;
+    cursor: default;
+}
+
+.sidebar-locked select:disabled,
+.sidebar-locked button:disabled,
+.sidebar-locked input[type="checkbox"]:disabled {
+    opacity: 0.7;
+    cursor: default;
+}
+
+/* Disabled chat input hint */
+#chat-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
 
 .hidden { display: none !important; }
 .flex-row { display: flex; gap: 8px; align-items: center; }

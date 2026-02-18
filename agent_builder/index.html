@@ -25,6 +25,7 @@
     <div class="main">
         <!-- Sidebar -->
         <div class="sidebar">
+          <div class="sidebar-lockable">
             <!-- Agent Config (always visible) -->
             <div class="sidebar-config">
                 <div class="field">
@@ -55,7 +56,8 @@
 
             <!-- Tab bar -->
             <div class="sidebar-tabs">
-                <button class="sidebar-tab active" data-tab="tools">
+                <button class="sidebar-tab active" data-tab="prompt">Prompt</button>
+                <button class="sidebar-tab" data-tab="tools">
                     Tools <span class="tab-badge" id="tool-count">0/0</span>
                 </button>
                 <button class="sidebar-tab" data-tab="mcp">
@@ -68,8 +70,14 @@
 
             <!-- Tab panels -->
             <div class="sidebar-tab-panels">
+                <!-- Prompt panel -->
+                <div class="tab-panel tab-panel-prompt active" data-panel="prompt">
+                    <textarea class="prompt-textarea" id="system-prompt"
+                        placeholder="You are a helpful assistant that..."></textarea>
+                </div>
+
                 <!-- Tools panel -->
-                <div class="tab-panel active" data-panel="tools">
+                <div class="tab-panel" data-panel="tools">
                     <input type="text" class="tool-search" id="tool-search"
                         placeholder="Filter tools...">
                     <div class="tool-actions">
@@ -121,6 +129,7 @@
                     </div>
                 </div>
             </div>
+          </div>
         </div>
 
         <!-- Resize handle -->
@@ -128,13 +137,6 @@
 
         <!-- Content -->
         <div class="content">
-            <!-- System Prompt -->
-            <div class="prompt-section">
-                <h3>System Prompt</h3>
-                <textarea class="prompt-textarea" id="system-prompt"
-                    placeholder="You are a helpful assistant that..."></textarea>
-            </div>
-
             <!-- Chat Preview -->
             <div class="chat-section">
                 <div class="chat-header">
@@ -142,6 +144,7 @@
                     <div class="flex-row">
                         <span class="text-sm text-muted" id="session-status">No session</span>
                         <button class="btn btn-sm" id="btn-new-session">New Session</button>
+                        <button class="btn btn-sm btn-danger" id="btn-end-session" style="display:none">End Session</button>
                     </div>
                 </div>
                 <div class="chat-messages" id="chat-messages"></div>

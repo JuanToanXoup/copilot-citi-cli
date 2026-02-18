@@ -46,6 +46,7 @@ const App = window.App = {
         tools: {},       // name → schema (with _builtin flag)
         models: [],
         chatAbort: null,
+        sessionStarting: false,
     },
 
     /* ── Initialization ──────────────────────────────────── */
@@ -79,6 +80,52 @@ const App = window.App = {
         this._bindResize();
         this._updateToolCount();
         this._updateServerCounts();
+        this._updateSessionUI();
+    },
+
+    /* ── Session UI ───────────────────────────────────────── */
+
+    _updateSessionUI() {
+        const hasSession = !!this.state.session.id;
+        const chatInput = document.getElementById('chat-input');
+        const btnSend = document.getElementById('btn-send');
+        const btnEnd = document.getElementById('btn-end-session');
+
+        // Chat input: enabled only when session is active
+        chatInput.disabled = !hasSession;
+        btnSend.disabled = !hasSession;
+        chatInput.placeholder = hasSession
+            ? 'Type a message...'
+            : 'Start a session to begin chatting...';
+
+        // End Session button visibility
+        btnEnd.style.display = hasSession ? '' : 'none';
+
+        // Sidebar config lock: read-only text fields, disabled controls
+        document.querySelectorAll('.sidebar-lockable').forEach(el => {
+            el.classList.toggle('sidebar-locked', hasSession);
+            el.querySelectorAll('input[type="text"], textarea').forEach(f => {
+                f.readOnly = hasSession;
+            });
+            el.querySelectorAll('select, input[type="checkbox"], button').forEach(f => {
+                if (!f.classList.contains('sidebar-tab')) f.disabled = hasSession;
+            });
+        });
+    },
+
+    async stopSession() {
+        if (this.state.chatAbort) {
+            this.state.chatAbort();
+            this.state.chatAbort = null;
+        }
+        if (this.state.session.id) {
+            await API.stopPreview(this.state.session.id).catch(() => {});
+        }
+        this.state.session.id = null;
+        this.state.session.conversationId = null;
+        document.getElementById('chat-messages').innerHTML = '';
+        document.getElementById('session-status').textContent = 'No session';
+        this._updateSessionUI();
     },
 
     /* ── Data population ─────────────────────────────────── */
@@ -271,6 +318,7 @@ const App = window.App = {
 
         // Chat
         document.getElementById('btn-new-session').addEventListener('click', () => this.startPreview());
+        document.getElementById('btn-end-session').addEventListener('click', () => this.stopSession());
         document.getElementById('btn-send').addEventListener('click', () => this.sendMessage());
         document.getElementById('chat-input').addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -412,6 +460,9 @@ const App = window.App = {
     /* ── Live preview ────────────────────────────────────── */
 
     async startPreview() {
+        if (this.state.sessionStarting) return;
+        this.state.sessionStarting = true;
+
         // Abort any in-flight streaming request
         if (this.state.chatAbort) {
             this.state.chatAbort();
@@ -425,11 +476,20 @@ const App = window.App = {
             this.state.session.conversationId = null;
         }
 
+        // Lock sidebar immediately
+        document.querySelectorAll('.sidebar-lockable').forEach(el => {
+            el.classList.add('sidebar-locked');
+            el.querySelectorAll('input[type="text"], textarea').forEach(f => {
+                f.readOnly = true;
+            });
+            el.querySelectorAll('select, input[type="checkbox"], button').forEach(f => {
+                if (!f.classList.contains('sidebar-tab')) f.disabled = true;
+            });
+        });
+
         // Reset UI
         const msgs = document.getElementById('chat-messages');
         msgs.innerHTML = '';
-        document.getElementById('chat-input').disabled = false;
-        document.getElementById('btn-send').disabled = false;
         document.getElementById('session-status').textContent = 'Starting...';
 
         try {
@@ -448,25 +508,23 @@ const App = window.App = {
             this.state.session.id = result.session_id;
             this.state.session.conversationId = null;
             document.getElementById('session-status').textContent = 'Connected';
+            this._updateSessionUI();
             document.getElementById('chat-input').focus();
         } catch (e) {
             document.getElementById('session-status').textContent = 'Error';
+            this._updateSessionUI();
             Components.renderChatMessage(
                 { type: 'error', text: e.message }, msgs
             );
+        } finally {
+            this.state.sessionStarting = false;
         }
     },
 
     async sendMessage() {
         const input = document.getElementById('chat-input');
         const text = input.value.trim();
-        if (!text) return;
-
-        // Auto-start session if needed
-        if (!this.state.session.id) {
-            await this.startPreview();
-            if (!this.state.session.id) return; // start failed
-        }
+        if (!text || !this.state.session.id) return;
 
         input.value = '';
         const msgs = document.getElementById('chat-messages');
