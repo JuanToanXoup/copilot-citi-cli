@@ -9,6 +9,7 @@ import base64
 import glob
 import json
 import os
+import shutil
 import subprocess
 import threading
 import time
@@ -866,6 +867,20 @@ def _init_client(workspace: str, agent_mode: bool = False,
     # Create LSP bridge for code intelligence (lazy — servers start on demand)
     lsp_config = CONFIG.get("lsp", {})
     client.lsp_bridge = LSPBridgeManager(client.workspace_root, lsp_config)
+
+    # Print configured LSP servers (they start lazily on first tool use)
+    if lsp_config:
+        langs = []
+        for lang, cfg in lsp_config.items():
+            cmd = cfg.get("command", "")
+            args = cfg.get("args", [])
+            # For npx, show the package name instead of "npx"
+            if cmd == "npx" and args:
+                pkg = next((a for a in args if not a.startswith("-")), cmd)
+                langs.append(f"{lang} ({pkg})")
+            else:
+                langs.append(f"{lang} ({cmd})")
+        print(f"[*] LSP: {', '.join(langs)}")
 
     if agent_mode:
         _emit("Registering tools...")

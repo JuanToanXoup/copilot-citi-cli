@@ -56,10 +56,18 @@ class MCPServer:
         self._reader_thread = threading.Thread(target=self._reader_loop, daemon=True)
         self._reader_thread.start()
 
-        # Drain stderr silently
+        # Forward stderr so npx download progress is visible
         def _stderr_reader():
             while self.process and self.process.poll() is None:
-                self.process.stderr.readline()
+                try:
+                    line = self.process.stderr.readline()
+                except Exception:
+                    break
+                if not line:
+                    break
+                text = line.decode("utf-8", errors="replace").rstrip()
+                if text:
+                    print(f"[client-mcp:{self.name}] {text}")
         threading.Thread(target=_stderr_reader, daemon=True).start()
 
     def _next_id(self) -> int:
@@ -132,7 +140,7 @@ class MCPServer:
                 "name": "copilot-cli-mcp-bridge",
                 "version": "0.1.0",
             },
-        })
+        }, timeout=60)
         result = resp.get("result", {})
         server_info = result.get("serverInfo", {})
 
@@ -165,6 +173,46 @@ class MCPServer:
                 except Exception:
                     pass
         pass  # Silent cleanup
+
+def _sanitize_schema(schema: dict):
+    """Fix JSON Schema constructs that the Copilot server rejects.
+
+    The Copilot server requires every property to have a plain ``"type": "string"``
+    field.  This function recursively:
+    - Converts array-typed ``"type"`` (e.g. ``["object", "null"]``) to a string.
+    - Flattens ``anyOf``/``oneOf`` unions into a single ``type``.
+    """
+    # Handle anyOf / oneOf (e.g. {"anyOf": [{"type": "object"}, {"type": "null"}]})
+    for keyword in ("anyOf", "oneOf"):
+        variants = schema.get(keyword)
+        if isinstance(variants, list):
+            types = [v.get("type") for v in variants
+                     if isinstance(v, dict) and v.get("type") and v.get("type") != "null"]
+            extra = {}
+            for v in variants:
+                if isinstance(v, dict) and v.get("type") != "null":
+                    extra = {k: val for k, val in v.items() if k != "type"}
+                    break
+            schema.pop(keyword)
+            schema["type"] = types[0] if types else "string"
+            schema.update(extra)
+
+    # Handle array "type" (e.g. {"type": ["object", "null"]})
+    if isinstance(schema.get("type"), list):
+        types = [t for t in schema["type"] if t != "null"]
+        schema["type"] = types[0] if types else "string"
+
+    # Ensure "type" exists
+    if "type" not in schema and "properties" not in schema:
+        schema["type"] = "string"
+
+    for prop in schema.get("properties", {}).values():
+        if isinstance(prop, dict):
+            _sanitize_schema(prop)
+    for kw in ("items", "additionalProperties"):
+        if isinstance(schema.get(kw), dict):
+            _sanitize_schema(schema[kw])
+
 
 class ClientMCPManager:
     """Manages multiple client-side MCP servers and bridges them to the Copilot agent."""
@@ -240,6 +288,9 @@ class ClientMCPManager:
                 # Ensure "required" is always present (server validation demands it)
                 if "required" not in input_schema:
                     input_schema["required"] = []
+                # Copilot server requires "type" to be a string, not an array.
+                # Sanitize properties like {"type": ["object", "null"]} -> {"type": "object"}
+                _sanitize_schema(input_schema)
 
                 schema = {
                     "name": prefixed,

@@ -25,20 +25,20 @@ default_model = "gpt-4.1"
 # LSP servers for code intelligence (auto-detected if installed)
 # Servers start lazily on first tool use.
 [lsp.python]
-command = "pyright-langserver"
-args = ["--stdio"]
+command = "npx"
+args = ["-y", "pyright", "--langserver", "--stdio"]
 
 [lsp.typescript]
-command = "typescript-language-server"
-args = ["--stdio"]
+command = "npx"
+args = ["-y", "typescript-language-server", "--stdio"]
 
 [lsp.java]
-command = "jdtls"
-args = []
+command = "npx"
+args = ["-y", "jdtls", "-stdio"]
 
 [lsp.kotlin]
-command = "kotlin-language-server"
-args = []
+command = "npx"
+args = ["-y", "kotlin-language-server"]
 
 [lsp.gherkin]
 command = "npx"
@@ -61,9 +61,8 @@ args = ["-y", "@playwright/mcp@latest"]
 [mcp.mermaid]
 command = "npx"
 args = ["-y", "@peng-shawn/mermaid-mcp-server"]
-env = { HTTP_PROXY = "http://webproxy.wlb2.nam.nsroot.net:19015", HTTPS_PROXY = "http://webproxy.wlb2.nam.nsroot.net:19015" }
+#env = { HTTP_PROXY = "http://webproxy.wlb2.nam.nsroot.net:19015", HTTPS_PROXY = "http://webproxy.wlb2.nam.nsroot.net:19015" }
 
 [mcp.qdrant]
-command = "npx"
-args = ["-y", "@qdrant/mcp-server-qdrant"]
-env = { HTTP_PROXY = "http://webproxy.wlb2.nam.nsroot.net:19015", HTTPS_PROXY = "http://webproxy.wlb2.nam.nsroot.net:19015" }
+command = "uvx"
+args = ["mcp-server-qdrant"]
