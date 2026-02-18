@@ -60,6 +60,13 @@ class BuilderHandler(BaseHTTPRequestHandler):
         # Suppress default access log noise
         pass
 
+    def handle(self):
+        """Suppress ConnectionResetError from HTTP/1.0 + keep-alive mismatch."""
+        try:
+            super().handle()
+        except (ConnectionResetError, BrokenPipeError):
+            pass
+
     # ── Routing ──────────────────────────────────────────────────────────
 
     def do_GET(self):
