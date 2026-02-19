@@ -49,36 +49,16 @@ WebDriver driver = new ChromeDriver(options);
 ### Window / Frame Management
 
 ```java
-// Window size and position
 driver.manage().window().maximize();
-driver.manage().window().minimize();
-driver.manage().window().fullscreen();
 driver.manage().window().setSize(new Dimension(1024, 768));
-driver.manage().window().getSize();    // returns Dimension
-driver.manage().window().setPosition(new Point(0, 0));
-
-// Switch between windows/tabs
-String originalWindow = driver.getWindowHandle();
-Set<String> allWindows = driver.getWindowHandles();
-driver.switchTo().window(windowHandle);
-
-// New window/tab (Selenium 4+)
-driver.switchTo().newWindow(WindowType.TAB);
-driver.switchTo().newWindow(WindowType.WINDOW);
-
-// Frames
-driver.switchTo().frame(int index);
-driver.switchTo().frame(String nameOrId);
-driver.switchTo().frame(WebElement frameElement);
-driver.switchTo().parentFrame();
-driver.switchTo().defaultContent();
-
-// Alerts
-Alert alert = driver.switchTo().alert();
-alert.getText();
-alert.accept();
-alert.dismiss();
-alert.sendKeys("text");
+String original = driver.getWindowHandle();       // current handle
+Set<String> all = driver.getWindowHandles();      // all handles
+driver.switchTo().window(handle);
+driver.switchTo().newWindow(WindowType.TAB);      // Selenium 4+
+driver.switchTo().frame(indexOrNameOrElement);     // enter frame
+driver.switchTo().parentFrame();                  // up one frame
+driver.switchTo().defaultContent();               // top-level
+Alert alert = driver.switchTo().alert();          // getText(), accept(), dismiss(), sendKeys()
 ```
 
 ### Cookies
@@ -368,20 +348,7 @@ public class LoginPage {
 
 ## 8. Common Exceptions
 
-| Exception | Cause |
-|---|---|
-| `NoSuchElementException` | Element not found in DOM |
-| `StaleElementReferenceException` | Element no longer attached to DOM |
-| `ElementNotInteractableException` | Element exists but cannot be interacted with |
-| `ElementClickInterceptedException` | Another element would receive the click |
-| `TimeoutException` | Wait condition not met in time |
-| `NoSuchFrameException` | Frame not found |
-| `NoSuchWindowException` | Window/tab not found |
-| `InvalidSelectorException` | Malformed CSS/XPath |
-| `NoAlertPresentException` | No alert open |
-| `UnhandledAlertException` | Unexpected alert blocking |
-| `SessionNotCreatedException` | Browser/driver version mismatch |
-| `WebDriverException` | Generic base exception |
+`NoSuchElementException` (not found) | `StaleElementReferenceException` (detached from DOM) | `ElementNotInteractableException` (hidden/disabled) | `ElementClickInterceptedException` (obscured) | `TimeoutException` (wait expired) | `NoSuchFrameException` | `NoSuchWindowException` | `InvalidSelectorException` | `NoAlertPresentException` | `SessionNotCreatedException` (driver/browser mismatch) | `WebDriverException` (base)
 
 ---
 
