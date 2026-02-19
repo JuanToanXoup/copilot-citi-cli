@@ -62,10 +62,86 @@ const Components = {
         }
     },
 
+    /**
+     * Render an env-var editor: existing KEY=VALUE rows with remove buttons,
+     * plus an add row.  Calls onUpdate(envDict) on every change.
+     */
+    _renderEnvEditor(env, onUpdate) {
+        const wrap = document.createElement('div');
+        wrap.className = 'env-editor';
+
+        for (const [key, val] of Object.entries(env || {})) {
+            const row = document.createElement('div');
+            row.className = 'env-row';
+
+            const kInput = document.createElement('input');
+            kInput.type = 'text';
+            kInput.className = 'env-key';
+            kInput.value = key;
+            kInput.placeholder = 'KEY';
+            kInput.readOnly = true;
+
+            const vInput = document.createElement('input');
+            vInput.type = 'text';
+            vInput.className = 'env-val';
+            vInput.value = val;
+            vInput.placeholder = 'value';
+            vInput.addEventListener('input', () => {
+                env[key] = vInput.value;
+                onUpdate(env);
+            });
+
+            const rmBtn = document.createElement('button');
+            rmBtn.className = 'btn btn-sm btn-danger env-rm';
+            rmBtn.textContent = 'x';
+            rmBtn.addEventListener('click', () => {
+                delete env[key];
+                onUpdate(env);
+                row.remove();
+            });
+
+            row.appendChild(kInput);
+            row.appendChild(vInput);
+            row.appendChild(rmBtn);
+            wrap.appendChild(row);
+        }
+
+        // Add-new row
+        const addRow = document.createElement('div');
+        addRow.className = 'env-row env-add-row';
+        const newKey = document.createElement('input');
+        newKey.type = 'text';
+        newKey.className = 'env-key';
+        newKey.placeholder = 'NEW_VAR';
+        const newVal = document.createElement('input');
+        newVal.type = 'text';
+        newVal.className = 'env-val';
+        newVal.placeholder = 'value';
+        const addBtn = document.createElement('button');
+        addBtn.className = 'btn btn-sm env-add';
+        addBtn.textContent = '+';
+        addBtn.addEventListener('click', () => {
+            const k = newKey.value.trim();
+            if (!k) return;
+            env[k] = newVal.value;
+            onUpdate(env);
+            // Re-render so the new entry becomes a normal row
+            const parent = wrap.parentNode;
+            const replacement = this._renderEnvEditor(env, onUpdate);
+            parent.replaceChild(replacement, wrap);
+        });
+        addRow.appendChild(newKey);
+        addRow.appendChild(newVal);
+        addRow.appendChild(addBtn);
+        wrap.appendChild(addRow);
+
+        return wrap;
+    },
+
     renderMcpCheckboxes(knownServers, enabledServers, container) {
         container.innerHTML = '';
 
-        // Known MCP servers as checkboxes
+        // Known MCP servers as checkboxes + env editors
         for (const [name, info] of Object.entries(knownServers)) {
             const checked = name in enabledServers;
             const item = document.createElement('div');
@@ -95,6 +171,21 @@ const Components = {
             item.appendChild(cb);
             item.appendChild(infoDiv);
             container.appendChild(item);
+
+            // Env editor when server is enabled
+            if (checked) {
+                const serverCfg = enabledServers[name];
+                if (!serverCfg.env) serverCfg.env = {};
+                const envLabel = document.createElement('div');
+                envLabel.className = 'env-label';
+                envLabel.textContent = 'Environment variables';
+                container.appendChild(envLabel);
+                container.appendChild(
+                    this._renderEnvEditor(serverCfg.env, (updatedEnv) => {
+                        window.App.setMcpEnv(name, updatedEnv);
+                    })
+                );
+            }
         }
 
         // Custom (non-known) MCP servers as removable cards
@@ -116,6 +207,17 @@ const Components = {
             card.querySelector('[data-remove-mcp]').addEventListener('click', () => {
                 window.App.removeMcpServer(name);
             });
+            // Env editor for custom servers
+            if (!config.env) config.env = {};
+            const envLabel = document.createElement('div');
+            envLabel.className = 'env-label';
+            envLabel.textContent = 'Environment variables';
+            card.appendChild(envLabel);
+            card.appendChild(
+                this._renderEnvEditor(config.env, (updatedEnv) => {
+                    window.App.setMcpEnv(name, updatedEnv);
+                })
+            );
             container.appendChild(card);
         }
     },

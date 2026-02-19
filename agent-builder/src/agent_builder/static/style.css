@@ -577,6 +577,61 @@ label {
     margin-bottom: 0;
 }
 
+/* ── Env Editor ────────────────────────────────────────── */
+
+.env-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin: 4px 0 2px 24px;
+}
+
+.env-editor {
+    margin-left: 24px;
+    margin-bottom: 6px;
+}
+
+.env-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 3px;
+}
+
+.env-key {
+    width: 35% !important;
+    font-size: 11px !important;
+    padding: 4px 6px !important;
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+}
+
+.env-val {
+    flex: 1;
+    font-size: 11px !important;
+    padding: 4px 6px !important;
+    font-family: var(--font-mono);
+}
+
+.env-rm {
+    padding: 2px 6px !important;
+    font-size: 10px !important;
+    line-height: 1;
+}
+
+.env-add {
+    padding: 2px 8px !important;
+    font-size: 10px !important;
+    line-height: 1;
+}
+
+.env-add-row {
+    opacity: 0.7;
+}
+
+.env-add-row:focus-within {
+    opacity: 1;
+}
+
 /* ── Build Progress ─────────────────────────────────────── */
 
 .build-overlay {

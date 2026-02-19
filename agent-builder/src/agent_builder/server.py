@@ -99,9 +99,14 @@ def _clean_for_toml(data: dict) -> dict:
         if k == "proxy" and isinstance(v, dict):
             if not v.get("url") and not v.get("no_ssl_verify"):
                 continue
-        # Drop empty server dicts
+        # Drop empty server dicts; strip empty env from each MCP entry
         if k in ("mcp_servers", "lsp_servers") and isinstance(v, dict) and not v:
             continue
+        if k == "mcp_servers" and isinstance(v, dict):
+            v = {
+                name: {sk: sv for sk, sv in srv.items() if not (sk == "env" and isinstance(sv, dict) and not sv)}
+                for name, srv in v.items()
+            }
         # Drop empty schema dicts
         if k in ("question_schema", "answer_schema") and isinstance(v, dict) and not v:
             continue

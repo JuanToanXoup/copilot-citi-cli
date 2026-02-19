@@ -195,7 +195,12 @@ const App = window.App = {
         } else {
             delete this.state.config.mcp_servers[name];
         }
-        this._updateServerCounts();
+        this._renderServers();
+    },
+
+    setMcpEnv(name, envDict) {
+        const srv = this.state.config.mcp_servers[name];
+        if (srv) srv.env = envDict;
     },
 
     toggleLsp(lang, checked) {
