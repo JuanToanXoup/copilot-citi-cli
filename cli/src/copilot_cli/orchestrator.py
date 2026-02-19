@@ -1,86 +1,64 @@
-"""Agent-to-Agent Communication Protocol: Orchestrator ↔ Worker agents.
+"""Agent-to-Agent Communication Protocol: Orchestrator <-> Worker agents.
 
-This module implements a lightweight orchestrator pattern where a single
-**orchestrator agent** decomposes high-level goals into discrete tasks and
-delegates them to specialised **worker agents**.  Each worker is an independent
-``CopilotClient`` session with its own conversation, tools, model, and system
-prompt — but they all share a workspace and communicate through a typed
-in-process message bus.
+This module implements a multi-agent orchestrator pattern with **two transport
+modes** for agent-to-agent communication:
 
-Architecture
-------------
+1. **MCP transport** (default) — Each worker runs as an MCP server process.
+   The orchestrator connects to them using the standard MCP protocol
+   (``tools/call`` with ``execute_task``).  This follows the emerging MCP
+   agent-to-agent pattern where agents are discoverable MCP servers.
+
+2. **Queue transport** (in-process) — Workers run as threads with
+   ``queue.Queue`` message passing.  Simpler, lower overhead, but limited
+   to a single process.
+
+MCP Transport Architecture
+--------------------------
 ::
 
-    ┌──────────────────────────────────────────┐
-    │             Orchestrator Agent            │
-    │  (plans tasks, fans out, aggregates)      │
-    └──┬────────┬────────┬────────┬────────┬───┘
-       │ assign │ assign │ assign │  ...   │
-       ▼        ▼        ▼        ▼        ▼
-    ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐
-    │Worker│ │Worker│ │Worker│ │Worker│ │Worker│
-    │  A   │ │  B   │ │  C   │ │  D   │ │  E   │
-    └──┬───┘ └──┬───┘ └──┬───┘ └──┬───┘ └──┬───┘
-       │ result │ result │ result │ result │ result
-       ▼        ▼        ▼        ▼        ▼
-    ┌──────────────────────────────────────────┐
-    │        Orchestrator (aggregates)          │
-    └──────────────────────────────────────────┘
+    Orchestrator (MCP Client)
+        |
+        |-- MCPServer("coder")  --stdio-->  MCPAgentServer(CopilotClient)
+        |-- MCPServer("reviewer") --stdio-->  MCPAgentServer(CopilotClient)
+        +-- MCPServer("tester")  --stdio-->  MCPAgentServer(CopilotClient)
 
-Message Protocol
-----------------
-All messages are plain Python dicts transported via ``queue.Queue``.
+    Each worker is a child process running ``mcp_agent.py`` that:
+    - Exposes ``execute_task``, ``get_status``, ``get_capabilities`` as MCP tools
+    - Internally manages its own CopilotClient session
+    - Communicates via MCP stdio transport (newline-delimited JSON-RPC)
 
-.. code-block:: python
+Queue Transport Architecture
+----------------------------
+::
 
-    # Orchestrator → Worker
-    {
-        "type": "task_assign",
-        "task_id": "...",
-        "worker_id": "...",
-        "prompt": "...",
-        "context": { ... },       # optional shared state
-    }
+    Orchestrator
+        |
+        +-- queue --> WorkerAgent (thread, CopilotClient)
+        +-- queue --> WorkerAgent (thread, CopilotClient)
+        +-- queue --> WorkerAgent (thread, CopilotClient)
 
-    # Worker → Orchestrator
-    {
-        "type": "task_result",
-        "task_id": "...",
-        "worker_id": "...",
-        "status": "success" | "error",
-        "result": "...",
-        "agent_rounds": [...],
-    }
-
-    # Worker → Orchestrator (progress)
-    {
-        "type": "task_progress",
-        "task_id": "...",
-        "worker_id": "...",
-        "message": "...",
-    }
-
-    # Orchestrator → Worker
-    {
-        "type": "shutdown",
-    }
-
-Usage (programmatic)
---------------------
+Usage
+-----
 ::
 
     from copilot_cli.orchestrator import Orchestrator, WorkerConfig
 
     workers = [
-        WorkerConfig(role="bug_fixer", model="gpt-4.1",
-                     system_prompt="You are a debugging expert..."),
-        WorkerConfig(role="test_writer", model="claude-sonnet-4",
-                     system_prompt="You are a test-writing specialist..."),
+        WorkerConfig(role="coder", system_prompt="..."),
+        WorkerConfig(role="reviewer", system_prompt="...",
+                     tools_enabled=["read_file", "grep_search"]),
     ]
 
-    orch = Orchestrator(workspace="/my/project", workers=workers)
+    # MCP transport (default) — workers are MCP server processes
+    orch = Orchestrator(workspace="/my/project", workers=workers,
+                        transport="mcp")
+
+    # Queue transport — workers are in-process threads
+    orch = Orchestrator(workspace="/my/project", workers=workers,
+                        transport="queue")
+
     orch.start()
-    results = orch.run("Fix the login bug and add tests for the fix")
+    results = orch.run("Fix the login bug and add tests")
     orch.stop()
 """
 
@@ -90,6 +68,7 @@ import dataclasses
 import json
 import os
 import queue
+import sys
 import threading
 import time
 import uuid
@@ -99,7 +78,7 @@ from copilot_cli.client import CopilotClient, _init_client
 from copilot_cli.platform_utils import path_to_file_uri
 
 
-# ── Message types ─────────────────────────────────────────────────────────────
+# ── Message types (used by queue transport) ───────────────────────────────────
 
 MSG_TASK_ASSIGN = "task_assign"
 MSG_TASK_RESULT = "task_result"
@@ -155,15 +134,111 @@ class WorkerConfig:
     agent_mode: bool = True            # True for agent mode, False for chat-only
 
 
-# ── Worker Agent ──────────────────────────────────────────────────────────────
+# ── MCP Worker (each worker is an MCP server process) ─────────────────────────
 
-class WorkerAgent:
-    """A single worker agent that processes tasks from its inbox queue.
+class MCPWorker:
+    """Manages a worker agent running as an MCP server child process.
 
-    Each worker owns an independent ``CopilotClient`` session.  The
-    orchestrator sends ``task_assign`` messages to ``inbox`` and the
-    worker posts ``task_result`` / ``task_progress`` messages to
-    ``outbox``.
+    Uses the existing ``MCPServer`` class from ``copilot_cli.mcp`` to
+    communicate with the child process via MCP stdio transport.  The child
+    process runs ``mcp_agent.py`` which exposes ``execute_task``,
+    ``get_status``, and ``get_capabilities`` as MCP tools.
+    """
+
+    def __init__(self, config: WorkerConfig, workspace: str,
+                 proxy_url: str | None = None,
+                 no_ssl_verify: bool = False):
+        self.config = config
+        self.workspace = workspace
+        self.proxy_url = proxy_url
+        self.no_ssl_verify = no_ssl_verify
+        self._mcp_server = None
+
+    def start(self):
+        """Spawn the MCP agent server as a child process."""
+        from copilot_cli.mcp import MCPServer
+
+        # Build the config JSON that mcp_agent.py expects
+        agent_config = json.dumps({
+            "role": self.config.role,
+            "name": f"{self.config.role} Agent",
+            "system_prompt": self.config.system_prompt,
+            "model": self.config.model,
+            "tools_enabled": self.config.tools_enabled,
+            "agent_mode": self.config.agent_mode,
+            "workspace": self.workspace,
+            "proxy_url": self.proxy_url,
+            "no_ssl_verify": self.no_ssl_verify,
+        })
+
+        # Spawn mcp_agent.py as a child process using MCP stdio transport
+        self._mcp_server = MCPServer(
+            name=f"agent-{self.config.role}",
+            command=sys.executable,
+            args=["-m", "copilot_cli.mcp_agent", agent_config],
+            init_timeout=120,
+        )
+        self._mcp_server.start()
+        time.sleep(0.5)
+        self._mcp_server.initialize()
+        self._mcp_server.list_tools()
+
+    def execute_task(self, prompt: str, context: dict | None = None) -> dict:
+        """Send a task to the worker via MCP tools/call(execute_task).
+
+        Returns dict with keys: status, reply, worker.
+        """
+        arguments = {"prompt": prompt}
+        if context:
+            arguments["context"] = json.dumps(context)
+
+        result = self._mcp_server.call_tool("execute_task", arguments)
+
+        # Parse the MCP result — content[0].text is a JSON string
+        content = result.get("content", [])
+        if content and isinstance(content[0], dict):
+            text = content[0].get("text", "{}")
+            try:
+                return json.loads(text)
+            except json.JSONDecodeError:
+                return {"status": "success", "reply": text, "worker": self.config.role}
+
+        return {"status": "error", "reply": str(result), "worker": self.config.role}
+
+    def get_status(self) -> dict:
+        """Check worker status via MCP."""
+        result = self._mcp_server.call_tool("get_status", {})
+        content = result.get("content", [])
+        if content and isinstance(content[0], dict):
+            try:
+                return json.loads(content[0].get("text", "{}"))
+            except json.JSONDecodeError:
+                pass
+        return {"status": "unknown"}
+
+    def get_capabilities(self) -> dict:
+        """Get worker capabilities via MCP."""
+        result = self._mcp_server.call_tool("get_capabilities", {})
+        content = result.get("content", [])
+        if content and isinstance(content[0], dict):
+            try:
+                return json.loads(content[0].get("text", "{}"))
+            except json.JSONDecodeError:
+                pass
+        return {}
+
+    def stop(self):
+        """Terminate the MCP agent server process."""
+        if self._mcp_server:
+            self._mcp_server.stop()
+
+
+# ── Queue Worker (in-process thread) ──────────────────────────────────────────
+
+class QueueWorker:
+    """A worker agent that processes tasks from its inbox queue (in-process).
+
+    Each worker owns an independent ``CopilotClient`` session.
     """
 
     def __init__(self, worker_id: str, config: WorkerConfig,
@@ -183,7 +258,6 @@ class WorkerAgent:
         self._running = False
 
     def start(self):
-        """Initialize the CopilotClient and start the message processing loop."""
         self._running = True
         self._thread = threading.Thread(
             target=self._run_loop, daemon=True,
@@ -192,8 +266,6 @@ class WorkerAgent:
         self._thread.start()
 
     def _init_client(self):
-        """Create and initialize the CopilotClient for this worker."""
-        # Filter tools if needed
         if self.config.tools_enabled != "__ALL__":
             from copilot_cli.tools import TOOL_SCHEMAS, TOOL_EXECUTORS
             enabled = set(self.config.tools_enabled)
@@ -212,7 +284,6 @@ class WorkerAgent:
         )
 
     def _run_loop(self):
-        """Main loop: wait for messages and process them."""
         try:
             self._init_client()
         except Exception as e:
@@ -233,16 +304,13 @@ class WorkerAgent:
             elif msg["type"] == MSG_TASK_ASSIGN:
                 self._handle_task(msg)
 
-        # Cleanup
         self._stop_client()
 
     def _handle_task(self, msg: dict):
-        """Execute a task assignment and post the result."""
         task_id = msg["task_id"]
         prompt = msg["prompt"]
         context = msg.get("context", {})
 
-        # Build the actual prompt with system instructions and context
         parts = []
         if self.config.system_prompt:
             parts.append(
@@ -255,7 +323,6 @@ class WorkerAgent:
         parts.append(prompt)
         actual_prompt = "\n\n".join(parts)
 
-        # Progress callback
         def on_progress(kind, data):
             if kind == "delta":
                 delta = data.get("delta", "")
@@ -314,7 +381,6 @@ class WorkerAgent:
                 pass
 
     def stop(self):
-        """Signal the worker to shut down."""
         self._running = False
         self.inbox.put(_msg_shutdown())
         if self._thread:
@@ -326,26 +392,21 @@ class WorkerAgent:
 class Orchestrator:
     """Orchestrator agent that decomposes goals and delegates to workers.
 
-    The orchestrator itself is also a ``CopilotClient`` session.  Its job
-    is to:
+    Supports two transport modes:
 
-    1. Receive a high-level goal from the user.
-    2. Use its own agent session to decompose the goal into discrete tasks.
-    3. Assign each task to the appropriate worker.
-    4. Collect results and produce a final summary.
-
-    The orchestrator uses a dedicated conversation with a planning system
-    prompt that instructs the model to output structured JSON task lists.
+    - ``"mcp"`` (default): Workers run as MCP server child processes.
+      Communication uses the standard MCP protocol (``tools/call``).
+    - ``"queue"``: Workers run as in-process threads with queue-based
+      message passing.
 
     Args:
         workspace: Absolute path to the shared workspace.
         workers: List of worker configurations.
         model: Model for the orchestrator's own planning session.
+        transport: ``"mcp"`` or ``"queue"``.
         proxy_url: HTTP proxy URL.
         no_ssl_verify: Disable SSL verification.
-        on_event: Optional callback ``(event_type, data) -> None`` for
-            UI integration.  Event types: ``"plan"``, ``"assign"``,
-            ``"progress"``, ``"result"``, ``"summary"``.
+        on_event: Optional callback for UI integration.
     """
 
     PLANNING_SYSTEM_PROMPT = """\
@@ -373,12 +434,14 @@ IMPORTANT: Respond ONLY with the JSON array. No other text."""
 
     def __init__(self, workspace: str, workers: list[WorkerConfig],
                  model: str | None = None,
+                 transport: str = "mcp",
                  proxy_url: str | None = None,
                  no_ssl_verify: bool = False,
                  on_event: Callable | None = None):
         self.workspace = os.path.abspath(workspace)
         self.worker_configs = {w.role: w for w in workers}
         self.model = model
+        self.transport = transport
         self.proxy_url = proxy_url
         self.no_ssl_verify = no_ssl_verify
         self.on_event = on_event
@@ -387,8 +450,11 @@ IMPORTANT: Respond ONLY with the JSON array. No other text."""
         self._client: CopilotClient | None = None
         self._conversation_id: str | None = None
 
-        # Worker instances and their queues
-        self._workers: dict[str, WorkerAgent] = {}
+        # MCP transport: worker processes
+        self._mcp_workers: dict[str, MCPWorker] = {}
+
+        # Queue transport: worker threads and queues
+        self._queue_workers: dict[str, QueueWorker] = {}
         self._worker_inboxes: dict[str, queue.Queue] = {}
         self._result_queue: queue.Queue = queue.Queue()
 
@@ -398,7 +464,8 @@ IMPORTANT: Respond ONLY with the JSON array. No other text."""
 
     def start(self):
         """Initialize the orchestrator client and all worker agents."""
-        print(f"\033[94m╭─ Orchestrator\033[0m")
+        transport_label = "MCP" if self.transport == "mcp" else "Queue"
+        print(f"\033[94m╭─ Orchestrator ({transport_label} transport)\033[0m")
         print(f"\033[94m│\033[0m  {len(self.worker_configs)} workers: "
               f"{', '.join(self.worker_configs.keys())}")
         print(f"\033[94m│\033[0m  \033[90m{os.path.basename(self.workspace)}\033[0m")
@@ -412,12 +479,37 @@ IMPORTANT: Respond ONLY with the JSON array. No other text."""
             no_ssl_verify=self.no_ssl_verify,
         )
 
-        # Start each worker
+        if self.transport == "mcp":
+            self._start_mcp_workers()
+        else:
+            self._start_queue_workers()
+
+    def _start_mcp_workers(self):
+        """Start each worker as an MCP server child process."""
+        for role, config in self.worker_configs.items():
+            print(f"\033[32m⏺\033[0m Starting MCP worker: \033[1m{role}\033[0m "
+                  f"(model={config.model or 'default'})")
+            worker = MCPWorker(
+                config=config,
+                workspace=self.workspace,
+                proxy_url=self.proxy_url,
+                no_ssl_verify=self.no_ssl_verify,
+            )
+            try:
+                worker.start()
+                self._mcp_workers[role] = worker
+                print(f"  \033[90mMCP agent-{role}: ready "
+                      f"({len(worker._mcp_server.tools)} tools)\033[0m")
+            except Exception as e:
+                print(f"  \033[31mFailed to start worker {role}: {e}\033[0m")
+
+    def _start_queue_workers(self):
+        """Start each worker as an in-process thread."""
         for role, config in self.worker_configs.items():
             worker_id = f"{role}-{uuid.uuid4().hex[:6]}"
             inbox = queue.Queue()
             self._worker_inboxes[role] = inbox
-            worker = WorkerAgent(
+            worker = QueueWorker(
                 worker_id=worker_id,
                 config=config,
                 workspace=self.workspace,
@@ -426,16 +518,13 @@ IMPORTANT: Respond ONLY with the JSON array. No other text."""
                 proxy_url=self.proxy_url,
                 no_ssl_verify=self.no_ssl_verify,
             )
-            self._workers[role] = worker
-            print(f"\033[32m⏺\033[0m Starting worker: \033[1m{role}\033[0m "
+            self._queue_workers[role] = worker
+            print(f"\033[32m⏺\033[0m Starting queue worker: \033[1m{role}\033[0m "
                   f"(model={config.model or 'default'})")
             worker.start()
 
     def _plan_tasks(self, goal: str) -> list[dict]:
-        """Use the orchestrator's LLM session to decompose a goal into tasks.
-
-        Returns a list of dicts with keys: worker_role, task, depends_on.
-        """
+        """Use the orchestrator's LLM session to decompose a goal into tasks."""
         workers_desc = "\n".join(
             f"- {role}: {cfg.system_prompt[:120]}"
             for role, cfg in self.worker_configs.items()
@@ -444,18 +533,15 @@ IMPORTANT: Respond ONLY with the JSON array. No other text."""
             workers_description=workers_desc
         ) + f"\n\nGoal: {goal}"
 
-        workspace_uri = path_to_file_uri(self.workspace)
-
         if self._conversation_id is None:
             result = self._client.conversation_create(
-                planning_prompt, model=self.model,
-                agent_mode=False,
+                planning_prompt, model=self.model, agent_mode=False,
             )
             self._conversation_id = result.get("conversationId")
         else:
             result = self._client.conversation_turn(
-                self._conversation_id, planning_prompt, model=self.model,
-                agent_mode=False,
+                self._conversation_id, planning_prompt,
+                model=self.model, agent_mode=False,
             )
 
         reply = result.get("reply", "")
@@ -473,16 +559,13 @@ IMPORTANT: Respond ONLY with the JSON array. No other text."""
         try:
             tasks = json.loads(json_str)
         except json.JSONDecodeError:
-            # Fallback: treat the entire goal as a single task for the first worker
             first_role = next(iter(self.worker_configs))
             tasks = [{"worker_role": first_role, "task": goal, "depends_on": []}]
 
-        # Validate tasks
         validated = []
         for t in tasks:
             role = t.get("worker_role", "")
             if role not in self.worker_configs:
-                # Assign to first available worker
                 role = next(iter(self.worker_configs))
             validated.append({
                 "worker_role": role,
@@ -492,15 +575,12 @@ IMPORTANT: Respond ONLY with the JSON array. No other text."""
 
         return validated
 
+    # ── Task execution (dispatches to the appropriate transport) ───────────
+
     def run(self, goal: str, context: dict | None = None) -> dict:
         """Execute a high-level goal by planning, delegating, and aggregating.
 
-        Args:
-            goal: The user's high-level request.
-            context: Optional shared context available to all workers.
-
-        Returns:
-            Dict with keys: ``tasks``, ``results``, ``summary``.
+        Returns dict with keys: ``tasks``, ``results``, ``summary``.
         """
         # Step 1: Plan
         print(f"\n\033[94m⏺\033[0m Planning task decomposition...")
@@ -513,35 +593,38 @@ IMPORTANT: Respond ONLY with the JSON array. No other text."""
             print(f"  \033[90m{i}. [{t['worker_role']}]{dep_str} {t['task'][:100]}\033[0m")
         self._emit("plan", {"goal": goal, "tasks": tasks, "status": "planned"})
 
-        # Step 2: Execute tasks respecting dependencies
-        task_ids = [f"task-{uuid.uuid4().hex[:8]}" for _ in tasks]
-        completed: dict[int, dict] = {}  # index -> result msg
+        # Step 2: Execute
+        if self.transport == "mcp":
+            results = self._execute_mcp(tasks, context)
+        else:
+            results = self._execute_queue(tasks, context)
+
+        # Step 3: Summarize
+        summary = self._summarize(goal, results)
+
+        return {"tasks": tasks, "results": results, "summary": summary}
+
+    def _execute_mcp(self, tasks: list[dict], context: dict | None) -> list[dict]:
+        """Execute tasks using MCP transport (child processes)."""
+        completed: dict[int, dict] = {}
         pending = set(range(len(tasks)))
 
         while pending:
             # Find tasks whose dependencies are satisfied
-            ready = []
-            for idx in list(pending):
-                deps = tasks[idx].get("depends_on", [])
-                if all(d in completed for d in deps):
-                    ready.append(idx)
+            ready = [idx for idx in pending
+                     if all(d in completed for d in tasks[idx].get("depends_on", []))]
 
             if not ready:
-                # All remaining tasks have unsatisfied deps — try to collect results
-                try:
-                    result_msg = self._result_queue.get(timeout=300)
-                    self._handle_result(result_msg, task_ids, tasks, completed, pending)
-                except queue.Empty:
-                    print("\033[31m⏺\033[0m Timeout waiting for worker results")
-                    break
-                continue
+                break
 
-            # Dispatch ready tasks
+            # Dispatch ready tasks in parallel threads
+            results_lock = threading.Lock()
+            threads = []
+
             for idx in ready:
                 pending.discard(idx)
                 t = tasks[idx]
                 role = t["worker_role"]
-                task_id = task_ids[idx]
 
                 # Build context from completed dependencies
                 dep_context = dict(context or {})
@@ -552,8 +635,99 @@ IMPORTANT: Respond ONLY with the JSON array. No other text."""
                         dep_result.get("result", "")
                     )
 
+                worker = self._mcp_workers.get(role)
+                if not worker:
+                    completed[idx] = {
+                        "status": "error",
+                        "result": f"No MCP worker for role: {role}",
+                    }
+                    continue
+
                 print(f"\033[32m⏺\033[0m Assigning task {idx} to "
-                      f"\033[1m{role}\033[0m: {t['task'][:80]}")
+                      f"\033[1m{role}\033[0m (MCP): {t['task'][:80]}")
+                self._emit("assign", {"worker_role": role, "task": t["task"],
+                                       "index": idx})
+
+                def _run_task(w=worker, i=idx, p=t["task"], c=dep_context):
+                    try:
+                        result = w.execute_task(p, c)
+                        with results_lock:
+                            completed[i] = {
+                                "status": result.get("status", "success"),
+                                "result": result.get("reply", str(result)),
+                            }
+                    except Exception as e:
+                        with results_lock:
+                            completed[i] = {"status": "error", "result": str(e)}
+
+                thread = threading.Thread(target=_run_task, daemon=True)
+                threads.append(thread)
+                thread.start()
+
+            # Wait for all dispatched tasks
+            for thread in threads:
+                thread.join(timeout=300)
+
+            # Print results
+            for idx in ready:
+                if idx in completed:
+                    r = completed[idx]
+                    icon = "\033[32m✓\033[0m" if r["status"] == "success" else "\033[31m✗\033[0m"
+                    print(f"  {icon} Task {idx} [{tasks[idx]['worker_role']}]: "
+                          f"{r['status']}")
+                    self._emit("result", {**r, "index": idx,
+                                          "worker_role": tasks[idx]["worker_role"]})
+
+        # Build results list
+        results = []
+        for i, t in enumerate(tasks):
+            r = completed.get(i, {"status": "skipped", "result": "Not executed"})
+            results.append({
+                "index": i,
+                "worker_role": t["worker_role"],
+                "task": t["task"],
+                "status": r.get("status", "unknown"),
+                "result": r.get("result", ""),
+            })
+
+        return results
+
+    def _execute_queue(self, tasks: list[dict], context: dict | None) -> list[dict]:
+        """Execute tasks using queue transport (in-process threads)."""
+        task_ids = [f"task-{uuid.uuid4().hex[:8]}" for _ in tasks]
+        completed: dict[int, dict] = {}
+        pending = set(range(len(tasks)))
+
+        while pending:
+            ready = [idx for idx in pending
+                     if all(d in completed for d in tasks[idx].get("depends_on", []))]
+
+            if not ready:
+                try:
+                    result_msg = self._result_queue.get(timeout=300)
+                    self._handle_queue_result(result_msg, task_ids, tasks,
+                                              completed, pending)
+                except queue.Empty:
+                    print("\033[31m⏺\033[0m Timeout waiting for worker results")
+                    break
+                continue
+
+            for idx in ready:
+                pending.discard(idx)
+                t = tasks[idx]
+                role = t["worker_role"]
+                task_id = task_ids[idx]
+
+                dep_context = dict(context or {})
+                for dep_idx in t.get("depends_on", []):
+                    dep_result = completed.get(dep_idx, {})
+                    dep_role = tasks[dep_idx]["worker_role"]
+                    dep_context[f"result_from_{dep_role}_task_{dep_idx}"] = (
+                        dep_result.get("result", "")
+                    )
+
+                print(f"\033[32m⏺\033[0m Assigning task {idx} to "
+                      f"\033[1m{role}\033[0m (queue): {t['task'][:80]}")
                 self._emit("assign", {"task_id": task_id, "worker_role": role,
                                        "task": t["task"], "index": idx})
 
@@ -569,16 +743,15 @@ IMPORTANT: Respond ONLY with the JSON array. No other text."""
                         "result": f"No worker found for role: {role}",
                     }
 
-            # Collect results for dispatched tasks
             while len(completed) < len(tasks) - len(pending):
                 try:
                     result_msg = self._result_queue.get(timeout=300)
-                    self._handle_result(result_msg, task_ids, tasks, completed, pending)
+                    self._handle_queue_result(result_msg, task_ids, tasks,
+                                              completed, pending)
                 except queue.Empty:
                     print("\033[31m⏺\033[0m Timeout waiting for worker results")
                     break
 
-        # Step 3: Aggregate results
         results = []
         for i, t in enumerate(tasks):
             r = completed.get(i, {"status": "skipped", "result": "Not executed"})
@@ -590,14 +763,10 @@ IMPORTANT: Respond ONLY with the JSON array. No other text."""
                 "result": r.get("result", ""),
             })
 
-        # Generate summary via orchestrator LLM
-        summary = self._summarize(goal, results)
+        return results
 
-        return {"tasks": tasks, "results": results, "summary": summary}
-
-    def _handle_result(self, msg: dict, task_ids: list[str],
-                       tasks: list[dict], completed: dict, pending: set):
-        """Process a message from the result queue."""
+    def _handle_queue_result(self, msg: dict, task_ids: list[str],
+                             tasks: list[dict], completed: dict, pending: set):
         if msg["type"] == MSG_TASK_PROGRESS:
             self._emit("progress", msg)
             return
@@ -607,13 +776,12 @@ IMPORTANT: Respond ONLY with the JSON array. No other text."""
             if task_id in task_ids:
                 idx = task_ids.index(task_id)
                 completed[idx] = msg
-                status_icon = "\033[32m✓\033[0m" if msg["status"] == "success" else "\033[31m✗\033[0m"
-                print(f"  {status_icon} Task {idx} [{tasks[idx]['worker_role']}]: "
+                icon = "\033[32m✓\033[0m" if msg["status"] == "success" else "\033[31m✗\033[0m"
+                print(f"  {icon} Task {idx} [{tasks[idx]['worker_role']}]: "
                       f"{msg['status']}")
                 self._emit("result", {**msg, "index": idx})
 
     def _summarize(self, goal: str, results: list[dict]) -> str:
-        """Ask the orchestrator LLM to produce a final summary."""
         results_text = "\n".join(
             f"Task {r['index']} [{r['worker_role']}] ({r['status']}): "
             f"{r['result'][:500]}"
@@ -637,10 +805,17 @@ IMPORTANT: Respond ONLY with the JSON array. No other text."""
 
     def stop(self):
         """Shut down all workers and the orchestrator client."""
-        for role, worker in self._workers.items():
-            print(f"\033[90m  Stopping worker: {role}\033[0m")
+        # Stop MCP workers
+        for role, worker in self._mcp_workers.items():
+            print(f"\033[90m  Stopping MCP worker: {role}\033[0m")
             worker.stop()
-        self._workers.clear()
+        self._mcp_workers.clear()
+
+        # Stop queue workers
+        for role, worker in self._queue_workers.items():
+            print(f"\033[90m  Stopping queue worker: {role}\033[0m")
+            worker.stop()
+        self._queue_workers.clear()
 
         if self._client:
             if self._conversation_id:
@@ -660,6 +835,7 @@ IMPORTANT: Respond ONLY with the JSON array. No other text."""
 def run_orchestrator_cli(workspace: str, goal: str,
                          workers: list[WorkerConfig] | None = None,
                          model: str | None = None,
+                         transport: str = "mcp",
                          proxy_url: str | None = None,
                          no_ssl_verify: bool = False):
     """Run the orchestrator from the CLI.
@@ -712,6 +888,7 @@ def run_orchestrator_cli(workspace: str, goal: str,
         workspace=workspace,
         workers=workers,
         model=model,
+        transport=transport,
         proxy_url=proxy_url,
         no_ssl_verify=no_ssl_verify,
     )
@@ -720,7 +897,6 @@ def run_orchestrator_cli(workspace: str, goal: str,
         orch.start()
         result = orch.run(goal)
 
-        # Print summary
         print(f"\n\033[94m{'─' * 60}\033[0m")
         print(f"\033[94m⏺ Summary\033[0m")
         print(f"\033[94m{'─' * 60}\033[0m")

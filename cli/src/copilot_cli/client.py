@@ -1218,6 +1218,7 @@ def cmd_orchestrate(args):
         goal=goal,
         workers=workers,
         model=model,
+        transport=getattr(args, "transport", "mcp"),
         proxy_url=getattr(args, "proxy", None),
         no_ssl_verify=getattr(args, "no_ssl_verify", False),
     )
@@ -1271,6 +1272,9 @@ def main():
     p_orch.add_argument("--workers", default=None,
                         help="Worker config: JSON file or inline JSON array of "
                              '{role, system_prompt, model, tools_enabled}')
+    p_orch.add_argument("--transport", choices=["mcp", "queue"], default="mcp",
+                        help="Agent transport: 'mcp' (workers as MCP servers, default) "
+                             "or 'queue' (in-process threads)")
 
     # --- mcp (MCP server management) ---
     p_mcp = sub.add_parser("mcp", help="MCP server management")
