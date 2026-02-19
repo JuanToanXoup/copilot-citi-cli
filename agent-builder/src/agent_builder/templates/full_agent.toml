@@ -18,16 +18,22 @@ as needed. Be thorough and verify your work by running tests.
 enabled = "__ALL__"
 disabled = []
 
-# MCP servers (uncomment to override defaults)
-#[mcp_servers.playwright]
-#command = "npx"
-#args = ["-y", "@playwright/mcp@latest"]
+[mcp_servers.playwright]
+command = "npx"
+args = ["-y", "@playwright/mcp@latest"]
 
-# LSP servers (uncomment to override defaults from config.toml)
-#[lsp_servers.python]
-#command = "npx"
-#args = ["-y", "pyright", "--langserver", "--stdio"]
-#
-#[lsp_servers.typescript]
-#command = "npx"
-#args = ["-y", "typescript-language-server", "--stdio"]
+[lsp_servers.python]
+command = "pyright-langserver"
+args = ["--stdio"]
+
+[lsp_servers.java]
+command = "jdtls"
+args = []
+
+[lsp_servers.kotlin]
+command = "kotlin-language-server"
+args = []
+
+[lsp_servers.gherkin]
+command = "npx"
+args = ["-y", "@cucumber/language-server", "--stdio"]
