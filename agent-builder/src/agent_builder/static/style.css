@@ -533,6 +533,40 @@ label {
     color: #000;
 }
 
+/* ── Worker Cards ──────────────────────────────────────── */
+
+.worker-card {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: 12px;
+    margin-bottom: 10px;
+}
+
+.worker-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.worker-card-index {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent-yellow);
+}
+
+.worker-card .field { margin-bottom: 8px; }
+
+.worker-prompt {
+    min-height: 60px;
+    font-size: 12px;
+    resize: vertical;
+}
+
 /* ── Build Progress ─────────────────────────────────────── */
 
 .build-overlay {

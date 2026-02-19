@@ -175,6 +175,98 @@ const Components = {
         }
     },
 
+    renderWorkerList(workers, container, models) {
+        container.innerHTML = '';
+        if (!workers || workers.length === 0) {
+            container.innerHTML = '<div class="config-list-empty">No workers defined</div>';
+            return;
+        }
+
+        workers.forEach((w, idx) => {
+            const card = document.createElement('div');
+            card.className = 'worker-card';
+
+            // Header with role and remove button
+            const header = document.createElement('div');
+            header.className = 'worker-card-header';
+            header.innerHTML = `
+                <span class="worker-card-index">#${idx + 1}</span>
+                <button class="btn btn-sm btn-danger" data-remove-worker="${idx}">Remove</button>
+            `;
+            header.querySelector('[data-remove-worker]').addEventListener('click', () => {
+                window.App.removeWorker(idx);
+            });
+            card.appendChild(header);
+
+            // Role
+            const roleField = document.createElement('div');
+            roleField.className = 'field';
+            roleField.innerHTML = `<label>Role</label>`;
+            const roleInput = document.createElement('input');
+            roleInput.type = 'text';
+            roleInput.value = w.role || '';
+            roleInput.placeholder = 'coder, reviewer, tester...';
+            roleInput.addEventListener('input', () => {
+                window.App.updateWorker(idx, 'role', roleInput.value);
+            });
+            roleField.appendChild(roleInput);
+            card.appendChild(roleField);
+
+            // Model (optional override)
+            const modelField = document.createElement('div');
+            modelField.className = 'field';
+            modelField.innerHTML = `<label>Model (blank = inherit)</label>`;
+            const modelSel = document.createElement('select');
+            const blankOpt = document.createElement('option');
+            blankOpt.value = '';
+            blankOpt.textContent = '— Inherit from orchestrator —';
+            modelSel.appendChild(blankOpt);
+            for (const m of (models || [])) {
+                const opt = document.createElement('option');
+                opt.value = m.id || m;
+                opt.textContent = m.name || m.id || m;
+                modelSel.appendChild(opt);
+            }
+            modelSel.value = w.model || '';
+            modelSel.addEventListener('change', () => {
+                window.App.updateWorker(idx, 'model', modelSel.value || undefined);
+            });
+            modelField.appendChild(modelSel);
+            card.appendChild(modelField);
+
+            // Agent mode
+            const modeField = document.createElement('div');
+            modeField.className = 'field field-inline';
+            const modeCb = document.createElement('input');
+            modeCb.type = 'checkbox';
+            modeCb.checked = w.agent_mode !== false;
+            modeCb.addEventListener('change', () => {
+                window.App.updateWorker(idx, 'agent_mode', modeCb.checked);
+            });
+            const modeLabel = document.createElement('label');
+            modeLabel.appendChild(modeCb);
+            modeLabel.appendChild(document.createTextNode(' Agent mode'));
+            modeField.appendChild(modeLabel);
+            card.appendChild(modeField);
+
+            // System prompt
+            const promptField = document.createElement('div');
+            promptField.className = 'field';
+            promptField.innerHTML = `<label>System Prompt</label>`;
+            const promptTa = document.createElement('textarea');
+            promptTa.className = 'worker-prompt';
+            promptTa.value = w.system_prompt || '';
+            promptTa.placeholder = 'Instructions for this worker...';
+            promptTa.addEventListener('input', () => {
+                window.App.updateWorker(idx, 'system_prompt', promptTa.value);
+            });
+            promptField.appendChild(promptTa);
+            card.appendChild(promptField);
+
+            container.appendChild(card);
+        });
+    },
+
     renderChatMessage(msg, container) {
         const div = document.createElement('div');
         div.className = 'msg';
