@@ -365,17 +365,24 @@ const App = window.App = {
         const r = await fetch(`/api/templates/${encodeURIComponent(templateId)}`);
         const full = await r.json();
 
-        // Merge template into config (preserve name/workspace)
-        const prevName = this.state.config.name;
+        // Replace config entirely from template (source of truth).
+        // Only preserve workspace_root since it's environment-specific.
         const prevWs = this.state.config.workspace_root;
-        Object.assign(this.state.config, full);
-        if (prevName) this.state.config.name = prevName;
-        if (prevWs) this.state.config.workspace_root = prevWs;
-
-        // Keep _source_path so saves go back to the template file
-        if (full._source_path) {
-            this.state.config._source_path = full._source_path;
-        }
+        this.state.config = {
+            name: full.name || '',
+            description: full.description || '',
+            system_prompt: full.system_prompt || '',
+            model: full.model || 'gpt-4.1',
+            agent_mode: full.agent_mode !== false,
+            workspace_root: prevWs || full.workspace_root || '',
+            tools: full.tools || { enabled: '__ALL__', disabled: [] },
+            mcp_servers: full.mcp_servers || {},
+            lsp_servers: full.lsp_servers || {},
+            proxy: full.proxy || { url: '', no_ssl_verify: false },
+            transport: full.transport || 'mcp',
+            workers: full.workers || [],
+            _source_path: full._source_path || undefined,
+        };
 
         this._syncConfigToUI();
     },
