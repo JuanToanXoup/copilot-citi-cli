@@ -46,6 +46,13 @@ LIBRARIES = {
         "aliases": ["java", "java-se", "jdk", "java-api", "java-lang"],
         "docs_dir": os.path.join(_DOCS_DIR, "java"),
     },
+    "mermaid": {
+        "id": "mermaid",
+        "title": "Mermaid",
+        "description": "Text-based diagramming — flowcharts, sequence, class, state, ER, Gantt, pie, git graphs, and more",
+        "aliases": ["mermaid", "mermaid-js", "mermaidjs", "mermaid.js", "mermaid-diagram"],
+        "docs_dir": os.path.join(_DOCS_DIR, "mermaid"),
+    },
 }
 
 
