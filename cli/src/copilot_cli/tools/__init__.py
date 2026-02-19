@@ -13,18 +13,16 @@ TOOL_EXECUTORS: dict[str, callable] = {}
 #
 # ALL tools return: [{"type": "text", "value": "..."}]
 #
-# Built-in tools (listed below):
-#   Response is sent *as-is* to the server.  The server processes the
-#   result array directly — each element must have "type" and "value".
-#
-# Registered tools (everything NOT in BUILTIN_TOOL_NAMES):
-#   Response is auto-wrapped by CopilotClient._wrap_registered_tool_result()
-#   into [{"content": [{"value": "..."}], "status": "success"}, None]
-#   before being sent to the server.
+# Every tool is registered with the server via conversation/registerTools.
+# The client auto-wraps all results (except client-side MCP) into the tuple
+# format: [{"content": [{"value": "..."}], "status": "success"}, None]
+# via CopilotClient._wrap_registered_tool_result().
 #
 # See tools/_base.py for the full contract.
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Names that the server recognises as "shared" built-in tools.  Kept for
+# reference only — all tools are now registered explicitly by the client.
 BUILTIN_TOOL_NAMES: set[str] = {
     "insert_edit_into_file", "replace_string_in_file", "multi_replace_string",
     "create_file", "create_directory", "apply_patch", "read_file", "list_dir",
