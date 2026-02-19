@@ -837,18 +837,153 @@ def _load_mcp_config(mcp_arg: str | None) -> dict | None:
         pass
     raise ValueError(f"--mcp: not a valid file path or JSON string: {mcp_arg}")
 
-def _init_client(workspace: str, agent_mode: bool = False,
-                 mcp_config: dict = None,
-                 proxy_url: str = None, no_ssl_verify: bool = False,
-                 verbose: bool = False,
-                 on_progress: callable = None) -> CopilotClient:
-    """Start and initialize a CopilotClient.
+class SessionPool:
+    """Process-wide pool of shared CopilotClient instances.
 
-    Args:
-        mcp_config: MCP server config. Automatically routed to server-side
-            (if org allows MCP) or client-side (if org blocks MCP).
-        on_progress: Optional callback ``(message: str) -> None`` for
-            startup progress reporting (used by Agent Builder SSE).
+    Caches a single ``CopilotClient`` (and its ``copilot-language-server``
+    process) per workspace path so that multiple agents/conversations can
+    share the same LSP connection instead of each spawning their own.
+
+    Usage::
+
+        client = _init_client(workspace, shared=True, ...)
+        # ... use client normally ...
+        release_client(client)  # instead of client.stop()
+    """
+
+    _instance: "SessionPool | None" = None
+    _instance_lock = threading.Lock()
+
+    @classmethod
+    def get(cls) -> "SessionPool":
+        with cls._instance_lock:
+            if cls._instance is None:
+                cls._instance = cls()
+            return cls._instance
+
+    @classmethod
+    def reset(cls):
+        """Shut down all pooled clients and clear the singleton (for tests)."""
+        with cls._instance_lock:
+            if cls._instance is not None:
+                for key in list(cls._instance._clients):
+                    try:
+                        cls._instance._clients[key].stop()
+                    except Exception:
+                        pass
+                cls._instance = None
+
+    def __init__(self):
+        self._clients: dict[str, CopilotClient] = {}  # workspace -> client
+        self._refcounts: dict[str, int] = {}
+        self._lock = threading.Lock()
+
+    def acquire(self, workspace: str, agent_mode: bool = False,
+                mcp_config: dict = None,
+                proxy_url: str = None, no_ssl_verify: bool = False,
+                verbose: bool = False,
+                on_progress: callable = None) -> CopilotClient:
+        """Return a (possibly cached) CopilotClient for *workspace*.
+
+        The first call for a given workspace performs the full
+        ``_init_client`` startup sequence.  Subsequent calls return the
+        existing client, escalating capabilities (agent_mode, MCP) if the
+        new caller requests them.
+        """
+        key = os.path.abspath(workspace)
+        with self._lock:
+            if key in self._clients:
+                client = self._clients[key]
+                self._refcounts[key] += 1
+
+                # Escalate to agent_mode if a new caller needs it
+                if agent_mode and not getattr(client, "_pool_agent_mode", False):
+                    client.register_client_tools()
+                    _open_workspace_files(client, key)
+                    client._pool_agent_mode = True
+
+                return client
+
+        # First acquisition — full init (outside the lock to avoid blocking)
+        client = _init_client_internal(
+            workspace, agent_mode=agent_mode, mcp_config=mcp_config,
+            proxy_url=proxy_url, no_ssl_verify=no_ssl_verify,
+            verbose=verbose, on_progress=on_progress,
+        )
+        client._pool_agent_mode = agent_mode
+
+        with self._lock:
+            # Double-check: another thread may have raced us
+            if key in self._clients:
+                # Someone beat us — stop ours and use theirs
+                client.stop()
+                client = self._clients[key]
+                self._refcounts[key] += 1
+            else:
+                self._clients[key] = client
+                self._refcounts[key] = 1
+
+        return client
+
+    def release(self, client: CopilotClient):
+        """Decrement refcount; stop the client when it hits zero."""
+        key = client.workspace_root
+        with self._lock:
+            if key not in self._refcounts:
+                # Not pooled — stop directly
+                client.stop()
+                return
+            self._refcounts[key] -= 1
+            if self._refcounts[key] <= 0:
+                del self._clients[key]
+                del self._refcounts[key]
+                client.stop()
+
+
+def release_client(client: CopilotClient):
+    """Release a client that was created with ``shared=True``.
+
+    If the client is pooled, its refcount is decremented and the
+    underlying ``copilot-language-server`` process is only stopped when
+    the last reference is released.  For non-pooled clients this is
+    equivalent to ``client.stop()``.
+    """
+    pool = SessionPool.get()
+    pool.release(client)
+
+
+def _open_workspace_files(client: CopilotClient, workspace: str):
+    """Walk *workspace* and open known file types as LSP documents."""
+    doc_count = 0
+    lang_map = {
+        ".py": "python", ".js": "javascript", ".ts": "typescript",
+        ".java": "java", ".rb": "ruby", ".go": "go", ".rs": "rust",
+        ".c": "c", ".cpp": "cpp", ".h": "c", ".cs": "csharp",
+        ".html": "html", ".css": "css", ".json": "json", ".md": "markdown",
+        ".sh": "shellscript", ".yaml": "yaml", ".yml": "yaml",
+    }
+    for root, _, files in os.walk(workspace):
+        for fname in files:
+            fpath = os.path.join(root, fname)
+            ext = os.path.splitext(fname)[1].lower()
+            if ext in lang_map:
+                uri = path_to_file_uri(fpath)
+                with open(fpath, "r", errors="replace") as f:
+                    client.open_document(uri, lang_map[ext], f.read())
+                doc_count += 1
+    if doc_count:
+        print(f"[*] Opened {doc_count} workspace files")
+
+
+def _init_client_internal(workspace: str, agent_mode: bool = False,
+                          mcp_config: dict = None,
+                          proxy_url: str = None, no_ssl_verify: bool = False,
+                          verbose: bool = False,
+                          on_progress: callable = None) -> CopilotClient:
+    """Core init logic — always creates a fresh CopilotClient.
+
+    Callers should prefer ``_init_client()`` which supports the ``shared``
+    parameter for session pooling.
     """
     def _emit(msg):
         if on_progress:
@@ -859,8 +994,6 @@ def _init_client(workspace: str, agent_mode: bool = False,
     client.verbose = verbose
     _emit("Starting Copilot LSP...")
     client.start(proxy_url=proxy_url)
-    # Pass proxy into initialize so the server has it BEFORE token exchange
-    # (Node.js ignores HTTP_PROXY env vars - needs networkProxy in init options)
     client.initialize(root_uri=path_to_file_uri(client.workspace_root),
                       github_app_id=client._auth.get("app_id"),
                       proxy_url=proxy_url)
@@ -873,7 +1006,6 @@ def _init_client(workspace: str, agent_mode: bool = False,
     client.check_status()
     time.sleep(0.5)
 
-    # Substitute {workspace} in MCP server args and URLs
     if mcp_config:
         for srv_cfg in mcp_config.values():
             if "args" in srv_cfg:
@@ -882,15 +1014,13 @@ def _init_client(workspace: str, agent_mode: bool = False,
             if "url" in srv_cfg:
                 srv_cfg["url"] = srv_cfg["url"].replace("{workspace}", client.workspace_root)
 
-    # Auto-route MCP: server-side if allowed, client-side if blocked
     if mcp_config:
         _emit("Starting MCP servers...")
-        # Wait briefly for featureFlagsNotification to arrive
         time.sleep(0.5)
         if client.is_server_mcp_enabled:
             print(f"[*] MCP: using server-side (org allows mcp)")
             client.configure_mcp(mcp_config)
-            time.sleep(4)  # Give MCP servers time to start
+            time.sleep(4)
         else:
             print(f"[*] MCP: using client-side (org blocks server mcp)")
             manager = ClientMCPManager()
@@ -898,17 +1028,14 @@ def _init_client(workspace: str, agent_mode: bool = False,
             manager.start_all(on_progress=on_progress)
             client.client_mcp = manager
 
-    # Create LSP bridge for code intelligence (lazy — servers start on demand)
     lsp_config = CONFIG.get("lsp", {})
     client.lsp_bridge = LSPBridgeManager(client.workspace_root, lsp_config)
 
-    # Print configured LSP servers (they start lazily on first tool use)
     if lsp_config:
         langs = []
         for lang, cfg in lsp_config.items():
             cmd = cfg.get("command", "")
             args = cfg.get("args", [])
-            # For npx, show the package name instead of "npx"
             if cmd == "npx" and args:
                 pkg = next((a for a in args if not a.startswith("-")), cmd)
                 langs.append(f"{lang} ({pkg})")
@@ -921,28 +1048,39 @@ def _init_client(workspace: str, agent_mode: bool = False,
         client.register_client_tools()
         time.sleep(0.5)
         _emit("Opening workspace files...")
-        # Open all files in workspace so server knows about them
-        doc_count = 0
-        for root, _, files in os.walk(workspace):
-            for fname in files:
-                fpath = os.path.join(root, fname)
-                ext = os.path.splitext(fname)[1].lower()
-                lang_map = {
-                    ".py": "python", ".js": "javascript", ".ts": "typescript",
-                    ".java": "java", ".rb": "ruby", ".go": "go", ".rs": "rust",
-                    ".c": "c", ".cpp": "cpp", ".h": "c", ".cs": "csharp",
-                    ".html": "html", ".css": "css", ".json": "json", ".md": "markdown",
-                    ".sh": "shellscript", ".yaml": "yaml", ".yml": "yaml",
-                }
-                if ext in lang_map:
-                    uri = path_to_file_uri(fpath)
-                    with open(fpath, "r", errors="replace") as f:
-                        client.open_document(uri, lang_map[ext], f.read())
-                    doc_count += 1
-        if doc_count:
-            print(f"[*] Opened {doc_count} workspace files")
+        _open_workspace_files(client, client.workspace_root)
     _emit("Ready")
     return client
+
+
+def _init_client(workspace: str, agent_mode: bool = False,
+                 mcp_config: dict = None,
+                 proxy_url: str = None, no_ssl_verify: bool = False,
+                 verbose: bool = False,
+                 on_progress: callable = None,
+                 shared: bool = False) -> CopilotClient:
+    """Start and initialize a CopilotClient.
+
+    Args:
+        mcp_config: MCP server config. Automatically routed to server-side
+            (if org allows MCP) or client-side (if org blocks MCP).
+        on_progress: Optional callback ``(message: str) -> None`` for
+            startup progress reporting (used by Agent Builder SSE).
+        shared: If True, return a pooled client shared across callers
+            for the same workspace. Use ``release_client()`` instead of
+            ``client.stop()`` when done.
+    """
+    if shared:
+        return SessionPool.get().acquire(
+            workspace, agent_mode=agent_mode, mcp_config=mcp_config,
+            proxy_url=proxy_url, no_ssl_verify=no_ssl_verify,
+            verbose=verbose, on_progress=on_progress,
+        )
+    return _init_client_internal(
+        workspace, agent_mode=agent_mode, mcp_config=mcp_config,
+        proxy_url=proxy_url, no_ssl_verify=no_ssl_verify,
+        verbose=verbose, on_progress=on_progress,
+    )
 
 def _common_kwargs(args) -> dict:
     """Extract common keyword args from parsed CLI args."""
@@ -986,7 +1124,7 @@ def cmd_mcp(args):
         else:
             print(f"[!] Unknown mcp action: {action}")
     finally:
-        client.stop()
+        release_client(client)
 
 def cmd_models(args):
     """List available Copilot models."""
@@ -1003,7 +1141,7 @@ def cmd_models(args):
         else:
             print(json.dumps(resp, indent=2))
     finally:
-        client.stop()
+        release_client(client)
 
 def cmd_complete(args):
     """Request inline completions for a file at a given position."""
@@ -1037,7 +1175,7 @@ def cmd_complete(args):
         else:
             print("[!] No completions returned.")
     finally:
-        client.stop()
+        release_client(client)
 
 def _print_banner(workspace: str, model: str, agent_mode: bool, tool_count: int,
                   mcp_count: int):
@@ -1181,7 +1319,140 @@ def cmd_chat(args):
         if conversation_id:
             client.conversation_destroy(conversation_id)
     finally:
-        client.stop()
+        release_client(client)
+
+def _parse_worker_defs(worker_defs: list[dict], default_model: str | None = None):
+    """Convert raw worker dicts into WorkerConfig objects."""
+    from copilot_cli.orchestrator import WorkerConfig
+    return [
+        WorkerConfig(
+            role=w["role"],
+            system_prompt=w.get("system_prompt", ""),
+            model=w.get("model", default_model),
+            tools_enabled=w.get("tools_enabled", "__ALL__"),
+            agent_mode=w.get("agent_mode", True),
+        )
+        for w in worker_defs
+    ]
+
+
+def load_orchestrator_config(path: str) -> dict:
+    """Load an orchestrator config file (TOML or JSON).
+
+    Returns a dict with keys: ``workers``, ``model``, ``transport``,
+    ``system_prompt``, and any other top-level fields from the file.
+    """
+    ext = os.path.splitext(path)[1].lower()
+    with open(path, "rb") as f:
+        if ext == ".toml":
+            config = tomllib.load(f)
+        else:
+            config = json.load(f)
+
+    # Normalise [[workers]] (TOML array-of-tables) or "workers" (JSON array)
+    raw_workers = config.get("workers", [])
+    if isinstance(raw_workers, dict):
+        # Single worker defined as [workers] instead of [[workers]]
+        raw_workers = [raw_workers]
+    config["_worker_defs"] = raw_workers
+    return config
+
+
+def cmd_orchestrate(args):
+    """Multi-agent orchestrator mode."""
+    from copilot_cli.orchestrator import run_orchestrator_cli
+
+    workspace = os.path.abspath(args.workspace)
+    goal = " ".join(args.prompt)
+    model = args.model
+    transport = getattr(args, "transport", None) or "mcp"
+    workers = None
+
+    # Load unified config file if provided
+    config_path = getattr(args, "config", None)
+    if config_path:
+        config = load_orchestrator_config(config_path)
+        # Config file provides defaults; CLI flags override
+        if not model:
+            model = config.get("model")
+        if getattr(args, "transport", None) is None:
+            transport = config.get("transport", "mcp")
+        if config.get("_worker_defs"):
+            workers = _parse_worker_defs(config["_worker_defs"], default_model=model)
+
+    # --workers flag overrides config file workers
+    workers_arg = getattr(args, "workers", None)
+    if workers_arg:
+        if os.path.isfile(workers_arg):
+            with open(workers_arg, "r") as f:
+                worker_defs = json.load(f)
+        else:
+            worker_defs = json.loads(workers_arg)
+        workers = _parse_worker_defs(worker_defs, default_model=model)
+
+    run_orchestrator_cli(
+        workspace=workspace,
+        goal=goal,
+        workers=workers,
+        model=model,
+        transport=transport,
+        proxy_url=getattr(args, "proxy", None),
+        no_ssl_verify=getattr(args, "no_ssl_verify", False),
+    )
+
+
+def cmd_build(args):
+    """Build a standalone agent binary from a config file (JSON or TOML)."""
+    config_path = os.path.abspath(args.config)
+    if not os.path.isfile(config_path):
+        print(f"[!] Config file not found: {config_path}")
+        sys.exit(1)
+
+    ext = os.path.splitext(config_path)[1].lower()
+    with open(config_path, "rb") as f:
+        if ext == ".toml":
+            config = tomllib.load(f)
+        else:
+            config = json.load(f)
+
+    # CLI overrides
+    if args.name:
+        config["name"] = args.name
+    if args.model:
+        config["model"] = args.model
+    if args.output:
+        output_dir = os.path.abspath(args.output)
+    else:
+        name = config.get("name", "agent")
+        output_dir = os.path.expanduser(f"~/.copilot-cli/builds/{name}")
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Choose build mode
+    script_only = getattr(args, "script_only", False)
+
+    def on_progress(step_type, message):
+        prefix = {"step": "\033[94m⏺\033[0m", "log": "  ", "error": "\033[31m!\033[0m"}
+        print(f"{prefix.get(step_type, '  ')} {message}")
+
+    try:
+        from agent_builder.export import build_agent, export_script
+
+        if script_only:
+            entry, cfg_path = export_script(config, output_dir)
+            print(f"\033[94m⏺\033[0m Exported script: {entry}")
+            print(f"  Config: {cfg_path}")
+        else:
+            binary = build_agent(config, output_dir, on_progress)
+            print(f"\n\033[32m⏺\033[0m Built: {binary}")
+    except ImportError:
+        print("[!] agent_builder package not found. "
+              "Make sure agent-builder/src is on PYTHONPATH.")
+        sys.exit(1)
+    except RuntimeError as e:
+        print(f"\033[31m[!] Build failed: {e}\033[0m")
+        sys.exit(1)
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -1224,6 +1495,29 @@ def main():
     p_agent.add_argument("prompt", nargs="*", help="Prompt (omit for interactive mode)")
     p_agent.add_argument("-m", "--model", default=None, help="Model ID")
 
+    # --- orchestrate (multi-agent orchestrator) ---
+    p_orch = sub.add_parser("orchestrate", help="Multi-agent orchestrator mode")
+    p_orch.add_argument("prompt", nargs="+", help="High-level goal for the orchestrator")
+    p_orch.add_argument("-m", "--model", default=None, help="Model ID for orchestrator and workers")
+    p_orch.add_argument("--config", default=None,
+                        help="Orchestrator config file (TOML/JSON) defining workers, "
+                             "system prompt, model, and transport in one file")
+    p_orch.add_argument("--workers", default=None,
+                        help="Worker config: JSON file or inline JSON array of "
+                             '{role, system_prompt, model, tools_enabled}')
+    p_orch.add_argument("--transport", choices=["mcp", "queue"], default=None,
+                        help="Agent transport: 'mcp' (workers as MCP servers, default) "
+                             "or 'queue' (in-process threads)")
+
+    # --- build (build agent from config file) ---
+    p_build = sub.add_parser("build", help="Build a standalone agent binary from a config file")
+    p_build.add_argument("config", help="Path to agent config (JSON or TOML)")
+    p_build.add_argument("-n", "--name", default=None, help="Override agent name")
+    p_build.add_argument("-m", "--model", default=None, help="Override model ID")
+    p_build.add_argument("-o", "--output", default=None, help="Output directory (default: ~/.copilot-cli/builds/<name>)")
+    p_build.add_argument("--script-only", action="store_true", default=False,
+                         help="Export as a Python script instead of a PyInstaller binary")
+
     # --- mcp (MCP server management) ---
     p_mcp = sub.add_parser("mcp", help="MCP server management")
     p_mcp.add_argument("mcp_action", choices=["list", "tools", "start", "stop", "restart"],
@@ -1256,6 +1550,10 @@ def main():
         cmd_chat(args)
     elif args.command == "chat":
         cmd_chat(args)
+    elif args.command == "orchestrate":
+        cmd_orchestrate(args)
+    elif args.command == "build":
+        cmd_build(args)
     elif args.command == "mcp":
         cmd_mcp(args)
     else:

@@ -74,7 +74,7 @@ def _filter_tools():
 def main():
     _filter_tools()
 
-    from copilot_cli.client import _init_client, CopilotClient
+    from copilot_cli.client import _init_client, CopilotClient, release_client
     from copilot_cli.tools import TOOL_SCHEMAS, BUILTIN_TOOL_NAMES
     from copilot_cli.platform_utils import path_to_file_uri
 
@@ -202,7 +202,7 @@ def main():
         if conversation_id:
             client.conversation_destroy(conversation_id)
     finally:
-        client.stop()
+        release_client(client)
 
 if __name__ == "__main__":
     main()
@@ -215,13 +215,126 @@ if __name__ == "__main__":
     return entry_path
 
 
+def _generate_orchestrator_entry_point(config: dict, output_dir: str) -> str:
+    """Generate a standalone orchestrator entry script with embedded worker configs.
+
+    Returns the path to the generated entry point.
+    """
+    name = _sanitize_name(config.get("name", "agent"))
+    entry_path = os.path.join(output_dir, f"_agent_{name}_entry.py")
+
+    config_json_str = json.dumps(json.dumps(config))
+
+    script = f'''#!/usr/bin/env python3
+"""Auto-generated orchestrator entry point: {name}"""
+
+import json
+import os
+import sys
+
+# Ensure the parent directory is on the path so imports work
+_here = os.path.dirname(os.path.abspath(__file__))
+_parent = os.path.dirname(_here)
+if _parent not in sys.path:
+    sys.path.insert(0, _parent)
+if _here not in sys.path:
+    sys.path.insert(0, _here)
+
+AGENT_CONFIG = json.loads({config_json_str})
+
+
+def main():
+    from copilot_cli.orchestrator import run_orchestrator_cli, WorkerConfig
+
+    config = AGENT_CONFIG
+    name = config.get("name", "Orchestrator")
+    description = config.get("description", "")
+    model = config.get("model")
+    transport = config.get("transport", "mcp")
+    workspace = os.path.abspath(config.get("workspace_root") or os.getcwd())
+
+    # Parse embedded worker definitions
+    raw_workers = config.get("workers", [])
+    workers = [
+        WorkerConfig(
+            role=w["role"],
+            system_prompt=w.get("system_prompt", ""),
+            model=w.get("model", model),
+            tools_enabled=w.get("tools_enabled", "__ALL__"),
+            agent_mode=w.get("agent_mode", True),
+        )
+        for w in raw_workers
+    ]
+
+    # Banner
+    print()
+    print(f"  \\033[94m╭─ {{name}}\\033[0m")
+    if description:
+        print(f"  \\033[94m│\\033[0m  {{description}}")
+    print(f"  \\033[94m│\\033[0m  {{model or 'default'}} · {{transport}} · {{len(workers)}} workers")
+    for w in workers:
+        print(f"  \\033[94m│\\033[0m    \\033[90m{{w.role}}\\033[0m")
+    print(f"  \\033[94m│\\033[0m  \\033[90m{{os.path.basename(workspace)}}\\033[0m")
+    print(f"  \\033[94m╰─\\033[0m")
+    print()
+
+    # Get goal from command line or interactive prompt
+    if len(sys.argv) > 1:
+        goal = " ".join(sys.argv[1:])
+    else:
+        sys.stdout.write("\\033[1m❯\\033[0m Goal: ")
+        sys.stdout.flush()
+        try:
+            goal = input().strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return
+        if not goal:
+            print("[!] No goal provided.")
+            return
+
+    # Proxy
+    proxy_cfg = config.get("proxy", {{}})
+    proxy_url = proxy_cfg.get("url") if proxy_cfg else None
+    no_ssl_verify = proxy_cfg.get("no_ssl_verify", False) if proxy_cfg else False
+
+    run_orchestrator_cli(
+        workspace=workspace,
+        goal=goal,
+        workers=workers,
+        model=model,
+        transport=transport,
+        proxy_url=proxy_url,
+        no_ssl_verify=no_ssl_verify,
+    )
+
+
+if __name__ == "__main__":
+    main()
+'''
+
+    with open(entry_path, "w") as f:
+        f.write(script)
+    os.chmod(entry_path, 0o755)
+
+    return entry_path
+
+
+def _is_orchestrator_config(config: dict) -> bool:
+    """Return True if config defines an orchestrator with worker agents."""
+    return bool(config.get("workers"))
+
+
 def export_script(config: dict, output_dir: str) -> tuple[str, str]:
     """Export agent as a .py script + config.json (no PyInstaller).
 
     Returns (entry_point_path, config_path).
     """
     name = _sanitize_name(config.get("name", "agent"))
-    entry_path = _generate_entry_point(config, output_dir)
+    if _is_orchestrator_config(config):
+        entry_path = _generate_orchestrator_entry_point(config, output_dir)
+    else:
+        entry_path = _generate_entry_point(config, output_dir)
 
     config_path = os.path.join(output_dir, f"{name}_config.json")
     with open(config_path, "w") as f:
@@ -250,8 +363,12 @@ def build_agent(config: dict, output_dir: str,
     name = _sanitize_name(config.get("name", "agent"))
     _emit("step", f"Generating entry point for '{name}'...")
 
-    entry_path = _generate_entry_point(config, output_dir)
-    _emit("log", f"  Entry point: {entry_path}")
+    if _is_orchestrator_config(config):
+        entry_path = _generate_orchestrator_entry_point(config, output_dir)
+        _emit("log", f"  Orchestrator entry point: {entry_path}")
+    else:
+        entry_path = _generate_entry_point(config, output_dir)
+        _emit("log", f"  Entry point: {entry_path}")
 
     # Locate package roots for PyInstaller --paths
     project_root = os.path.dirname(os.path.abspath(__file__))  # agent_builder pkg
