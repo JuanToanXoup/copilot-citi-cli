@@ -131,6 +131,12 @@ class WorkerConfig:
     Per-worker overrides for ``workspace_root``, ``proxy_url``,
     ``no_ssl_verify``, ``mcp_servers``, and ``lsp_servers`` default to
     ``None`` which signals "inherit from the orchestrator".
+
+    ``question_schema`` and ``answer_schema`` define the Q&A contract for
+    this worker.  Schemas are descriptive (guiding LLMs), not prescriptive
+    (never hard-reject mismatches).  Format::
+
+        {"field_name": {"type": "string", "required": true, "description": "..."}}
     """
     role: str                          # Short identifier (e.g. "bug_fixer")
     system_prompt: str = ""            # Injected as <system_instructions> in first turn
@@ -142,6 +148,8 @@ class WorkerConfig:
     no_ssl_verify: bool | None = None  # Per-worker SSL bypass (None = inherit)
     mcp_servers: dict | None = None    # Per-worker MCP config (None = inherit)
     lsp_servers: dict | None = None    # Per-worker LSP config (None = inherit)
+    question_schema: dict | None = None  # Input schema for this worker (None = free-form)
+    answer_schema: dict | None = None    # Output schema for this worker (None = free-form)
 
 
 # ── MCP Worker (each worker is an MCP server process) ─────────────────────────
@@ -189,6 +197,10 @@ class MCPWorker:
             cfg["mcp_servers"] = self.mcp_config
         if self.lsp_config:
             cfg["lsp_servers"] = self.lsp_config
+        if self.config.question_schema:
+            cfg["question_schema"] = self.config.question_schema
+        if self.config.answer_schema:
+            cfg["answer_schema"] = self.config.answer_schema
         agent_config = json.dumps(cfg)
 
         # Spawn mcp_agent.py as a child process using MCP stdio transport
@@ -348,7 +360,35 @@ class QueueWorker:
             parts.append(
                 f"<shared_context>{json.dumps(context, indent=2)}</shared_context>"
             )
+
+        # Inject structured question fields if schema is defined
+        if self.config.question_schema:
+            structured = {}
+            for field_name in self.config.question_schema:
+                if field_name in context and field_name not in ("prompt",):
+                    structured[field_name] = context[field_name]
+            if structured:
+                parts.append(
+                    f"<structured_input>{json.dumps(structured, indent=2)}</structured_input>"
+                )
+
         parts.append(prompt)
+
+        # Add answer format guidance if schema is defined
+        if self.config.answer_schema:
+            from copilot_cli.schema_validation import schema_to_description
+            answer_desc = schema_to_description(
+                self.config.answer_schema, "Expected response format"
+            )
+            parts.append(
+                f"\n<response_format>\n"
+                f"Please structure your response as JSON with these fields:\n"
+                f"{answer_desc}\n"
+                f"You may include additional fields beyond these. "
+                f"Wrap the JSON in ```json fences.\n"
+                f"</response_format>"
+            )
+
         actual_prompt = "\n\n".join(parts)
 
         def on_progress(kind, data):
@@ -563,10 +603,19 @@ IMPORTANT: Respond ONLY with the JSON array. No other text."""
 
     def _plan_tasks(self, goal: str) -> list[dict]:
         """Use the orchestrator's LLM session to decompose a goal into tasks."""
-        workers_desc = "\n".join(
-            f"- {role}: {cfg.system_prompt[:120]}"
-            for role, cfg in self.worker_configs.items()
-        )
+        from copilot_cli.schema_validation import schema_to_description
+
+        desc_lines = []
+        for role, cfg in self.worker_configs.items():
+            line = f"- {role}: {cfg.system_prompt[:120]}"
+            if cfg.question_schema:
+                q_desc = schema_to_description(cfg.question_schema, "Accepts")
+                line += f"\n    {q_desc}"
+            if cfg.answer_schema:
+                a_desc = schema_to_description(cfg.answer_schema, "Returns")
+                line += f"\n    {a_desc}"
+            desc_lines.append(line)
+        workers_desc = "\n".join(desc_lines)
         planning_prompt = self.PLANNING_SYSTEM_PROMPT.format(
             workers_description=workers_desc
         ) + f"\n\nGoal: {goal}"

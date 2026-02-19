@@ -97,14 +97,27 @@ def _clean_for_toml(data: dict) -> dict:
         # Drop empty server dicts
         if k in ("mcp_servers", "lsp_servers") and isinstance(v, dict) and not v:
             continue
+        # Drop empty schema dicts
+        if k in ("question_schema", "answer_schema") and isinstance(v, dict) and not v:
+            continue
         # Drop empty strings for optional scalar keys
         if isinstance(v, str) and not v and k in ("workspace_root",):
             continue
         out[k] = v
 
-    # Append workers last so tomli_w renders [[workers]] at the bottom
+    # Clean workers: strip empty schemas from each worker
     if workers:
-        out["workers"] = workers
+        cleaned_workers = []
+        for w in workers:
+            cw = {}
+            for wk, wv in w.items():
+                if wk in ("question_schema", "answer_schema") and isinstance(wv, dict) and not wv:
+                    continue
+                if wk in ("mcp_servers", "lsp_servers") and isinstance(wv, dict) and not wv:
+                    continue
+                cw[wk] = wv
+            cleaned_workers.append(cw)
+        out["workers"] = cleaned_workers
 
     return out
 

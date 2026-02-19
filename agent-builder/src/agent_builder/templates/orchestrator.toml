@@ -42,12 +42,14 @@ After all workers complete, summarise the overall results.
 # of them at startup and delegates subtasks by role.
 #
 # Per-worker overrides (all optional — omit to inherit from orchestrator):
-#   workspace_root  — separate workspace directory
-#   proxy_url       — different proxy
-#   no_ssl_verify   — SSL bypass
-#   tools_enabled   — "__ALL__" or a list of tool names
-#   mcp_servers     — MCP server config dict
-#   lsp_servers     — LSP server config dict
+#   workspace_root    — separate workspace directory
+#   proxy_url         — different proxy
+#   no_ssl_verify     — SSL bypass
+#   tools_enabled     — "__ALL__" or a list of tool names
+#   mcp_servers       — MCP server config dict
+#   lsp_servers       — LSP server config dict
+#   question_schema   — structured input contract (descriptive, not strict)
+#   answer_schema     — structured output contract (soft-validated)
 
 [[workers]]
 role = "coder"
@@ -63,6 +65,18 @@ make edits, and run commands as needed. Focus on clean, working \
 implementations.
 """
 
+# Q&A schemas define the structured contract between orchestrator and worker.
+# Schemas are descriptive (guiding the LLMs) — mismatches produce warnings,
+# never hard failures. Extra fields are always preserved.
+#
+# [workers.question_schema]
+# file_path = { type = "string", required = true, description = "File to modify" }
+# instructions = { type = "string", required = true, description = "What to implement" }
+#
+# [workers.answer_schema]
+# files_changed = { type = "array", description = "List of modified file paths" }
+# summary = { type = "string", description = "What was done" }
+
 [[workers]]
 role = "reviewer"
 agent_mode = true
@@ -76,6 +90,17 @@ You are a code review expert. Examine code for bugs, style issues, \
 security vulnerabilities, and suggest improvements. Do NOT edit files — \
 only report findings.
 """
+
+# Example: reviewer with a structured answer contract
+[workers.question_schema]
+file_path = { type = "string", required = true, description = "Path to the file to review" }
+diff = { type = "string", description = "The diff or changes to review" }
+focus = { type = "string", description = "What aspect to focus the review on" }
+
+[workers.answer_schema]
+approved = { type = "boolean", description = "Whether the code is approved" }
+issues = { type = "array", description = "List of issues found" }
+summary = { type = "string", description = "Overall review summary" }
 
 [[workers]]
 role = "tester"
