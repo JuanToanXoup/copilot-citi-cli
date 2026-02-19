@@ -281,6 +281,9 @@ class BuilderHandler(BaseHTTPRequestHandler):
             if mcp_config and not mcp_config:
                 mcp_config = None
 
+            # LSP
+            lsp_config = config.get("lsp_servers") or None
+
             # Proxy
             proxy_url = None
             no_ssl_verify = False
@@ -296,6 +299,7 @@ class BuilderHandler(BaseHTTPRequestHandler):
                 workspace,
                 agent_mode=agent_mode,
                 mcp_config=mcp_config,
+                lsp_config=lsp_config,
                 proxy_url=proxy_url,
                 no_ssl_verify=no_ssl_verify,
                 verbose=False,

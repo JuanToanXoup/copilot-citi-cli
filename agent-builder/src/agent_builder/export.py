@@ -86,8 +86,9 @@ def main():
     workspace = os.path.abspath(config.get("workspace_root") or os.getcwd())
     system_prompt = """{system_prompt_escaped}"""
 
-    # MCP / proxy
+    # MCP / LSP / proxy
     mcp_config = config.get("mcp_servers") or None
+    lsp_config = config.get("lsp_servers") or None
     proxy_cfg = config.get("proxy", {{}})
     proxy_url = proxy_cfg.get("url") if proxy_cfg else None
     no_ssl_verify = proxy_cfg.get("no_ssl_verify", False) if proxy_cfg else False
@@ -107,6 +108,7 @@ def main():
         workspace,
         agent_mode=agent_mode,
         mcp_config=mcp_config,
+        lsp_config=lsp_config,
         proxy_url=proxy_url,
         no_ssl_verify=no_ssl_verify,
     )

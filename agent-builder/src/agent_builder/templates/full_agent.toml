@@ -17,3 +17,17 @@ as needed. Be thorough and verify your work by running tests.
 [tools]
 enabled = "__ALL__"
 disabled = []
+
+# MCP servers (uncomment to override defaults)
+#[mcp_servers.playwright]
+#command = "npx"
+#args = ["-y", "@playwright/mcp@latest"]
+
+# LSP servers (uncomment to override defaults from config.toml)
+#[lsp_servers.python]
+#command = "npx"
+#args = ["-y", "pyright", "--langserver", "--stdio"]
+#
+#[lsp_servers.typescript]
+#command = "npx"
+#args = ["-y", "typescript-language-server", "--stdio"]

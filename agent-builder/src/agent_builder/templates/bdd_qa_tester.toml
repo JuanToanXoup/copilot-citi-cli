@@ -32,3 +32,13 @@ enabled = [
     "run_in_terminal", "run_tests",
 ]
 disabled = []
+
+# MCP servers (uncomment to override defaults)
+#[mcp_servers.playwright]
+#command = "npx"
+#args = ["-y", "@playwright/mcp@latest"]
+
+# LSP servers (uncomment to override defaults from config.toml)
+#[lsp_servers.python]
+#command = "npx"
+#args = ["-y", "pyright", "--langserver", "--stdio"]

@@ -52,3 +52,13 @@ enabled = [
     "list_code_usages", "get_project_setup_info", "find_test_files",
 ]
 disabled = []
+
+# MCP servers (uncomment to override defaults)
+#[mcp_servers.playwright]
+#command = "npx"
+#args = ["-y", "@playwright/mcp@latest"]
+
+# LSP servers (uncomment to override defaults from config.toml)
+#[lsp_servers.python]
+#command = "npx"
+#args = ["-y", "pyright", "--langserver", "--stdio"]

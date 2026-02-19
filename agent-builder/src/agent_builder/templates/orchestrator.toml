@@ -27,6 +27,16 @@ of subtask assignments. Each element must have:
 After all workers complete, summarise the overall results.
 """
 
+# MCP servers (uncomment to override defaults)
+#[mcp_servers.playwright]
+#command = "npx"
+#args = ["-y", "@playwright/mcp@latest"]
+
+# LSP servers (uncomment to override defaults from config.toml)
+#[lsp_servers.python]
+#command = "npx"
+#args = ["-y", "pyright", "--langserver", "--stdio"]
+
 # ── Worker agents ─────────────────────────────────────────────────────────────
 # Each [[workers]] block defines a worker agent. The orchestrator spawns all
 # of them at startup and delegates subtasks by role.

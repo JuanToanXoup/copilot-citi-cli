@@ -880,6 +880,7 @@ class SessionPool:
 
     def acquire(self, workspace: str, agent_mode: bool = False,
                 mcp_config: dict = None,
+                lsp_config: dict = None,
                 proxy_url: str = None, no_ssl_verify: bool = False,
                 verbose: bool = False,
                 on_progress: callable = None) -> CopilotClient:
@@ -907,6 +908,7 @@ class SessionPool:
         # First acquisition — full init (outside the lock to avoid blocking)
         client = _init_client_internal(
             workspace, agent_mode=agent_mode, mcp_config=mcp_config,
+            lsp_config=lsp_config,
             proxy_url=proxy_url, no_ssl_verify=no_ssl_verify,
             verbose=verbose, on_progress=on_progress,
         )
@@ -977,6 +979,7 @@ def _open_workspace_files(client: CopilotClient, workspace: str):
 
 def _init_client_internal(workspace: str, agent_mode: bool = False,
                           mcp_config: dict = None,
+                          lsp_config: dict = None,
                           proxy_url: str = None, no_ssl_verify: bool = False,
                           verbose: bool = False,
                           on_progress: callable = None) -> CopilotClient:
@@ -1028,12 +1031,12 @@ def _init_client_internal(workspace: str, agent_mode: bool = False,
             manager.start_all(on_progress=on_progress)
             client.client_mcp = manager
 
-    lsp_config = CONFIG.get("lsp", {})
-    client.lsp_bridge = LSPBridgeManager(client.workspace_root, lsp_config)
+    effective_lsp = lsp_config if lsp_config is not None else CONFIG.get("lsp", {})
+    client.lsp_bridge = LSPBridgeManager(client.workspace_root, effective_lsp)
 
-    if lsp_config:
+    if effective_lsp:
         langs = []
-        for lang, cfg in lsp_config.items():
+        for lang, cfg in effective_lsp.items():
             cmd = cfg.get("command", "")
             args = cfg.get("args", [])
             if cmd == "npx" and args:
@@ -1055,6 +1058,7 @@ def _init_client_internal(workspace: str, agent_mode: bool = False,
 
 def _init_client(workspace: str, agent_mode: bool = False,
                  mcp_config: dict = None,
+                 lsp_config: dict = None,
                  proxy_url: str = None, no_ssl_verify: bool = False,
                  verbose: bool = False,
                  on_progress: callable = None,
@@ -1064,6 +1068,8 @@ def _init_client(workspace: str, agent_mode: bool = False,
     Args:
         mcp_config: MCP server config. Automatically routed to server-side
             (if org allows MCP) or client-side (if org blocks MCP).
+        lsp_config: LSP server config. If None, falls back to the
+            ``[lsp]`` section of the main config.toml.
         on_progress: Optional callback ``(message: str) -> None`` for
             startup progress reporting (used by Agent Builder SSE).
         shared: If True, return a pooled client shared across callers
@@ -1073,11 +1079,13 @@ def _init_client(workspace: str, agent_mode: bool = False,
     if shared:
         return SessionPool.get().acquire(
             workspace, agent_mode=agent_mode, mcp_config=mcp_config,
+            lsp_config=lsp_config,
             proxy_url=proxy_url, no_ssl_verify=no_ssl_verify,
             verbose=verbose, on_progress=on_progress,
         )
     return _init_client_internal(
         workspace, agent_mode=agent_mode, mcp_config=mcp_config,
+        lsp_config=lsp_config,
         proxy_url=proxy_url, no_ssl_verify=no_ssl_verify,
         verbose=verbose, on_progress=on_progress,
     )
