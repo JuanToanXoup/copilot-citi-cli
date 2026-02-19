@@ -277,11 +277,13 @@ class BuilderHandler(BaseHTTPRequestHandler):
     # ── API: Templates ───────────────────────────────────────────────────
 
     def _api_list_templates(self):
-        from agent_builder.templates import list_templates
+        from agent_builder.templates import reload_templates, list_templates
+        reload_templates()
         self._json_response(200, list_templates())
 
     def _api_get_template(self, template_id):
-        from agent_builder.templates import get_template
+        from agent_builder.templates import reload_templates, get_template
+        reload_templates()
         t = get_template(unquote(template_id))
         if t:
             self._json_response(200, t)
