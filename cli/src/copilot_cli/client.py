@@ -1362,6 +1362,59 @@ def cmd_orchestrate(args):
     )
 
 
+def cmd_build(args):
+    """Build a standalone agent binary from a config file (JSON or TOML)."""
+    config_path = os.path.abspath(args.config)
+    if not os.path.isfile(config_path):
+        print(f"[!] Config file not found: {config_path}")
+        sys.exit(1)
+
+    ext = os.path.splitext(config_path)[1].lower()
+    with open(config_path, "rb") as f:
+        if ext == ".toml":
+            config = tomllib.load(f)
+        else:
+            config = json.load(f)
+
+    # CLI overrides
+    if args.name:
+        config["name"] = args.name
+    if args.model:
+        config["model"] = args.model
+    if args.output:
+        output_dir = os.path.abspath(args.output)
+    else:
+        name = config.get("name", "agent")
+        output_dir = os.path.expanduser(f"~/.copilot-cli/builds/{name}")
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Choose build mode
+    script_only = getattr(args, "script_only", False)
+
+    def on_progress(step_type, message):
+        prefix = {"step": "\033[94m⏺\033[0m", "log": "  ", "error": "\033[31m!\033[0m"}
+        print(f"{prefix.get(step_type, '  ')} {message}")
+
+    try:
+        from agent_builder.export import build_agent, export_script
+
+        if script_only:
+            entry, cfg_path = export_script(config, output_dir)
+            print(f"\033[94m⏺\033[0m Exported script: {entry}")
+            print(f"  Config: {cfg_path}")
+        else:
+            binary = build_agent(config, output_dir, on_progress)
+            print(f"\n\033[32m⏺\033[0m Built: {binary}")
+    except ImportError:
+        print("[!] agent_builder package not found. "
+              "Make sure agent-builder/src is on PYTHONPATH.")
+        sys.exit(1)
+    except RuntimeError as e:
+        print(f"\033[31m[!] Build failed: {e}\033[0m")
+        sys.exit(1)
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="copilot",
@@ -1414,6 +1467,15 @@ def main():
                         help="Agent transport: 'mcp' (workers as MCP servers, default) "
                              "or 'queue' (in-process threads)")
 
+    # --- build (build agent from config file) ---
+    p_build = sub.add_parser("build", help="Build a standalone agent binary from a config file")
+    p_build.add_argument("config", help="Path to agent config (JSON or TOML)")
+    p_build.add_argument("-n", "--name", default=None, help="Override agent name")
+    p_build.add_argument("-m", "--model", default=None, help="Override model ID")
+    p_build.add_argument("-o", "--output", default=None, help="Output directory (default: ~/.copilot-cli/builds/<name>)")
+    p_build.add_argument("--script-only", action="store_true", default=False,
+                         help="Export as a Python script instead of a PyInstaller binary")
+
     # --- mcp (MCP server management) ---
     p_mcp = sub.add_parser("mcp", help="MCP server management")
     p_mcp.add_argument("mcp_action", choices=["list", "tools", "start", "stop", "restart"],
@@ -1448,6 +1510,8 @@ def main():
         cmd_chat(args)
     elif args.command == "orchestrate":
         cmd_orchestrate(args)
+    elif args.command == "build":
+        cmd_build(args)
     elif args.command == "mcp":
         cmd_mcp(args)
     else:
