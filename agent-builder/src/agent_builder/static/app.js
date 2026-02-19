@@ -290,7 +290,13 @@ const App = window.App = {
 
         // Template
         document.getElementById('agent-template').addEventListener('change', (e) => {
-            if (e.target.value) this.applyTemplate(e.target.value);
+            if (e.target.value) {
+                this.applyTemplate(e.target.value);
+            } else {
+                // "None" selected — clear template source so saves go to agents dir
+                delete this.state.config._source_path;
+                this._syncConfigToUI();
+            }
         });
 
         // Tool search
@@ -366,6 +372,11 @@ const App = window.App = {
         if (prevName) this.state.config.name = prevName;
         if (prevWs) this.state.config.workspace_root = prevWs;
 
+        // Keep _source_path so saves go back to the template file
+        if (full._source_path) {
+            this.state.config._source_path = full._source_path;
+        }
+
         this._syncConfigToUI();
     },
 
@@ -385,6 +396,15 @@ const App = window.App = {
         const proxy = c.proxy || {};
         document.getElementById('proxy-url').value = proxy.url || '';
         document.getElementById('proxy-no-ssl').checked = !!proxy.no_ssl_verify;
+
+        // Show source file indicator
+        const saveBtn = document.getElementById('btn-save');
+        if (c._source_path) {
+            saveBtn.title = `Save to ${c._source_path}`;
+        } else {
+            saveBtn.title = 'Save current config';
+        }
+
         this._renderTools();
         this._renderServers();
         this._renderWorkers();
@@ -533,9 +553,11 @@ const App = window.App = {
         }
         const result = await API.saveConfig(this.state.config);
         if (result.ok) {
-            document.getElementById('btn-save').textContent = 'Saved!';
+            const btn = document.getElementById('btn-save');
+            btn.textContent = 'Saved!';
+            btn.title = `Saved to ${result.path}`;
             setTimeout(() => {
-                document.getElementById('btn-save').textContent = 'Save';
+                btn.textContent = 'Save';
             }, 1500);
         }
     },
