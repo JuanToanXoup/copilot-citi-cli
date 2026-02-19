@@ -361,3 +361,98 @@ This is skipped when `agentMode.autoApproval.enabled` is `true`.
 - [ ] Add a test in `tests/test_tools.py`
 - [ ] Run `python3 -m pytest tests/test_tools.py -v`
 - [ ] Test e2e: `python3 copilot_client.py -w /path/to/workspace agent "Use your_tool_name ..."`
+
+## Library Docs Tool — Two-Step Lookup
+
+The library documentation system uses a two-step pattern: first resolve the library name to an ID, then fetch docs using that ID. Both steps try local bundled docs before falling back to the Context7 API.
+
+### Flow Diagram
+
+```mermaid
+sequenceDiagram
+    participant LLM as Agent (LLM)
+    participant RL as resolve_library_id
+    participant GD as get_library_docs
+    participant Local as Bundled Docs
+    participant C7 as Context7 API
+
+    Note over LLM: User asks about a library
+    LLM->>RL: resolve_library_id(libraryName="playwright")
+    RL->>Local: resolve(name) — match ID or alias
+    alt Local match found
+        Local-->>RL: [{id, title, description}]
+        RL-->>LLM: "playwright" (bundled, always available)
+    else No local match
+        RL->>C7: GET /api/v2/libs/search?libraryName=...
+        alt API reachable
+            C7-->>RL: [{id: "/microsoft/playwright", ...}]
+            RL-->>LLM: "/microsoft/playwright" (Context7)
+        else API unreachable
+            RL-->>LLM: Error — bundled: playwright, selenium, cucumber, gherkin, java
+        end
+    end
+
+    LLM->>GD: get_library_docs(libraryId="playwright", query="wait for element")
+    GD->>Local: search_docs(id, query) — score sections by term relevance
+    alt Matching sections found
+        Local-->>GD: Top-scored markdown sections (≤4000 chars)
+        GD-->>LLM: Documentation text
+    else No local match / not bundled
+        GD->>C7: GET /api/v2/context?libraryId=...&query=...
+        alt API reachable
+            C7-->>GD: Documentation text
+            GD-->>LLM: Documentation text (≤4000 chars, truncated if needed)
+        else API unreachable
+            GD-->>LLM: Error — no docs available
+        end
+    end
+```
+
+### Architecture Diagram
+
+```mermaid
+graph TD
+    A[Agent calls resolve_library_id] --> B{Library in<br/>bundled docs?}
+    B -->|Yes| C[Return local ID<br/>e.g. 'playwright']
+    B -->|No| D[Query Context7 API<br/>GET /api/v2/libs/search]
+    D -->|Found| E[Return Context7 ID<br/>e.g. '/microsoft/playwright']
+    D -->|Unreachable| F[Return error +<br/>list bundled libraries]
+
+    C --> G[Agent calls get_library_docs]
+    E --> G
+
+    G --> H{Bundled library?}
+    H -->|Yes| I[search_docs:<br/>split by ## headings,<br/>score by query terms,<br/>return top sections]
+    H -->|No| J[Query Context7 API<br/>GET /api/v2/context]
+
+    I -->|Sections found| K[Return docs ≤4000 chars]
+    I -->|No match| J
+    J -->|Found| K
+    J -->|Unreachable| L[Return error]
+
+    style A fill:#4a9eff,color:#fff
+    style G fill:#4a9eff,color:#fff
+    style K fill:#2ecc71,color:#fff
+    style F fill:#e74c3c,color:#fff
+    style L fill:#e74c3c,color:#fff
+```
+
+### Bundled Libraries
+
+| ID | Aliases | Docs Path |
+|---|---|---|
+| `playwright` | playwright-java, microsoft/playwright, pw | `library_docs/playwright/` |
+| `selenium` | selenium-java, seleniumhq, webdriver | `library_docs/selenium/` |
+| `cucumber` | cucumber-java, cucumber-jvm, cucumber-junit | `library_docs/cucumber/` |
+| `gherkin` | feature-file, bdd, given-when-then | `library_docs/gherkin/` |
+| `java` | java-se, jdk, java-api, java-lang | `library_docs/java/` |
+
+### Local Search Algorithm
+
+`search_docs()` in `library_docs/__init__.py`:
+
+1. Load all `.md` files from the library's docs directory
+2. Split each file into sections at `## ` headings
+3. Score each section by counting query term occurrences (+2 bonus if term appears in heading)
+4. Return top 8 sections by score, capped at `max_chars` (default 4000)
+5. If no terms match, return first 5 sections as an overview
