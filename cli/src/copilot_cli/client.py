@@ -524,10 +524,10 @@ class CopilotClient:
             print(f"\033[32m⏺\033[0m \033[1m{tool_name}\033[0m\033[37m({json.dumps(tool_input)[:150]})\033[0m")
             result = self._execute_client_tool(tool_name, tool_input)
             # Client-side MCP tools already return the tuple format.
-            # Registered (non-built-in) tools must return result as a tuple
-            # [resultObj, errorOrNull] per the server's sendRequest protocol.
+            # All other tools (including former "built-ins") are registered
+            # as client tools and need the tuple wrapping.
             is_client_mcp = self.client_mcp and self.client_mcp.is_mcp_tool(tool_name)
-            if tool_name not in BUILTIN_TOOL_NAMES and not is_client_mcp:
+            if not is_client_mcp:
                 result = self._wrap_registered_tool_result(result)
             self._send_response(req_id, result)
 
@@ -567,8 +567,6 @@ class CopilotClient:
         except (OSError, subprocess.SubprocessError, json.JSONDecodeError,
                 ValueError, TypeError) as e:
             print(f"\033[31m  ⎿  Error: {e}\033[0m")
-            if tool_name not in BUILTIN_TOOL_NAMES:
-                return [{"content": [{"value": f"Error: {e}"}], "status": "error"}, None]
             return [{"type": "text", "value": f"Error: {e}"}]
 
         return result
@@ -654,28 +652,27 @@ class CopilotClient:
         })
 
     def register_client_tools(self):
-        """Register client-side tools that the agent can invoke.
+        """Register all client-side tools that the agent can invoke.
 
-        Only registers NEW tools - the 15 built-in tools are already known
-        to the server and handled natively with their own response format.
-        Also registers client-side MCP tools if any are configured.
+        Registers ALL tools (including the 15 that the server knows as
+        'shared' built-ins) because the server only makes tools available
+        to the model once the client registers them.  Also registers
+        client-side MCP tools if any are configured.
         """
-        new_tools = [s for name, s in TOOL_SCHEMAS.items()
-                     if name not in BUILTIN_TOOL_NAMES]
+        all_tools = list(TOOL_SCHEMAS.values())
 
         # Add client-side MCP tools
         mcp_tools = []
         if self.client_mcp:
             mcp_tools = self.client_mcp.get_tool_schemas()
-            new_tools.extend(mcp_tools)
+            all_tools.extend(mcp_tools)
 
-        resp = self.send_request("conversation/registerTools", {"tools": new_tools})
+        resp = self.send_request("conversation/registerTools", {"tools": all_tools})
         if "error" in resp:
             print(f"[!] Tool registration error: {json.dumps(resp['error'])[:300]}")
         else:
             mcp_note = f" + {len(mcp_tools)} client-mcp" if mcp_tools else ""
-            print(f"[*] Registered {len(new_tools)} client tools "
-                  f"(+{len(BUILTIN_TOOL_NAMES)} built-in{mcp_note})")
+            print(f"[*] Registered {len(all_tools)} client tools{mcp_note}")
         return resp
 
     def conversation_destroy(self, conversation_id: str) -> dict:
