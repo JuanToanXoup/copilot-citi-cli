@@ -1321,42 +1321,81 @@ def cmd_chat(args):
     finally:
         release_client(client)
 
+def _parse_worker_defs(worker_defs: list[dict], default_model: str | None = None):
+    """Convert raw worker dicts into WorkerConfig objects."""
+    from copilot_cli.orchestrator import WorkerConfig
+    return [
+        WorkerConfig(
+            role=w["role"],
+            system_prompt=w.get("system_prompt", ""),
+            model=w.get("model", default_model),
+            tools_enabled=w.get("tools_enabled", "__ALL__"),
+            agent_mode=w.get("agent_mode", True),
+        )
+        for w in worker_defs
+    ]
+
+
+def load_orchestrator_config(path: str) -> dict:
+    """Load an orchestrator config file (TOML or JSON).
+
+    Returns a dict with keys: ``workers``, ``model``, ``transport``,
+    ``system_prompt``, and any other top-level fields from the file.
+    """
+    ext = os.path.splitext(path)[1].lower()
+    with open(path, "rb") as f:
+        if ext == ".toml":
+            config = tomllib.load(f)
+        else:
+            config = json.load(f)
+
+    # Normalise [[workers]] (TOML array-of-tables) or "workers" (JSON array)
+    raw_workers = config.get("workers", [])
+    if isinstance(raw_workers, dict):
+        # Single worker defined as [workers] instead of [[workers]]
+        raw_workers = [raw_workers]
+    config["_worker_defs"] = raw_workers
+    return config
+
+
 def cmd_orchestrate(args):
     """Multi-agent orchestrator mode."""
-    from copilot_cli.orchestrator import run_orchestrator_cli, WorkerConfig
+    from copilot_cli.orchestrator import run_orchestrator_cli
 
     workspace = os.path.abspath(args.workspace)
     goal = " ".join(args.prompt)
     model = args.model
-
-    # Parse custom worker configs if provided
+    transport = getattr(args, "transport", None) or "mcp"
     workers = None
+
+    # Load unified config file if provided
+    config_path = getattr(args, "config", None)
+    if config_path:
+        config = load_orchestrator_config(config_path)
+        # Config file provides defaults; CLI flags override
+        if not model:
+            model = config.get("model")
+        if getattr(args, "transport", None) is None:
+            transport = config.get("transport", "mcp")
+        if config.get("_worker_defs"):
+            workers = _parse_worker_defs(config["_worker_defs"], default_model=model)
+
+    # --workers flag overrides config file workers
     workers_arg = getattr(args, "workers", None)
     if workers_arg:
-        # Load from file or inline JSON
         if os.path.isfile(workers_arg):
             with open(workers_arg, "r") as f:
                 worker_defs = json.load(f)
         else:
             worker_defs = json.loads(workers_arg)
-
-        workers = [
-            WorkerConfig(
-                role=w["role"],
-                system_prompt=w.get("system_prompt", ""),
-                model=w.get("model", model),
-                tools_enabled=w.get("tools_enabled", "__ALL__"),
-                agent_mode=w.get("agent_mode", True),
-            )
-            for w in worker_defs
-        ]
+        workers = _parse_worker_defs(worker_defs, default_model=model)
 
     run_orchestrator_cli(
         workspace=workspace,
         goal=goal,
         workers=workers,
         model=model,
-        transport=getattr(args, "transport", "mcp"),
+        transport=transport,
         proxy_url=getattr(args, "proxy", None),
         no_ssl_verify=getattr(args, "no_ssl_verify", False),
     )
@@ -1460,10 +1499,13 @@ def main():
     p_orch = sub.add_parser("orchestrate", help="Multi-agent orchestrator mode")
     p_orch.add_argument("prompt", nargs="+", help="High-level goal for the orchestrator")
     p_orch.add_argument("-m", "--model", default=None, help="Model ID for orchestrator and workers")
+    p_orch.add_argument("--config", default=None,
+                        help="Orchestrator config file (TOML/JSON) defining workers, "
+                             "system prompt, model, and transport in one file")
     p_orch.add_argument("--workers", default=None,
                         help="Worker config: JSON file or inline JSON array of "
                              '{role, system_prompt, model, tools_enabled}')
-    p_orch.add_argument("--transport", choices=["mcp", "queue"], default="mcp",
+    p_orch.add_argument("--transport", choices=["mcp", "queue"], default=None,
                         help="Agent transport: 'mcp' (workers as MCP servers, default) "
                              "or 'queue' (in-process threads)")
 

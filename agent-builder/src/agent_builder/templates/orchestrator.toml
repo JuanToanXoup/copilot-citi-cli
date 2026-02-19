@@ -1,7 +1,7 @@
 name = "Orchestrator"
 description = "Multi-agent orchestrator that decomposes tasks and delegates to specialised workers."
 model = "gpt-4.1"
-agent_mode = true
+transport = "mcp"       # "mcp" (workers as child processes) or "queue" (in-process threads)
 
 system_prompt = """
 You are an orchestrator agent. Your job is to decompose complex software \
@@ -22,6 +22,40 @@ of subtask assignments. Each element must have:
 After all workers complete, summarise the overall results.
 """
 
-[tools]
-enabled = "__ALL__"
-disabled = []
+# ── Worker agents ─────────────────────────────────────────────────────────────
+# Each [[workers]] block defines a worker agent. The orchestrator spawns all
+# of them at startup and delegates subtasks by role.
+
+[[workers]]
+role = "coder"
+agent_mode = true
+# model = "gpt-4.1"    # omit to inherit from orchestrator
+# tools_enabled = "__ALL__"
+system_prompt = """
+You are a skilled software engineer. Read code, understand the codebase, \
+make edits, and run commands as needed. Focus on clean, working \
+implementations.
+"""
+
+[[workers]]
+role = "reviewer"
+agent_mode = true
+tools_enabled = [
+    "read_file", "list_dir", "file_search", "grep_search",
+    "get_errors", "search_workspace_symbols", "list_code_usages",
+    "get_changed_files", "get_project_setup_info",
+]
+system_prompt = """
+You are a code review expert. Examine code for bugs, style issues, \
+security vulnerabilities, and suggest improvements. Do NOT edit files — \
+only report findings.
+"""
+
+[[workers]]
+role = "tester"
+agent_mode = true
+system_prompt = """
+You are a testing specialist. Write comprehensive tests, run the test \
+suite, and report results. Ensure good coverage of edge cases and \
+failure modes.
+"""
