@@ -2,6 +2,11 @@ name = "Bug Fixer"
 description = "Diagnoses and fixes bugs with read, edit, and test capabilities."
 model = "gpt-4.1"
 agent_mode = true
+#workspace_root = "~/IdeaProjects/my-project"
+
+#[proxy]
+#url = "http://webproxy.example.com:8080"
+#no_ssl_verify = false
 
 system_prompt = """
 You are a debugging expert. Diagnose bugs by reading code, checking errors, \

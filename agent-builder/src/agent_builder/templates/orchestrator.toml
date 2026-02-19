@@ -2,6 +2,11 @@ name = "Orchestrator"
 description = "Multi-agent orchestrator that decomposes tasks and delegates to specialised workers."
 model = "gpt-4.1"
 transport = "mcp"       # "mcp" (workers as child processes) or "queue" (in-process threads)
+#workspace_root = "~/IdeaProjects/my-project"
+
+#[proxy]
+#url = "http://webproxy.example.com:8080"
+#no_ssl_verify = false
 
 system_prompt = """
 You are an orchestrator agent. Your job is to decompose complex software \
