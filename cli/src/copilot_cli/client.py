@@ -1362,23 +1362,42 @@ def cmd_orchestrate(args):
     """Multi-agent orchestrator mode."""
     from copilot_cli.orchestrator import run_orchestrator_cli
 
-    workspace = os.path.abspath(args.workspace)
     goal = " ".join(args.prompt)
     model = args.model
-    transport = getattr(args, "transport", None) or "mcp"
+    transport = getattr(args, "transport", None)
+    proxy_url = getattr(args, "proxy", None)
+    no_ssl_verify = getattr(args, "no_ssl_verify", False)
+    workspace = args.workspace
     workers = None
 
-    # Load unified config file if provided
+    # Load unified config file if provided — it supplies defaults for
+    # model, transport, workers, workspace, proxy, and SSL settings.
+    # CLI flags always take precedence.
     config_path = getattr(args, "config", None)
     if config_path:
         config = load_orchestrator_config(config_path)
-        # Config file provides defaults; CLI flags override
         if not model:
             model = config.get("model")
-        if getattr(args, "transport", None) is None:
-            transport = config.get("transport", "mcp")
+        if transport is None:
+            transport = config.get("transport")
         if config.get("_worker_defs"):
             workers = _parse_worker_defs(config["_worker_defs"], default_model=model)
+
+        # Workspace: config provides default, CLI -w overrides
+        cfg_workspace = config.get("workspace_root")
+        if cfg_workspace and workspace == os.getcwd():
+            # CLI didn't set -w (still at default cwd), use config value
+            workspace = os.path.expanduser(cfg_workspace)
+
+        # Proxy / SSL: config provides defaults, CLI flags override
+        cfg_proxy = config.get("proxy", {}) or {}
+        if not proxy_url and cfg_proxy.get("url"):
+            proxy_url = cfg_proxy["url"]
+        if not no_ssl_verify and cfg_proxy.get("no_ssl_verify"):
+            no_ssl_verify = True
+
+    workspace = os.path.abspath(workspace)
+    transport = transport or "mcp"
 
     # --workers flag overrides config file workers
     workers_arg = getattr(args, "workers", None)
@@ -1396,8 +1415,8 @@ def cmd_orchestrate(args):
         workers=workers,
         model=model,
         transport=transport,
-        proxy_url=getattr(args, "proxy", None),
-        no_ssl_verify=getattr(args, "no_ssl_verify", False),
+        proxy_url=proxy_url,
+        no_ssl_verify=no_ssl_verify,
     )
 
 

@@ -3,6 +3,14 @@ description = "Multi-agent orchestrator that decomposes tasks and delegates to s
 model = "gpt-4.1"
 transport = "mcp"       # "mcp" (workers as child processes) or "queue" (in-process threads)
 
+# ── Workspace ─────────────────────────────────────────────────────────────────
+# workspace_root = "~/projects/my-repo"   # default: current working directory
+
+# ── Proxy / SSL ───────────────────────────────────────────────────────────────
+# [proxy]
+# url = "http://proxy.corp.example.com:8080"   # or http://user:pass@host:port
+# no_ssl_verify = false                         # set true to skip cert checks
+
 system_prompt = """
 You are an orchestrator agent. Your job is to decompose complex software \
 engineering tasks into discrete subtasks and delegate them to specialised \
