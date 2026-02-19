@@ -71,6 +71,13 @@ args = ["-y", "@peng-shawn/mermaid-mcp-server"]
 command = "uvx"
 args = ["mcp-server-qdrant"]
 
+# Context7 — live library documentation (Playwright, Selenium, Cucumber, Java, etc.)
+# Provides resolve_library_id + get_library_docs tools via the Context7 API.
+# Alternative: uncomment below to use the official Context7 MCP server directly.
+#[mcp.context7]
+#command = "npx"
+#args = ["-y", "@upstash/context7-mcp@latest"]
+
 # IntelliJ IDE index MCP — use url (SSE) if IDE is running, or command (stdio) for headless
 [mcp.intellij-index]
 url = "http://127.0.0.1:29170/index-mcp/sse"
