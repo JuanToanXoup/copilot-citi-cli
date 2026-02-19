@@ -1344,6 +1344,8 @@ def _parse_worker_defs(worker_defs: list[dict], default_model: str | None = None
             no_ssl_verify=w.get("no_ssl_verify"),
             mcp_servers=w.get("mcp_servers"),
             lsp_servers=w.get("lsp_servers"),
+            question_schema=w.get("question_schema"),
+            answer_schema=w.get("answer_schema"),
         )
         for w in worker_defs
     ]

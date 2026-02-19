@@ -58,9 +58,11 @@ class AgentCard:
     tools_enabled: list[str] | str = "__ALL__"
     agent_mode: bool = True
     version: str = "0.1.0"
+    question_schema: dict | None = None  # Input schema (what the worker accepts)
+    answer_schema: dict | None = None    # Output schema (what the worker returns)
 
     def to_dict(self) -> dict:
-        return {
+        d = {
             "name": self.name,
             "role": self.role,
             "description": self.description,
@@ -70,49 +72,92 @@ class AgentCard:
             "agent_mode": self.agent_mode,
             "version": self.version,
         }
+        if self.question_schema:
+            d["question_schema"] = self.question_schema
+        if self.answer_schema:
+            d["answer_schema"] = self.answer_schema
+        return d
 
 
 # ── MCP Agent Server (runs in child process) ─────────────────────────────────
 
-# The three tools this agent server exposes via MCP
-AGENT_TOOLS = [
-    {
-        "name": "execute_task",
-        "description": "Send a task to this agent for execution. Returns the agent's reply.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "prompt": {
-                    "type": "string",
-                    "description": "The task description / prompt for the agent",
-                },
-                "context": {
-                    "type": "string",
-                    "description": "Optional JSON-encoded shared context from other agents",
-                },
+
+def _build_agent_tools(card: AgentCard) -> list[dict]:
+    """Build the MCP tool definitions for this agent.
+
+    When the agent has a ``question_schema``, the ``execute_task`` tool's
+    ``inputSchema`` is enriched with the schema fields so the orchestrator
+    LLM sees a typed contract instead of a generic ``prompt`` string.
+
+    When the agent has an ``answer_schema``, the tool description includes
+    the expected response structure.
+    """
+    from copilot_cli.schema_validation import (
+        schema_to_json_schema,
+        schema_to_description,
+    )
+
+    # Build execute_task input schema
+    exec_properties = {
+        "prompt": {
+            "type": "string",
+            "description": "The task description / prompt for the agent",
+        },
+        "context": {
+            "type": "string",
+            "description": "Optional JSON-encoded shared context from other agents",
+        },
+    }
+    exec_required = ["prompt"]
+
+    # If the worker defines a question_schema, add those fields as
+    # additional structured parameters alongside the free-form prompt
+    if card.question_schema:
+        q_schema = schema_to_json_schema(card.question_schema)
+        for name, prop in q_schema.get("properties", {}).items():
+            exec_properties[name] = prop
+        for name in q_schema.get("required", []):
+            if name not in exec_required:
+                exec_required.append(name)
+
+    # Build description with answer schema hint
+    exec_desc = (
+        f"Send a task to the {card.role} agent for execution. "
+        f"Returns the agent's reply."
+    )
+    if card.answer_schema:
+        answer_desc = schema_to_description(card.answer_schema, "Expected response fields")
+        exec_desc += f"\n\n{answer_desc}"
+
+    return [
+        {
+            "name": "execute_task",
+            "description": exec_desc,
+            "inputSchema": {
+                "type": "object",
+                "properties": exec_properties,
+                "required": exec_required,
             },
-            "required": ["prompt"],
         },
-    },
-    {
-        "name": "get_status",
-        "description": "Get the current status of this agent (idle/busy, conversation info).",
-        "inputSchema": {
-            "type": "object",
-            "properties": {},
-            "required": [],
+        {
+            "name": "get_status",
+            "description": "Get the current status of this agent (idle/busy, conversation info).",
+            "inputSchema": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
         },
-    },
-    {
-        "name": "get_capabilities",
-        "description": "Get this agent's capabilities: role, model, available tools.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {},
-            "required": [],
+        {
+            "name": "get_capabilities",
+            "description": "Get this agent's capabilities: role, model, available tools.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
         },
-    },
-]
+    ]
 
 
 class MCPAgentServer:
@@ -140,6 +185,7 @@ class MCPAgentServer:
         self._conversation_id: str | None = None
         self._status = "idle"  # idle | busy | error
         self._lock = threading.Lock()
+        self._agent_tools = _build_agent_tools(agent_card)
 
     def _send(self, msg: dict):
         """Write a JSON-RPC message to stdout (newline-delimited)."""
@@ -184,7 +230,15 @@ class MCPAgentServer:
         )
 
     def _handle_execute_task(self, arguments: dict) -> dict:
-        """Handle the execute_task MCP tool call."""
+        """Handle the execute_task MCP tool call.
+
+        When the worker has a ``question_schema``, structured fields from
+        ``arguments`` are injected into the prompt as ``<structured_input>``.
+
+        When the worker has an ``answer_schema``, the prompt includes
+        guidance on the expected response format, and the raw reply is
+        soft-validated against the schema.
+        """
         prompt = arguments.get("prompt", "")
         context_str = arguments.get("context", "")
 
@@ -202,7 +256,35 @@ class MCPAgentServer:
                 )
             if context_str:
                 parts.append(f"<shared_context>{context_str}</shared_context>")
+
+            # Inject structured question fields if schema is defined
+            if self.card.question_schema:
+                structured = {}
+                for field_name in self.card.question_schema:
+                    if field_name in arguments and field_name not in ("prompt", "context"):
+                        structured[field_name] = arguments[field_name]
+                if structured:
+                    parts.append(
+                        f"<structured_input>{json.dumps(structured, indent=2)}</structured_input>"
+                    )
+
             parts.append(prompt)
+
+            # Add answer format guidance if schema is defined
+            if self.card.answer_schema:
+                from copilot_cli.schema_validation import schema_to_description
+                answer_desc = schema_to_description(
+                    self.card.answer_schema, "Expected response format"
+                )
+                parts.append(
+                    f"\n<response_format>\n"
+                    f"Please structure your response as JSON with these fields:\n"
+                    f"{answer_desc}\n"
+                    f"You may include additional fields beyond these. "
+                    f"Wrap the JSON in ```json fences.\n"
+                    f"</response_format>"
+                )
+
             actual_prompt = "\n\n".join(parts)
 
             from copilot_cli.platform_utils import path_to_file_uri
@@ -227,16 +309,29 @@ class MCPAgentServer:
             reply = result.get("reply", "")
             rounds = result.get("agent_rounds", [])
 
+            # Soft-validate the reply against the answer schema
+            response_data = {
+                "status": "success",
+                "reply": reply,
+                "agent_rounds_count": len(rounds),
+                "worker": self.card.role,
+            }
+            if self.card.answer_schema:
+                parsed_reply = self._extract_json_from_reply(reply)
+                if parsed_reply is not None:
+                    from copilot_cli.schema_validation import soft_validate
+                    validation = soft_validate(parsed_reply, self.card.answer_schema)
+                    response_data["structured_reply"] = validation["parsed"]
+                    if validation["extras"]:
+                        response_data["structured_reply"].update(validation["extras"])
+                    if validation["warnings"]:
+                        response_data["validation_warnings"] = validation["warnings"]
+
             return {
                 "content": [
                     {
                         "type": "text",
-                        "text": json.dumps({
-                            "status": "success",
-                            "reply": reply,
-                            "agent_rounds_count": len(rounds),
-                            "worker": self.card.role,
-                        }),
+                        "text": json.dumps(response_data),
                     }
                 ],
             }
@@ -257,6 +352,57 @@ class MCPAgentServer:
         finally:
             with self._lock:
                 self._status = "idle"
+
+    @staticmethod
+    def _extract_json_from_reply(reply: str) -> dict | None:
+        """Best-effort extract a JSON object from an LLM reply.
+
+        Handles bare JSON, ```json fenced blocks, and mixed prose + JSON.
+        Returns None if no JSON object can be found.
+        """
+        text = reply.strip()
+
+        # Try bare JSON first
+        if text.startswith("{"):
+            try:
+                return json.loads(text)
+            except json.JSONDecodeError:
+                pass
+
+        # Try ```json fenced blocks
+        if "```json" in text:
+            block = text.split("```json", 1)[1]
+            block = block.split("```", 1)[0].strip()
+            try:
+                return json.loads(block)
+            except json.JSONDecodeError:
+                pass
+
+        # Try generic ``` fenced blocks
+        if "```" in text:
+            block = text.split("```", 1)[1]
+            block = block.split("```", 1)[0].strip()
+            try:
+                return json.loads(block)
+            except json.JSONDecodeError:
+                pass
+
+        # Try to find a JSON object anywhere in the text
+        start = text.find("{")
+        if start >= 0:
+            depth = 0
+            for i in range(start, len(text)):
+                if text[i] == "{":
+                    depth += 1
+                elif text[i] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        try:
+                            return json.loads(text[start:i + 1])
+                        except json.JSONDecodeError:
+                            break
+
+        return None
 
     def _handle_get_status(self) -> dict:
         with self._lock:
@@ -325,7 +471,7 @@ class MCPAgentServer:
                 pass  # No response needed for notifications
 
             elif method == "tools/list":
-                self._send_response(req_id, {"tools": AGENT_TOOLS})
+                self._send_response(req_id, {"tools": self._agent_tools})
 
             elif method == "tools/call":
                 tool_name = params.get("name", "")
@@ -406,6 +552,8 @@ def _agent_server_main():
         system_prompt=config.get("system_prompt", ""),
         tools_enabled=config.get("tools_enabled", "__ALL__"),
         agent_mode=config.get("agent_mode", True),
+        question_schema=config.get("question_schema"),
+        answer_schema=config.get("answer_schema"),
     )
 
     server = MCPAgentServer(
