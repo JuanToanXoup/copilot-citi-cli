@@ -73,14 +73,16 @@ class TestBuiltinTools(unittest.TestCase):
     def test_create_file(self):
         fp = os.path.join(self.tmpdir, "new.txt")
         result = TOOL_EXECUTORS["create_file"]({"filePath": fp, "content": "test"}, self.ctx)
-        self.assertEqual(result["result"], "success")
+        self.assertIsInstance(result, list)
+        self.assertIn("Created file", result[0]["value"])
         self.assertTrue(os.path.exists(fp))
         self.assertEqual(open(fp).read(), "test")
 
     def test_create_directory(self):
         dp = os.path.join(self.tmpdir, "subdir")
         result = TOOL_EXECUTORS["create_directory"]({"dirPath": dp}, self.ctx)
-        self.assertEqual(result["result"], "success")
+        self.assertIsInstance(result, list)
+        self.assertIn("Created directory", result[0]["value"])
         self.assertTrue(os.path.isdir(dp))
 
     def test_read_file(self):
@@ -107,7 +109,8 @@ class TestBuiltinTools(unittest.TestCase):
             {"filePath": fp, "code": "x = 1\n", "explanation": "test"},
             self.ctx,
         )
-        self.assertEqual(result["result"], "success")
+        self.assertIsInstance(result, list)
+        self.assertIn("Edited file", result[0]["value"])
         self.assertEqual(open(fp).read(), "x = 1\n")
 
     def test_replace_string_in_file(self):
@@ -118,7 +121,8 @@ class TestBuiltinTools(unittest.TestCase):
             {"filePath": fp, "oldString": "hello", "newString": "goodbye"},
             self.ctx,
         )
-        self.assertEqual(result["result"], "success")
+        self.assertIsInstance(result, list)
+        self.assertIn("Replaced string in", result[0]["value"])
         self.assertEqual(open(fp).read(), "goodbye world")
 
     def test_file_search(self):
@@ -179,7 +183,8 @@ class TestBuiltinTools(unittest.TestCase):
             " line3\n"
         )
         result = TOOL_EXECUTORS["apply_patch"]({"input": patch, "explanation": "test"}, self.ctx)
-        self.assertEqual(result["result"], "success")
+        self.assertIsInstance(result, list)
+        self.assertNotIn("Error", result[0]["value"])
         self.assertIn("LINE_TWO", open(target).read())
 
 

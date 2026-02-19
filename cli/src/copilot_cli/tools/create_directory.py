@@ -19,8 +19,8 @@ SCHEMA = {
 }
 
 
-def execute(tool_input: dict, ctx: ToolContext) -> dict:
+def execute(tool_input: dict, ctx: ToolContext) -> list:
     dir_path = tool_input.get("dirPath", "")
     os.makedirs(dir_path, exist_ok=True)
     logger.debug("Created directory %s", dir_path)
-    return {"result": "success"}
+    return [{"type": "text", "value": f"Created directory {dir_path}"}]
