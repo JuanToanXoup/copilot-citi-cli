@@ -33,7 +33,7 @@ SCHEMA = {
 }
 
 
-def execute(tool_input: dict, ctx: ToolContext) -> dict:
+def execute(tool_input: dict, ctx: ToolContext) -> list:
     explanation = tool_input.get("explanation", "")
     replacements = tool_input.get("replacements", [])
     logger.debug("Multi-replace (%d ops): %s", len(replacements), explanation)
@@ -44,10 +44,10 @@ def execute(tool_input: dict, ctx: ToolContext) -> dict:
         with open(fp, "r") as f:
             content = f.read()
         if old_s not in content:
-            return {"result": "error", "message": f"Replacement {i}: oldString not found in {fp}"}
+            return [{"type": "text", "value": f"Error: Replacement {i}: oldString not found in {fp}"}]
         content = content.replace(old_s, new_s, 1)
         with open(fp, "w") as f:
             f.write(content)
         ctx.sync_file_to_server(fp, content)
         logger.debug("  [%d/%d] Replaced in %s: %s", i+1, len(replacements), fp, rep.get('explanation', ''))
-    return {"result": "success"}
+    return [{"type": "text", "value": f"Applied {len(replacements)} replacements"}]

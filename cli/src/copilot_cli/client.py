@@ -542,7 +542,7 @@ class CopilotClient:
             print(f"[server request] {method} (id={req_id}) - auto-responding")
             self._send_response(req_id, None)
 
-    def _execute_client_tool(self, tool_name: str, tool_input: dict) -> dict:
+    def _execute_client_tool(self, tool_name: str, tool_input: dict):
         """Execute a client-side tool and return the result."""
         # Check client-side MCP tools first
         if self.client_mcp and self.client_mcp.is_mcp_tool(tool_name):
@@ -555,7 +555,7 @@ class CopilotClient:
         executor = TOOL_EXECUTORS.get(tool_name)
         if not executor:
             print(f"\033[31m  ⎿  Unknown tool: {tool_name}\033[0m")
-            return {"result": "error", "message": f"Unknown tool: {tool_name}"}
+            return [{"type": "text", "value": f"Error: Unknown tool: {tool_name}"}]
         ctx = ToolContext(
             workspace_root=self.workspace_root,
             sync_file_to_server=self._sync_file_to_server,
@@ -569,7 +569,7 @@ class CopilotClient:
             print(f"\033[31m  ⎿  Error: {e}\033[0m")
             if tool_name not in BUILTIN_TOOL_NAMES:
                 return [{"content": [{"value": f"Error: {e}"}], "status": "error"}, None]
-            return {"result": "error", "message": str(e)}
+            return [{"type": "text", "value": f"Error: {e}"}]
 
         return result
 

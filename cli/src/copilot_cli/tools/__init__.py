@@ -11,16 +11,18 @@ TOOL_EXECUTORS: dict[str, callable] = {}
 
 # ── Tool response format ────────────────────────────────────────────────────
 #
+# ALL tools return: [{"type": "text", "value": "..."}]
+#
 # Built-in tools (listed below):
-#   Response is sent *as-is* to the server — typically a dict like
-#   {"result": "success", "output": "..."}.
+#   Response is sent *as-is* to the server.  The server processes the
+#   result array directly — each element must have "type" and "value".
 #
 # Registered tools (everything NOT in BUILTIN_TOOL_NAMES):
 #   Response is auto-wrapped by CopilotClient._wrap_registered_tool_result()
 #   into [{"content": [{"value": "..."}], "status": "success"}, None]
 #   before being sent to the server.
 #
-# See tools/_base.py (ToolResult) for the full contract.
+# See tools/_base.py for the full contract.
 # ─────────────────────────────────────────────────────────────────────────────
 
 BUILTIN_TOOL_NAMES: set[str] = {

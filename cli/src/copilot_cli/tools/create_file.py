@@ -20,7 +20,7 @@ SCHEMA = {
 }
 
 
-def execute(tool_input: dict, ctx: ToolContext) -> dict:
+def execute(tool_input: dict, ctx: ToolContext) -> list:
     file_path = tool_input.get("filePath", "")
     content = tool_input.get("content", "")
     os.makedirs(os.path.dirname(file_path) or ".", exist_ok=True)
@@ -28,4 +28,4 @@ def execute(tool_input: dict, ctx: ToolContext) -> dict:
         f.write(content)
     ctx.sync_file_to_server(file_path, content)
     logger.debug("Created file %s (%d chars)", file_path, len(content))
-    return {"result": "success"}
+    return [{"type": "text", "value": f"Created file {file_path}"}]

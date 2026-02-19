@@ -21,7 +21,7 @@ SCHEMA = {
 }
 
 
-def execute(tool_input: dict, ctx: ToolContext) -> dict:
+def execute(tool_input: dict, ctx: ToolContext) -> list:
     file_path = tool_input.get("filePath", "")
     code = tool_input.get("code", "")
     explanation = tool_input.get("explanation", "")
@@ -30,4 +30,4 @@ def execute(tool_input: dict, ctx: ToolContext) -> dict:
         f.write(code)
     ctx.sync_file_to_server(file_path, code)
     logger.debug("Wrote %d chars to %s: %s", len(code), file_path, explanation)
-    return {"result": "success"}
+    return [{"type": "text", "value": f"Edited file {file_path}"}]

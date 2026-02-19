@@ -20,7 +20,7 @@ SCHEMA = {
 }
 
 
-def execute(tool_input: dict, ctx: ToolContext) -> dict:
+def execute(tool_input: dict, ctx: ToolContext) -> list:
     patch_text = tool_input.get("input", "")
     explanation = tool_input.get("explanation", "")
     logger.debug("Applying patch: %s", explanation)
@@ -32,6 +32,6 @@ def execute(tool_input: dict, ctx: ToolContext) -> dict:
     output = result.stdout + result.stderr
     if result.returncode != 0:
         logger.debug("Patch failed: %s", output[:300])
-        return {"result": "error", "message": output[:2000]}
+        return [{"type": "text", "value": f"Error: patch failed\n{output[:2000]}"}]
     logger.debug("Patch applied: %s", output[:200])
-    return {"result": "success", "output": output[:2000]}
+    return [{"type": "text", "value": output[:2000] if output.strip() else "Patch applied successfully"}]

@@ -21,7 +21,7 @@ SCHEMA = {
 }
 
 
-def execute(tool_input: dict, ctx: ToolContext) -> dict:
+def execute(tool_input: dict, ctx: ToolContext) -> list:
     file_path = tool_input.get("filePath", "")
     old_string = tool_input.get("oldString", "")
     new_string = tool_input.get("newString", "")
@@ -29,10 +29,10 @@ def execute(tool_input: dict, ctx: ToolContext) -> dict:
         content = f.read()
     if old_string not in content:
         logger.debug("oldString not found in %s", file_path)
-        return {"result": "error", "message": "oldString not found in file"}
+        return [{"type": "text", "value": "Error: oldString not found in file"}]
     content = content.replace(old_string, new_string, 1)
     with open(file_path, "w") as f:
         f.write(content)
     ctx.sync_file_to_server(file_path, content)
     logger.debug("Replaced string in %s", file_path)
-    return {"result": "success"}
+    return [{"type": "text", "value": f"Replaced string in {file_path}"}]

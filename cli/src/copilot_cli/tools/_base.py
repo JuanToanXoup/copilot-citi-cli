@@ -2,32 +2,32 @@
 
 Tool response format contract
 -----------------------------
-Each tool's ``execute()`` returns one of two shapes:
+Each tool's ``execute()`` returns one of two shapes depending on whether it
+is a *built-in* or *registered* tool:
 
-1. **dict** — ``{"result": "success"|"error", ...}``
-   Used by *built-in* tools whose names are in ``BUILTIN_TOOL_NAMES``.
-   The server expects this dict as-is (sent directly via ``_send_response``).
+1. **list** — ``[{"type": "text", "value": "..."}]``
+   Used by **all built-in tools** (names in ``BUILTIN_TOOL_NAMES``).
+   The server processes this array directly — each element must have
+   ``type`` and ``value`` keys. This is also the format used by
+   registered tools *before* wrapping.
 
-2. **list** — ``[{"type": "text", "value": "..."}]``
-   Used by *registered* (non-built-in) tools. The client automatically wraps
-   this into ``[{"content": [...], "status": "success"}, None]`` via
-   ``CopilotClient._wrap_registered_tool_result()`` before sending to the
-   server.
+2. Registered (non-built-in) tools also return the same ``list`` shape.
+   The client automatically wraps it into the tuple format the server
+   expects: ``[{"content": [{"value": "..."}], "status": "success"}, None]``
+   via ``CopilotClient._wrap_registered_tool_result()``.
 
 Tools should NOT wrap their own result in the tuple format — the client
 handles that automatically for all registered tools.
 """
 
 import dataclasses
-from typing import Callable, Union
+from typing import Callable
 
 # Maximum characters of tool output returned to the model.
 TOOL_OUTPUT_LIMIT = 4000
 
 # Return type for tool execute() functions.
-# dict → built-in tools (response sent as-is to server)
-# list → registered tools (auto-wrapped by _wrap_registered_tool_result)
-ToolResult = Union[dict, list]
+ToolResult = list
 
 
 @dataclasses.dataclass

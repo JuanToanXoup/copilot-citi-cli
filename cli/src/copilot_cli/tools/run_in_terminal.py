@@ -20,7 +20,7 @@ SCHEMA = {
 }
 
 
-def execute(tool_input: dict, ctx: ToolContext) -> dict:
+def execute(tool_input: dict, ctx: ToolContext) -> list:
     command = tool_input.get("command", "")
     explanation = tool_input.get("explanation", "")
     logger.debug("Terminal: %s (%s)", command, explanation)
@@ -28,4 +28,4 @@ def execute(tool_input: dict, ctx: ToolContext) -> dict:
                             cwd=ctx.workspace_root)
     output = result.stdout + result.stderr
     logger.debug("Exit code: %d, output: %s", result.returncode, output[:200])
-    return {"result": "success", "output": output[:TOOL_OUTPUT_LIMIT]}
+    return [{"type": "text", "value": output[:TOOL_OUTPUT_LIMIT] if output.strip() else f"Command exited with code {result.returncode}"}]
