@@ -81,11 +81,16 @@ def _clean_for_toml(data: dict) -> dict:
     ugly empty sections.  Ensures ``workers`` (list-of-dicts) lands at the
     end so ``tomli_w`` emits ``[[workers]]`` array-of-tables *after* all
     simple keys and regular tables.
+
+    Internal metadata keys (prefixed with ``_``) are always removed.
     """
     out: dict = {}
     workers = None
 
     for k, v in data.items():
+        # Strip internal metadata keys (e.g. _source_path)
+        if k.startswith("_"):
+            continue
         # Stash workers for last (must come after all other tables)
         if k == "workers":
             workers = v
@@ -314,7 +319,24 @@ class BuilderHandler(BaseHTTPRequestHandler):
         if not name:
             self._json_response(400, {"error": "name required"})
             return
-        # Sanitize name for filesystem
+
+        source_path = body.get("_source_path")
+
+        # If the config came from a template file, save back to it
+        if source_path and os.path.isfile(source_path):
+            if tomli_w is None:
+                self._json_response(500, {"error": "tomli_w not available"})
+                return
+            data = _clean_for_toml(body)
+            with open(source_path, "wb") as f:
+                tomli_w.dump(data, f)
+            # Refresh cached templates so subsequent loads see the changes
+            from agent_builder.templates import reload_templates
+            reload_templates()
+            self._json_response(200, {"ok": True, "path": source_path})
+            return
+
+        # Otherwise save to the agents directory as before
         safe_name = "".join(c for c in name if c.isalnum() or c in "-_").strip()
         if not safe_name:
             self._json_response(400, {"error": "invalid name"})
@@ -323,7 +345,6 @@ class BuilderHandler(BaseHTTPRequestHandler):
 
         if tomli_w is not None:
             path = os.path.join(AGENTS_DIR, f"{safe_name}.toml")
-            # Clean empty values so the TOML stays readable
             data = _clean_for_toml(body)
             with open(path, "wb") as f:
                 tomli_w.dump(data, f)

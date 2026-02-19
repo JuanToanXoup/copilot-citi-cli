@@ -17,7 +17,11 @@ _TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
 
 
 def _load_templates() -> dict:
-    """Load all .toml files from the templates/ directory."""
+    """Load all .toml files from the templates/ directory.
+
+    Each template dict gets a ``_source_path`` key so the Agent Builder
+    can save changes back to the originating file.
+    """
     templates = {}
     if not os.path.isdir(_TEMPLATES_DIR):
         return templates
@@ -31,11 +35,18 @@ def _load_templates() -> dict:
         # Strip leading/trailing whitespace from multiline system_prompt
         if "system_prompt" in data:
             data["system_prompt"] = data["system_prompt"].strip()
+        data["_source_path"] = path
         templates[template_id] = data
     return templates
 
 
 TEMPLATES = _load_templates()
+
+
+def reload_templates():
+    """Re-read template files from disk (call after saving to a template)."""
+    global TEMPLATES
+    TEMPLATES = _load_templates()
 
 
 def get_template(name: str) -> dict | None:
