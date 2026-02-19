@@ -74,7 +74,7 @@ def _filter_tools():
 def main():
     _filter_tools()
 
-    from copilot_cli.client import _init_client, CopilotClient
+    from copilot_cli.client import _init_client, CopilotClient, release_client
     from copilot_cli.tools import TOOL_SCHEMAS, BUILTIN_TOOL_NAMES
     from copilot_cli.platform_utils import path_to_file_uri
 
@@ -202,7 +202,7 @@ def main():
         if conversation_id:
             client.conversation_destroy(conversation_id)
     finally:
-        client.stop()
+        release_client(client)
 
 if __name__ == "__main__":
     main()

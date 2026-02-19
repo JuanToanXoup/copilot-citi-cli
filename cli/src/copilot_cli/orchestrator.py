@@ -74,7 +74,7 @@ import time
 import uuid
 from typing import Callable
 
-from copilot_cli.client import CopilotClient, _init_client
+from copilot_cli.client import CopilotClient, _init_client, release_client
 from copilot_cli.platform_utils import path_to_file_uri
 
 
@@ -281,6 +281,7 @@ class QueueWorker:
             agent_mode=self.config.agent_mode,
             proxy_url=self.proxy_url,
             no_ssl_verify=self.no_ssl_verify,
+            shared=True,
         )
 
     def _run_loop(self):
@@ -376,7 +377,7 @@ class QueueWorker:
                 except Exception:
                     pass
             try:
-                self._client.stop()
+                release_client(self._client)
             except Exception:
                 pass
 
@@ -471,12 +472,14 @@ IMPORTANT: Respond ONLY with the JSON array. No other text."""
         print(f"\033[94m│\033[0m  \033[90m{os.path.basename(self.workspace)}\033[0m")
         print(f"\033[94m╰─\033[0m")
 
-        # Start orchestrator's own session (chat-only, for planning)
+        # Start orchestrator's own session (chat-only, for planning).
+        # Use shared=True so queue workers reuse the same LSP process.
         self._client = _init_client(
             self.workspace,
             agent_mode=False,
             proxy_url=self.proxy_url,
             no_ssl_verify=self.no_ssl_verify,
+            shared=True,
         )
 
         if self.transport == "mcp":
@@ -824,7 +827,7 @@ IMPORTANT: Respond ONLY with the JSON array. No other text."""
                 except Exception:
                     pass
             try:
-                self._client.stop()
+                release_client(self._client)
             except Exception:
                 pass
         print("\033[94m⏺\033[0m Orchestrator stopped.")

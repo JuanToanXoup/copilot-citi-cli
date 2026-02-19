@@ -36,6 +36,15 @@ _sessions = {}        # session_id → {client, config, conversation_id, last_ac
 _sessions_lock = threading.Lock()
 
 
+def _release_session_client(client):
+    """Release a client, preferring pool-aware release_client if available."""
+    try:
+        from copilot_cli.client import release_client
+        release_client(client)
+    except ImportError:
+        client.stop()
+
+
 def _cleanup_sessions(max_idle=600):
     """Stop clients idle for more than max_idle seconds."""
     while True:
@@ -46,7 +55,7 @@ def _cleanup_sessions(max_idle=600):
                        if now - s["last_active"] > max_idle]
             for sid in expired:
                 try:
-                    _sessions[sid]["client"].stop()
+                    _release_session_client(_sessions[sid]["client"])
                 except Exception:
                     pass
                 del _sessions[sid]
@@ -260,7 +269,7 @@ class BuilderHandler(BaseHTTPRequestHandler):
     def _api_preview_start(self, body):
         self._sse_start()
         try:
-            from copilot_cli.client import _init_client, _load_config
+            from copilot_cli.client import _init_client, _load_config, release_client
             config = body
             workspace = config.get("workspace_root") or "/tmp/copilot-workspace"
             workspace = os.path.expanduser(workspace)
@@ -291,6 +300,7 @@ class BuilderHandler(BaseHTTPRequestHandler):
                 no_ssl_verify=no_ssl_verify,
                 verbose=False,
                 on_progress=on_progress,
+                shared=True,
             )
 
             # Check if client disconnected during init (user cancelled)
@@ -307,7 +317,7 @@ class BuilderHandler(BaseHTTPRequestHandler):
             else:
                 # Client disconnected during startup — clean up
                 try:
-                    client.stop()
+                    release_client(client)
                 except Exception:
                     pass
 
@@ -418,7 +428,7 @@ class BuilderHandler(BaseHTTPRequestHandler):
             session = _sessions.pop(session_id, None)
         if session:
             try:
-                session["client"].stop()
+                _release_session_client(session["client"])
             except Exception:
                 pass
             self._json_response(200, {"ok": True})
@@ -502,7 +512,7 @@ def start_server(port=8420, open_browser=True):
         with _sessions_lock:
             for sid, session in _sessions.items():
                 try:
-                    session["client"].stop()
+                    _release_session_client(session["client"])
                 except Exception:
                     pass
             _sessions.clear()

@@ -352,7 +352,8 @@ class MCPAgentServer:
                 except Exception:
                     pass
             try:
-                self._client.stop()
+                from copilot_cli.client import release_client
+                release_client(self._client)
             except Exception:
                 pass
 
