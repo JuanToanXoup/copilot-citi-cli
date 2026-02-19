@@ -83,7 +83,7 @@ def main():
     description = """{description_escaped}"""
     model = config.get("model", "gpt-4.1")
     agent_mode = config.get("agent_mode", True)
-    workspace = os.path.abspath(config.get("workspace_root") or os.getcwd())
+    workspace = os.path.abspath(os.path.expanduser(config.get("workspace_root") or os.getcwd()))
     system_prompt = """{system_prompt_escaped}"""
 
     # MCP / proxy
@@ -251,7 +251,7 @@ def main():
     description = config.get("description", "")
     model = config.get("model")
     transport = config.get("transport", "mcp")
-    workspace = os.path.abspath(config.get("workspace_root") or os.getcwd())
+    workspace = os.path.abspath(os.path.expanduser(config.get("workspace_root") or os.getcwd()))
 
     # Parse embedded worker definitions
     raw_workers = config.get("workers", [])
