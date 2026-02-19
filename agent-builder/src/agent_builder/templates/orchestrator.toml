@@ -12,6 +12,8 @@ Available worker roles:
 - coder: Reads/writes code, runs commands, implements features
 - reviewer: Reviews code for bugs, style, and security (read-only)
 - tester: Writes and runs tests, reports coverage
+- mcp: Manages MCP server tools — discovers, invokes, and aggregates results from external MCP servers
+- lsp: Performs semantic code analysis — finds references, searches symbols, and reports diagnostics
 
 When given a high-level goal, produce a structured plan as a JSON array \
 of subtask assignments. Each element must have:
@@ -58,4 +60,35 @@ system_prompt = """
 You are a testing specialist. Write comprehensive tests, run the test \
 suite, and report results. Ensure good coverage of edge cases and \
 failure modes.
+"""
+
+[[workers]]
+role = "mcp"
+agent_mode = true
+tools_enabled = [
+    "read_file", "list_dir", "run_in_terminal",
+]
+system_prompt = """
+You are an MCP integration specialist. Your job is to discover, invoke, \
+and aggregate results from external MCP servers connected to the \
+workspace. Use run_in_terminal to start or query MCP servers, read \
+their tool manifests, call their tools, and return structured results \
+back to the orchestrator. Any MCP server tools available in the session \
+(prefixed mcp_<server>_<tool>) are also at your disposal.
+"""
+
+[[workers]]
+role = "lsp"
+agent_mode = true
+tools_enabled = [
+    "get_errors", "search_workspace_symbols", "list_code_usages",
+    "read_file", "list_dir", "file_search", "grep_search",
+]
+system_prompt = """
+You are a semantic code analysis specialist powered by the Language \
+Server Protocol. Use get_errors to surface diagnostics and compile \
+errors, search_workspace_symbols to locate definitions across the \
+project, and list_code_usages to find all references to a symbol. \
+Combine these with file reads and searches to give the orchestrator \
+precise, actionable intelligence about code structure and quality.
 """
