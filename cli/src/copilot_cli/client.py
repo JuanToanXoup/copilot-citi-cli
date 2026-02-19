@@ -1339,6 +1339,11 @@ def _parse_worker_defs(worker_defs: list[dict], default_model: str | None = None
             model=w.get("model", default_model),
             tools_enabled=w.get("tools_enabled", "__ALL__"),
             agent_mode=w.get("agent_mode", True),
+            workspace_root=w.get("workspace_root"),
+            proxy_url=w.get("proxy_url"),
+            no_ssl_verify=w.get("no_ssl_verify"),
+            mcp_servers=w.get("mcp_servers"),
+            lsp_servers=w.get("lsp_servers"),
         )
         for w in worker_defs
     ]

@@ -264,6 +264,11 @@ def main():
             model=w.get("model", model),
             tools_enabled=w.get("tools_enabled", "__ALL__"),
             agent_mode=w.get("agent_mode", True),
+            workspace_root=w.get("workspace_root"),
+            proxy_url=w.get("proxy_url"),
+            no_ssl_verify=w.get("no_ssl_verify"),
+            mcp_servers=w.get("mcp_servers"),
+            lsp_servers=w.get("lsp_servers"),
         )
         for w in raw_workers
     ]
@@ -295,7 +300,9 @@ def main():
             print("[!] No goal provided.")
             return
 
-    # Proxy
+    # MCP / LSP / Proxy
+    mcp_config = config.get("mcp_servers") or None
+    lsp_config = config.get("lsp_servers") or None
     proxy_cfg = config.get("proxy", {{}})
     proxy_url = proxy_cfg.get("url") if proxy_cfg else None
     no_ssl_verify = proxy_cfg.get("no_ssl_verify", False) if proxy_cfg else False
@@ -308,6 +315,8 @@ def main():
         transport=transport,
         proxy_url=proxy_url,
         no_ssl_verify=no_ssl_verify,
+        mcp_config=mcp_config,
+        lsp_config=lsp_config,
     )
 
 

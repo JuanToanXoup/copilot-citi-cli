@@ -127,11 +127,15 @@ class MCPAgentServer:
 
     def __init__(self, agent_card: AgentCard, workspace: str,
                  proxy_url: str | None = None,
-                 no_ssl_verify: bool = False):
+                 no_ssl_verify: bool = False,
+                 mcp_config: dict | None = None,
+                 lsp_config: dict | None = None):
         self.card = agent_card
         self.workspace = workspace
         self.proxy_url = proxy_url
         self.no_ssl_verify = no_ssl_verify
+        self.mcp_config = mcp_config
+        self.lsp_config = lsp_config
         self._client = None
         self._conversation_id: str | None = None
         self._status = "idle"  # idle | busy | error
@@ -173,6 +177,8 @@ class MCPAgentServer:
         self._client = _init_client(
             self.workspace,
             agent_mode=self.card.agent_mode,
+            mcp_config=self.mcp_config,
+            lsp_config=self.lsp_config,
             proxy_url=self.proxy_url,
             no_ssl_verify=self.no_ssl_verify,
         )
@@ -407,6 +413,8 @@ def _agent_server_main():
         workspace=config.get("workspace", os.getcwd()),
         proxy_url=config.get("proxy_url"),
         no_ssl_verify=config.get("no_ssl_verify", False),
+        mcp_config=config.get("mcp_servers"),
+        lsp_config=config.get("lsp_servers"),
     )
     server.serve_forever()
 

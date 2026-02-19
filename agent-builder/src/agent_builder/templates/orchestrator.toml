@@ -40,11 +40,22 @@ After all workers complete, summarise the overall results.
 # ── Worker agents ─────────────────────────────────────────────────────────────
 # Each [[workers]] block defines a worker agent. The orchestrator spawns all
 # of them at startup and delegates subtasks by role.
+#
+# Per-worker overrides (all optional — omit to inherit from orchestrator):
+#   workspace_root  — separate workspace directory
+#   proxy_url       — different proxy
+#   no_ssl_verify   — SSL bypass
+#   tools_enabled   — "__ALL__" or a list of tool names
+#   mcp_servers     — MCP server config dict
+#   lsp_servers     — LSP server config dict
 
 [[workers]]
 role = "coder"
 agent_mode = true
-# model = "gpt-4.1"    # omit to inherit from orchestrator
+# model = "gpt-4.1"           # omit to inherit from orchestrator
+# workspace_root = "~/other"  # omit to inherit from orchestrator
+# proxy_url = ""              # omit to inherit from orchestrator
+# no_ssl_verify = false       # omit to inherit from orchestrator
 # tools_enabled = "__ALL__"
 system_prompt = """
 You are a skilled software engineer. Read code, understand the codebase, \

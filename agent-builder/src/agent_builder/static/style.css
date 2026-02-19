@@ -567,6 +567,16 @@ label {
     resize: vertical;
 }
 
+.worker-tools-list {
+    min-height: 40px;
+    font-size: 12px;
+    resize: vertical;
+}
+
+.worker-tools-mode {
+    margin-bottom: 0;
+}
+
 /* ── Build Progress ─────────────────────────────────────── */
 
 .build-overlay {

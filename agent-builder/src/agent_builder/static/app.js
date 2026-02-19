@@ -471,6 +471,8 @@ const App = window.App = {
             this.state.config.workers || [],
             container,
             this.state.models,
+            KNOWN_MCP_SERVERS,
+            KNOWN_LSP_SERVERS,
         );
         this._updateServerCounts();
     },
@@ -495,6 +497,30 @@ const App = window.App = {
     removeWorker(idx) {
         this.state.config.workers.splice(idx, 1);
         this._renderWorkers();
+    },
+
+    toggleWorkerMcp(idx, name, checked, info) {
+        const w = this.state.config.workers[idx];
+        if (!w) return;
+        if (!w.mcp_servers) w.mcp_servers = {};
+        if (checked) {
+            w.mcp_servers[name] = { command: info.command, args: [...info.args], env: {} };
+        } else {
+            delete w.mcp_servers[name];
+            if (Object.keys(w.mcp_servers).length === 0) w.mcp_servers = undefined;
+        }
+    },
+
+    toggleWorkerLsp(idx, lang, checked, info) {
+        const w = this.state.config.workers[idx];
+        if (!w) return;
+        if (!w.lsp_servers) w.lsp_servers = {};
+        if (checked) {
+            w.lsp_servers[lang] = { command: info.command, args: [...info.args] };
+        } else {
+            delete w.lsp_servers[lang];
+            if (Object.keys(w.lsp_servers).length === 0) w.lsp_servers = undefined;
+        }
     },
 
     /* ── Config persistence ──────────────────────────────── */

@@ -126,12 +126,22 @@ def _msg_shutdown() -> dict:
 
 @dataclasses.dataclass
 class WorkerConfig:
-    """Configuration for a single worker agent."""
+    """Configuration for a single worker agent.
+
+    Per-worker overrides for ``workspace_root``, ``proxy_url``,
+    ``no_ssl_verify``, ``mcp_servers``, and ``lsp_servers`` default to
+    ``None`` which signals "inherit from the orchestrator".
+    """
     role: str                          # Short identifier (e.g. "bug_fixer")
     system_prompt: str = ""            # Injected as <system_instructions> in first turn
     model: str | None = None           # Model override (None = server default)
     tools_enabled: list[str] | str = "__ALL__"  # "__ALL__" or list of tool names
     agent_mode: bool = True            # True for agent mode, False for chat-only
+    workspace_root: str | None = None  # Per-worker workspace (None = inherit)
+    proxy_url: str | None = None       # Per-worker proxy URL (None = inherit)
+    no_ssl_verify: bool | None = None  # Per-worker SSL bypass (None = inherit)
+    mcp_servers: dict | None = None    # Per-worker MCP config (None = inherit)
+    lsp_servers: dict | None = None    # Per-worker LSP config (None = inherit)
 
 
 # ── MCP Worker (each worker is an MCP server process) ─────────────────────────
@@ -147,11 +157,16 @@ class MCPWorker:
 
     def __init__(self, config: WorkerConfig, workspace: str,
                  proxy_url: str | None = None,
-                 no_ssl_verify: bool = False):
+                 no_ssl_verify: bool = False,
+                 mcp_config: dict | None = None,
+                 lsp_config: dict | None = None):
         self.config = config
-        self.workspace = workspace
-        self.proxy_url = proxy_url
-        self.no_ssl_verify = no_ssl_verify
+        # Per-worker overrides take precedence over orchestrator values
+        self.workspace = config.workspace_root or workspace
+        self.proxy_url = config.proxy_url if config.proxy_url is not None else proxy_url
+        self.no_ssl_verify = config.no_ssl_verify if config.no_ssl_verify is not None else no_ssl_verify
+        self.mcp_config = config.mcp_servers if config.mcp_servers is not None else mcp_config
+        self.lsp_config = config.lsp_servers if config.lsp_servers is not None else lsp_config
         self._mcp_server = None
 
     def start(self):
@@ -159,7 +174,7 @@ class MCPWorker:
         from copilot_cli.mcp import MCPServer
 
         # Build the config JSON that mcp_agent.py expects
-        agent_config = json.dumps({
+        cfg = {
             "role": self.config.role,
             "name": f"{self.config.role} Agent",
             "system_prompt": self.config.system_prompt,
@@ -169,7 +184,12 @@ class MCPWorker:
             "workspace": self.workspace,
             "proxy_url": self.proxy_url,
             "no_ssl_verify": self.no_ssl_verify,
-        })
+        }
+        if self.mcp_config:
+            cfg["mcp_servers"] = self.mcp_config
+        if self.lsp_config:
+            cfg["lsp_servers"] = self.lsp_config
+        agent_config = json.dumps(cfg)
 
         # Spawn mcp_agent.py as a child process using MCP stdio transport
         self._mcp_server = MCPServer(
@@ -244,14 +264,19 @@ class QueueWorker:
     def __init__(self, worker_id: str, config: WorkerConfig,
                  workspace: str, inbox: queue.Queue, outbox: queue.Queue,
                  proxy_url: str | None = None,
-                 no_ssl_verify: bool = False):
+                 no_ssl_verify: bool = False,
+                 mcp_config: dict | None = None,
+                 lsp_config: dict | None = None):
         self.worker_id = worker_id
         self.config = config
-        self.workspace = workspace
+        # Per-worker overrides take precedence over orchestrator values
+        self.workspace = config.workspace_root or workspace
         self.inbox = inbox
         self.outbox = outbox
-        self.proxy_url = proxy_url
-        self.no_ssl_verify = no_ssl_verify
+        self.proxy_url = config.proxy_url if config.proxy_url is not None else proxy_url
+        self.no_ssl_verify = config.no_ssl_verify if config.no_ssl_verify is not None else no_ssl_verify
+        self.mcp_config = config.mcp_servers if config.mcp_servers is not None else mcp_config
+        self.lsp_config = config.lsp_servers if config.lsp_servers is not None else lsp_config
         self._client: CopilotClient | None = None
         self._thread: threading.Thread | None = None
         self._conversation_id: str | None = None
@@ -279,6 +304,8 @@ class QueueWorker:
         self._client = _init_client(
             self.workspace,
             agent_mode=self.config.agent_mode,
+            mcp_config=self.mcp_config,
+            lsp_config=self.lsp_config,
             proxy_url=self.proxy_url,
             no_ssl_verify=self.no_ssl_verify,
             shared=True,
@@ -438,6 +465,8 @@ IMPORTANT: Respond ONLY with the JSON array. No other text."""
                  transport: str = "mcp",
                  proxy_url: str | None = None,
                  no_ssl_verify: bool = False,
+                 mcp_config: dict | None = None,
+                 lsp_config: dict | None = None,
                  on_event: Callable | None = None):
         self.workspace = os.path.abspath(workspace)
         self.worker_configs = {w.role: w for w in workers}
@@ -445,6 +474,8 @@ IMPORTANT: Respond ONLY with the JSON array. No other text."""
         self.transport = transport
         self.proxy_url = proxy_url
         self.no_ssl_verify = no_ssl_verify
+        self.mcp_config = mcp_config
+        self.lsp_config = lsp_config
         self.on_event = on_event
 
         # Orchestrator's own client (for planning)
@@ -497,6 +528,8 @@ IMPORTANT: Respond ONLY with the JSON array. No other text."""
                 workspace=self.workspace,
                 proxy_url=self.proxy_url,
                 no_ssl_verify=self.no_ssl_verify,
+                mcp_config=self.mcp_config,
+                lsp_config=self.lsp_config,
             )
             try:
                 worker.start()
@@ -520,6 +553,8 @@ IMPORTANT: Respond ONLY with the JSON array. No other text."""
                 outbox=self._result_queue,
                 proxy_url=self.proxy_url,
                 no_ssl_verify=self.no_ssl_verify,
+                mcp_config=self.mcp_config,
+                lsp_config=self.lsp_config,
             )
             self._queue_workers[role] = worker
             print(f"\033[32m⏺\033[0m Starting queue worker: \033[1m{role}\033[0m "
@@ -840,7 +875,9 @@ def run_orchestrator_cli(workspace: str, goal: str,
                          model: str | None = None,
                          transport: str = "mcp",
                          proxy_url: str | None = None,
-                         no_ssl_verify: bool = False):
+                         no_ssl_verify: bool = False,
+                         mcp_config: dict | None = None,
+                         lsp_config: dict | None = None):
     """Run the orchestrator from the CLI.
 
     If no workers are specified, uses a default set of three workers:
@@ -894,6 +931,8 @@ def run_orchestrator_cli(workspace: str, goal: str,
         transport=transport,
         proxy_url=proxy_url,
         no_ssl_verify=no_ssl_verify,
+        mcp_config=mcp_config,
+        lsp_config=lsp_config,
     )
 
     try:
