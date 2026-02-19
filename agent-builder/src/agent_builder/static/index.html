@@ -76,6 +76,9 @@
                 <button class="sidebar-tab" data-tab="lsp">
                     LSP <span class="tab-badge" id="lsp-count">0</span>
                 </button>
+                <button class="sidebar-tab" data-tab="workers">
+                    Workers <span class="tab-badge" id="worker-count">0</span>
+                </button>
             </div>
 
             <!-- Tab panels -->
@@ -152,6 +155,16 @@
                         </div>
                         <button class="btn btn-sm" id="btn-add-lsp">+ Add Custom LSP</button>
                     </div>
+                </div>
+
+                <!-- Workers panel (orchestrator) -->
+                <div class="tab-panel" data-panel="workers">
+                    <div class="text-sm text-muted mb-8">
+                        Define worker agents for orchestrator mode.
+                        Each worker runs as an independent sub-agent with its own role and prompt.
+                    </div>
+                    <div id="worker-list"></div>
+                    <button class="btn btn-sm mt-8" id="btn-add-worker">+ Add Worker</button>
                 </div>
             </div>
           </div>

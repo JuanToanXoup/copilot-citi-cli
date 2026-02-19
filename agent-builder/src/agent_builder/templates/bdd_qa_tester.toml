@@ -2,6 +2,11 @@ name = "BDD QA Tester"
 description = "Writes and maintains Gherkin feature files, step definitions, and BDD test suites."
 model = "gpt-4.1"
 agent_mode = true
+#workspace_root = "~/IdeaProjects/my-project"
+
+#[proxy]
+#url = "http://webproxy.example.com:8080"
+#no_ssl_verify = false
 
 system_prompt = """
 You are a BDD/QA specialist expert in Gherkin and Cucumber. Your role is to:
@@ -27,3 +32,13 @@ enabled = [
     "run_in_terminal", "run_tests",
 ]
 disabled = []
+
+# MCP servers (uncomment to override defaults)
+#[mcp_servers.playwright]
+#command = "npx"
+#args = ["-y", "@playwright/mcp@latest"]
+
+# LSP servers (uncomment to override defaults from config.toml)
+#[lsp_servers.python]
+#command = "npx"
+#args = ["-y", "pyright", "--langserver", "--stdio"]

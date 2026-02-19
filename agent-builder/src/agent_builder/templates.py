@@ -2,7 +2,8 @@
 
 Templates are loaded from individual TOML files in the templates/ directory.
 Each file defines one template (name, description, system_prompt, tools, etc.).
-MCP and LSP server configs are inherited from the main config.toml at runtime.
+MCP and LSP server configs can be defined per-template or inherited from
+the main config.toml at runtime.
 """
 
 import os

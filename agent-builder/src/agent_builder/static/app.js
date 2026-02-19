@@ -37,6 +37,8 @@ const App = window.App = {
             },
             lsp_servers: {},
             proxy: { url: '', no_ssl_verify: false },
+            transport: 'mcp',
+            workers: [],
         },
         session: { id: null, conversationId: null },
         templates: [],
@@ -73,6 +75,7 @@ const App = window.App = {
         this._populateTemplates();
         this._renderTools();
         this._renderServers();
+        this._renderWorkers();
         this._bindEvents();
         this._bindTabs();
         this._bindResize();
@@ -217,8 +220,10 @@ const App = window.App = {
     _updateServerCounts() {
         const mcpCount = Object.keys(this.state.config.mcp_servers).length;
         const lspCount = Object.keys(this.state.config.lsp_servers).length;
+        const workerCount = (this.state.config.workers || []).length;
         document.getElementById('mcp-count').textContent = String(mcpCount);
         document.getElementById('lsp-count').textContent = String(lspCount);
+        document.getElementById('worker-count').textContent = String(workerCount);
     },
 
     _bindTabs() {
@@ -314,6 +319,8 @@ const App = window.App = {
         document.getElementById('btn-add-mcp').addEventListener('click', () => this._addMcpServer());
         // LSP add
         document.getElementById('btn-add-lsp').addEventListener('click', () => this._addLspServer());
+        // Worker add
+        document.getElementById('btn-add-worker').addEventListener('click', () => this.addWorker());
 
         // Save / Load / Build
         document.getElementById('btn-save').addEventListener('click', () => this.saveConfig());
@@ -364,6 +371,12 @@ const App = window.App = {
 
     _syncConfigToUI() {
         const c = this.state.config;
+        // Ensure workers/transport defaults
+        if (!c.workers) c.workers = [];
+        if (!c.transport) c.transport = 'mcp';
+        if (!c.mcp_servers) c.mcp_servers = {};
+        if (!c.lsp_servers) c.lsp_servers = {};
+
         document.getElementById('agent-name').value = c.name || '';
         document.getElementById('agent-desc').value = c.description || '';
         document.getElementById('agent-model').value = c.model || 'gpt-4.1';
@@ -374,6 +387,7 @@ const App = window.App = {
         document.getElementById('proxy-no-ssl').checked = !!proxy.no_ssl_verify;
         this._renderTools();
         this._renderServers();
+        this._renderWorkers();
         this._updateToolCount();
         this._updateServerCounts();
     },
@@ -446,6 +460,67 @@ const App = window.App = {
     removeLspServer(lang) {
         delete this.state.config.lsp_servers[lang];
         this._renderServers();
+    },
+
+    /* ── Worker management ──────────────────────────────── */
+
+    _renderWorkers() {
+        const container = document.getElementById('worker-list');
+        if (!container) return;
+        Components.renderWorkerList(
+            this.state.config.workers || [],
+            container,
+            this.state.models,
+            KNOWN_MCP_SERVERS,
+            KNOWN_LSP_SERVERS,
+        );
+        this._updateServerCounts();
+    },
+
+    addWorker() {
+        if (!this.state.config.workers) this.state.config.workers = [];
+        this.state.config.workers.push({
+            role: '',
+            system_prompt: '',
+            agent_mode: true,
+            tools_enabled: '__ALL__',
+        });
+        this._renderWorkers();
+    },
+
+    updateWorker(idx, field, value) {
+        const w = this.state.config.workers[idx];
+        if (!w) return;
+        w[field] = value;
+    },
+
+    removeWorker(idx) {
+        this.state.config.workers.splice(idx, 1);
+        this._renderWorkers();
+    },
+
+    toggleWorkerMcp(idx, name, checked, info) {
+        const w = this.state.config.workers[idx];
+        if (!w) return;
+        if (!w.mcp_servers) w.mcp_servers = {};
+        if (checked) {
+            w.mcp_servers[name] = { command: info.command, args: [...info.args], env: {} };
+        } else {
+            delete w.mcp_servers[name];
+            if (Object.keys(w.mcp_servers).length === 0) w.mcp_servers = undefined;
+        }
+    },
+
+    toggleWorkerLsp(idx, lang, checked, info) {
+        const w = this.state.config.workers[idx];
+        if (!w) return;
+        if (!w.lsp_servers) w.lsp_servers = {};
+        if (checked) {
+            w.lsp_servers[lang] = { command: info.command, args: [...info.args] };
+        } else {
+            delete w.lsp_servers[lang];
+            if (Object.keys(w.lsp_servers).length === 0) w.lsp_servers = undefined;
+        }
     },
 
     /* ── Config persistence ──────────────────────────────── */

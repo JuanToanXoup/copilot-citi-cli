@@ -8,6 +8,16 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, unquote
 
+try:
+    import tomllib  # Python 3.11+
+except ModuleNotFoundError:
+    import tomli as tomllib  # fallback
+
+try:
+    import tomli_w
+except ModuleNotFoundError:
+    tomli_w = None  # fallback: save as JSON if tomli_w unavailable
+
 # ── Constants ────────────────────────────────────────────────────────────────
 
 AGENTS_DIR = os.path.expanduser("~/.copilot-cli/agents")
@@ -59,6 +69,44 @@ def _cleanup_sessions(max_idle=600):
                 except Exception:
                     pass
                 del _sessions[sid]
+
+
+# ── TOML helpers ────────────────────────────────────────────────────────────
+
+
+def _clean_for_toml(data: dict) -> dict:
+    """Prepare a config dict for TOML serialization.
+
+    Strips empty-string values and empty dicts/lists that would produce
+    ugly empty sections.  Ensures ``workers`` (list-of-dicts) lands at the
+    end so ``tomli_w`` emits ``[[workers]]`` array-of-tables *after* all
+    simple keys and regular tables.
+    """
+    out: dict = {}
+    workers = None
+
+    for k, v in data.items():
+        # Stash workers for last (must come after all other tables)
+        if k == "workers":
+            workers = v
+            continue
+        # Drop empty proxy sections
+        if k == "proxy" and isinstance(v, dict):
+            if not v.get("url") and not v.get("no_ssl_verify"):
+                continue
+        # Drop empty server dicts
+        if k in ("mcp_servers", "lsp_servers") and isinstance(v, dict) and not v:
+            continue
+        # Drop empty strings for optional scalar keys
+        if isinstance(v, str) and not v and k in ("workspace_root",):
+            continue
+        out[k] = v
+
+    # Append workers last so tomli_w renders [[workers]] at the bottom
+    if workers:
+        out["workers"] = workers
+
+    return out
 
 
 # ── Request Handler ──────────────────────────────────────────────────────────
@@ -226,19 +274,27 @@ class BuilderHandler(BaseHTTPRequestHandler):
 
     def _api_list_configs(self):
         os.makedirs(AGENTS_DIR, exist_ok=True)
-        configs = []
+        seen = set()
         for f in sorted(os.listdir(AGENTS_DIR)):
-            if f.endswith(".json"):
-                configs.append(f[:-5])
-        self._json_response(200, configs)
+            if f.endswith(".toml"):
+                seen.add(f[:-5])
+            elif f.endswith(".json"):
+                seen.add(f[:-5])
+        self._json_response(200, sorted(seen))
 
     def _api_get_config(self, name):
-        path = os.path.join(AGENTS_DIR, f"{name}.json")
-        if not os.path.isfile(path):
+        # Prefer .toml, fallback to .json
+        toml_path = os.path.join(AGENTS_DIR, f"{name}.toml")
+        json_path = os.path.join(AGENTS_DIR, f"{name}.json")
+        if os.path.isfile(toml_path):
+            with open(toml_path, "rb") as f:
+                data = tomllib.load(f)
+            self._json_response(200, data)
+        elif os.path.isfile(json_path):
+            with open(json_path, "r") as f:
+                self._json_response(200, json.load(f))
+        else:
             self._json_response(404, {"error": "config not found"})
-            return
-        with open(path, "r") as f:
-            self._json_response(200, json.load(f))
 
     def _api_save_config(self, body):
         name = body.get("name", "").strip()
@@ -251,15 +307,32 @@ class BuilderHandler(BaseHTTPRequestHandler):
             self._json_response(400, {"error": "invalid name"})
             return
         os.makedirs(AGENTS_DIR, exist_ok=True)
-        path = os.path.join(AGENTS_DIR, f"{safe_name}.json")
-        with open(path, "w") as f:
-            json.dump(body, f, indent=2)
+
+        if tomli_w is not None:
+            path = os.path.join(AGENTS_DIR, f"{safe_name}.toml")
+            # Clean empty values so the TOML stays readable
+            data = _clean_for_toml(body)
+            with open(path, "wb") as f:
+                tomli_w.dump(data, f)
+            # Remove legacy .json if upgrading
+            json_path = os.path.join(AGENTS_DIR, f"{safe_name}.json")
+            if os.path.isfile(json_path):
+                os.remove(json_path)
+        else:
+            path = os.path.join(AGENTS_DIR, f"{safe_name}.json")
+            with open(path, "w") as f:
+                json.dump(body, f, indent=2)
+
         self._json_response(200, {"ok": True, "path": path})
 
     def _api_delete_config(self, name):
-        path = os.path.join(AGENTS_DIR, f"{name}.json")
-        if os.path.isfile(path):
-            os.remove(path)
+        deleted = False
+        for ext in (".toml", ".json"):
+            path = os.path.join(AGENTS_DIR, f"{name}{ext}")
+            if os.path.isfile(path):
+                os.remove(path)
+                deleted = True
+        if deleted:
             self._json_response(200, {"ok": True})
         else:
             self._json_response(404, {"error": "config not found"})
@@ -281,6 +354,9 @@ class BuilderHandler(BaseHTTPRequestHandler):
             if mcp_config and not mcp_config:
                 mcp_config = None
 
+            # LSP
+            lsp_config = config.get("lsp_servers") or None
+
             # Proxy
             proxy_url = None
             no_ssl_verify = False
@@ -296,6 +372,7 @@ class BuilderHandler(BaseHTTPRequestHandler):
                 workspace,
                 agent_mode=agent_mode,
                 mcp_config=mcp_config,
+                lsp_config=lsp_config,
                 proxy_url=proxy_url,
                 no_ssl_verify=no_ssl_verify,
                 verbose=False,

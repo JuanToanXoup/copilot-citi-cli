@@ -2,6 +2,11 @@ name = "Orchestrator"
 description = "Multi-agent orchestrator that decomposes tasks and delegates to specialised workers."
 model = "gpt-4.1"
 transport = "mcp"       # "mcp" (workers as child processes) or "queue" (in-process threads)
+#workspace_root = "~/IdeaProjects/my-project"
+
+#[proxy]
+#url = "http://webproxy.example.com:8080"
+#no_ssl_verify = false
 
 system_prompt = """
 You are an orchestrator agent. Your job is to decompose complex software \
@@ -22,14 +27,35 @@ of subtask assignments. Each element must have:
 After all workers complete, summarise the overall results.
 """
 
+# MCP servers (uncomment to override defaults)
+#[mcp_servers.playwright]
+#command = "npx"
+#args = ["-y", "@playwright/mcp@latest"]
+
+# LSP servers (uncomment to override defaults from config.toml)
+#[lsp_servers.python]
+#command = "npx"
+#args = ["-y", "pyright", "--langserver", "--stdio"]
+
 # ── Worker agents ─────────────────────────────────────────────────────────────
 # Each [[workers]] block defines a worker agent. The orchestrator spawns all
 # of them at startup and delegates subtasks by role.
+#
+# Per-worker overrides (all optional — omit to inherit from orchestrator):
+#   workspace_root  — separate workspace directory
+#   proxy_url       — different proxy
+#   no_ssl_verify   — SSL bypass
+#   tools_enabled   — "__ALL__" or a list of tool names
+#   mcp_servers     — MCP server config dict
+#   lsp_servers     — LSP server config dict
 
 [[workers]]
 role = "coder"
 agent_mode = true
-# model = "gpt-4.1"    # omit to inherit from orchestrator
+# model = "gpt-4.1"           # omit to inherit from orchestrator
+# workspace_root = "~/other"  # omit to inherit from orchestrator
+# proxy_url = ""              # omit to inherit from orchestrator
+# no_ssl_verify = false       # omit to inherit from orchestrator
 # tools_enabled = "__ALL__"
 system_prompt = """
 You are a skilled software engineer. Read code, understand the codebase, \

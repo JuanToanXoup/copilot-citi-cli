@@ -2,6 +2,11 @@ name = "Code Reviewer"
 description = "Reviews code for bugs, style issues, and best practices. Read-only — never modifies files."
 model = "gpt-4.1"
 agent_mode = true
+#workspace_root = "~/IdeaProjects/my-project"
+
+#[proxy]
+#url = "http://webproxy.example.com:8080"
+#no_ssl_verify = false
 
 system_prompt = """
 You are a senior code reviewer. Analyze code for bugs, security issues, \
@@ -17,3 +22,13 @@ enabled = [
     "find_test_files",
 ]
 disabled = []
+
+# MCP servers (uncomment to override defaults)
+#[mcp_servers.playwright]
+#command = "npx"
+#args = ["-y", "@playwright/mcp@latest"]
+
+# LSP servers (uncomment to override defaults from config.toml)
+#[lsp_servers.python]
+#command = "npx"
+#args = ["-y", "pyright", "--langserver", "--stdio"]
