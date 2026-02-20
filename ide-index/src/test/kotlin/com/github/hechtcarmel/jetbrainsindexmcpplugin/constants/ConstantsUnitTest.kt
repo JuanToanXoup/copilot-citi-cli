@@ -7,7 +7,7 @@ class ConstantsUnitTest : TestCase() {
     // ToolNames tests
 
     fun testToolNamesNavigationTools() {
-        assertEquals("ide_find_references", ToolNames.FIND_REFERENCES)
+        assertEquals("ide_find_usages", ToolNames.FIND_USAGES)
         assertEquals("ide_find_definition", ToolNames.FIND_DEFINITION)
         assertEquals("ide_type_hierarchy", ToolNames.TYPE_HIERARCHY)
         assertEquals("ide_call_hierarchy", ToolNames.CALL_HIERARCHY)
@@ -31,7 +31,7 @@ class ConstantsUnitTest : TestCase() {
 
     fun testToolNamesHaveIdePrefix() {
         val toolNames = listOf(
-            ToolNames.FIND_REFERENCES,
+            ToolNames.FIND_USAGES,
             ToolNames.FIND_DEFINITION,
             ToolNames.TYPE_HIERARCHY,
             ToolNames.CALL_HIERARCHY,

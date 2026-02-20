@@ -67,7 +67,7 @@ object PsiTools {
 
     /**
      * Single compound schema that bundles all PSI tools into one "ide" tool.
-     * The model picks the action (e.g., "find_references") and passes params.
+     * The model picks the action (e.g., "find_usages") and passes params.
      */
     val compoundSchema: String? by lazy {
         try {
@@ -175,7 +175,7 @@ object PsiTools {
 // ═══════════════════════════════════════════════════════════════
 
 class FindUsagesTool : PsiToolBase() {
-    override val name = "ide_find_references"
+    override val name = "ide_find_usages"
     override val description = "Find all references/usages of a symbol across the project. Use when you need to understand how a class, method, field, or variable is used before modifying or removing it."
     override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Path to file relative to project root"},"line":{"type":"integer","description":"1-based line number where the symbol is located"},"column":{"type":"integer","description":"1-based column number within the line"},"includeLibraries":{"type":"boolean","description":"Include usages in libraries (default: false)"},"maxResults":{"type":"integer","description":"Maximum number of references to return (default: 100, max: 500)"}},"required":["file","line","column"]}"""
 

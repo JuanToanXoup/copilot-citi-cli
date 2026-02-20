@@ -34,7 +34,7 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * These tools work in all JetBrains IDEs (IntelliJ, PyCharm, WebStorm, GoLand, etc.):
  *
- * - `ide_find_references` - Find all usages of a symbol
+ * - `ide_find_usages` - Find all usages of a symbol
  * - `ide_find_definition` - Find symbol definition location
  * - `ide_find_class` - Class search using CLASS_EP_NAME index
  * - `ide_find_file` - File search using FILE_EP_NAME index
@@ -106,7 +106,7 @@ class ToolRegistry {
     /**
      * Gets a tool by name.
      *
-     * @param name The tool name (e.g., `ide_find_references`)
+     * @param name The tool name (e.g., `ide_find_usages`)
      * @return The tool, or null if not found
      */
     fun getTool(name: String): McpTool? {

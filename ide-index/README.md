@@ -23,7 +23,7 @@ Advanced tools work across multiple languages based on available plugins:
 - **Rust** - RustRover, IntelliJ IDEA Ultimate with Rust plugin, CLion
 
 **Universal Tools (All JetBrains IDEs)**
-- **Find References** - Locate all usages of any symbol across the project
+- **Find Usages** - Locate all usages of any symbol across the project
 - **Go to Definition** - Navigate to symbol declarations
 - **Code Diagnostics** - Access errors, warnings, and quick fixes
 - **Index Status** - Check if code intelligence is ready
@@ -215,7 +215,7 @@ These tools work in all supported JetBrains IDEs.
 
 | Tool | Description |
 |------|-------------|
-| `ide_find_references` | Find all references to a symbol across the entire project |
+| `ide_find_usages` | Find all references to a symbol across the entire project |
 | `ide_find_definition` | Find the definition/declaration location of a symbol |
 | `ide_diagnostics` | Analyze a file for problems (errors, warnings) and available intentions |
 | `ide_index_status` | Check if the IDE is in dumb mode or smart mode |
@@ -273,7 +273,7 @@ When multiple projects are open in a single IDE window, you must specify which p
 
 ```json
 {
-  "name": "ide_find_references",
+  "name": "ide_find_usages",
   "arguments": {
     "project_path": "/Users/dev/myproject",
     "file": "src/Main.kt",

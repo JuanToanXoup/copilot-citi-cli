@@ -24,7 +24,7 @@ class ToolRouter(private val project: Project) {
         /** BuiltInTools superseded when PSI tools are available. */
         val PSI_SUPERSEDES = setOf(
             "grep_search",              // → ide_search_text
-            "list_code_usages",         // → ide_find_references
+            "list_code_usages",         // → ide_find_usages
             "search_workspace_symbols", // → ide_find_symbol + ide_find_class
             "file_search",              // → ide_find_file
             "get_errors",               // → ide_diagnostics
@@ -35,7 +35,7 @@ class ToolRouter(private val project: Project) {
         /** Redirect map: if model requests a superseded name, redirect to PSI equivalent. */
         val TOOL_REDIRECTS = mapOf(
             "grep_search" to "ide_search_text",
-            "list_code_usages" to "ide_find_references",
+            "list_code_usages" to "ide_find_usages",
             "search_workspace_symbols" to "ide_find_symbol",
             "file_search" to "ide_find_file",
             "get_errors" to "ide_diagnostics",

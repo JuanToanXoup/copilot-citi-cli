@@ -37,7 +37,7 @@ class FindSymbolTool : AbstractMcpTool() {
     override val description = """
         Search for symbols (classes, methods, fields, functions) by name across the codebase. Use when you know a symbol name but not its location. Faster and more accurate than grep for code navigation.
 
-        Use ide_find_class instead if you only need classes (faster). Use ide_search_text for raw text matching that is not symbol-aware. Use ide_find_references if you already have the symbol's position and want to find all usages.
+        Use ide_find_class instead if you only need classes (faster). Use ide_search_text for raw text matching that is not symbol-aware. Use ide_find_usages if you already have the symbol's position and want to find all usages.
 
         Languages: Java, Kotlin, Python, JavaScript, TypeScript, PHP, Rust.
 

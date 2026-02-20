@@ -31,7 +31,7 @@ class CallHierarchyTool : AbstractMcpTool() {
     override val description = """
         Build a call hierarchy tree for a method/function. Use to trace execution flow—find what calls this method (callers) or what this method calls (callees).
 
-        Unlike ide_find_references (which lists all usages flat), this builds a recursive tree showing the complete call chain. Use ide_find_references when you just need a flat list of where a symbol is used.
+        Unlike ide_find_usages (which lists all usages flat), this builds a recursive tree showing the complete call chain. Use ide_find_usages when you just need a flat list of where a symbol is used.
 
         Languages: Java, Kotlin, Python, JavaScript, TypeScript, PHP, Rust.
 

@@ -263,7 +263,7 @@ Tested on macOS aarch64, IntelliJ IDEA CE 2025.1.3, headless mode via JBR `java`
 | 3 | Index status | `ide_index_status` | Pass |
 | 4 | Find class | `ide_find_class` | Pass |
 | 5 | Go to definition | `ide_find_definition` | Pass |
-| 6 | Find references | `ide_find_references` | Pass |
+| 6 | Find usages | `ide_find_usages` | Pass |
 | 7 | Type hierarchy | `ide_type_hierarchy` | Pass |
 | 8 | Diagnostics | `ide_diagnostics` | Pass |
 
@@ -304,7 +304,7 @@ Returns all 15 registered tools:
 - `ide_find_file`
 - `ide_type_hierarchy`
 - `ide_call_hierarchy`
-- `ide_find_references`
+- `ide_find_usages`
 
 ### Test 3: `ide_index_status`
 
@@ -347,12 +347,12 @@ Resolves the declaration of `stdioTransport` at `McpServerService.kt:44`.
 }
 ```
 
-### Test 6: `ide_find_references`
+### Test 6: `ide_find_usages`
 
 Finds all usages of the `StdioMcpTransport` class across the project.
 
 ```
-→ {"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"ide_find_references","arguments":{"file":"src/main/kotlin/.../StdioMcpTransport.kt","line":20,"column":7}}}
+→ {"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"ide_find_usages","arguments":{"file":"src/main/kotlin/.../StdioMcpTransport.kt","line":20,"column":7}}}
 ```
 ```json
 ← {

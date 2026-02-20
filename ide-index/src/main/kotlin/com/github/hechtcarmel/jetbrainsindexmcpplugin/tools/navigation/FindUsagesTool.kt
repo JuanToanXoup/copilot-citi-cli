@@ -35,7 +35,7 @@ class FindUsagesTool : AbstractMcpTool() {
         private const val MAX_ALLOWED_RESULTS = 500
     }
 
-    override val name = ToolNames.FIND_REFERENCES
+    override val name = ToolNames.FIND_USAGES
 
     override val description = """
         Find all references/usages of a symbol across the project. Use when you need to understand how a class, method, field, or variable is used before modifying or removing it.

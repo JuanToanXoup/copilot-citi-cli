@@ -29,7 +29,7 @@ class FindImplementationsTool : AbstractMcpTool() {
     override val description = """
         Find all implementations of an interface, abstract class, or abstract method. The cursor MUST be on an abstract type or method declaration — returns empty for regular classes/functions.
 
-        To find where a non-abstract symbol is used, use ide_find_references instead. To see the full inheritance tree (parents and children), use ide_type_hierarchy.
+        To find where a non-abstract symbol is used, use ide_find_usages instead. To see the full inheritance tree (parents and children), use ide_type_hierarchy.
 
         Languages: Java, Kotlin, Python, JavaScript, TypeScript, PHP, Rust.
 
@@ -111,7 +111,7 @@ class FindImplementationsTool : AbstractMcpTool() {
                 totalCount = implementationLocations.size,
                 hint = if (implementationLocations.isEmpty())
                     "No implementations found. If the element is not an interface or abstract class/method, " +
-                    "use ide_find_references to find all usages, or ide_call_hierarchy to trace callers/callees."
+                    "use ide_find_usages to find all usages, or ide_call_hierarchy to trace callers/callees."
                 else null
             ))
         }

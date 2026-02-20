@@ -35,7 +35,7 @@ class ToolsUnitTest : TestCase() {
     fun testFindUsagesToolSchema() {
         val tool = FindUsagesTool()
 
-        assertEquals(ToolNames.FIND_REFERENCES, tool.name)
+        assertEquals(ToolNames.FIND_USAGES, tool.name)
         assertNotNull(tool.description)
 
         val schema = tool.inputSchema
@@ -156,7 +156,7 @@ class ToolsUnitTest : TestCase() {
 
         // Universal tools - always available in all IDEs
         val universalTools = listOf(
-            ToolNames.FIND_REFERENCES,
+            ToolNames.FIND_USAGES,
             ToolNames.FIND_DEFINITION,
             ToolNames.DIAGNOSTICS,
             ToolNames.INDEX_STATUS

@@ -16,7 +16,7 @@ For each feature file, follow this process:
 
 1. **Parse the feature file** — extract all Gherkin steps (Given/When/Then/And).
 
-2. **Resolve step definitions** — use ide_search_text or ide_find_references to find \
+2. **Resolve step definitions** — use ide_search_text or ide_find_usages to find \
 the matching Java step definition method (look for @Given, @When, @Then, @And annotations \
 with matching regex patterns). Read the step definition code to understand what each step does.
 
@@ -26,7 +26,7 @@ passwords, file paths, test data) by searching:
    - Properties files (*.properties, *.yml, *.yaml, *.xml)
    - Excel/CSV test data files referenced in the step definitions
    - Config classes or constants referenced in the step def code
-   - Use ide_find_definition and ide_find_references to follow the chain until you \
+   - Use ide_find_definition and ide_find_usages to follow the chain until you \
 reach the actual hardcoded values.
 
 4. **Translate to Playwright actions** — convert each resolved step into Playwright MCP tool calls:

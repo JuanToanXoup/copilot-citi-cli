@@ -201,7 +201,7 @@ class McpModelsUnitTest : TestCase() {
 
     fun testToolCallParamsSerialization() {
         val params = ToolCallParams(
-            name = "ide_find_references",
+            name = "ide_find_usages",
             arguments = buildJsonObject {
                 put("file", "src/Main.kt")
                 put("line", 10)
@@ -212,7 +212,7 @@ class McpModelsUnitTest : TestCase() {
         val serialized = json.encodeToString(params)
         val deserialized = json.decodeFromString<ToolCallParams>(serialized)
 
-        assertEquals("ide_find_references", deserialized.name)
+        assertEquals("ide_find_usages", deserialized.name)
         assertNotNull(deserialized.arguments)
     }
 

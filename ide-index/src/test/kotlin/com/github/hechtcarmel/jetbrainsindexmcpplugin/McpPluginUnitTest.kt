@@ -51,8 +51,8 @@ class McpPluginUnitTest : TestCase() {
         val tools = registry.getAllTools()
         assertTrue("Should have registered tools", tools.isNotEmpty())
 
-        val findReferencesTool = registry.getTool(ToolNames.FIND_REFERENCES)
-        assertNotNull("${ToolNames.FIND_REFERENCES} tool should be registered", findReferencesTool)
+        val findReferencesTool = registry.getTool(ToolNames.FIND_USAGES)
+        assertNotNull("${ToolNames.FIND_USAGES} tool should be registered", findReferencesTool)
 
         val findDefTool = registry.getTool(ToolNames.FIND_DEFINITION)
         assertNotNull("${ToolNames.FIND_DEFINITION} tool should be registered", findDefTool)

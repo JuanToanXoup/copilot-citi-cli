@@ -127,7 +127,7 @@ class McpServerIntegrationTest : BasePlatformTestCase() {
 
         // Note: ide_find_symbol and ide_file_structure are disabled by default, so not included here
         val expectedNavigationTools = listOf(
-            ToolNames.FIND_REFERENCES,
+            ToolNames.FIND_USAGES,
             ToolNames.FIND_DEFINITION,
             ToolNames.TYPE_HIERARCHY,
             ToolNames.CALL_HIERARCHY,

@@ -152,7 +152,7 @@ class ToolExecutionIntegrationTest : BasePlatformTestCase() {
 
         val expectedTools = listOf(
             // Navigation tools
-            ToolNames.FIND_REFERENCES,
+            ToolNames.FIND_USAGES,
             ToolNames.FIND_DEFINITION,
             ToolNames.TYPE_HIERARCHY,
             ToolNames.CALL_HIERARCHY,

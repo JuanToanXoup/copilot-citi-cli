@@ -61,7 +61,7 @@ interface McpTool {
      * The unique identifier for this tool.
      *
      * Tool names should follow the convention `ide_<category>_<action>` for consistency.
-     * Examples: `ide_find_references`, `ide_refactor_rename`, `ide_get_completions`
+     * Examples: `ide_find_usages`, `ide_refactor_rename`, `ide_get_completions`
      *
      * This name is used by MCP clients to invoke the tool.
      */

@@ -48,7 +48,7 @@ class RenameSymbolTool : AbstractMcpTool() {
     override val description = """
         Rename a symbol and update all references across the project. Use instead of find-and-replace for safe, semantic renaming that handles all usages correctly. Supports undo (Ctrl+Z).
 
-        Automatically renames related elements: getters/setters, overriding methods, constructor parameters ↔ fields, test classes. Use ide_find_references first if you want to preview what will be affected before renaming.
+        Automatically renames related elements: getters/setters, overriding methods, constructor parameters ↔ fields, test classes. Use ide_find_usages first if you want to preview what will be affected before renaming.
 
         Returns: affected files list and change count. Modifies source files.
 

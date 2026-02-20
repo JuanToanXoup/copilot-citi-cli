@@ -12,7 +12,7 @@ These tools work in **every** JetBrains IDE:
 
 | Tool | Description |
 |------|-------------|
-| `ide_find_references` | Find all references to a symbol |
+| `ide_find_usages` | Find all references to a symbol |
 | `ide_find_definition` | Find symbol definition location |
 | `ide_diagnostics` | Analyze code for problems and intentions |
 | `ide_index_status` | Check indexing status |
@@ -42,7 +42,7 @@ These tools activate based on available language plugins:
 
 - [Common Parameters](#common-parameters)
 - [Universal Tools](#universal-tools)
-  - [ide_find_references](#ide_find_references)
+  - [ide_find_usages](#ide_find_usages)
   - [ide_find_definition](#ide_find_definition)
   - [ide_diagnostics](#ide_diagnostics)
   - [ide_index_status](#ide_index_status)
@@ -83,7 +83,7 @@ Most tools operate on a specific location in code and require these parameters:
 
 These tools work in all JetBrains IDEs (IntelliJ, PyCharm, WebStorm, GoLand, etc.).
 
-### ide_find_references
+### ide_find_usages
 
 Finds all references to a symbol across the entire project using IntelliJ's semantic index.
 
@@ -107,7 +107,7 @@ Finds all references to a symbol across the entire project using IntelliJ's sema
 {
   "method": "tools/call",
   "params": {
-    "name": "ide_find_references",
+    "name": "ide_find_usages",
     "arguments": {
       "file": "src/main/java/com/example/UserService.java",
       "line": 15,

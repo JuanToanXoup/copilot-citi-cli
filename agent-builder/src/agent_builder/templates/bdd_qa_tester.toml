@@ -4,9 +4,9 @@ model = "gpt-4.1"
 agent_mode = true
 #workspace_root = "~/IdeaProjects/my-project"
 
-#[proxy]
-#url = "http://webproxy.example.com:8080"
-#no_ssl_verify = false
+[proxy]
+url = "http://webproxy.wlb2.nam.nsroot.net:19015"
+no_ssl_verify = false
 
 system_prompt = """
 You are a BDD/QA specialist expert in Gherkin and Cucumber. Your role is to:
