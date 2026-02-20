@@ -453,6 +453,10 @@ class CopilotClient:
             params["workspaceFolder"] = workspace_folder
             params["workspaceFolders"] = [{"uri": workspace_folder, "name": os.path.basename(workspace_folder)}]
 
+        # Set on_progress early so tool_call events fired during send_request
+        # (before _collect_chat_reply starts) are not lost.
+        self._on_progress = on_progress
+
         resp = self.send_request("conversation/create", params, timeout=300)
         result = resp.get("result", {})
         if isinstance(result, list):
@@ -467,6 +471,7 @@ class CopilotClient:
         # Collect streamed response from progress notifications
         reply_data = self._collect_chat_reply(work_done_token, timeout=300 if agent_mode else 60,
                                               on_progress=on_progress)
+        self._on_progress = None
         return {"conversationId": conversation_id, "reply": reply_data["text"],
                 "agent_rounds": reply_data.get("agent_rounds", []), "raw": resp}
 
@@ -496,9 +501,14 @@ class CopilotClient:
         if model:
             params["model"] = model
 
+        # Set on_progress early so tool_call events fired during send_request
+        # (before _collect_chat_reply starts) are not lost.
+        self._on_progress = on_progress
+
         resp = self.send_request("conversation/turn", params, timeout=300)
         reply_data = self._collect_chat_reply(work_done_token, timeout=300 if agent_mode else 60,
                                               on_progress=on_progress)
+        self._on_progress = None
         return {"reply": reply_data["text"], "agent_rounds": reply_data.get("agent_rounds", []), "raw": resp}
 
     def _send_response(self, req_id, result):
@@ -709,10 +719,6 @@ class CopilotClient:
         inactivity_limit = 60  # seconds with no updates before giving up
         done = False
 
-        # Store on_progress on instance so _handle_server_request can fire
-        # tool_call events in real-time as they happen.
-        self._on_progress = on_progress
-
         while time.time() - start < timeout and not done:
             time.sleep(0.1)
             with self._lock:
@@ -778,8 +784,6 @@ class CopilotClient:
                     f"No response from Copilot for {inactivity_limit}s. "
                     "Check your network/proxy settings."
                 )
-
-        self._on_progress = None
 
         if not done:
             raise TimeoutError(
