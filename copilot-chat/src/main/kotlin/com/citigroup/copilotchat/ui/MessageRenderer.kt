@@ -108,8 +108,10 @@ class MessageRenderer {
         ss.addRule("h2 { font-size: 16pt; margin-top: 8px; margin-bottom: 4px; }")
         ss.addRule("h3 { font-size: 14pt; margin-top: 6px; margin-bottom: 3px; }")
         ss.addRule("p { margin-top: 0; margin-bottom: 4px; }")
-        ss.addRule("ul { margin-top: 4px; margin-bottom: 4px; padding-left: 20px; }")
-        ss.addRule("ol { margin-top: 4px; margin-bottom: 4px; padding-left: 20px; }")
+        ss.addRule("ul { margin-top: 2px; margin-bottom: 2px; padding-left: 20px; }")
+        ss.addRule("ol { margin-top: 2px; margin-bottom: 2px; padding-left: 20px; }")
+        ss.addRule("li { margin-top: 0; margin-bottom: 0; }")
+        ss.addRule("li p { margin-top: 0; margin-bottom: 0; }")
         ss.addRule("blockquote { border-left-width: 3px; border-left-style: solid; border-left-color: $borderColor; margin-top: 4px; margin-bottom: 4px; padding-left: 8px; color: $fg; }")
         return ss
     }
