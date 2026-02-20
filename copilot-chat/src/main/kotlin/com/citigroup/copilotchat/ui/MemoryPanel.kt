@@ -208,7 +208,13 @@ class MemoryPanel(private val project: Project) : JPanel(BorderLayout()), Dispos
                 onIndexingDone(error)
                 statusLabel.foreground = JBColor.RED
             } else {
-                onIndexingDone("Done. ${indexer.indexedFiles} files indexed.")
+                val reindexed = indexer.indexedFiles - indexer.skippedFiles
+                val msg = if (indexer.skippedFiles > 0) {
+                    "Done. $reindexed files indexed, ${indexer.skippedFiles} unchanged."
+                } else {
+                    "Done. ${indexer.indexedFiles} files indexed."
+                }
+                onIndexingDone(msg)
                 statusLabel.foreground = JBColor.foreground()
             }
             return

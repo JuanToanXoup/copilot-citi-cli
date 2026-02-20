@@ -44,8 +44,11 @@ class RagQueryService(private val project: Project) : com.intellij.openapi.Dispo
     private fun doRetrieve(query: String, topK: Int): String {
         val qdrant = QdrantManager.getInstance()
         if (!qdrant.isRunning) {
-            log.warn("RAG: Qdrant is not running, skipping retrieval")
-            return ""
+            log.info("RAG: Qdrant is not running, attempting to start...")
+            if (!qdrant.ensureRunning()) {
+                log.warn("RAG: Failed to start Qdrant, skipping retrieval")
+                return ""
+            }
         }
 
         val indexer = RagIndexer.getInstance(project)

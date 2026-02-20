@@ -177,6 +177,8 @@ class QdrantManager : Disposable {
     private fun startProcess(): Boolean {
         storagePath.mkdirs()
         writeConfig()
+        val storageFiles = storagePath.listFiles()?.size ?: 0
+        log.info("Qdrant starting with storage at ${storagePath.absolutePath} ($storageFiles entries)")
 
         val env = buildProcessEnv()
         val cmd = listOf(

@@ -40,6 +40,8 @@ class RagIndexer(private val project: Project) : Disposable {
         private set
     @Volatile var totalFiles: Int = 0
         private set
+    @Volatile var skippedFiles: Int = 0
+        private set
     @Volatile var lastError: String? = null
         private set
 
@@ -85,6 +87,7 @@ class RagIndexer(private val project: Project) : Disposable {
             try {
                 isIndexing = true
                 indexedFiles = 0
+                skippedFiles = 0
                 lastError = null
                 log.info("Starting RAG indexing for project: ${project.name}")
 
@@ -103,12 +106,18 @@ class RagIndexer(private val project: Project) : Disposable {
                 val existingPoints = try {
                     qdrant.scrollAll(collection)
                 } catch (e: Exception) {
-                    log.debug("Could not scroll existing points: ${e.message}")
+                    log.warn("Could not scroll existing points: ${e.message}", e)
                     emptyList()
+                }
+                log.info("RAG: found ${existingPoints.size} existing points in collection '$collection'")
+                if (existingPoints.isNotEmpty()) {
+                    val sample = existingPoints.first()
+                    log.info("RAG: sample point — id=${sample.id}, payload keys=${sample.payload.keys}, filePath=${sample.payload["filePath"]?.take(80)}, hash=${sample.payload["contentHash"]?.take(10)}")
                 }
                 val existingHashes = existingPoints.associate {
                     it.payload["filePath"].orEmpty() to it.payload["contentHash"].orEmpty()
                 }
+                log.info("RAG: ${existingHashes.size} unique file hashes loaded (${existingHashes.values.count { it.isNotEmpty() }} with non-empty hash)")
                 val existingPointsByFile = existingPoints.groupBy { it.payload["filePath"].orEmpty() }
 
                 // Collect project files
@@ -122,8 +131,9 @@ class RagIndexer(private val project: Project) : Disposable {
                     if (!isActive) break
 
                     try {
-                        indexFile(file, collection, existingHashes)
+                        val reindexed = indexFile(file, collection, existingHashes)
                         currentFilePaths.add(file.path)
+                        if (!reindexed) skippedFiles++
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
@@ -145,7 +155,8 @@ class RagIndexer(private val project: Project) : Disposable {
                     }
                 }
 
-                log.info("RAG indexing complete: $indexedFiles files indexed")
+                val reindexed = indexedFiles - skippedFiles
+                log.info("RAG indexing complete: $indexedFiles files checked, $reindexed re-indexed, $skippedFiles unchanged")
 
             } catch (e: CancellationException) {
                 log.info("RAG indexing cancelled")
@@ -160,23 +171,24 @@ class RagIndexer(private val project: Project) : Disposable {
 
     /**
      * Index a single file. Skips if content hash hasn't changed.
+     * Returns true if the file was actually re-indexed, false if skipped.
      */
     private suspend fun indexFile(
         virtualFile: VirtualFile,
         collection: String,
         existingHashes: Map<String, String>,
-    ) {
+    ): Boolean {
         val filePath = virtualFile.path
         val content = ReadAction.compute<String?, Throwable> {
             try {
                 String(virtualFile.contentsToByteArray(), Charsets.UTF_8)
             } catch (_: Exception) { null }
-        } ?: return
+        } ?: return false
 
         val contentHash = md5(content)
 
         // Skip if unchanged
-        if (existingHashes[filePath] == contentHash) return
+        if (existingHashes[filePath] == contentHash) return false
 
         // Chunk via PSI
         val chunks = ReadAction.compute<List<CodeChunk>, Throwable> {
@@ -184,7 +196,7 @@ class RagIndexer(private val project: Project) : Disposable {
             PsiChunker.chunkFile(psiFile, project)
         }
 
-        if (chunks.isEmpty()) return
+        if (chunks.isEmpty()) return false
 
         // Embed all chunks
         val texts = chunks.map { chunk ->
@@ -200,7 +212,7 @@ class RagIndexer(private val project: Project) : Disposable {
             CopilotEmbeddings.embedBatch(texts)
         } catch (e: Exception) {
             log.debug("Embedding failed for $filePath: ${e.message}")
-            return
+            return false
         }
 
         // Build Qdrant points
@@ -232,6 +244,7 @@ class RagIndexer(private val project: Project) : Disposable {
         }
 
         log.debug("Indexed $filePath: ${chunks.size} chunks")
+        return true
     }
 
     /**
