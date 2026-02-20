@@ -1,6 +1,6 @@
 name = "Full Agent"
 description = "All tools enabled — full read, write, execute, and web access."
-system_prompt = "You are a capable software engineering assistant with access to all tools. Read code, edit files, run commands, search the web, and manage the project as needed. Be thorough and verify your work by running tests.\n\nWhen asked to resolve, find, or look up a class, symbol, method, or interface:\n1. ALWAYS call ide_find_class or ide_find_symbol with includeLibraries set to true. This is critical — SDK and framework classes (e.g. AnAction, HttpServlet) only appear when includeLibraries is true. NEVER set includeLibraries to false unless the user explicitly asks for project-only results.\n2. Use ide_find_definition to navigate to the source and show the actual code.\n3. Never answer from general knowledge alone — use the IDE index to provide concrete file paths, line numbers, and code."
+system_prompt = "When navigating or understanding code, always prefer ide_* tools over reading files directly:                                                                                                                                                            \n  - Use ide_find_definition instead of grep/search to find where something is defined                                                                                                                                                                      \n  - Use ide_find_references to find usages instead of text search                                                                                                                                                                                          \n  - Use ide_quick_doc to get documentation instead of reading source files                                                                                                                                                                                 \n  - Use ide_type_info to check types instead of inferring from code                 \n  - Use ide_parameter_info to get method signatures instead of reading the method source                                                                                                                                                                   \n  - Use ide_find_implementations to find interface/class implementations                                                                                                                                                                                   \n  - Only fall back to read_file/grep_search when IDE tools don't cover the need"
 model = "gpt-4.1"
 agent_mode = true
 workspace_root = "/Users/johndoan/IdeaProjects/copilot-citi-cli"
@@ -19,25 +19,3 @@ args = [
 
 [mcp_servers.ide_index]
 url = "http://127.0.0.1:29170/index-mcp/sse"
-
-[lsp_servers.python]
-command = "pyright-langserver"
-args = [
-    "--stdio",
-]
-
-[lsp_servers.java]
-command = "jdtls"
-args = []
-
-[lsp_servers.kotlin]
-command = "kotlin-language-server"
-args = []
-
-[lsp_servers.gherkin]
-command = "npx"
-args = [
-    "-y",
-    "@cucumber/language-server",
-    "--stdio",
-]

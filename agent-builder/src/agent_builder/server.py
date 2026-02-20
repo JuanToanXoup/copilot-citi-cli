@@ -461,8 +461,13 @@ class BuilderHandler(BaseHTTPRequestHandler):
         # Prepend system prompt to first message
         system_prompt = config.get("system_prompt", "")
         actual_message = message
-        if system_prompt and not session.get("conversation_id"):
-            actual_message = f"<system_instructions>{system_prompt}</system_instructions>\n\n{message}"
+        if not session.get("conversation_id"):
+            base_instruction = "Always format code blocks using markdown triple-backtick fences with the language identifier."
+            if system_prompt:
+                full_prompt = f"{system_prompt}\n\n{base_instruction}"
+            else:
+                full_prompt = base_instruction
+            actual_message = f"<system_instructions>{full_prompt}</system_instructions>\n\n{message}"
 
         self._sse_start()
 

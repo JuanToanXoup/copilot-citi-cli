@@ -510,7 +510,7 @@ const Components = {
             div.innerHTML = `<span class="prompt-marker">&#x276F;</span>${this._esc(msg.text)}`;
         } else if (msg.type === 'assistant') {
             div.classList.add('msg-assistant');
-            div.innerHTML = `<span class="reply-marker">&#x23FA;</span>${this._esc(msg.text)}`;
+            div.innerHTML = `<span class="reply-marker">&#x23FA;</span><div class="md-body">${this._md(msg.text)}</div>`;
         } else if (msg.type === 'tool_call') {
             div.classList.add('msg-tool');
             let inputHtml = '';
@@ -553,7 +553,7 @@ const Components = {
     },
 
     updateAssistantMessage(div, text) {
-        div.innerHTML = `<span class="reply-marker">&#x23FA;</span>${this._esc(text)}`;
+        div.innerHTML = `<span class="reply-marker">&#x23FA;</span><div class="md-body">${this._md(text)}</div>`;
     },
 
     removeSpinner() {
@@ -600,6 +600,14 @@ const Components = {
             const s = typeof v === 'string' ? v : JSON.stringify(v);
             return `${k}: ${s.length > 40 ? s.slice(0, 40) + '…' : s}`;
         }).join(', ');
+    },
+
+    _md(s) {
+        if (!s) return '';
+        if (typeof marked !== 'undefined') {
+            try { return marked.parse(s, { breaks: true }); } catch (_) {}
+        }
+        return this._esc(s).replace(/\n/g, '<br>');
     },
 
     _esc(s) {
