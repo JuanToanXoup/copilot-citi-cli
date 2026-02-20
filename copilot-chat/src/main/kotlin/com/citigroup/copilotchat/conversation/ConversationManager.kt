@@ -356,14 +356,24 @@ class ConversationManager(private val project: Project) : Disposable {
                 // RAG: retrieve relevant code context and prepend to message for LSP
                 val settings = CopilotChatSettings.getInstance()
                 val lspText = if (settings.ragEnabled) {
+                    log.info("RAG is enabled, retrieving context for query")
                     val ragContext = try {
                         RagQueryService.getInstance(project).retrieve(text, settings.ragTopK)
                     } catch (e: Exception) {
-                        log.debug("RAG retrieval failed, continuing without context: ${e.message}")
+                        log.warn("RAG retrieval failed, continuing without context: ${e.message}")
                         ""
                     }
-                    if (ragContext.isNotEmpty()) "$ragContext\n\n$text" else text
-                } else text
+                    if (ragContext.isNotEmpty()) {
+                        log.info("RAG: injected ${ragContext.length} chars of context")
+                        "$ragContext\n\n$text"
+                    } else {
+                        log.info("RAG: no context retrieved")
+                        text
+                    }
+                } else {
+                    log.info("RAG is disabled, sending message without context")
+                    text
+                }
 
                 state = state.copy(isStreaming = true)
                 state.messages.add(ChatMessage(ChatMessage.Role.USER, text))

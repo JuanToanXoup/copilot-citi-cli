@@ -36,27 +36,36 @@ class RagQueryService(private val project: Project) : com.intellij.openapi.Dispo
         return try {
             doRetrieve(query, topK)
         } catch (e: Exception) {
-            log.debug("RAG retrieval failed: ${e.message}")
+            log.warn("RAG retrieval failed: ${e.message}", e)
             ""
         }
     }
 
     private fun doRetrieve(query: String, topK: Int): String {
         val qdrant = QdrantManager.getInstance()
-        if (!qdrant.isRunning) return ""
+        if (!qdrant.isRunning) {
+            log.warn("RAG: Qdrant is not running, skipping retrieval")
+            return ""
+        }
 
         val indexer = RagIndexer.getInstance(project)
         val collection = indexer.collectionName()
 
         // Embed the query
         val queryVector = CopilotEmbeddings.embed(query)
+        log.info("RAG: embedded query (${query.take(50)}...), searching collection '$collection'")
 
         // Search Qdrant
         val results = qdrant.search(collection, queryVector, topK, SCORE_THRESHOLD)
-        if (results.isEmpty()) return ""
+        if (results.isEmpty()) {
+            log.info("RAG: no results above score threshold $SCORE_THRESHOLD")
+            return ""
+        }
 
         // Deduplicate overlapping chunks
         val deduplicated = deduplicateResults(results)
+
+        log.info("RAG: injecting ${deduplicated.size} chunks (scores: ${deduplicated.map { "%.2f".format(it.score) }})")
 
         // Format as XML context, respecting budget
         return formatContext(deduplicated)

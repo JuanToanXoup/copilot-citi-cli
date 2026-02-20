@@ -50,10 +50,7 @@ class QdrantManager : Disposable {
 
     val isInstalled: Boolean get() = binaryPath.exists() && binaryPath.canExecute()
 
-    val isRunning: Boolean get() {
-        val p = process
-        return p != null && p.isAlive && isHealthy()
-    }
+    val isRunning: Boolean get() = isHealthy()
 
     /**
      * Ensure Qdrant is downloaded and running. Returns true on success.
