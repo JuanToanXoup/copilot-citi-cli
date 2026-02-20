@@ -592,11 +592,34 @@ class ConversationManager(private val project: Project) : Disposable {
     /**
      * Send MCP server configuration to the language server.
      * Port of client.py configure_mcp().
+     *
+     * If client-side MCP is active (org blocks server-side), this restarts
+     * the ClientMcpManager with the updated config and re-registers tools.
      */
     suspend fun configureMcp(mcpConfig: Map<String, Map<String, Any>>) {
-        if (mcpConfig.isEmpty()) return
         ensureInitialized()
-        sendMcpConfigNotification(mcpConfig)
+
+        if (lspClient.isServerMcpEnabled) {
+            // Server-side MCP: send config notification
+            if (mcpConfig.isNotEmpty()) {
+                sendMcpConfigNotification(mcpConfig)
+            }
+        } else {
+            // Client-side MCP: restart manager with new config
+            clientMcpManager?.stopAll()
+            val settings = CopilotChatSettings.getInstance()
+            val enabledMcpServers = settings.mcpServers.filter { it.enabled }
+            if (enabledMcpServers.isNotEmpty()) {
+                val manager = ClientMcpManager()
+                manager.addServers(enabledMcpServers)
+                manager.startAll()
+                clientMcpManager = manager
+            } else {
+                clientMcpManager = null
+            }
+            // Re-register tools with updated MCP schemas
+            registerTools()
+        }
     }
 
     /**
