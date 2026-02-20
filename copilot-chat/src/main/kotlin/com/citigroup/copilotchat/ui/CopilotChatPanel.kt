@@ -169,7 +169,8 @@ class CopilotChatPanel(private val project: Project) : JPanel(BorderLayout()), D
                 addToolCallMessage(event.name, event.input)
             }
             is ChatEvent.ToolResult -> {
-                addToolResultMessage(event.name, event.output)
+                // Tool result output is suppressed — the ToolCallPanel already
+                // shows the action and arguments, which is sufficient context.
             }
             is ChatEvent.AgentRound -> {
                 if (event.reply.isNotEmpty()) {

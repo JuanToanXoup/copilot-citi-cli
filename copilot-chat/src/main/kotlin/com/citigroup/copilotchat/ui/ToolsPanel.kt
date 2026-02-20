@@ -160,12 +160,7 @@ class ToolsPanel(
                     "<span style='color: $sourceColor'>[${info.source}]</span> " +
                     "<span style='color: $statusColor; font-size: 9px'>$statusIcon</span><br/>" +
                     "<span style='color: gray; font-size: 10px'>${info.description.take(100)}</span></html>"
-            icon = when {
-                !info.enabled -> AllIcons.Actions.Cancel
-                info.source == "IDE Index" -> AllIcons.Nodes.Plugin
-                info.source.startsWith("MCP") -> AllIcons.Nodes.Related
-                else -> AllIcons.Nodes.Function
-            }
+            icon = null
             return this
         }
     }

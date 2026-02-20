@@ -17,7 +17,7 @@ class MarkdownPane(markdown: String) : JTextArea(markdown) {
         lineWrap = true
         wrapStyleWord = true
         font = UIManager.getFont("Label.font")
-        border = BorderFactory.createEmptyBorder(0, 12, 0, 12)
+        border = BorderFactory.createEmptyBorder(0, 0, 0, 0)
 
         // Visible selection colors for both light and dark themes
         selectionColor = JBColor(0xB3D7FF, 0x214283)

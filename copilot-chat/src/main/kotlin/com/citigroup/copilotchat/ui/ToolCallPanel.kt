@@ -28,35 +28,46 @@ class ToolCallPanel(
     init {
         isOpaque = false
         // Official uses Style.Borders.AgentToolCallPanelBorder
-        border = JBUI.Borders.empty(2, 12, 2, 12)
+        border = JBUI.Borders.empty(2, 0)
 
         val contentPanel = JPanel(BorderLayout(6, 0)).apply {
             isOpaque = false
-            border = JBUI.Borders.empty(4, 6, 4, 6)
+            border = JBUI.Borders.empty(4, 0)
         }
 
-        // Tool name label (matching official ProgressMessageComponent display)
+        // Tool name header
         val nameColor = JBColor(0x0366D6, 0x58A6FF)
-        val briefInput = formatBriefInput(input)
-        val label = JLabel(
-            "<html><b style='color: ${colorToHex(nameColor)}'>$toolName</b>" +
-                if (briefInput.isNotEmpty()) " <span style='color: ${colorToHex(JBColor(0x6A737D, 0x8B949E))}'>${escapeHtml(briefInput)}</span>" else "" +
-                "</html>"
+        val nameLabel = JLabel(
+            "<html><b style='color: ${colorToHex(nameColor)}'>$toolName</b></html>"
         )
-        contentPanel.add(label, BorderLayout.CENTER)
+        contentPanel.add(nameLabel, BorderLayout.CENTER)
 
-        // Icon (official uses running spinner from Companion.runningIcon())
-        val icon = JLabel(AllIcons.Nodes.Function)
-        contentPanel.add(icon, BorderLayout.EAST)
 
-        // GridBagConstraints matching official: fill=HORIZONTAL, weightx=1.0, anchor=NORTHWEST
-        val gbc = GridBagConstraints().apply {
+
+        val headerGbc = GridBagConstraints().apply {
             gridx = 0; gridy = 0
             fill = GridBagConstraints.HORIZONTAL
             weightx = 1.0
             anchor = GridBagConstraints.NORTHWEST
         }
-        add(contentPanel, gbc)
+        add(contentPanel, headerGbc)
+
+        // Action and arguments on └ line below
+        val briefInput = formatBriefInput(input)
+        if (briefInput.isNotEmpty()) {
+            val argColor = colorToHex(JBColor(0x666666, 0x999999))
+            val argLabel = JLabel(
+                "<html><span style='color: $argColor'>  \u2514 ${escapeHtml(briefInput)}</span></html>"
+            )
+            argLabel.border = JBUI.Borders.empty(0, 8, 2, 0)
+            val argGbc = GridBagConstraints().apply {
+                gridx = 0; gridy = 1
+                fill = GridBagConstraints.HORIZONTAL
+                weightx = 1.0
+                anchor = GridBagConstraints.NORTHWEST
+            }
+            add(argLabel, argGbc)
+        }
     }
 
     private fun formatBriefInput(input: JsonObject): String {
