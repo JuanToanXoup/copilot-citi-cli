@@ -1,9 +1,11 @@
 package com.citigroup.copilotchat.tools
 
 import com.intellij.openapi.diagnostic.Logger
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
+import kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlin.coroutines.suspendCoroutine
 
 /**
  * Reflection bridge to ide-index plugin's JsonRpcHandler.
@@ -112,12 +114,20 @@ object IdeIndexBridge {
                 }
             }
 
-            val handleRequest = handler.javaClass.getMethod("handleRequest", String::class.java)
-            val result = withContext(Dispatchers.Default) {
-                // handleRequest is a suspend function, but we invoke via reflection
-                // which may need a continuation. Try direct invocation first.
-                handleRequest.invoke(handler, rpcRequest.toString())
-            } as? String
+            val handleRequest = handler.javaClass.methods.first {
+                it.name == "handleRequest" && it.parameterCount == 2
+            }
+            val result = suspendCoroutine<String?> { cont ->
+                try {
+                    val ret = handleRequest.invoke(handler, rpcRequest.toString(), cont)
+                    if (ret !== COROUTINE_SUSPENDED) {
+                        @Suppress("UNCHECKED_CAST")
+                        cont.resume(ret as? String)
+                    }
+                } catch (e: Exception) {
+                    cont.resumeWithException(e)
+                }
+            }
 
             // Parse the response and extract the tool result
             if (result != null) {

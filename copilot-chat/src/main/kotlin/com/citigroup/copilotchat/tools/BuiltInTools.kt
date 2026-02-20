@@ -180,7 +180,9 @@ object BuiltInTools {
         if (!isRegexp) cmd.add("-F")
         if (include != null) { cmd.add("--include"); cmd.add(include) }
         cmd.add(query); cmd.add(ws)
-        return runCommand(cmd, timeout = 30).ifBlank { "No matches found." }
+        val result = runCommand(cmd, timeout = 30)
+        // grep exits 1 when no matches — not an error
+        return if (result.isBlank() || result == "Exit code: 1") "No matches found." else result
     }
 
     private fun executeFileSearch(input: JsonObject, ws: String): String {

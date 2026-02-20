@@ -1,0 +1,4 @@
+<idea-plugin>
+    <!-- Marker config for optional Java module dependency.
+         PSI tools detect Java plugin availability at runtime via isJavaPluginAvailable(). -->
+</idea-plugin>

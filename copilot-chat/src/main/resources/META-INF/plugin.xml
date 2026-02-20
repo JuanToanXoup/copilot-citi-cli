@@ -6,8 +6,8 @@
 <p>Native IntelliJ chat interface for GitHub Copilot, powered by copilot-language-server.</p>
 <ul>
     <li>Spawns copilot-language-server directly via LSP JSON-RPC</li>
-    <li>Routes tool calls to IDE Index MCP Server plugin when available</li>
-    <li>Provides 24 built-in tools (file ops, search, terminal, web) as fallback</li>
+    <li>19 PSI-powered code intelligence tools (find references, type hierarchy, diagnostics, etc.)</li>
+    <li>24 built-in tools (file ops, search, terminal, web) as fallback</li>
     <li>Supports agent mode with tool calling and collapsible tool call display</li>
     <li>MCP server configuration (Playwright, custom servers)</li>
     <li>Worker agents with orchestration</li>
@@ -17,6 +17,8 @@
 
     <!-- Platform dependency -->
     <depends>com.intellij.modules.platform</depends>
+    <!-- Optional: enables PSI-powered code intelligence tools (Java/Kotlin) -->
+    <depends optional="true" config-file="java-psi-tools.xml">com.intellij.modules.java</depends>
 
     <extensions defaultExtensionNs="com.intellij">
         <!-- Application-level LSP Client -->
