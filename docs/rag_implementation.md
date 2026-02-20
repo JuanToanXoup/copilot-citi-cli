@@ -304,14 +304,24 @@ The RAG context is injected in `sendMessage()`, before the message is sent to th
 // In sendMessage():
 val settings = CopilotChatSettings.getInstance()
 val lspText = if (settings.ragEnabled) {
+    log.info("RAG is enabled, retrieving context for query")
     val ragContext = try {
         RagQueryService.getInstance(project).retrieve(text, settings.ragTopK)
     } catch (e: Exception) {
-        log.debug("RAG retrieval failed, continuing without context: ${e.message}")
+        log.warn("RAG retrieval failed, continuing without context: ${e.message}")
         ""
     }
-    if (ragContext.isNotEmpty()) "$ragContext\n\n$text" else text
-} else text
+    if (ragContext.isNotEmpty()) {
+        log.info("RAG: injected ${ragContext.length} chars of context")
+        "$ragContext\n\n$text"
+    } else {
+        log.info("RAG: no context retrieved")
+        text
+    }
+} else {
+    log.info("RAG is disabled, sending message without context")
+    text
+}
 ```
 
 - `lspText` (with RAG context) is sent to the LSP in `conversation/create` and `conversation/turn` requests
@@ -388,26 +398,41 @@ cd copilot-chat && ./gradlew ragTest
 - Query "how does login work?" → top result is `authenticateUser` (score 0.33)
 - Query "database pool configuration" → top result is `DatabaseConnection` (score 0.52)
 
-### Bugs Found by Testing
+### Bugs Found and Fixed
 
-The integration test caught two issues in the production code:
+The integration test and manual testing caught several issues in the production code:
 
 1. **Qdrant CLI flags**: Qdrant v1.13+ uses `--config-path` with a YAML config file, not `--storage-path`/`--http-port` CLI flags. Fixed `QdrantManager.startProcess()` to generate and pass a `config.yaml`.
 
 2. **Point ID format**: Qdrant requires point IDs to be UUIDs or unsigned integers, not arbitrary strings. The `RagIndexer` already used `UUID.randomUUID().toString()` so production code was correct, but this constraint is now documented.
+
+3. **GitHub Releases redirect** (`QdrantManager.downloadBinary()`): GitHub returns a 302 redirect for release downloads. Java's `HttpClient` defaults to `Redirect.NEVER`, so the download silently produced a 0-byte tar.gz file. Fixed by adding `.followRedirects(HttpClient.Redirect.NORMAL)` to `buildHttpClient()`. The integration test had this setting but the production code didn't.
+
+4. **Silent indexing failure** (`RagIndexer` + `MemoryPanel`): When Qdrant failed to start, the indexer returned early with no error stored. The Memory tab showed "Done. 0 files indexed." with no indication of failure. Fixed by adding `lastError` field to `RagIndexer` and displaying errors in red text in the Memory tab.
+
+5. **Stale process check** (`QdrantManager.isRunning`): The original check required `process != null && process.isAlive && isHealthy()` — meaning the current IDE session must have started Qdrant. If Qdrant was already running from a previous session or was started externally, `process` was `null` and `isRunning` returned `false`, causing `RagQueryService` to skip retrieval entirely. Fixed by changing `isRunning` to just check the health endpoint (`GET /healthz`).
+
+6. **Silent RAG failures**: All logging in `RagQueryService` and `ConversationManager` was at `debug` level, making it impossible to diagnose issues from IDE logs. Upgraded to `info`/`warn` level — logs now show whether RAG is enabled, how many chunks were injected, and specific failure reasons.
 
 ### Manual Verification (in IDE)
 
 After running the plugin in an IntelliJ instance:
 
 1. Open the **Memory** tab in the Copilot Chat tool window
-2. Click **Index Project** — watch progress bar count files
-3. Check `~/.copilot-chat/qdrant/` for the binary and `storage/` directory
-4. Enable **RAG context injection** checkbox
-5. Send a chat message about project code
-6. Check IDE log (`Help → Show Log`) for `RAG retrieval` and `<rag_context>` entries
-7. Verify chat still works with RAG disabled (no context prepended)
-8. Kill Qdrant process manually → verify chat still works (RAG fails silently)
+2. Enable **RAG context injection** checkbox
+3. Click **Index Project** — watch progress bar count files
+   - If indexing fails, the error is shown in red text (e.g., "Failed to start Qdrant...")
+4. Check `~/.copilot-chat/qdrant/` for the binary and `storage/` directory
+5. Verify Qdrant is running: `curl http://localhost:6333/collections` should show your collection with a non-zero `points_count`
+6. Send a chat message about project code (e.g., "how does token exchange work?")
+7. Check IDE log (`Help → Show Log`) and search for `RAG` — you should see:
+   - `"RAG is enabled, retrieving context for query"` — toggle is on
+   - `"RAG: embedded query (...), searching collection 'copilot-chat-...'"` — query was embedded
+   - `"RAG: injecting N chunks (scores: [0.45, 0.38, ...])"` — results found
+   - `"RAG: injected 3200 chars of context"` — context was prepended to the message
+8. Performance indicator: the model should answer project-specific questions directly without using tool calls like `grep_search` or `read_file`
+9. Verify chat still works with RAG disabled (no context prepended)
+10. Kill Qdrant process manually → verify chat still works (RAG fails gracefully, logs warning)
 
 ## File Summary
 
