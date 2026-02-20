@@ -13,14 +13,14 @@ import java.time.Instant
  *
  * Token flow:
  *   1. Read `ghu_` token from CopilotAuth (apps.json)
- *   2. Exchange for session token via `POST https://api.github.com/copilot_internal/v2/token`
+ *   2. Exchange for session token via `GET https://api.github.com/copilot_internal/v2/token`
  *   3. Call `POST https://api.githubcopilot.com/embeddings` with session token
  *
  * Session tokens expire ~30 min; cached and auto-refreshed.
  *
- * Uses [HttpConfigurable.openConnection] for HTTP calls with IDE proxy settings.
- * If the proxy blocks HTTPS tunneling (403/407), automatically falls back to
- * direct connections (bypassing the proxy) for subsequent calls.
+ * Uses [HttpConfigurable.openHttpConnection] for HTTP calls with IDE proxy settings.
+ * If the proxy blocks HTTPS tunneling (403/407 response or IOException), automatically
+ * falls back to direct connections (bypassing the proxy) for all subsequent calls.
  */
 object CopilotEmbeddings {
 
@@ -43,13 +43,13 @@ object CopilotEmbeddings {
 
     /**
      * When true, skip IDE proxy and connect directly.
-     * Auto-set when the proxy returns 403 "unable to tunnel".
+     * Auto-set when the proxy returns 403/407 (either as response code or IOException).
      */
     @Volatile private var useDirectConnection = false
 
     /**
-     * Open an [HttpURLConnection]. Tries IDE proxy first; if the proxy blocks
-     * HTTPS tunneling (403 "unable to tunnel"), falls back to a direct connection.
+     * Open an [HttpURLConnection]. Uses IDE proxy by default; bypasses proxy
+     * if [useDirectConnection] has been set due to a prior tunnel failure.
      */
     private fun openConnection(url: String): HttpURLConnection {
         val connection = if (useDirectConnection) {
@@ -60,6 +60,17 @@ object CopilotEmbeddings {
         connection.connectTimeout = 30_000
         connection.readTimeout = 30_000
         return connection
+    }
+
+    /**
+     * Switch to direct connection and log a warning. Returns true if this is
+     * a new switch (caller should retry), false if already direct (no point retrying).
+     */
+    private fun switchToDirectConnection(reason: String): Boolean {
+        if (useDirectConnection) return false
+        log.warn("Proxy blocks Copilot API ($reason), switching to direct connection")
+        useDirectConnection = true
+        return true
     }
 
     /**
@@ -75,56 +86,58 @@ object CopilotEmbeddings {
 
         val auth = CopilotAuth.readAuth()
 
-        val connection = try {
-            val conn = openConnection(TOKEN_EXCHANGE_URL)
-            conn.requestMethod = "GET"
-            conn.setRequestProperty("Authorization", "token ${auth.token}")
-            conn.setRequestProperty("Accept", "application/json")
-            conn.setRequestProperty("Editor-Version", "JetBrains-IC/2025.2")
-            conn.setRequestProperty("Editor-Plugin-Version", "copilot-intellij/1.420.0")
-            conn.readTimeout = 15_000
-            // Trigger the connection to detect tunnel failures early
-            conn.responseCode
-            conn
-        } catch (e: java.io.IOException) {
-            if (!useDirectConnection && isTunnelError(e)) {
-                log.warn("Proxy blocks HTTPS tunnel, switching to direct connection for Copilot API")
-                useDirectConnection = true
-                val conn = openConnection(TOKEN_EXCHANGE_URL)
+        // Try up to 2 times: once with proxy, once direct if proxy blocks
+        repeat(2) { attempt ->
+            val statusCode: Int
+            val conn: HttpURLConnection
+
+            try {
+                conn = openConnection(TOKEN_EXCHANGE_URL)
                 conn.requestMethod = "GET"
                 conn.setRequestProperty("Authorization", "token ${auth.token}")
                 conn.setRequestProperty("Accept", "application/json")
                 conn.setRequestProperty("Editor-Version", "JetBrains-IC/2025.2")
                 conn.setRequestProperty("Editor-Plugin-Version", "copilot-intellij/1.420.0")
                 conn.readTimeout = 15_000
-                conn.responseCode
-                conn
-            } else {
+                statusCode = conn.responseCode
+            } catch (e: java.io.IOException) {
+                if (attempt == 0 && isTunnelError(e) && switchToDirectConnection("IOException: ${e.message}")) {
+                    return@repeat // retry with direct connection
+                }
                 throw e
             }
+
+            // Proxy returned 403/407 as HTTP status instead of IOException
+            if (statusCode in listOf(403, 407) && attempt == 0 && switchToDirectConnection("HTTP $statusCode")) {
+                return@repeat // retry with direct connection
+            }
+
+            val responseBody = if (statusCode in 200..299) {
+                conn.inputStream.bufferedReader().readText()
+            } else {
+                conn.errorStream?.bufferedReader()?.readText() ?: ""
+            }
+
+            if (statusCode != 200) {
+                throw RuntimeException("Token exchange failed ($statusCode): ${responseBody.take(200)}")
+            }
+
+            val body = json.parseToJsonElement(responseBody).jsonObject
+            val token = body["token"]?.jsonPrimitive?.contentOrNull
+                ?: throw RuntimeException("No 'token' field in token exchange response")
+
+            val expiresAt = body["expires_at"]?.jsonPrimitive?.longOrNull
+            tokenExpiry = if (expiresAt != null) Instant.ofEpochSecond(expiresAt) else Instant.now().plusSeconds(1500)
+            sessionToken = token
+
+            log.info("Copilot session token refreshed (direct=$useDirectConnection), expires at $tokenExpiry")
+            return token
         }
 
-        val statusCode = connection.responseCode
-        val responseBody = if (statusCode in 200..299) {
-            connection.inputStream.bufferedReader().readText()
-        } else {
-            connection.errorStream?.bufferedReader()?.readText() ?: ""
-        }
-
-        if (statusCode != 200) {
-            throw RuntimeException("Token exchange failed ($statusCode): ${responseBody.take(200)}")
-        }
-
-        val body = json.parseToJsonElement(responseBody).jsonObject
-        val token = body["token"]?.jsonPrimitive?.contentOrNull
-            ?: throw RuntimeException("No 'token' field in token exchange response")
-
-        val expiresAt = body["expires_at"]?.jsonPrimitive?.longOrNull
-        tokenExpiry = if (expiresAt != null) Instant.ofEpochSecond(expiresAt) else Instant.now().plusSeconds(1500)
-        sessionToken = token
-
-        log.info("Copilot session token refreshed (direct=$useDirectConnection), expires at $tokenExpiry")
-        return token
+        // If we get here, the repeat finished without returning — means we retried once
+        // and the direct attempt should have either returned or thrown above.
+        // This shouldn't happen, but handle gracefully:
+        throw RuntimeException("Token exchange failed after proxy fallback")
     }
 
     /**
@@ -167,8 +180,9 @@ object CopilotEmbeddings {
         for (attempt in 0 until MAX_RETRIES) {
             val token = ensureSessionToken()
 
-            val connection = try {
-                val conn = openConnection(EMBEDDINGS_URL)
+            val conn: HttpURLConnection
+            try {
+                conn = openConnection(EMBEDDINGS_URL)
                 conn.requestMethod = "POST"
                 conn.doOutput = true
                 conn.setRequestProperty("Authorization", "Bearer $token")
@@ -177,31 +191,19 @@ object CopilotEmbeddings {
                 conn.setRequestProperty("Editor-Plugin-Version", "copilot-intellij/1.420.0")
                 conn.setRequestProperty("Copilot-Integration-Id", "vscode-chat")
                 conn.outputStream.bufferedWriter().use { it.write(requestBody.toString()) }
-                conn
             } catch (e: java.io.IOException) {
-                if (!useDirectConnection && isTunnelError(e)) {
-                    log.warn("Proxy blocks HTTPS tunnel, switching to direct connection for Copilot API")
-                    useDirectConnection = true
-                    val conn = openConnection(EMBEDDINGS_URL)
-                    conn.requestMethod = "POST"
-                    conn.doOutput = true
-                    conn.setRequestProperty("Authorization", "Bearer $token")
-                    conn.setRequestProperty("Content-Type", "application/json")
-                    conn.setRequestProperty("Editor-Version", "JetBrains-IC/2025.2")
-                    conn.setRequestProperty("Editor-Plugin-Version", "copilot-intellij/1.420.0")
-                    conn.setRequestProperty("Copilot-Integration-Id", "vscode-chat")
-                    conn.outputStream.bufferedWriter().use { it.write(requestBody.toString()) }
-                    conn
-                } else {
-                    throw e
+                if (isTunnelError(e) && switchToDirectConnection("IOException: ${e.message}")) {
+                    lastException = e
+                    continue // retry with direct connection
                 }
+                throw e
             }
 
-            val statusCode = connection.responseCode
+            val statusCode = conn.responseCode
             val responseBody = if (statusCode in 200..299) {
-                connection.inputStream.bufferedReader().readText()
+                conn.inputStream.bufferedReader().readText()
             } else {
-                connection.errorStream?.bufferedReader()?.readText() ?: ""
+                conn.errorStream?.bufferedReader()?.readText() ?: ""
             }
 
             when {
@@ -209,8 +211,16 @@ object CopilotEmbeddings {
                     return parseEmbeddingsResponse(responseBody)
                 }
 
+                statusCode in listOf(403, 407) -> {
+                    if (switchToDirectConnection("HTTP $statusCode")) {
+                        lastException = RuntimeException("Proxy $statusCode: ${responseBody.take(200)}")
+                        continue // retry with direct connection
+                    }
+                    throw RuntimeException("Embeddings API failed ($statusCode): ${responseBody.take(200)}")
+                }
+
                 statusCode == 429 -> {
-                    val retryAfter = connection.getHeaderField("retry-after")
+                    val retryAfter = conn.getHeaderField("retry-after")
                     val delayMs = if (retryAfter != null) {
                         (retryAfter.toLongOrNull() ?: 1) * 1000
                     } else {
@@ -228,17 +238,6 @@ object CopilotEmbeddings {
                     lastException = RuntimeException("Unauthorized (401)")
                 }
 
-                statusCode == 403 -> {
-                    val msg = responseBody.take(200)
-                    if (!useDirectConnection && (msg.contains("tunnel", ignoreCase = true) || msg.contains("proxy", ignoreCase = true))) {
-                        log.warn("Proxy returned 403, switching to direct connection: $msg")
-                        useDirectConnection = true
-                        lastException = RuntimeException("Proxy 403: $msg")
-                        continue
-                    }
-                    throw RuntimeException("Embeddings API failed (403): $msg")
-                }
-
                 else -> {
                     throw RuntimeException("Embeddings API failed ($statusCode): ${responseBody.take(200)}")
                 }
@@ -249,8 +248,8 @@ object CopilotEmbeddings {
     }
 
     /**
-     * Detect proxy tunnel errors: "Unable to tunnel through proxy" (403)
-     * or "Proxy Authentication Required" (407) thrown as IOException.
+     * Detect proxy tunnel errors thrown as IOException:
+     * "Unable to tunnel through proxy. Proxy returns HTTP/1.1 407 ..."
      */
     private fun isTunnelError(e: java.io.IOException): Boolean {
         val msg = e.message?.lowercase() ?: return false
