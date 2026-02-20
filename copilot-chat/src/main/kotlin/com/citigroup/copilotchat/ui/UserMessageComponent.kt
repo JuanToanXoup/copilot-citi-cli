@@ -4,19 +4,17 @@ import com.intellij.ui.JBColor
 import com.intellij.util.ui.JBUI
 import java.awt.*
 import javax.swing.*
+import javax.swing.text.html.HTMLEditorKit
+import javax.swing.text.html.StyleSheet
 
 /**
  * User message displayed as a right-aligned bubble, matching the official
  * GitHub Copilot plugin's MessageContentBubble.buildRightAlignedBubble().
  *
- * Official structure (from decompiled bytecode):
- *   wrapper (JPanel, GridBagLayout, opaque=false, focusable=false)
- *   ├── filler (gridx=0, fill=BOTH, weightx=1.0) — pushes bubble right
- *   └── bubble (gridx=1, fill=NONE, anchor=NORTHEAST)
- *       └── content (MarkdownPane or text)
- *
- * Default bubble background: JBColor(0xD4E2FF, 0x264F78)
- * Arc: rounded corners via paintComponent
+ * Uses JEditorPane with HTML (like the official plugin's MarkdownPane) instead
+ * of JTextArea, because JEditorPane's HTML view has correct preferred-size
+ * behavior for text wrapping — unlike JTextArea whose WrappedPlainView has a
+ * margin/inset mismatch that causes incorrect sizing.
  */
 class UserMessageComponent(private val text: String) : JPanel(GridBagLayout()) {
 
@@ -30,21 +28,30 @@ class UserMessageComponent(private val text: String) : JPanel(GridBagLayout()) {
         isOpaque = false
         isFocusable = false
 
-        val textArea = JTextArea(text).apply {
+        val escapedText = text
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace("\n", "<br>")
+
+        val kit = HTMLEditorKit()
+        val ss = StyleSheet()
+        ss.addRule("body { margin: 0; padding: 0; }")
+        kit.styleSheet = ss
+
+        val textPane = JEditorPane().apply {
+            editorKit = kit
+            this.text = "<html><body>$escapedText</body></html>"
             isEditable = false
             isOpaque = false
             isFocusable = true
-            lineWrap = true
-            wrapStyleWord = true
+            putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, true)
             font = UIManager.getFont("Label.font")
             border = BorderFactory.createEmptyBorder()
             selectionColor = JBColor(0xB3D7FF, 0x214283)
             selectedTextColor = JBColor(0x000000, 0xFFFFFF)
         }
 
-        // Bubble panel with rounded background.
-        // Override getPreferredSize to dynamically compute width from the container,
-        // preventing the JTextArea preferred-size caching issue on resize.
         val bubble = object : JPanel(BorderLayout()) {
             init {
                 isOpaque = false
@@ -67,26 +74,26 @@ class UserMessageComponent(private val text: String) : JPanel(GridBagLayout()) {
                     400
                 }
                 val bubbleInsets = insets
-                val availableTextWidth = maxBubbleWidth - bubbleInsets.left - bubbleInsets.right
+                val availableContentWidth = maxBubbleWidth - bubbleInsets.left - bubbleInsets.right
 
-                // Compute natural (unwrapped) text width from font metrics
-                val fm = textArea.getFontMetrics(textArea.font)
-                val maxLineWidth = text.lines().maxOfOrNull { fm.stringWidth(it) } ?: 0
-                val naturalTextWidth = maxLineWidth + textArea.insets.let { it.left + it.right }
+                // JEditorPane with HTML: preferredSize.width = natural unwrapped text width
+                val textPref = textPane.preferredSize
+                val naturalBubbleWidth = textPref.width + bubbleInsets.left + bubbleInsets.right
 
-                val effectiveTextWidth = naturalTextWidth.coerceAtMost(availableTextWidth).coerceAtLeast(1)
+                if (naturalBubbleWidth <= maxBubbleWidth) {
+                    return Dimension(naturalBubbleWidth, textPref.height + bubbleInsets.top + bubbleInsets.bottom)
+                }
 
-                // Standard Swing pattern: set size then query preferred to get wrapped height
-                textArea.setSize(effectiveTextWidth, Short.MAX_VALUE.toInt())
-                val textPref = textArea.preferredSize
-
+                // Text exceeds max width — constrain and let HTML view wrap
+                textPane.setSize(availableContentWidth, Short.MAX_VALUE.toInt())
+                val wrappedPref = textPane.preferredSize
                 return Dimension(
-                    effectiveTextWidth + bubbleInsets.left + bubbleInsets.right,
-                    textPref.height + bubbleInsets.top + bubbleInsets.bottom
+                    maxBubbleWidth,
+                    wrappedPref.height + bubbleInsets.top + bubbleInsets.bottom
                 )
             }
         }
-        bubble.add(textArea, BorderLayout.CENTER)
+        bubble.add(textPane, BorderLayout.CENTER)
 
         // Filler to push bubble to the right (official: weightx=1.0, fill=BOTH)
         val fillerConstraints = GridBagConstraints().apply {
