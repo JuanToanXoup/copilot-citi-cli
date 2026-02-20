@@ -204,13 +204,17 @@ class ChatInputPanel(
             gridx = 1; gridy = 0
         })
 
-        // Assemble: attach + text + toolbar
-        val innerPanel = JPanel().apply {
-            layout = BoxLayout(this, BoxLayout.Y_AXIS)
+        // Assemble: attach row + text area grow in center, toolbar pinned at bottom
+        val topSection = JPanel(BorderLayout()).apply {
             isOpaque = false
-            add(attachRow)
-            add(scrollPane)
-            add(bottomToolbar)
+            add(attachRow, BorderLayout.NORTH)
+            add(scrollPane, BorderLayout.CENTER)
+        }
+
+        val innerPanel = JPanel(BorderLayout()).apply {
+            isOpaque = false
+            add(topSection, BorderLayout.CENTER)
+            add(bottomToolbar, BorderLayout.SOUTH)
         }
 
         add(innerPanel, BorderLayout.CENTER)
