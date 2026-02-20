@@ -22,6 +22,9 @@ enabled = [
 ]
 disabled = []
 
+[mcp_servers.intellij-index]
+url = "http://127.0.0.1:29170/index-mcp/sse"
+
 [lsp_servers.python]
 command = "pyright-langserver"
 args = ["--stdio"]

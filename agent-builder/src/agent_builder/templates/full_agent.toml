@@ -18,6 +18,9 @@ as needed. Be thorough and verify your work by running tests.
 enabled = "__ALL__"
 disabled = []
 
+[mcp_servers.intellij-index]
+url = "http://127.0.0.1:29170/index-mcp/sse"
+
 [mcp_servers.playwright]
 command = "npx"
 args = ["-y", "@playwright/mcp@latest"]
