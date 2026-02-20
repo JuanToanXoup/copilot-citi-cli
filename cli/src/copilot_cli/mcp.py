@@ -390,10 +390,11 @@ def _sanitize_schema(schema: dict):
 class ClientMCPManager:
     """Manages multiple client-side MCP servers and bridges them to the Copilot agent."""
 
-    def __init__(self):
+    def __init__(self, workspace_root: str = None):
         self.servers: dict[str, MCPServer] = {}
         # Maps prefixed tool name -> (server_name, original_tool_name)
         self._tool_map: dict[str, tuple[str, str]] = {}
+        self.workspace_root = workspace_root
 
     def add_servers(self, config: dict):
         """Add MCP servers from a config dict (same format as --mcp).
@@ -497,6 +498,12 @@ class ClientMCPManager:
         server = self.servers.get(server_name)
         if not server:
             return f"MCP server '{server_name}' not found"
+
+        # For SSE servers, inject project_path from workspace_root so the
+        # IDE plugin can resolve the correct project when multiple are open.
+        if isinstance(server, MCPSSEServer) and self.workspace_root:
+            if "project_path" not in arguments:
+                arguments = {**arguments, "project_path": self.workspace_root}
 
         try:
             result = server.call_tool(original_name, arguments)

@@ -1032,7 +1032,7 @@ def _init_client_internal(workspace: str, agent_mode: bool = False,
 
         if sse_servers:
             print(f"[*] MCP: client-side: {', '.join(sse_servers.keys())}")
-            manager = ClientMCPManager()
+            manager = ClientMCPManager(workspace_root=client.workspace_root)
             manager.add_servers(sse_servers)
             manager.start_all(on_progress=on_progress)
             client.client_mcp = manager
