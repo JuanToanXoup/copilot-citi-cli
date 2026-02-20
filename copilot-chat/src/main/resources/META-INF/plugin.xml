@@ -1,0 +1,51 @@
+<idea-plugin>
+    <id>com.citigroup.copilotchat</id>
+    <name>Copilot Chat</name>
+    <vendor>Citigroup</vendor>
+    <description><![CDATA[
+<p>Native IntelliJ chat interface for GitHub Copilot, powered by copilot-language-server.</p>
+<ul>
+    <li>Spawns copilot-language-server directly via LSP JSON-RPC</li>
+    <li>Routes tool calls to IDE Index MCP Server plugin when available</li>
+    <li>Provides 24 built-in tools (file ops, search, terminal, web) as fallback</li>
+    <li>Supports agent mode with tool calling and collapsible tool call display</li>
+    <li>MCP server configuration (Playwright, custom servers)</li>
+    <li>Worker agents with orchestration</li>
+    <li>Markdown rendering with IDE theme integration</li>
+</ul>
+]]>    </description>
+
+    <!-- Platform dependency -->
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- Application-level LSP Client -->
+        <applicationService serviceImplementation="com.citigroup.copilotchat.lsp.LspClient"/>
+
+        <!-- Application-level Settings -->
+        <applicationService serviceImplementation="com.citigroup.copilotchat.config.CopilotChatSettings"/>
+
+        <!-- Project-level Conversation Manager -->
+        <projectService serviceImplementation="com.citigroup.copilotchat.conversation.ConversationManager"/>
+
+        <!-- Tool Window with content tabs (Chat, Tools, MCP, Workers) -->
+        <toolWindow id="Copilot Chat"
+                    anchor="right"
+                    icon="com.citigroup.copilotchat.icons.CopilotChatIcons.ToolWindow"
+                    factoryClass="com.citigroup.copilotchat.ui.ChatToolWindowFactory"
+                    canCloseContents="false"/>
+    </extensions>
+
+    <actions>
+        <group id="CopilotChat.Actions" text="Copilot Chat">
+            <action id="CopilotChat.NewConversation"
+                    class="com.citigroup.copilotchat.actions.NewConversationAction"
+                    text="New Conversation"
+                    description="Start a new chat conversation"/>
+            <action id="CopilotChat.OpenAgentConfig"
+                    class="com.citigroup.copilotchat.actions.OpenAgentConfigAction"
+                    text="Open Agent Config"
+                    description="Open the agent configuration file"/>
+        </group>
+    </actions>
+</idea-plugin>

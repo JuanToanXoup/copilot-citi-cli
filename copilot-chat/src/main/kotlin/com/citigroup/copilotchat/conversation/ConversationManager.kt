@@ -1,0 +1,527 @@
+package com.citigroup.copilotchat.conversation
+
+import com.citigroup.copilotchat.auth.CopilotAuth
+import com.citigroup.copilotchat.auth.CopilotBinaryLocator
+import com.citigroup.copilotchat.config.CopilotChatSettings
+import com.citigroup.copilotchat.lsp.*
+import com.citigroup.copilotchat.tools.ToolRouter
+import com.intellij.openapi.Disposable
+import com.intellij.openapi.components.Service
+import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.project.Project
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.*
+import java.util.*
+
+/**
+ * Project-level service managing conversations with the Copilot language server.
+ * Port of client.py's conversation_create, conversation_turn, _collect_chat_reply.
+ */
+@Service(Service.Level.PROJECT)
+class ConversationManager(private val project: Project) : Disposable {
+
+    private val log = Logger.getInstance(ConversationManager::class.java)
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    private val _events = MutableSharedFlow<ChatEvent>(extraBufferCapacity = 64)
+    val events: SharedFlow<ChatEvent> = _events
+
+    var state = ConversationState()
+        private set
+
+    private var initialized = false
+    private var currentJob: Job? = null
+    private var currentWorkDoneToken: String? = null
+    private lateinit var toolRouter: ToolRouter
+    private val initMutex = kotlinx.coroutines.sync.Mutex()
+
+    private val lspClient: LspClient get() = LspClient.getInstance()
+
+    companion object {
+        fun getInstance(project: Project): ConversationManager =
+            project.getService(ConversationManager::class.java)
+    }
+
+    /**
+     * Ensure the LSP server is started and the initialization handshake is complete.
+     * Thread-safe — uses a mutex to prevent concurrent initialization.
+     */
+    suspend fun ensureInitialized() {
+        if (initialized && lspClient.isRunning) return
+        initMutex.withLock {
+            if (initialized && lspClient.isRunning) return
+
+        val settings = CopilotChatSettings.getInstance()
+
+        // Discover or use configured binary
+        val binary = settings.binaryPath.ifBlank { null }
+            ?: CopilotBinaryLocator.discover()
+            ?: throw RuntimeException(
+                "copilot-language-server not found. Install GitHub Copilot in a JetBrains IDE or set the path in settings."
+            )
+
+        // Start the LSP process
+        lspClient.start(binary)
+
+        // Set up tool router and server request handler
+        toolRouter = ToolRouter(project)
+        lspClient.serverRequestHandler = { method, id, params ->
+            scope.launch { handleServerRequest(method, id, params) }
+        }
+
+        // Read auth
+        val auth = CopilotAuth.readAuth(settings.appsJsonPath.ifBlank { null })
+
+        val rootUri = project.basePath?.let { "file://$it" } ?: "file:///tmp/copilot-workspace"
+        val folderName = project.name
+
+        // initialize
+        val initParams = buildJsonObject {
+            put("processId", ProcessHandle.current().pid().toInt())
+            putJsonObject("capabilities") {
+                putJsonObject("textDocumentSync") {
+                    put("openClose", true)
+                    put("change", 1)
+                    put("save", true)
+                }
+                putJsonObject("workspace") {
+                    put("workspaceFolders", true)
+                }
+            }
+            put("rootUri", rootUri)
+            putJsonArray("workspaceFolders") {
+                addJsonObject {
+                    put("uri", rootUri)
+                    put("name", folderName)
+                }
+            }
+            putJsonObject("clientInfo") {
+                put("name", "copilot-chat-intellij")
+                put("version", "1.0.0")
+            }
+            putJsonObject("initializationOptions") {
+                putJsonObject("editorInfo") {
+                    put("name", "JetBrains-IC")
+                    put("version", "2025.2")
+                }
+                putJsonObject("editorPluginInfo") {
+                    put("name", "copilot-intellij")
+                    put("version", "1.420.0")
+                }
+                putJsonObject("editorConfiguration") {}
+                putJsonObject("networkProxy") {}
+                put("githubAppId", auth.appId.ifBlank { "Iv1.b507a08c87ecfe98" })
+            }
+        }
+
+        val initResp = lspClient.sendRequest("initialize", initParams)
+        val serverInfo = initResp["result"]?.jsonObject?.get("serverInfo")?.jsonObject
+        log.info("LSP server: ${serverInfo?.get("name")} v${serverInfo?.get("version")}")
+
+        // initialized notification
+        lspClient.sendNotification("initialized", JsonObject(emptyMap()))
+
+        // setEditorInfo
+        lspClient.sendRequest("setEditorInfo", buildJsonObject {
+            putJsonObject("editorInfo") {
+                put("name", "JetBrains-IC")
+                put("version", "2025.2")
+            }
+            putJsonObject("editorPluginInfo") {
+                put("name", "copilot-intellij")
+                put("version", "1.420.0")
+            }
+            putJsonObject("editorConfiguration") {}
+            putJsonObject("networkProxy") {}
+        })
+
+        // checkStatus
+        val statusResp = lspClient.sendRequest("checkStatus", JsonObject(emptyMap()))
+        val status = statusResp["result"]?.jsonObject?.get("status")?.jsonPrimitive?.contentOrNull
+        log.info("Copilot auth status: $status")
+
+        // Register tools
+        registerTools()
+
+        // Auto-send MCP config from saved settings so MCP servers
+        // are available immediately without visiting the MCP tab
+        loadMcpConfigFromSettings()
+
+        initialized = true
+        } // end initMutex.withLock
+    }
+
+    private suspend fun loadMcpConfigFromSettings() {
+        val settings = CopilotChatSettings.getInstance()
+        val servers = settings.mcpServers
+        if (servers.isEmpty()) return
+
+        val mcpConfig = mutableMapOf<String, Map<String, Any>>()
+        for (entry in servers) {
+            if (!entry.enabled) continue
+            val serverConfig = mutableMapOf<String, Any>()
+            if (entry.url.isNotBlank()) {
+                serverConfig["url"] = entry.url
+            } else {
+                serverConfig["command"] = entry.command
+                if (entry.args.isNotBlank()) {
+                    serverConfig["args"] = entry.args.split(" ").filter { it.isNotBlank() }
+                }
+            }
+            if (entry.env.isNotBlank()) {
+                val envMap = mutableMapOf<String, String>()
+                entry.env.lines().filter { "=" in it }.forEach { line ->
+                    val (k, v) = line.split("=", limit = 2)
+                    envMap[k.trim()] = v.trim()
+                }
+                if (envMap.isNotEmpty()) serverConfig["env"] = envMap
+            }
+            mcpConfig[entry.name] = serverConfig
+        }
+
+        if (mcpConfig.isNotEmpty()) {
+            // Send directly — do NOT call configureMcp() which calls ensureInitialized()
+            // and would deadlock since we're still inside ensureInitialized()
+            sendMcpConfigNotification(mcpConfig)
+        }
+    }
+
+    private suspend fun registerTools() {
+        val schemas = toolRouter.getToolSchemas()
+        if (schemas.isEmpty()) return
+
+        val params = buildJsonObject {
+            putJsonArray("tools") {
+                for (schema in schemas) {
+                    add(json.parseToJsonElement(schema))
+                }
+            }
+        }
+        lspClient.sendRequest("conversation/registerTools", params)
+        log.info("Registered ${schemas.size} client tools")
+    }
+
+    /**
+     * Send a message — either creating a new conversation or continuing an existing one.
+     */
+    fun sendMessage(text: String, model: String? = null, agentMode: Boolean? = null) {
+        currentJob?.cancel()
+        currentJob = scope.launch {
+            try {
+                ensureInitialized()
+
+                val useModel = model ?: state.model
+                val useAgent = agentMode ?: state.agentMode
+
+                state = state.copy(isStreaming = true)
+                state.messages.add(ChatMessage(ChatMessage.Role.USER, text))
+
+                val workDoneToken = "copilot-chat-${UUID.randomUUID().toString().take(8)}"
+                currentWorkDoneToken = workDoneToken
+                val replyParts = mutableListOf<String>()
+
+                // Register progress listener
+                lspClient.registerProgressListener(workDoneToken) { value ->
+                    scope.launch { handleProgress(value, replyParts) }
+                }
+
+                try {
+                    if (state.conversationId == null) {
+                        // Create new conversation
+                        val rootUri = project.basePath?.let { "file://$it" } ?: "file:///tmp"
+                        val params = buildJsonObject {
+                            put("workDoneToken", workDoneToken)
+                            putJsonArray("turns") {
+                                addJsonObject { put("request", text) }
+                            }
+                            putJsonObject("capabilities") {
+                                put("allSkills", useAgent)
+                            }
+                            put("source", "panel")
+                            if (useAgent) {
+                                put("chatMode", "Agent")
+                                put("needToolCallConfirmation", true)
+                            }
+                            if (useModel.isNotBlank()) put("model", useModel)
+                            put("workspaceFolder", rootUri)
+                            putJsonArray("workspaceFolders") {
+                                addJsonObject {
+                                    put("uri", rootUri)
+                                    put("name", project.name)
+                                }
+                            }
+                        }
+                        val resp = lspClient.sendRequest("conversation/create", params, timeoutMs = 300_000)
+                        val result = resp["result"]
+                        val convId = when (result) {
+                            is JsonArray -> result.firstOrNull()?.jsonObject?.get("conversationId")?.jsonPrimitive?.contentOrNull
+                            is JsonObject -> result["conversationId"]?.jsonPrimitive?.contentOrNull
+                            else -> null
+                        }
+                        state = state.copy(conversationId = convId)
+                    } else {
+                        // Follow-up turn
+                        val rootUri = project.basePath?.let { "file://$it" } ?: "file:///tmp"
+                        val params = buildJsonObject {
+                            put("workDoneToken", workDoneToken)
+                            put("conversationId", state.conversationId!!)
+                            put("message", text)
+                            put("source", "panel")
+                            if (useAgent) {
+                                put("chatMode", "Agent")
+                                put("needToolCallConfirmation", true)
+                            }
+                            if (useModel.isNotBlank()) put("model", useModel)
+                            put("workspaceFolder", rootUri)
+                            putJsonArray("workspaceFolders") {
+                                addJsonObject {
+                                    put("uri", rootUri)
+                                    put("name", project.name)
+                                }
+                            }
+                        }
+                        lspClient.sendRequest("conversation/turn", params, timeoutMs = 300_000)
+                    }
+
+                    // Wait for done (the progress listener handles streaming)
+                    // The request returns when the conversation is created, but progress continues
+                    val startTime = System.currentTimeMillis()
+                    val timeout = if (useAgent) 300_000L else 60_000L
+                    while (state.isStreaming && System.currentTimeMillis() - startTime < timeout) {
+                        delay(100)
+                    }
+                } finally {
+                    lspClient.removeProgressListener(workDoneToken)
+                }
+
+                currentWorkDoneToken = null
+                val fullReply = replyParts.joinToString("")
+                if (fullReply.isNotEmpty()) {
+                    state.messages.add(ChatMessage(ChatMessage.Role.ASSISTANT, fullReply))
+                }
+                state = state.copy(isStreaming = false)
+                _events.emit(ChatEvent.Done(fullReply))
+
+            } catch (e: CancellationException) {
+                state = state.copy(isStreaming = false)
+                throw e
+            } catch (e: Exception) {
+                log.error("Error in sendMessage", e)
+                state = state.copy(isStreaming = false)
+                _events.emit(ChatEvent.Error(e.message ?: "Unknown error"))
+            }
+        }
+    }
+
+    private suspend fun handleProgress(value: JsonObject, replyParts: MutableList<String>) {
+        val kind = value["kind"]?.jsonPrimitive?.contentOrNull
+
+        if (kind == "end") {
+            state = state.copy(isStreaming = false)
+            return
+        }
+
+        // Reply/delta text
+        val reply = value["reply"]?.jsonPrimitive?.contentOrNull
+        if (reply != null) {
+            replyParts.add(reply)
+            _events.emit(ChatEvent.Delta(reply))
+        }
+
+        val delta = value["delta"]?.jsonPrimitive?.contentOrNull
+        if (delta != null) {
+            replyParts.add(delta)
+            _events.emit(ChatEvent.Delta(delta))
+        }
+
+        val message = value["message"]?.jsonPrimitive?.contentOrNull
+        if (message != null && kind != "begin") {
+            replyParts.add(message)
+            _events.emit(ChatEvent.Delta(message))
+        }
+
+        // Agent rounds — contain reply text AND tool calls (including MCP tools)
+        val rounds = value["editAgentRounds"]?.jsonArray
+        rounds?.forEach { roundEl ->
+            val round = roundEl.jsonObject
+            val roundReply = round["reply"]?.jsonPrimitive?.contentOrNull ?: ""
+            if (roundReply.isNotEmpty()) {
+                replyParts.add(roundReply)
+            }
+
+            // Extract tool calls from the round (server-side tools like MCP)
+            val toolCalls = round["toolCalls"]?.jsonArray
+            toolCalls?.forEach { toolCallEl ->
+                val tc = toolCallEl.jsonObject
+                val name = tc["name"]?.jsonPrimitive?.contentOrNull ?: return@forEach
+                val status = tc["status"]?.jsonPrimitive?.contentOrNull ?: ""
+                val input = tc["input"]?.jsonObject ?: JsonObject(emptyMap())
+                val progressMessage = tc["progressMessage"]?.jsonPrimitive?.contentOrNull
+                val error = tc["error"]?.jsonPrimitive?.contentOrNull
+
+                // Emit tool call event
+                _events.emit(ChatEvent.ToolCall(name, input))
+
+                // Emit result if the tool call is completed
+                val resultData = tc["result"]?.jsonArray
+                val resultText = if (error != null) {
+                    "Error: $error"
+                } else if (resultData != null && resultData.isNotEmpty()) {
+                    resultData.firstOrNull()?.jsonObject
+                        ?.get("content")?.jsonPrimitive?.contentOrNull
+                        ?: resultData.toString().take(200)
+                } else {
+                    progressMessage ?: status
+                }
+
+                if (status == "completed" || status == "error" || error != null) {
+                    _events.emit(ChatEvent.ToolResult(name, resultText))
+                }
+            }
+
+            _events.emit(ChatEvent.AgentRound(roundReply, round))
+        }
+    }
+
+    private suspend fun handleServerRequest(method: String, id: Int, params: JsonObject) {
+        when (method) {
+            "conversation/invokeClientToolConfirmation" -> {
+                val result = buildJsonArray {
+                    addJsonObject { put("result", "accept") }
+                    add(JsonNull)
+                }
+                lspClient.sendResponse(id, result)
+            }
+            "conversation/invokeClientTool" -> {
+                val toolName = params["name"]?.jsonPrimitive?.contentOrNull
+                    ?: params["toolName"]?.jsonPrimitive?.contentOrNull
+                    ?: "unknown"
+                val toolInput = params["input"]?.jsonObject
+                    ?: params["arguments"]?.jsonObject
+                    ?: JsonObject(emptyMap())
+
+                _events.emit(ChatEvent.ToolCall(toolName, toolInput))
+
+                val result = toolRouter.executeTool(toolName, toolInput)
+                lspClient.sendResponse(id, result)
+
+                val outputText = result.jsonArray.firstOrNull()?.jsonObject
+                    ?.get("content")?.jsonArray?.firstOrNull()?.jsonObject
+                    ?.get("value")?.jsonPrimitive?.contentOrNull ?: ""
+                _events.emit(ChatEvent.ToolResult(toolName, outputText.take(200)))
+            }
+            "copilot/watchedFiles" -> {
+                lspClient.sendResponse(id, buildJsonObject {
+                    putJsonArray("watchedFiles") {}
+                })
+            }
+            "window/showMessageRequest" -> {
+                lspClient.sendResponse(id, JsonNull)
+            }
+            else -> {
+                log.debug("Unhandled server request: $method")
+                lspClient.sendResponse(id, JsonNull)
+            }
+        }
+    }
+
+    /** Cancel the current streaming response. */
+    fun cancel() {
+        // Tell the LSP server to stop generating via workDoneProgress cancel
+        val token = currentWorkDoneToken
+        if (token != null && lspClient.isRunning) {
+            lspClient.sendNotification(
+                "window/workDoneProgress/cancel",
+                buildJsonObject { put("token", token) }
+            )
+            lspClient.removeProgressListener(token)
+            currentWorkDoneToken = null
+        }
+
+        currentJob?.cancel()
+        currentJob = null
+        state = state.copy(isStreaming = false)
+
+        // Emit Done so the UI resets (send/stop button, input field, etc.)
+        scope.launch { _events.emit(ChatEvent.Done("")) }
+    }
+
+    /** Start a fresh conversation. */
+    fun newConversation() {
+        cancel()
+        state = ConversationState(model = state.model, agentMode = state.agentMode)
+    }
+
+    /** List available models from the server. */
+    suspend fun listModels(): List<JsonObject> {
+        ensureInitialized()
+        val resp = lspClient.sendRequest("copilot/models", JsonObject(emptyMap()))
+        val models = resp["result"]?.jsonArray ?: return emptyList()
+        return models.mapNotNull { it as? JsonObject }
+    }
+
+    fun updateModel(model: String) {
+        state = state.copy(model = model)
+    }
+
+    fun updateAgentMode(enabled: Boolean) {
+        state = state.copy(agentMode = enabled)
+    }
+
+    /**
+     * Send MCP server configuration to the language server.
+     * Port of client.py configure_mcp().
+     */
+    suspend fun configureMcp(mcpConfig: Map<String, Map<String, Any>>) {
+        if (mcpConfig.isEmpty()) return
+        ensureInitialized()
+        sendMcpConfigNotification(mcpConfig)
+    }
+
+    /**
+     * Send MCP config notification to the language server.
+     * Separated from configureMcp() so it can be called during initialization
+     * without triggering a recursive ensureInitialized() deadlock.
+     */
+    private suspend fun sendMcpConfigNotification(mcpConfig: Map<String, Map<String, Any>>) {
+        val configObj = buildJsonObject {
+            for ((serverName, serverConfig) in mcpConfig) {
+                putJsonObject(serverName) {
+                    for ((key, value) in serverConfig) {
+                        when (value) {
+                            is String -> put(key, value)
+                            is List<*> -> putJsonArray(key) {
+                                value.filterIsInstance<String>().forEach { add(it) }
+                            }
+                            is Map<*, *> -> putJsonObject(key) {
+                                @Suppress("UNCHECKED_CAST")
+                                (value as Map<String, String>).forEach { (k, v) -> put(k, v) }
+                            }
+                            else -> put(key, value.toString())
+                        }
+                    }
+                }
+            }
+        }
+
+        lspClient.sendNotification("workspace/didChangeConfiguration", buildJsonObject {
+            putJsonObject("settings") {
+                putJsonObject("github") {
+                    putJsonObject("copilot") {
+                        put("mcp", configObj.toString())
+                    }
+                }
+            }
+        })
+        log.info("Sent MCP config with ${mcpConfig.size} server(s): ${mcpConfig.keys.joinToString()}")
+    }
+
+    override fun dispose() {
+        cancel()
+        scope.cancel()
+    }
+}

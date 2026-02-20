@@ -1,0 +1,25 @@
+[versions]
+# libraries
+kotlinxSerializationJson = "1.7.3"
+tomlj = "1.1.1"
+flexmark = "0.64.8"
+
+# plugins
+intellij = "1.17.4"
+kotlin = "2.1.20"
+kotlinSerialization = "2.1.20"
+
+[libraries]
+# Kotlinx Serialization
+kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
+
+# TOML parsing
+tomlj = { group = "org.tomlj", name = "tomlj", version.ref = "tomlj" }
+
+# Markdown rendering
+flexmark-all = { group = "com.vladsch.flexmark", name = "flexmark-all", version.ref = "flexmark" }
+
+[plugins]
+intellij = { id = "org.jetbrains.intellij", version.ref = "intellij" }
+kotlin = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlinSerialization" }
