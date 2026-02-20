@@ -115,6 +115,33 @@ const App = window.App = {
         });
     },
 
+    _setSendButton(streaming) {
+        const btn = document.getElementById('btn-send');
+        if (streaming) {
+            btn.textContent = 'Stop';
+            btn.classList.remove('btn-primary');
+            btn.classList.add('btn-danger');
+            btn.disabled = false;
+        } else {
+            btn.textContent = 'Send';
+            btn.classList.remove('btn-danger');
+            btn.classList.add('btn-primary');
+            btn.disabled = !this.state.session.id;
+        }
+    },
+
+    _stopStreaming() {
+        if (this.state.chatAbort) {
+            this.state.chatAbort();
+            this.state.chatAbort = null;
+        }
+        Components.removeSpinner();
+        const input = document.getElementById('chat-input');
+        input.disabled = false;
+        input.focus();
+        this._setSendButton(false);
+    },
+
     async stopSession() {
         // Abort startup SSE stream if still connecting
         if (this.state.startAbort) {
@@ -352,11 +379,17 @@ const App = window.App = {
         // Chat
         document.getElementById('btn-new-session').addEventListener('click', () => this.startPreview());
         document.getElementById('btn-end-session').addEventListener('click', () => this.stopSession());
-        document.getElementById('btn-send').addEventListener('click', () => this.sendMessage());
+        document.getElementById('btn-send').addEventListener('click', () => {
+            if (this.state.chatAbort) {
+                this._stopStreaming();
+            } else {
+                this.sendMessage();
+            }
+        });
         document.getElementById('chat-input').addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                this.sendMessage();
+                if (!this.state.chatAbort) this.sendMessage();
             }
         });
     },
@@ -681,9 +714,9 @@ const App = window.App = {
         // Show spinner
         Components.renderChatMessage({ type: 'spinner' }, msgs);
 
-        // Disable input while streaming
+        // Switch to stop mode while streaming
         input.disabled = true;
-        document.getElementById('btn-send').disabled = true;
+        this._setSendButton(true);
 
         let assistantDiv = null;
         let replyText = '';
@@ -709,19 +742,21 @@ const App = window.App = {
                     );
                 } else if (evt.type === 'done') {
                     Components.removeSpinner();
+                    this.state.chatAbort = null;
                     if (evt.conversation_id) {
                         this.state.session.conversationId = evt.conversation_id;
                     }
                     input.disabled = false;
-                    document.getElementById('btn-send').disabled = false;
+                    this._setSendButton(false);
                     input.focus();
                 } else if (evt.type === 'error') {
                     Components.removeSpinner();
+                    this.state.chatAbort = null;
                     Components.renderChatMessage(
                         { type: 'error', text: evt.data || evt.message }, msgs
                     );
                     input.disabled = false;
-                    document.getElementById('btn-send').disabled = false;
+                    this._setSendButton(false);
                 }
             }
         );
