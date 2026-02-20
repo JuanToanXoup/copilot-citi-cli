@@ -153,10 +153,34 @@ class ConversationManager(private val project: Project) : Disposable {
             }
         })
 
-        // checkStatus
-        val statusResp = lspClient.sendRequest("checkStatus", JsonObject(emptyMap()))
-        val status = statusResp["result"]?.jsonObject?.get("status")?.jsonPrimitive?.contentOrNull
+        // checkStatus — verify we're authenticated before proceeding
+        var statusResp = lspClient.sendRequest("checkStatus", JsonObject(emptyMap()))
+        var status = statusResp["result"]?.jsonObject?.get("status")?.jsonPrimitive?.contentOrNull
         log.info("Copilot auth status: $status")
+
+        // If not signed in, try signInConfirm with the OAuth token from apps.json
+        if (status != "OK" && status != "MaybeOk") {
+            log.info("Not authenticated, attempting signInConfirm with token...")
+            try {
+                lspClient.sendRequest("signInConfirm", buildJsonObject {
+                    put("userCode", auth.token)
+                })
+                // Re-check status after sign-in
+                statusResp = lspClient.sendRequest("checkStatus", JsonObject(emptyMap()))
+                status = statusResp["result"]?.jsonObject?.get("status")?.jsonPrimitive?.contentOrNull
+                log.info("Auth status after signInConfirm: $status")
+            } catch (e: Exception) {
+                log.warn("signInConfirm failed: ${e.message}")
+            }
+        }
+
+        if (status != "OK" && status != "MaybeOk") {
+            val user = statusResp["result"]?.jsonObject?.get("user")?.jsonPrimitive?.contentOrNull ?: "unknown"
+            throw RuntimeException(
+                "GitHub Copilot is not authenticated (status: $status, user: $user). " +
+                "Please sign in via the GitHub Copilot plugin first."
+            )
+        }
 
         // Configure proxy via workspace/didChangeConfiguration (matches Python CLI's configure_proxy)
         if (proxyUrl.isNotBlank()) {
