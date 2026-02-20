@@ -705,7 +705,7 @@ const App = window.App = {
                 } else if (evt.type === 'tool_call') {
                     Components.removeSpinner();
                     Components.renderChatMessage(
-                        { type: 'tool_call', name: evt.name }, msgs
+                        { type: 'tool_call', name: evt.name, input: evt.input }, msgs
                     );
                 } else if (evt.type === 'done') {
                     Components.removeSpinner();

@@ -486,7 +486,8 @@ class BuilderHandler(BaseHTTPRequestHandler):
                 # Real-time tool invocation from _handle_server_request
                 tool_name = data.get("name", "")
                 if tool_name:
-                    self._sse_send({"type": "tool_call", "name": tool_name})
+                    tool_input = data.get("input", {})
+                    self._sse_send({"type": "tool_call", "name": tool_name, "input": tool_input})
             elif kind == "agent_round":
                 # Forward reply text from completed agent round
                 reply = data.get("reply", "")

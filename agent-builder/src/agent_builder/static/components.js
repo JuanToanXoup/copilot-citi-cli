@@ -513,7 +513,10 @@ const Components = {
             div.innerHTML = `<span class="reply-marker">&#x23FA;</span>${this._esc(msg.text)}`;
         } else if (msg.type === 'tool_call') {
             div.classList.add('msg-tool');
-            div.innerHTML = `&#x2502; <span class="tool-name">${this._esc(msg.name)}</span>`;
+            const inputStr = msg.input && Object.keys(msg.input).length > 0
+                ? `<span class="tool-input">(${this._esc(JSON.stringify(msg.input).slice(0, 150))})</span>`
+                : '';
+            div.innerHTML = `&#x2502; <span class="tool-name">${this._esc(msg.name)}</span>${inputStr}`;
         } else if (msg.type === 'error') {
             div.classList.add('msg-error');
             div.textContent = msg.text;

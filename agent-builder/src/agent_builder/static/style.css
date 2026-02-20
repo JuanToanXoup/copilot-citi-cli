@@ -293,6 +293,7 @@ body {
 }
 
 .msg-tool .tool-name { font-weight: 600; }
+.msg-tool .tool-input { opacity: 0.6; margin-left: 2px; }
 
 .msg-error {
     color: var(--accent-red);
