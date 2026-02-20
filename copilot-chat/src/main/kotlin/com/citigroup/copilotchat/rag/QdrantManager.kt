@@ -28,6 +28,7 @@ class QdrantManager : Disposable {
 
     private val home = File(System.getProperty("user.home"), ".copilot-chat/qdrant")
     private val storagePath = File(home, "storage")
+    private val configPath = File(home, "config.yaml")
     private val binaryPath: File get() = File(home, if (SystemInfo.isWindows) "qdrant.exe" else "qdrant")
 
     private var process: Process? = null
@@ -187,13 +188,12 @@ class QdrantManager : Disposable {
 
     private fun startProcess(): Boolean {
         storagePath.mkdirs()
+        writeConfig()
 
         val env = buildProcessEnv()
         val cmd = listOf(
             binaryPath.absolutePath,
-            "--storage-path", storagePath.absolutePath,
-            "--http-port", HTTP_PORT.toString(),
-            "--grpc-port", GRPC_PORT.toString(),
+            "--config-path", configPath.absolutePath,
         )
 
         return try {
@@ -219,6 +219,18 @@ class QdrantManager : Disposable {
             log.warn("Failed to start Qdrant: ${e.message}", e)
             false
         }
+    }
+
+    private fun writeConfig() {
+        val yaml = """
+            |storage:
+            |  storage_path: ${storagePath.absolutePath}
+            |service:
+            |  http_port: $HTTP_PORT
+            |  grpc_port: $GRPC_PORT
+            |telemetry_disabled: true
+        """.trimMargin()
+        configPath.writeText(yaml)
     }
 
     private fun waitForHealthy(): Boolean {

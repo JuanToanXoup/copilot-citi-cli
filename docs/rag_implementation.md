@@ -92,7 +92,8 @@ ensureRunning()
     │
     ├── Is process running & healthy?
     │       NO → startProcess()
-    │              ├── ProcessBuilder with --storage-path and --http-port 6333
+    │              ├── Write config.yaml (storage path, ports, disable telemetry)
+    │              ├── ProcessBuilder with --config-path config.yaml
     │              ├── Drain stdout in daemon thread
     │              └── waitForHealthy() — poll GET /healthz up to 30 times
     │
@@ -325,12 +326,65 @@ No additional dependencies were added. The implementation uses:
 - `kotlinx.serialization.json` (already in project) — JSON serialization/deserialization
 - IntelliJ Platform SDK — PSI, `ProjectFileIndex`, `ReadAction`, services, UI components
 
+## Verification
+
+### Integration Test
+
+A standalone integration test exercises every layer of the RAG pipeline without needing the IntelliJ runtime:
+
+```bash
+cd copilot-chat && ./gradlew ragTest
+```
+
+**Prerequisites**: Valid `ghu_` token in `~/.config/github-copilot/apps.json`, internet access.
+
+**Test suite** (`src/test/kotlin/RagIntegrationTest.kt`):
+
+| # | Test | What it verifies |
+|---|---|---|
+| 1 | Read `ghu_` token | `apps.json` exists and contains a valid token |
+| 2 | Token exchange | `POST copilot_internal/v2/token` returns a session token with expiry |
+| 3 | Single embedding | Returns a 1536-dim non-zero float vector |
+| 4 | Batch embedding | 3 texts return 3 distinct vectors with expected cosine similarities |
+| 5 | Qdrant download | Detects platform, downloads correct binary from GitHub releases |
+| 6 | Qdrant start | Binary starts via config file, health check passes within 15s |
+| 7 | Collection CRUD | Create → verify size=1536 → delete |
+| 8 | Upsert + search | Insert 3 points, exact-match search returns correct ID with score 1.0 |
+| 9 | Filter delete | Delete by payload filter, verify only expected points remain |
+| 10 | Full round-trip | Embed real code → store → semantic query → verify ranking |
+
+**Test 10 (round-trip) validates semantic relevance:**
+- Indexes 3 code snippets: `authenticateUser`, `Order` data class, `DatabaseConnection`
+- Query "how does login work?" → top result is `authenticateUser` (score 0.33)
+- Query "database pool configuration" → top result is `DatabaseConnection` (score 0.52)
+
+### Bugs Found by Testing
+
+The integration test caught two issues in the production code:
+
+1. **Qdrant CLI flags**: Qdrant v1.13+ uses `--config-path` with a YAML config file, not `--storage-path`/`--http-port` CLI flags. Fixed `QdrantManager.startProcess()` to generate and pass a `config.yaml`.
+
+2. **Point ID format**: Qdrant requires point IDs to be UUIDs or unsigned integers, not arbitrary strings. The `RagIndexer` already used `UUID.randomUUID().toString()` so production code was correct, but this constraint is now documented.
+
+### Manual Verification (in IDE)
+
+After running the plugin in an IntelliJ instance:
+
+1. Open the **Memory** tab in the Copilot Chat tool window
+2. Click **Index Project** — watch progress bar count files
+3. Check `~/.copilot-chat/qdrant/` for the binary and `storage/` directory
+4. Enable **RAG context injection** checkbox
+5. Send a chat message about project code
+6. Check IDE log (`Help → Show Log`) for `RAG retrieval` and `<rag_context>` entries
+7. Verify chat still works with RAG disabled (no context prepended)
+8. Kill Qdrant process manually → verify chat still works (RAG fails silently)
+
 ## File Summary
 
 | File | Type | Lines | Role |
 |---|---|---|---|
 | `rag/CopilotEmbeddings.kt` | New | ~140 | Copilot API embedding client with token exchange |
-| `rag/QdrantManager.kt` | New | ~370 | Qdrant binary download, process lifecycle, REST API |
+| `rag/QdrantManager.kt` | New | ~380 | Qdrant binary download, process lifecycle, REST API |
 | `rag/PsiChunker.kt` | New | ~200 | PSI-aware code splitting into semantic chunks |
 | `rag/RagIndexer.kt` | New | ~280 | Background project indexing with incremental hashing |
 | `rag/RagQueryService.kt` | New | ~110 | Query embed → search → format pipeline |
@@ -339,3 +393,5 @@ No additional dependencies were added. The implementation uses:
 | `conversation/ConversationManager.kt` | Modified | +14 | RAG context injection in sendMessage() |
 | `ui/ChatToolWindowFactory.kt` | Modified | +7 | Register Memory tab |
 | `META-INF/plugin.xml` | Modified | +9 | Register RAG services |
+| `build.gradle.kts` | Modified | +7 | Added `ragTest` Gradle task |
+| `src/test/kotlin/RagIntegrationTest.kt` | New | ~470 | Standalone integration test (10 tests) |

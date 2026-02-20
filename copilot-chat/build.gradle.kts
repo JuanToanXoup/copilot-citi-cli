@@ -52,4 +52,11 @@ tasks {
     buildSearchableOptions {
         enabled = false
     }
+
+    register<JavaExec>("ragTest") {
+        group = "verification"
+        description = "Run RAG integration test (token exchange, embeddings, Qdrant lifecycle, round-trip)"
+        mainClass.set("RagIntegrationTestKt")
+        classpath = sourceSets["test"].runtimeClasspath
+    }
 }
