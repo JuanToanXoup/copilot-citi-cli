@@ -39,18 +39,39 @@ class McpServer(
         val processEnv = System.getenv().toMutableMap()
         processEnv.putAll(env)
 
-        // Resolve command — check if it exists on PATH
-        val resolvedCommand = resolveCommand(command)
+        // Resolve command using the AUGMENTED PATH (from env map) so we find
+        // npx/node even when IntelliJ's JVM has a minimal system PATH.
+        val effectivePath = processEnv["PATH"] ?: System.getenv("PATH") ?: ""
+        val resolvedCommand = resolveCommand(command, effectivePath)
 
         val cmdLine = mutableListOf(resolvedCommand)
         cmdLine.addAll(args)
+
+        log.info("MCP $name: spawning ${cmdLine.joinToString(" ")}")
 
         val pb = ProcessBuilder(cmdLine)
         pb.environment().clear()
         pb.environment().putAll(processEnv)
         pb.redirectErrorStream(false)
 
-        process = pb.start()
+        try {
+            process = pb.start()
+        } catch (e: Exception) {
+            throw RuntimeException(
+                "MCP server '$name': failed to start command '${cmdLine.joinToString(" ")}'. " +
+                "Is '${command}' installed and on PATH? Error: ${e.message}"
+            )
+        }
+
+        // Verify process didn't exit immediately (e.g. command not found)
+        delay(200)
+        if (process?.isAlive != true) {
+            val exitCode = process?.exitValue()
+            throw RuntimeException(
+                "MCP server '$name': process exited immediately (code=$exitCode). " +
+                "Command: ${cmdLine.joinToString(" ")}"
+            )
+        }
 
         // Reader coroutine — reads newline-delimited JSON-RPC from stdout
         scope.launch {
@@ -238,18 +259,26 @@ class McpServer(
         } catch (_: Exception) {}
     }
 
-    private fun resolveCommand(cmd: String): String {
-        // Try to find the command on PATH (handles .cmd/.bat on Windows)
-        val pathDirs = System.getenv("PATH")?.split(java.io.File.pathSeparator) ?: return cmd
+    private fun resolveCommand(cmd: String, path: String): String {
+        // Try to find the command on the given PATH (handles .cmd/.bat on Windows)
+        val pathDirs = path.split(java.io.File.pathSeparator)
         for (dir in pathDirs) {
+            if (dir.isBlank()) continue
             val file = java.io.File(dir, cmd)
-            if (file.canExecute()) return file.absolutePath
+            if (file.canExecute()) {
+                log.info("MCP $name: resolved '$cmd' -> ${file.absolutePath}")
+                return file.absolutePath
+            }
             // Windows: check .cmd and .bat extensions
             for (ext in listOf(".cmd", ".bat", ".exe")) {
                 val withExt = java.io.File(dir, cmd + ext)
-                if (withExt.canExecute()) return withExt.absolutePath
+                if (withExt.canExecute()) {
+                    log.info("MCP $name: resolved '$cmd' -> ${withExt.absolutePath}")
+                    return withExt.absolutePath
+                }
             }
         }
+        log.warn("MCP $name: '$cmd' not found on PATH, using as-is")
         return cmd
     }
 }

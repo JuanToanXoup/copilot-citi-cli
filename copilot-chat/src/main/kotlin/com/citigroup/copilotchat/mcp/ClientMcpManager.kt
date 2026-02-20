@@ -129,10 +129,16 @@ class ClientMcpManager(
         }
     }
 
+    /** Errors from the last startAll() — surfaced in the chat UI. */
+    var startupErrors: List<String> = emptyList()
+        private set
+
     /**
      * Start all servers, initialize them, and discover tools.
      */
     suspend fun startAll(onProgress: ((String) -> Unit)? = null) {
+        val errors = mutableListOf<String>()
+
         // Start stdio servers
         for ((name, server) in stdioServers) {
             try {
@@ -142,9 +148,11 @@ class ClientMcpManager(
                 server.initialize()
                 delay(500)
                 server.listTools()
-                log.info("MCP $name: ${server.tools.size} tools")
+                log.info("MCP $name: ${server.tools.size} tools discovered")
             } catch (e: Exception) {
-                log.warn("MCP $name: failed to start: ${e.message}")
+                val msg = "MCP $name: ${e.message}"
+                log.warn(msg, e)
+                errors.add(msg)
             }
         }
 
@@ -155,11 +163,15 @@ class ClientMcpManager(
                 server.start()
                 server.initialize()
                 server.listTools()
-                log.info("MCP SSE $name: ${server.tools.size} tools")
+                log.info("MCP SSE $name: ${server.tools.size} tools discovered")
             } catch (e: Exception) {
-                log.warn("MCP SSE $name: failed to start: ${e.message}")
+                val msg = "MCP SSE $name: ${e.message}"
+                log.warn(msg, e)
+                errors.add(msg)
             }
         }
+
+        startupErrors = errors
 
         // Build tool map with prefixed names
         toolMap.clear()

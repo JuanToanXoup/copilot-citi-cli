@@ -58,6 +58,7 @@ class ConversationManager(private val project: Project) : Disposable {
             if (initialized && lspClient.isRunning) return
 
         val settings = CopilotChatSettings.getInstance()
+        settings.ensureDefaults()
 
         // Discover or use configured binary
         val binary = settings.binaryPath.ifBlank { null }
@@ -236,6 +237,11 @@ class ConversationManager(private val project: Project) : Disposable {
                 manager.addServers(enabledMcpServers)
                 manager.startAll()
                 clientMcpManager = manager
+
+                // Surface MCP startup errors to the chat UI
+                for (err in manager.startupErrors) {
+                    _events.emit(ChatEvent.Error("Client MCP: $err"))
+                }
             }
         }
 
