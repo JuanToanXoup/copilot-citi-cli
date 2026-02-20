@@ -53,6 +53,13 @@ class ChatToolWindowFactory : ToolWindowFactory, DumbAware {
         contentManager.addContent(workersContent)
         Disposer.register(toolWindow.disposable, workerPanel)
 
+        // Memory tab — RAG settings and project indexing
+        val memoryPanel = MemoryPanel(project)
+        val memoryContent = contentFactory.createContent(memoryPanel, "Memory", false)
+        memoryContent.isCloseable = false
+        contentManager.addContent(memoryContent)
+        Disposer.register(toolWindow.disposable, memoryPanel)
+
         // Recorder tab — Playwright codegen
         val recorderPanel = RecorderPanel(project)
         val recorderContent = contentFactory.createContent(recorderPanel, "Recorder", false)
