@@ -130,6 +130,17 @@ ensureRunning()
     └── Ready ✓
 ```
 
+**Proxy handling:**
+
+QdrantManager uses two separate HTTP clients to handle corporate proxy environments correctly:
+
+| Client | Proxy | Redirects | Used for |
+|---|---|---|---|
+| `buildHttpClient()` | No | No | All local Qdrant REST calls (`localhost:6333`) |
+| `buildExternalHttpClient()` | Yes (from settings) | Yes (`NORMAL`) | Downloading binary from GitHub Releases |
+
+The proxy URL comes from `CopilotChatSettings.proxyUrl` — the same proxy configured via the gear icon in the chat tool window. Local Qdrant calls must bypass the proxy because a corporate proxy would reject or timeout on `localhost` requests. The Qdrant process itself also runs without `HTTP_PROXY`/`HTTPS_PROXY` environment variables since it only listens locally.
+
 **REST API wrappers:**
 
 All communication with Qdrant uses its REST API on `localhost:6333` via `java.net.http.HttpClient` (JDK 17, no extra dependencies):
@@ -413,6 +424,8 @@ The integration test and manual testing caught several issues in the production 
 5. **Stale process check** (`QdrantManager.isRunning`): The original check required `process != null && process.isAlive && isHealthy()` — meaning the current IDE session must have started Qdrant. If Qdrant was already running from a previous session or was started externally, `process` was `null` and `isRunning` returned `false`, causing `RagQueryService` to skip retrieval entirely. Fixed by changing `isRunning` to just check the health endpoint (`GET /healthz`).
 
 6. **Silent RAG failures**: All logging in `RagQueryService` and `ConversationManager` was at `debug` level, making it impossible to diagnose issues from IDE logs. Upgraded to `info`/`warn` level — logs now show whether RAG is enabled, how many chunks were injected, and specific failure reasons.
+
+7. **Proxy routing through localhost** (`QdrantManager`): The single `buildHttpClient()` applied the corporate proxy to all HTTP calls, including local Qdrant REST calls on `localhost:6333`. A corporate proxy would reject or timeout on localhost requests. Fixed by splitting into `buildHttpClient()` (proxy-free, for local calls) and `buildExternalHttpClient()` (with proxy, for GitHub download only). Also removed `HTTP_PROXY`/`HTTPS_PROXY` injection into the Qdrant process environment.
 
 ### Manual Verification (in IDE)
 
