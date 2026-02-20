@@ -98,13 +98,19 @@ class CopilotChatPanel(private val project: Project) : JPanel(BorderLayout()), D
             conversationManager.events.collectLatest { event -> handleEvent(event) }
         }
 
-        // Eagerly initialize LSP + MCP servers in the background so they're
-        // ready by the time the user sends their first message
+        // Block input until LSP + MCP startup completes
+        inputPanel.isInitializing = true
         scope.launch(Dispatchers.IO) {
             try {
                 conversationManager.ensureInitialized()
             } catch (e: Exception) {
-                // Non-fatal — will retry on first message
+                withContext(Dispatchers.Main) {
+                    addErrorMessage("Startup failed: ${e.message}")
+                }
+            } finally {
+                withContext(Dispatchers.Main) {
+                    inputPanel.isInitializing = false
+                }
             }
         }
     }
@@ -127,7 +133,6 @@ class CopilotChatPanel(private val project: Project) : JPanel(BorderLayout()), D
         addGroupSpacing()
         addMessageComponent(UserMessageComponent(text))
         inputPanel.isStreaming = true
-        inputPanel.agentDropdown.isEnabled = false
 
         conversationManager.updateAgentMode(inputPanel.isAgentMode)
         conversationManager.sendMessage(text)
@@ -179,13 +184,11 @@ class CopilotChatPanel(private val project: Project) : JPanel(BorderLayout()), D
             }
             is ChatEvent.Done -> {
                 inputPanel.isStreaming = false
-                inputPanel.agentDropdown.isEnabled = true
                 currentAssistantMessage = null
                 scrollManager.onContentAdded()
             }
             is ChatEvent.Error -> {
                 inputPanel.isStreaming = false
-                inputPanel.agentDropdown.isEnabled = true
                 currentAssistantMessage = null
                 addErrorMessage(event.message)
             }

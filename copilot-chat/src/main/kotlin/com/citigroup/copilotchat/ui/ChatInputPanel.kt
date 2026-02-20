@@ -29,7 +29,9 @@ class ChatInputPanel(
     private val onStop: () -> Unit,
 ) : JPanel(BorderLayout()) {
 
-    private val placeholderText = "Add context (#), extensions (@), commands (/)"
+    private val readyPlaceholder = "Add context (#), extensions (@), commands (/)"
+    private val initPlaceholder = "Starting up..."
+    private val placeholderText: String get() = if (isInitializing) initPlaceholder else readyPlaceholder
 
     // Agent mode dropdown (matches official UI)
     val agentDropdown = JComboBox(arrayOf("Agent", "Ask")).apply {
@@ -100,13 +102,27 @@ class ChatInputPanel(
         }
     }
 
+    /** True while the LSP/MCP backend is starting up. Blocks all input. */
+    var isInitializing: Boolean = true
+        set(value) {
+            field = value
+            applyInputState()
+        }
+
     var isStreaming: Boolean = false
         set(value) {
             field = value
-            sendButton.isVisible = !value
-            stopButton.isVisible = value
-            textArea.isEnabled = !value
+            applyInputState()
         }
+
+    private fun applyInputState() {
+        val blocked = isInitializing || isStreaming
+        textArea.isEnabled = !blocked
+        sendButton.isVisible = !isStreaming && !isInitializing
+        sendButton.isEnabled = !isInitializing
+        stopButton.isVisible = isStreaming
+        agentDropdown.isEnabled = !blocked
+    }
 
     init {
         isOpaque = false
@@ -225,7 +241,7 @@ class ChatInputPanel(
 
     private fun sendMessage() {
         val text = textArea.text.trim()
-        if (text.isEmpty() || isStreaming) return
+        if (text.isEmpty() || isStreaming || isInitializing) return
         textArea.text = ""
         onSend(text)
     }
