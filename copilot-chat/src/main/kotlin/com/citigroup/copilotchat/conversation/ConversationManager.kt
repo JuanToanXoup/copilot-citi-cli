@@ -114,6 +114,7 @@ class ConversationManager(private val project: Project) : Disposable {
                 }
                 putJsonObject("editorConfiguration") {}
                 putJsonObject("networkProxy") {
+                    put("strictSSL", false)
                     val host = settings.proxyHost
                     val port = settings.proxyPort
                     if (host.isNotBlank() && port > 0) {
