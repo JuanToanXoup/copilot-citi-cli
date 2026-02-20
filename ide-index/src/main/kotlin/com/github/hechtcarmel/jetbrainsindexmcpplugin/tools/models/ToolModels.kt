@@ -220,3 +220,51 @@ data class TextMatch(
     val context: String,       // line content
     val contextType: String    // "CODE", "COMMENT", "STRING_LITERAL"
 )
+
+// ide_quick_doc output
+@Serializable
+data class QuickDocResult(
+    val symbolName: String,
+    val documentation: String,
+    val containingClass: String?
+)
+
+// ide_type_info output
+@Serializable
+data class TypeInfoResult(
+    val symbolName: String,
+    val type: String,
+    val canonicalType: String?,
+    val kind: String
+)
+
+// ide_parameter_info output
+@Serializable
+data class ParameterInfoResult(
+    val methodName: String,
+    val containingClass: String?,
+    val returnType: String?,
+    val parameters: List<ParameterDetail>
+)
+
+@Serializable
+data class ParameterDetail(
+    val name: String,
+    val type: String,
+    val defaultValue: String?
+)
+
+// ide_structural_search output
+@Serializable
+data class StructuralSearchResult(
+    val matches: List<StructuralMatch>,
+    val totalCount: Int,
+    val pattern: String
+)
+
+@Serializable
+data class StructuralMatch(
+    val file: String,
+    val line: Int,
+    val matchedText: String
+)

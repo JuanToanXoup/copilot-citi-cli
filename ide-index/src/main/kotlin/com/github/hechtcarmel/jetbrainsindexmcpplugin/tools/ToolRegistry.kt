@@ -5,6 +5,10 @@ import com.github.hechtcarmel.jetbrainsindexmcpplugin.server.McpServerService
 import com.github.hechtcarmel.jetbrainsindexmcpplugin.server.models.ToolDefinition
 import com.github.hechtcarmel.jetbrainsindexmcpplugin.settings.McpSettings
 import com.github.hechtcarmel.jetbrainsindexmcpplugin.tools.intelligence.GetDiagnosticsTool
+import com.github.hechtcarmel.jetbrainsindexmcpplugin.tools.intelligence.ParameterInfoTool
+import com.github.hechtcarmel.jetbrainsindexmcpplugin.tools.intelligence.QuickDocTool
+import com.github.hechtcarmel.jetbrainsindexmcpplugin.tools.intelligence.StructuralSearchTool
+import com.github.hechtcarmel.jetbrainsindexmcpplugin.tools.intelligence.TypeInfoTool
 import com.github.hechtcarmel.jetbrainsindexmcpplugin.tools.navigation.FindClassTool
 import com.github.hechtcarmel.jetbrainsindexmcpplugin.tools.navigation.FindDefinitionTool
 import com.github.hechtcarmel.jetbrainsindexmcpplugin.tools.navigation.FindFileTool
@@ -36,6 +40,10 @@ import java.util.concurrent.ConcurrentHashMap
  * - `ide_find_file` - File search using FILE_EP_NAME index
  * - `ide_search_text` - Text search using word index
  * - `ide_diagnostics` - Analyze code for problems and available intentions
+ * - `ide_quick_doc` - Get rendered documentation for a symbol
+ * - `ide_type_info` - Get the type of an expression or variable
+ * - `ide_parameter_info` - Get parameter signatures for a method/function
+ * - `ide_structural_search` - Search for code patterns using structural search
  * - `ide_index_status` - Check indexing status
  *
  * ### Language-Specific Navigation Tools
@@ -206,6 +214,10 @@ class ToolRegistry {
 
         // Intelligence tools
         register(GetDiagnosticsTool())
+        register(QuickDocTool())
+        register(TypeInfoTool())
+        register(ParameterInfoTool())
+        register(StructuralSearchTool())
 
         // Project tools
         register(GetIndexStatusTool())

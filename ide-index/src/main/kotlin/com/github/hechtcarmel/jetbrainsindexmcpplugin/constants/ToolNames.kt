@@ -16,6 +16,10 @@ object ToolNames {
 
     // Intelligence tools
     const val DIAGNOSTICS = "ide_diagnostics"
+    const val QUICK_DOC = "ide_quick_doc"
+    const val TYPE_INFO = "ide_type_info"
+    const val PARAMETER_INFO = "ide_parameter_info"
+    const val STRUCTURAL_SEARCH = "ide_structural_search"
 
     // Project tools
     const val INDEX_STATUS = "ide_index_status"
