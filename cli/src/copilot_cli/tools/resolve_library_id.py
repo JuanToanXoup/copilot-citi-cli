@@ -90,11 +90,12 @@ def execute(tool_input: dict, ctx: ToolContext) -> list:
             f"Bundled libraries: playwright, selenium, cucumber, gherkin, java."
         )}]
 
-    if not data:
+    results = data.get("results", data) if isinstance(data, dict) else data
+    if not results:
         return [{"type": "text", "value": f"No libraries found matching '{library_name}'."}]
 
     lines = []
-    for item in data[:10]:
+    for item in results[:10]:
         title = item.get("title", "")
         lib_id = item.get("id", "")
         desc = item.get("description", "")
@@ -108,5 +109,5 @@ def execute(tool_input: dict, ctx: ToolContext) -> list:
     if len(output) > TOOL_OUTPUT_LIMIT:
         output = output[:TOOL_OUTPUT_LIMIT] + "\n... (truncated)"
 
-    logger.debug("resolve_library_id: '%s' → %d Context7 results", library_name, len(data))
+    logger.debug("resolve_library_id: '%s' → %d Context7 results", library_name, len(results))
     return [{"type": "text", "value": output}]

@@ -48,7 +48,9 @@ class FindSymbolTool : AbstractMcpTool() {
 
         Parameters: query (required), includeLibraries (optional, default: true), limit (optional, default: 25, max: 100).
 
-        Example: {"query": "UserService"} or {"query": "find_user", "includeLibraries": false}
+        Example: {"query": "UserService"} or {"query": "find_user", "includeLibraries": true}
+
+        IMPORTANT: includeLibraries defaults to true. Keep it true when searching for SDK, framework, or library symbols. Only set to false when you want to restrict results to project-owned source files.
     """.trimIndent()
 
     override val inputSchema: JsonObject = buildJsonObject {

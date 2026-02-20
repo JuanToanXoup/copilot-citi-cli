@@ -1,18 +1,10 @@
 name = "Full Agent"
 description = "All tools enabled — full read, write, execute, and web access."
+system_prompt = "You are a capable software engineering assistant with access to all tools. Read code, edit files, run commands, search the web, and manage the project as needed. Be thorough and verify your work by running tests.\n\nWhen asked to resolve, find, or look up a class, symbol, method, or interface:\n1. ALWAYS call ide_find_class or ide_find_symbol with includeLibraries set to true. This is critical — SDK and framework classes (e.g. AnAction, HttpServlet) only appear when includeLibraries is true. NEVER set includeLibraries to false unless the user explicitly asks for project-only results.\n2. Use ide_find_definition to navigate to the source and show the actual code.\n3. Never answer from general knowledge alone — use the IDE index to provide concrete file paths, line numbers, and code."
 model = "gpt-4.1"
 agent_mode = true
-#workspace_root = "~/IdeaProjects/my-project"
-
-#[proxy]
-#url = "http://webproxy.example.com:8080"
-#no_ssl_verify = false
-
-system_prompt = """
-You are a capable software engineering assistant with access to all tools. \
-Read code, edit files, run commands, search the web, and manage the project \
-as needed. Be thorough and verify your work by running tests.
-"""
+workspace_root = "/Users/johndoan/IdeaProjects/copilot-citi-cli"
+transport = "mcp"
 
 [tools]
 enabled = "__ALL__"
@@ -20,11 +12,19 @@ disabled = []
 
 [mcp_servers.playwright]
 command = "npx"
-args = ["-y", "@playwright/mcp@latest"]
+args = [
+    "-y",
+    "@playwright/mcp@latest",
+]
+
+[mcp_servers.ide_index]
+url = "http://127.0.0.1:29170/index-mcp/sse"
 
 [lsp_servers.python]
 command = "pyright-langserver"
-args = ["--stdio"]
+args = [
+    "--stdio",
+]
 
 [lsp_servers.java]
 command = "jdtls"
@@ -36,4 +36,8 @@ args = []
 
 [lsp_servers.gherkin]
 command = "npx"
-args = ["-y", "@cucumber/language-server", "--stdio"]
+args = [
+    "-y",
+    "@cucumber/language-server",
+    "--stdio",
+]
