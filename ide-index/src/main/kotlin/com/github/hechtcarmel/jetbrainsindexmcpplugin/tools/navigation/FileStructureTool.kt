@@ -26,9 +26,7 @@ class FileStructureTool : AbstractMcpTool() {
     override val name = "ide_file_structure"
 
     override val description = """
-        Get the hierarchical structure of a source file (similar to IDE's Structure view).
-
-        Shows classes, methods, fields, functions, and their nesting relationships in a tree format.
+        Get the hierarchical structure of a source file (similar to IDE's Structure view). Use to understand file organization before making changes — shows all classes, methods, fields with their nesting and line numbers.
 
         Supports: Java, Kotlin, Python
 

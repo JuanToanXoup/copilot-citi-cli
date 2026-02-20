@@ -29,7 +29,9 @@ class TypeHierarchyTool : AbstractMcpTool() {
     override val name = "ide_type_hierarchy"
 
     override val description = """
-        Get the complete inheritance hierarchy for a class or interface. Use when you need to understand class relationships, find parent classes, or discover all subclasses.
+        Get the complete inheritance hierarchy (parents AND children) for a class or interface. Use when you need to understand class relationships, find parent classes, or discover all subclasses.
+
+        Unlike ide_find_implementations (which only finds concrete implementations of abstract types), this shows the full super/sub hierarchy for ANY class. Use ide_find_implementations when you only need the concrete implementations of an interface.
 
         Languages: Java, Kotlin, Python, JavaScript, TypeScript, PHP, Rust.
 

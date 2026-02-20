@@ -38,7 +38,9 @@ class FindUsagesTool : AbstractMcpTool() {
     override val name = ToolNames.FIND_REFERENCES
 
     override val description = """
-        Find all references to a symbol across the project. Use when you need to understand how a class, method, field, or variable is used before modifying or removing it.
+        Find all references/usages of a symbol across the project. Use when you need to understand how a class, method, field, or variable is used before modifying or removing it.
+
+        This finds WHERE a symbol is used. To find where a symbol is defined, use ide_find_definition instead. To find implementations of an interface or abstract class, use ide_find_implementations. To trace the call chain (who calls whom recursively), use ide_call_hierarchy.
 
         Returns: file paths, line numbers, context snippets, and reference types (method_call, field_access, import, etc.).
 

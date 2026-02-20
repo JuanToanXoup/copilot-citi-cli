@@ -54,7 +54,9 @@ class GetDiagnosticsTool : AbstractMcpTool() {
     override val name = "ide_diagnostics"
 
     override val description = """
-        Get code problems (errors, warnings) and available quick fixes for a file. Use to check code health, find compilation errors, or discover available IDE intentions/refactorings.
+        Get code problems (errors, warnings) and available quick fixes for a file. Provides full IDE-level analysis including quick-fix suggestions and intention actions — more detailed than basic compiler errors.
+
+        Use this after making code changes to verify correctness, or to discover available refactorings at a position.
 
         Returns: problems with severity (ERROR/WARNING), location, message, plus available intentions and quick fixes at the specified position.
 

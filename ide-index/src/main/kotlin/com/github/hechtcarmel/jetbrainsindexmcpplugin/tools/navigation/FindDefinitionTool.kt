@@ -28,6 +28,8 @@ class FindDefinitionTool : AbstractMcpTool() {
     override val description = """
         Navigate to where a symbol is defined (Go to Definition). Use when you see a symbol reference and need to find its declaration—works for classes, methods, variables, imports.
 
+        This navigates TO the definition. To find all places that USE a symbol, use ide_find_references instead. To navigate up the inheritance chain from an override to its parent, use ide_find_super_methods.
+
         Returns: file path, line/column of definition, code preview, and symbol name.
 
         Parameters: file + line + column (required).

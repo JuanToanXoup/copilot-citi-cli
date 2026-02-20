@@ -44,9 +44,9 @@ class SearchTextTool : AbstractMcpTool() {
     override val name = ToolNames.SEARCH_TEXT
 
     override val description = """
-        Search for text using IDE's word index. Significantly faster than file scanning for exact word matches.
+        Search for exact word matches using IDE's pre-built word index. Significantly faster than file scanning, but only matches exact words — not regex or patterns.
 
-        Uses a pre-built word index for O(1) lookups instead of scanning all files.
+        Use ide_find_symbol instead for semantic code navigation that understands symbol types (classes, methods, fields). Use ide_find_references if you already have the symbol's position and want all usages with reference types.
 
         Context filtering: search only in code, comments, or string literals.
 

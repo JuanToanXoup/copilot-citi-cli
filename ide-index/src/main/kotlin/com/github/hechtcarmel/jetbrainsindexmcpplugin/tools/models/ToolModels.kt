@@ -73,7 +73,8 @@ data class CallElement(
 @Serializable
 data class ImplementationResult(
     val implementations: List<ImplementationLocation>,
-    val totalCount: Int
+    val totalCount: Int,
+    val hint: String? = null
 )
 
 @Serializable

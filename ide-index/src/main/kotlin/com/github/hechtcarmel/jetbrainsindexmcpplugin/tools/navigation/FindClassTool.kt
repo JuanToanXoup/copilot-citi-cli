@@ -48,7 +48,7 @@ class FindClassTool : AbstractMcpTool() {
     override val name = ToolNames.FIND_CLASS
 
     override val description = """
-        Search for classes and interfaces by name. Faster than ide_find_symbol when you only need classes.
+        Search for classes and interfaces by name only. Faster than ide_find_symbol when you only need classes — use ide_find_symbol if you also need methods, fields, or functions.
 
         Matching: camelCase ("USvc" → "UserService"), substring ("Service" → "UserService"), and wildcard ("User*Impl" → "UserServiceImpl").
 

@@ -47,7 +47,7 @@ class FindFileTool : AbstractMcpTool() {
     override val name = ToolNames.FIND_FILE
 
     override val description = """
-        Search for files by name. Very fast file lookup using IDE's file index.
+        Search for files by name. Very fast file lookup using IDE's file index. Use this to locate files — to find code symbols (classes, methods, functions), use ide_find_symbol or ide_find_class instead.
 
         Matching: camelCase ("USJ" → "UserService.java"), substring ("User" → "UserService.java"), and wildcard ("*Test.kt").
 
