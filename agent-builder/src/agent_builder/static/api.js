@@ -106,6 +106,15 @@ const API = {
         return { promise, abort: () => ctrl.abort() };
     },
 
+    async pingPreview(sessionId) {
+        const r = await fetch('/api/preview/ping', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: sessionId }),
+        });
+        return r.json();
+    },
+
     async stopPreview(sessionId) {
         const r = await fetch('/api/preview/stop', {
             method: 'POST',

@@ -47,6 +47,7 @@ const App = window.App = {
         chatAbort: null,
         startAbort: null,
         sessionStarting: false,
+        heartbeat: null,
     },
 
     /* ── Initialization ──────────────────────────────────── */
@@ -115,6 +116,43 @@ const App = window.App = {
         });
     },
 
+    _startHeartbeat() {
+        this._stopHeartbeat();
+        this.state.heartbeat = setInterval(async () => {
+            if (!this.state.session.id) return;
+            try {
+                const res = await API.pingPreview(this.state.session.id);
+                if (res.error) this._onSessionLost();
+            } catch (_) {
+                this._onSessionLost();
+            }
+        }, 120_000); // ping every 2 minutes
+    },
+
+    _stopHeartbeat() {
+        if (this.state.heartbeat) {
+            clearInterval(this.state.heartbeat);
+            this.state.heartbeat = null;
+        }
+    },
+
+    _onSessionLost() {
+        this._stopHeartbeat();
+        if (this.state.chatAbort) {
+            this.state.chatAbort();
+            this.state.chatAbort = null;
+        }
+        Components.removeSpinner();
+        this.state.session.id = null;
+        this.state.session.conversationId = null;
+        document.getElementById('session-status').textContent = 'Disconnected';
+        const msgs = document.getElementById('chat-messages');
+        Components.renderChatMessage(
+            { type: 'error', text: 'Session expired — start a new session to continue.' }, msgs
+        );
+        this._updateSessionUI();
+    },
+
     _setSendButton(streaming) {
         const btn = document.getElementById('btn-send');
         if (streaming) {
@@ -143,6 +181,7 @@ const App = window.App = {
     },
 
     async stopSession() {
+        this._stopHeartbeat();
         // Abort startup SSE stream if still connecting
         if (this.state.startAbort) {
             this.state.startAbort();
@@ -684,6 +723,7 @@ const App = window.App = {
             this.state.session.id = result.session_id;
             this.state.session.conversationId = null;
             document.getElementById('session-status').textContent = 'Connected';
+            this._startHeartbeat();
             this._updateSessionUI();
             document.getElementById('chat-input').focus();
         } catch (e) {
@@ -752,11 +792,16 @@ const App = window.App = {
                 } else if (evt.type === 'error') {
                     Components.removeSpinner();
                     this.state.chatAbort = null;
-                    Components.renderChatMessage(
-                        { type: 'error', text: evt.data || evt.message }, msgs
-                    );
-                    input.disabled = false;
-                    this._setSendButton(false);
+                    const errText = evt.data || evt.message || '';
+                    if (errText.includes('session not found') || errText.includes('Connection lost')) {
+                        this._onSessionLost();
+                    } else {
+                        Components.renderChatMessage(
+                            { type: 'error', text: errText }, msgs
+                        );
+                        input.disabled = false;
+                        this._setSendButton(false);
+                    }
                 }
             }
         );

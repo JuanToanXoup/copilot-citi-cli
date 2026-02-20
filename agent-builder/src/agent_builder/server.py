@@ -176,6 +176,8 @@ class BuilderHandler(BaseHTTPRequestHandler):
             self._api_save_config(body)
         elif path == "/api/preview/start":
             self._api_preview_start(body)
+        elif path == "/api/preview/ping":
+            self._api_preview_ping(body)
         elif path == "/api/preview/chat":
             self._api_preview_chat(body)
         elif path == "/api/preview/stop":
@@ -441,6 +443,16 @@ class BuilderHandler(BaseHTTPRequestHandler):
 
         except Exception as e:
             self._sse_send({"type": "error", "message": str(e)})
+
+    def _api_preview_ping(self, body):
+        session_id = body.get("session_id")
+        with _sessions_lock:
+            session = _sessions.get(session_id)
+            if session:
+                session["last_active"] = time.time()
+                self._json_response(200, {"ok": True})
+            else:
+                self._json_response(404, {"error": "session not found"})
 
     def _api_preview_chat(self, body):
         session_id = body.get("session_id")
