@@ -64,8 +64,14 @@ class ConversationManager(private val project: Project) : Disposable {
                 "copilot-language-server not found. Install GitHub Copilot in a JetBrains IDE or set the path in settings."
             )
 
-        // Start the LSP process
-        lspClient.start(binary)
+        // Start the LSP process — pass proxy env vars like the Python CLI does
+        val lspEnv = mutableMapOf<String, String>()
+        val proxyUrl = settings.proxyUrl
+        if (proxyUrl.isNotBlank()) {
+            lspEnv["HTTP_PROXY"] = proxyUrl
+            lspEnv["HTTPS_PROXY"] = proxyUrl
+        }
+        lspClient.start(binary, lspEnv)
 
         // Set up tool router and server request handler
         toolRouter = ToolRouter(project)
@@ -114,12 +120,8 @@ class ConversationManager(private val project: Project) : Disposable {
                 }
                 putJsonObject("editorConfiguration") {}
                 putJsonObject("networkProxy") {
-                    put("strictSSL", false)
-                    val host = settings.proxyHost
-                    val port = settings.proxyPort
-                    if (host.isNotBlank() && port > 0) {
-                        put("host", host)
-                        put("port", port)
+                    if (proxyUrl.isNotBlank()) {
+                        put("url", proxyUrl)
                     }
                 }
                 put("githubAppId", auth.appId.ifBlank { "Iv1.b507a08c87ecfe98" })
@@ -145,11 +147,8 @@ class ConversationManager(private val project: Project) : Disposable {
             }
             putJsonObject("editorConfiguration") {}
             putJsonObject("networkProxy") {
-                val host = settings.proxyHost
-                val port = settings.proxyPort
-                if (host.isNotBlank() && port > 0) {
-                    put("host", host)
-                    put("port", port)
+                if (proxyUrl.isNotBlank()) {
+                    put("url", proxyUrl)
                 }
             }
         })
@@ -158,6 +157,19 @@ class ConversationManager(private val project: Project) : Disposable {
         val statusResp = lspClient.sendRequest("checkStatus", JsonObject(emptyMap()))
         val status = statusResp["result"]?.jsonObject?.get("status")?.jsonPrimitive?.contentOrNull
         log.info("Copilot auth status: $status")
+
+        // Configure proxy via workspace/didChangeConfiguration (matches Python CLI's configure_proxy)
+        if (proxyUrl.isNotBlank()) {
+            lspClient.sendNotification("workspace/didChangeConfiguration", buildJsonObject {
+                putJsonObject("settings") {
+                    putJsonObject("http") {
+                        put("proxy", proxyUrl)
+                        put("proxyStrictSSL", false)
+                    }
+                }
+            })
+            log.info("Proxy configured: $proxyUrl")
+        }
 
         // Register tools
         registerTools()

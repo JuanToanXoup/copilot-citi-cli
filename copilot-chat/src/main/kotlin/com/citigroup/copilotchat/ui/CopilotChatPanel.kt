@@ -7,7 +7,6 @@ import com.intellij.icons.AllIcons
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
-import com.intellij.openapi.ui.Messages
 import com.intellij.ui.JBColor
 import com.intellij.ui.OnePixelSplitter
 import com.intellij.ui.components.JBScrollPane
@@ -264,10 +263,9 @@ class CopilotChatPanel(private val project: Project) : JPanel(BorderLayout()), D
 
     private fun showProxyDialog() {
         val settings = CopilotChatSettings.getInstance()
-        val dialog = ProxyDialog(settings.proxyHost, settings.proxyPort)
+        val dialog = ProxyDialog(settings.proxyUrl)
         if (dialog.showAndGet()) {
-            settings.proxyHost = dialog.host
-            settings.proxyPort = dialog.port
+            settings.proxyUrl = dialog.proxyUrl
         }
     }
 
@@ -292,15 +290,14 @@ class CopilotChatPanel(private val project: Project) : JPanel(BorderLayout()), D
 }
 
 private class ProxyDialog(
-    currentHost: String,
-    currentPort: Int,
+    currentUrl: String,
 ) : DialogWrapper(true) {
 
-    private val hostField = JBTextField(currentHost)
-    private val portField = JBTextField(if (currentPort > 0) currentPort.toString() else "")
+    private val urlField = JBTextField(currentUrl).apply {
+        columns = 35
+    }
 
-    val host: String get() = hostField.text.trim()
-    val port: Int get() = portField.text.trim().toIntOrNull() ?: 0
+    val proxyUrl: String get() = urlField.text.trim()
 
     init {
         title = "Proxy Settings"
@@ -315,27 +312,13 @@ private class ProxyDialog(
         }
 
         gbc.gridx = 0; gbc.gridy = 0; gbc.weightx = 0.0
-        panel.add(JLabel("Host:"), gbc)
+        panel.add(JLabel("Proxy URL:"), gbc)
         gbc.gridx = 1; gbc.weightx = 1.0
-        panel.add(hostField, gbc)
+        panel.add(urlField, gbc)
 
-        gbc.gridx = 0; gbc.gridy = 1; gbc.weightx = 0.0
-        panel.add(JLabel("Port:"), gbc)
-        gbc.gridx = 1; gbc.weightx = 1.0
-        panel.add(portField, gbc)
-
-        gbc.gridx = 0; gbc.gridy = 2; gbc.gridwidth = 2
-        panel.add(JLabel("<html><i style='color: gray'>Leave empty to connect directly (no proxy).</i></html>"), gbc)
+        gbc.gridx = 0; gbc.gridy = 1; gbc.gridwidth = 2
+        panel.add(JLabel("<html><i style='color: gray'>e.g. http://proxy.corp:8080 — leave empty for direct connection.</i></html>"), gbc)
 
         return panel
-    }
-
-    override fun doOKAction() {
-        val portText = portField.text.trim()
-        if (portText.isNotEmpty() && portText.toIntOrNull() == null) {
-            Messages.showErrorDialog("Port must be a number.", "Validation Error")
-            return
-        }
-        super.doOKAction()
     }
 }
