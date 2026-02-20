@@ -12,7 +12,6 @@ import com.intellij.openapi.project.Project
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
@@ -46,11 +45,9 @@ class FindSymbolTool : AbstractMcpTool() {
 
         Returns: matching symbols with qualified names, file paths, line numbers, and kind.
 
-        Parameters: query (required), includeLibraries (optional, default: true), limit (optional, default: 25, max: 100).
+        Parameters: query (required), limit (optional, default: 25, max: 100).
 
-        Example: {"query": "UserService"} or {"query": "find_user", "includeLibraries": true}
-
-        IMPORTANT: includeLibraries defaults to true. Keep it true when searching for SDK, framework, or library symbols. Only set to false when you want to restrict results to project-owned source files.
+        Example: {"query": "UserService"} or {"query": "find_user"}
     """.trimIndent()
 
     override val inputSchema: JsonObject = buildJsonObject {
@@ -63,10 +60,6 @@ class FindSymbolTool : AbstractMcpTool() {
             putJsonObject(ParamNames.QUERY) {
                 put(SchemaConstants.TYPE, SchemaConstants.TYPE_STRING)
                 put(SchemaConstants.DESCRIPTION, "Search pattern. Supports substring and camelCase matching.")
-            }
-            putJsonObject(ParamNames.INCLUDE_LIBRARIES) {
-                put(SchemaConstants.TYPE, SchemaConstants.TYPE_BOOLEAN)
-                put(SchemaConstants.DESCRIPTION, "Include symbols from library dependencies. Default: true.")
             }
             putJsonObject(ParamNames.LIMIT) {
                 put(SchemaConstants.TYPE, SchemaConstants.TYPE_INTEGER)
@@ -81,7 +74,7 @@ class FindSymbolTool : AbstractMcpTool() {
     override suspend fun doExecute(project: Project, arguments: JsonObject): ToolCallResult {
         val query = arguments[ParamNames.QUERY]?.jsonPrimitive?.content
             ?: return createErrorResult("Missing required parameter: ${ParamNames.QUERY}")
-        val includeLibraries = arguments[ParamNames.INCLUDE_LIBRARIES]?.jsonPrimitive?.boolean ?: true
+        val includeLibraries = true
         val limit = (arguments[ParamNames.LIMIT]?.jsonPrimitive?.int ?: DEFAULT_LIMIT)
             .coerceIn(1, MAX_LIMIT)
 

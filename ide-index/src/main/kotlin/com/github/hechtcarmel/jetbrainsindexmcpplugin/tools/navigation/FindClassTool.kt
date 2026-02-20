@@ -21,7 +21,6 @@ import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.util.indexing.FindSymbolParameters
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonPrimitive
@@ -54,11 +53,9 @@ class FindClassTool : AbstractMcpTool() {
 
         Returns: matching classes with qualified names, file paths, line numbers, and kind (class/interface/enum).
 
-        Parameters: query (required), includeLibraries (optional, default: true), limit (optional, default: 25, max: 100).
+        Parameters: query (required), limit (optional, default: 25, max: 100).
 
-        Example: {"query": "UserService"} or {"query": "U*Impl"} or {"query": "AnAction", "includeLibraries": true}
-
-        IMPORTANT: includeLibraries defaults to true. Keep it true when searching for SDK, framework, or library classes (e.g. AnAction, HttpServlet, SpringApplication). Only set to false when you want to restrict results to project-owned source files.
+        Example: {"query": "UserService"} or {"query": "U*Impl"} or {"query": "AnAction"}
     """.trimIndent()
 
     override val inputSchema: JsonObject = buildJsonObject {
@@ -71,10 +68,6 @@ class FindClassTool : AbstractMcpTool() {
             putJsonObject(ParamNames.QUERY) {
                 put(SchemaConstants.TYPE, SchemaConstants.TYPE_STRING)
                 put(SchemaConstants.DESCRIPTION, "Search pattern. Supports substring and camelCase matching.")
-            }
-            putJsonObject(ParamNames.INCLUDE_LIBRARIES) {
-                put(SchemaConstants.TYPE, SchemaConstants.TYPE_BOOLEAN)
-                put(SchemaConstants.DESCRIPTION, "Include classes from library dependencies. Default: true.")
             }
             putJsonObject(ParamNames.LIMIT) {
                 put(SchemaConstants.TYPE, SchemaConstants.TYPE_INTEGER)
@@ -89,7 +82,7 @@ class FindClassTool : AbstractMcpTool() {
     override suspend fun doExecute(project: Project, arguments: JsonObject): ToolCallResult {
         val query = arguments[ParamNames.QUERY]?.jsonPrimitive?.content
             ?: return createErrorResult("Missing required parameter: ${ParamNames.QUERY}")
-        val includeLibraries = arguments[ParamNames.INCLUDE_LIBRARIES]?.jsonPrimitive?.boolean ?: true
+        val includeLibraries = true
         val limit = (arguments[ParamNames.LIMIT]?.jsonPrimitive?.int ?: DEFAULT_LIMIT)
             .coerceIn(1, MAX_LIMIT)
 

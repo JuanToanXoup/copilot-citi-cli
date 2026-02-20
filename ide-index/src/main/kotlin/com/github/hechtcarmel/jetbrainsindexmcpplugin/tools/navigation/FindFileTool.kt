@@ -20,7 +20,6 @@ import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.util.indexing.FindSymbolParameters
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonPrimitive
@@ -53,7 +52,7 @@ class FindFileTool : AbstractMcpTool() {
 
         Returns: matching files with name, path, and containing directory.
 
-        Parameters: query (required), includeLibraries (optional, default: true), limit (optional, default: 25, max: 100).
+        Parameters: query (required), limit (optional, default: 25, max: 100).
 
         Example: {"query": "UserService.java"} or {"query": "*Test.kt"} or {"query": "BG"} (matches build.gradle)
     """.trimIndent()
@@ -69,10 +68,6 @@ class FindFileTool : AbstractMcpTool() {
                 put(SchemaConstants.TYPE, SchemaConstants.TYPE_STRING)
                 put(SchemaConstants.DESCRIPTION, "File name pattern. Supports substring and fuzzy matching.")
             }
-            putJsonObject(ParamNames.INCLUDE_LIBRARIES) {
-                put(SchemaConstants.TYPE, SchemaConstants.TYPE_BOOLEAN)
-                put(SchemaConstants.DESCRIPTION, "Include files from library dependencies. Default: true.")
-            }
             putJsonObject(ParamNames.LIMIT) {
                 put(SchemaConstants.TYPE, SchemaConstants.TYPE_INTEGER)
                 put(SchemaConstants.DESCRIPTION, "Maximum results to return. Default: 25, Max: 100.")
@@ -86,7 +81,7 @@ class FindFileTool : AbstractMcpTool() {
     override suspend fun doExecute(project: Project, arguments: JsonObject): ToolCallResult {
         val query = arguments[ParamNames.QUERY]?.jsonPrimitive?.content
             ?: return createErrorResult("Missing required parameter: ${ParamNames.QUERY}")
-        val includeLibraries = arguments[ParamNames.INCLUDE_LIBRARIES]?.jsonPrimitive?.boolean ?: true
+        val includeLibraries = true
         val limit = (arguments[ParamNames.LIMIT]?.jsonPrimitive?.int ?: DEFAULT_LIMIT)
             .coerceIn(1, MAX_LIMIT)
 
