@@ -172,8 +172,8 @@ object PsiTools {
 
 class FindUsagesTool : PsiToolBase() {
     override val name = "ide_find_references"
-    override val description = "Find all references/usages of the symbol at the given position. Returns file locations, line numbers, and context for each usage."
-    override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Relative file path"},"line":{"type":"integer","description":"Line number (1-based)"},"column":{"type":"integer","description":"Column number (1-based)"},"includeLibraries":{"type":"boolean","description":"Include usages in libraries. Default: false"}},"required":["file","line","column"]}"""
+    override val description = "Find all references/usages of a symbol across the project. Use when you need to understand how a class, method, field, or variable is used before modifying or removing it."
+    override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Path to file relative to project root"},"line":{"type":"integer","description":"1-based line number where the symbol is located"},"column":{"type":"integer","description":"1-based column number within the line"},"includeLibraries":{"type":"boolean","description":"Include usages in libraries (default: false)"},"maxResults":{"type":"integer","description":"Maximum number of references to return (default: 200, max: 500)"}},"required":["file","line","column"]}"""
 
     override suspend fun doExecute(project: Project, arguments: JsonObject): ToolCallResult {
         requireSmartMode(project)
@@ -213,8 +213,8 @@ class FindUsagesTool : PsiToolBase() {
 
 class FindDefinitionTool : PsiToolBase() {
     override val name = "ide_find_definition"
-    override val description = "Go to the definition of the symbol at the given position. Returns the file, line, and preview of the definition."
-    override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Relative file path"},"line":{"type":"integer","description":"Line number (1-based)"},"column":{"type":"integer","description":"Column number (1-based)"}},"required":["file","line","column"]}"""
+    override val description = "Navigate to where a symbol is defined (Go to Definition). Use when you see a symbol reference and need to find its declaration."
+    override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Path to file relative to project root"},"line":{"type":"integer","description":"1-based line number where the symbol reference is located"},"column":{"type":"integer","description":"1-based column number within the line"}},"required":["file","line","column"]}"""
 
     override suspend fun doExecute(project: Project, arguments: JsonObject): ToolCallResult {
         requireSmartMode(project)
@@ -243,8 +243,8 @@ class FindDefinitionTool : PsiToolBase() {
 
 class SearchTextTool : PsiToolBase() {
     override val name = "ide_search_text"
-    override val description = "Search for text or regex patterns across project files using the IDE's indexed search. Faster and more accurate than grep."
-    override val inputSchema = """{"type":"object","properties":{"query":{"type":"string","description":"Text or regex pattern to search for"},"isRegex":{"type":"boolean","description":"Treat query as regex. Default: false"},"caseSensitive":{"type":"boolean","description":"Case-sensitive search. Default: false"},"maxResults":{"type":"integer","description":"Max results to return. Default: 100"}},"required":["query"]}"""
+    override val description = "Search for exact word matches using the IDE's pre-built word index. Significantly faster than file scanning, but only matches exact words — not regex or patterns. Use for finding identifiers, keywords, or specific strings."
+    override val inputSchema = """{"type":"object","properties":{"query":{"type":"string","description":"Exact word to search for (not a pattern/regex)"},"caseSensitive":{"type":"boolean","description":"Case-sensitive search (default: false)"},"maxResults":{"type":"integer","description":"Maximum results to return (default: 100, max: 500)"}},"required":["query"]}"""
 
     override suspend fun doExecute(project: Project, arguments: JsonObject): ToolCallResult {
         val query = arguments.str("query") ?: return createErrorResult("query is required")
@@ -294,8 +294,8 @@ class SearchTextTool : PsiToolBase() {
 
 class FindClassTool : PsiToolBase() {
     override val name = "ide_find_class"
-    override val description = "Search for classes/interfaces/enums by name pattern. Supports camelCase and fuzzy matching."
-    override val inputSchema = """{"type":"object","properties":{"pattern":{"type":"string","description":"Class name pattern (supports camelCase matching, e.g. 'HM' matches 'HashMap')"},"includeLibraries":{"type":"boolean","description":"Include library classes. Default: false"},"maxResults":{"type":"integer","description":"Max results. Default: 50"}},"required":["pattern"]}"""
+    override val description = "Search for classes and interfaces by name only. Faster than ide_find_symbol when you only need classes. Supports camelCase, substring, and wildcard matching."
+    override val inputSchema = """{"type":"object","properties":{"pattern":{"type":"string","description":"Search pattern supporting substring and camelCase matching (e.g. 'HM' matches 'HashMap')"},"includeLibraries":{"type":"boolean","description":"Include library classes (default: false)"},"maxResults":{"type":"integer","description":"Maximum results to return (default: 50, max: 100)"}},"required":["pattern"]}"""
 
     override suspend fun doExecute(project: Project, arguments: JsonObject): ToolCallResult {
         requireSmartMode(project)
@@ -362,8 +362,8 @@ class FindClassTool : PsiToolBase() {
 
 class FindFileTool : PsiToolBase() {
     override val name = "ide_find_file"
-    override val description = "Search for files by name pattern. Supports fuzzy and partial name matching."
-    override val inputSchema = """{"type":"object","properties":{"pattern":{"type":"string","description":"File name pattern to search for"},"maxResults":{"type":"integer","description":"Max results. Default: 50"}},"required":["pattern"]}"""
+    override val description = "Search for files by name. Very fast file lookup using the IDE's file index. Supports camelCase, substring, and wildcard matching."
+    override val inputSchema = """{"type":"object","properties":{"pattern":{"type":"string","description":"File name pattern supporting substring and fuzzy matching"},"maxResults":{"type":"integer","description":"Maximum results to return (default: 50, max: 100)"}},"required":["pattern"]}"""
 
     override suspend fun doExecute(project: Project, arguments: JsonObject): ToolCallResult {
         val pattern = arguments.str("pattern") ?: return createErrorResult("pattern is required")
@@ -423,8 +423,8 @@ class FindFileTool : PsiToolBase() {
 
 class FindSymbolTool : PsiToolBase() {
     override val name = "ide_find_symbol"
-    override val description = "Search for symbols (functions, methods, variables, properties) by name pattern. Supports camelCase matching."
-    override val inputSchema = """{"type":"object","properties":{"pattern":{"type":"string","description":"Symbol name pattern"},"includeLibraries":{"type":"boolean","description":"Include library symbols. Default: false"},"maxResults":{"type":"integer","description":"Max results. Default: 50"}},"required":["pattern"]}"""
+    override val description = "Search for symbols (classes, methods, fields, functions) by name across the codebase. Supports substring and camelCase matching. Use ide_find_class for faster class-only searches."
+    override val inputSchema = """{"type":"object","properties":{"pattern":{"type":"string","description":"Search pattern supporting substring and camelCase matching"},"includeLibraries":{"type":"boolean","description":"Include library symbols (default: false)"},"maxResults":{"type":"integer","description":"Maximum results to return (default: 50, max: 100)"}},"required":["pattern"]}"""
 
     override suspend fun doExecute(project: Project, arguments: JsonObject): ToolCallResult {
         requireSmartMode(project)
@@ -461,8 +461,8 @@ class FindSymbolTool : PsiToolBase() {
 
 class TypeHierarchyTool : PsiToolBase() {
     override val name = "ide_type_hierarchy"
-    override val description = "Get the type hierarchy (supertypes and subtypes) for a class at the given position."
-    override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Relative file path"},"line":{"type":"integer","description":"Line number (1-based)"},"column":{"type":"integer","description":"Column number (1-based)"}},"required":["file","line","column"]}"""
+    override val description = "Get the complete inheritance hierarchy (parents AND children) for a class or interface. Use to understand class relationships and inheritance chains."
+    override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Path to file relative to project root"},"line":{"type":"integer","description":"1-based line number where the class is defined"},"column":{"type":"integer","description":"1-based column number within the line"}},"required":["file","line","column"]}"""
 
     override suspend fun doExecute(project: Project, arguments: JsonObject): ToolCallResult {
         requireSmartMode(project)
@@ -495,8 +495,8 @@ class TypeHierarchyTool : PsiToolBase() {
 
 class CallHierarchyTool : PsiToolBase() {
     override val name = "ide_call_hierarchy"
-    override val description = "Get the call hierarchy (callers or callees) for a method at the given position."
-    override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Relative file path"},"line":{"type":"integer","description":"Line number (1-based)"},"column":{"type":"integer","description":"Column number (1-based)"},"direction":{"type":"string","description":"'callers' or 'callees'. Default: 'callers'","enum":["callers","callees"]},"depth":{"type":"integer","description":"Max depth to traverse. Default: 3"}},"required":["file","line","column"]}"""
+    override val description = "Build a call hierarchy tree for a method/function. Use to trace execution flow — find what calls this method (callers) or what this method calls (callees)."
+    override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Path to file relative to project root"},"line":{"type":"integer","description":"1-based line number"},"column":{"type":"integer","description":"1-based column number"},"direction":{"type":"string","description":"'callers' (methods that call this method) or 'callees' (methods this method calls)","enum":["callers","callees"]},"depth":{"type":"integer","description":"How many levels deep to traverse (default: 3, max: 5)"}},"required":["file","line","column"]}"""
 
     override suspend fun doExecute(project: Project, arguments: JsonObject): ToolCallResult {
         requireSmartMode(project)
@@ -530,8 +530,8 @@ class CallHierarchyTool : PsiToolBase() {
 
 class FindImplementationsTool : PsiToolBase() {
     override val name = "ide_find_implementations"
-    override val description = "Find implementations of an interface/abstract class/method at the given position."
-    override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Relative file path"},"line":{"type":"integer","description":"Line number (1-based)"},"column":{"type":"integer","description":"Column number (1-based)"}},"required":["file","line","column"]}"""
+    override val description = "Find all implementations of an interface, abstract class, or abstract method. The cursor must be on an abstract type or method declaration."
+    override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Path to file relative to project root"},"line":{"type":"integer","description":"1-based line number"},"column":{"type":"integer","description":"1-based column number"}},"required":["file","line","column"]}"""
 
     override suspend fun doExecute(project: Project, arguments: JsonObject): ToolCallResult {
         requireSmartMode(project)
@@ -555,8 +555,8 @@ class FindImplementationsTool : PsiToolBase() {
 
 class FindSuperMethodsTool : PsiToolBase() {
     override val name = "ide_find_super_methods"
-    override val description = "Find super method declarations that the method at the given position overrides."
-    override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Relative file path"},"line":{"type":"integer","description":"Line number (1-based)"},"column":{"type":"integer","description":"Column number (1-based)"}},"required":["file","line","column"]}"""
+    override val description = "Find parent methods that a method overrides or implements. Use to navigate up the inheritance chain and understand method origins."
+    override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Path to file relative to project root"},"line":{"type":"integer","description":"1-based line number (can be any line within the method)"},"column":{"type":"integer","description":"1-based column number (can be any position within the method)"}},"required":["file","line","column"]}"""
 
     override suspend fun doExecute(project: Project, arguments: JsonObject): ToolCallResult {
         requireSmartMode(project)
@@ -584,8 +584,8 @@ class FindSuperMethodsTool : PsiToolBase() {
 
 class FileStructureTool : PsiToolBase() {
     override val name = "ide_file_structure"
-    override val description = "Get the structure (classes, methods, fields, etc.) of a file in a tree format."
-    override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Relative file path"}},"required":["file"]}"""
+    override val description = "Get the hierarchical structure of a source file (similar to IDE's Structure view). Shows all classes, methods, fields with their nesting and line numbers."
+    override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Path to file relative to project root (e.g. 'src/main/java/com/example/MyClass.java')"}},"required":["file"]}"""
 
     override suspend fun doExecute(project: Project, arguments: JsonObject): ToolCallResult {
         val filePath = arguments.str("file") ?: return createErrorResult("file is required")
@@ -624,12 +624,14 @@ class FileStructureTool : PsiToolBase() {
 
 class GetDiagnosticsTool : PsiToolBase() {
     override val name = "ide_diagnostics"
-    override val description = "Get compiler errors, warnings, and code inspection results for a file. The file must be open in the editor for full diagnostics."
-    override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Relative file path"},"includeIntentions":{"type":"boolean","description":"Include available quick-fix intentions. Default: false"}},"required":["file"]}"""
+    override val description = "Get code problems (errors, warnings) and available quick fixes for a file. Provides full IDE-level analysis including quick-fix suggestions and intention actions."
+    override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Path to file relative to project root"},"includeIntentions":{"type":"boolean","description":"Include available quick-fix intentions (default: false)"},"startLine":{"type":"integer","description":"Filter problems to start from this line"},"endLine":{"type":"integer","description":"Filter problems to end at this line"}},"required":["file"]}"""
 
     override suspend fun doExecute(project: Project, arguments: JsonObject): ToolCallResult {
         val filePath = arguments.str("file") ?: return createErrorResult("file is required")
         val includeIntentions = arguments.bool("includeIntentions") ?: false
+        val filterStartLine = arguments.int("startLine")
+        val filterEndLine = arguments.int("endLine")
 
         return suspendingReadAction {
             val psiFile = getPsiFile(project, filePath)
@@ -643,6 +645,8 @@ class GetDiagnosticsTool : PsiToolBase() {
             psiFile.accept(object : PsiRecursiveElementVisitor() {
                 override fun visitErrorElement(element: PsiErrorElement) {
                     val ln = doc.getLineNumber(element.textOffset) + 1
+                    if (filterStartLine != null && ln < filterStartLine) return
+                    if (filterEndLine != null && ln > filterEndLine) return
                     val col = element.textOffset - doc.getLineStartOffset(ln - 1) + 1
                     problems.add(ProblemInfo(element.errorDescription, "ERROR", getRelativePath(project, psiFile.virtualFile), ln, col, null, null))
                 }
@@ -650,12 +654,14 @@ class GetDiagnosticsTool : PsiToolBase() {
 
             // Collect cached highlights from DaemonCodeAnalyzer if the file has been analyzed
             try {
-                val highlights = DaemonCodeAnalyzerEx.processHighlights(
+                DaemonCodeAnalyzerEx.processHighlights(
                     doc, project, HighlightSeverity.WARNING,
                     0, doc.textLength
                 ) { h ->
                     if (h.description != null) {
                         val startLine = doc.getLineNumber(h.startOffset) + 1
+                        if (filterStartLine != null && startLine < filterStartLine) return@processHighlights true
+                        if (filterEndLine != null && startLine > filterEndLine) return@processHighlights true
                         val startCol = h.startOffset - doc.getLineStartOffset(startLine - 1) + 1
                         val endLine = doc.getLineNumber(h.endOffset) + 1
                         val endCol = h.endOffset - doc.getLineStartOffset(endLine - 1) + 1
@@ -679,8 +685,8 @@ class GetDiagnosticsTool : PsiToolBase() {
 
 class QuickDocTool : PsiToolBase() {
     override val name = "ide_quick_doc"
-    override val description = "Get documentation for the symbol at the given position. Returns Javadoc, KDoc, or other language-specific documentation."
-    override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Relative file path"},"line":{"type":"integer","description":"Line number (1-based)"},"column":{"type":"integer","description":"Column number (1-based)"}},"required":["file","line","column"]}"""
+    override val description = "Get rendered documentation (JavaDoc, KDoc, docstrings, etc.) for a symbol at a position. Works across all languages supported by the IDE."
+    override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Path to file relative to project root"},"line":{"type":"integer","description":"1-based line number where the symbol is located"},"column":{"type":"integer","description":"1-based column number within the line"}},"required":["file","line","column"]}"""
 
     override suspend fun doExecute(project: Project, arguments: JsonObject): ToolCallResult {
         val file = arguments.str("file") ?: return createErrorResult("file is required")
@@ -716,8 +722,8 @@ class QuickDocTool : PsiToolBase() {
 
 class TypeInfoTool : PsiToolBase() {
     override val name = "ide_type_info"
-    override val description = "Get the type information for the expression or variable at the given position."
-    override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Relative file path"},"line":{"type":"integer","description":"Line number (1-based)"},"column":{"type":"integer","description":"Column number (1-based)"}},"required":["file","line","column"]}"""
+    override val description = "Get the type of an expression, variable, parameter, or field at a position. Works across all languages supported by the IDE."
+    override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Path to file relative to project root"},"line":{"type":"integer","description":"1-based line number where the expression/variable is located"},"column":{"type":"integer","description":"1-based column number within the line"}},"required":["file","line","column"]}"""
 
     override suspend fun doExecute(project: Project, arguments: JsonObject): ToolCallResult {
         val file = arguments.str("file") ?: return createErrorResult("file is required")
@@ -774,8 +780,8 @@ class TypeInfoTool : PsiToolBase() {
 
 class ParameterInfoTool : PsiToolBase() {
     override val name = "ide_parameter_info"
-    override val description = "Get parameter information for the method/function at the given position."
-    override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Relative file path"},"line":{"type":"integer","description":"Line number (1-based)"},"column":{"type":"integer","description":"Column number (1-based)"}},"required":["file","line","column"]}"""
+    override val description = "Get parameter signatures for a method or function at a call site or declaration. Works across all languages supported by the IDE."
+    override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Path to file relative to project root"},"line":{"type":"integer","description":"1-based line number where the method call or declaration is"},"column":{"type":"integer","description":"1-based column number within the line"}},"required":["file","line","column"]}"""
 
     override suspend fun doExecute(project: Project, arguments: JsonObject): ToolCallResult {
         val file = arguments.str("file") ?: return createErrorResult("file is required")
@@ -841,8 +847,8 @@ class ParameterInfoTool : PsiToolBase() {
 
 class StructuralSearchTool : PsiToolBase() {
     override val name = "ide_structural_search"
-    override val description = "Search for code patterns using IntelliJ's structural search. Matches code structures rather than text patterns."
-    override val inputSchema = """{"type":"object","properties":{"pattern":{"type":"string","description":"Structural search pattern using IntelliJ SSR syntax with template variables"},"fileType":{"type":"string","description":"File type hint: 'java', 'kotlin', etc. Default: 'java'"}},"required":["pattern"]}"""
+    override val description = "Search for code patterns using IntelliJ's structural search engine. Finds code that matches a structural pattern, not just text."
+    override val inputSchema = """{"type":"object","properties":{"pattern":{"type":"string","description":"Structural search pattern using template variable syntax for capture variables"},"fileType":{"type":"string","description":"File type to search in: 'Java', 'Kotlin', 'Python', 'JavaScript', etc. (default: 'Java')"},"maxResults":{"type":"integer","description":"Maximum number of results to return (default: 100, max: 200)"}},"required":["pattern"]}"""
 
     override suspend fun doExecute(project: Project, arguments: JsonObject): ToolCallResult {
         val pattern = arguments.str("pattern") ?: return createErrorResult("pattern is required")
@@ -903,8 +909,8 @@ class StructuralSearchTool : PsiToolBase() {
 
 class RenameSymbolTool : PsiToolBase() {
     override val name = "ide_rename_symbol"
-    override val description = "Rename a symbol and all its references across the project. Uses IDE refactoring for safe, accurate renaming."
-    override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Relative file path"},"line":{"type":"integer","description":"Line number (1-based)"},"column":{"type":"integer","description":"Column number (1-based)"},"newName":{"type":"string","description":"The new name for the symbol"}},"required":["file","line","column","newName"]}"""
+    override val description = "Rename a symbol and update all references across the project. Use instead of find-and-replace for safe, semantic renaming. Automatically renames related elements: getters/setters, overriding methods, constructor parameters, and test classes."
+    override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Path to file relative to project root"},"line":{"type":"integer","description":"1-based line number where the symbol is located"},"column":{"type":"integer","description":"1-based column number"},"newName":{"type":"string","description":"The new name for the symbol"}},"required":["file","line","column","newName"]}"""
 
     override suspend fun doExecute(project: Project, arguments: JsonObject): ToolCallResult {
         requireSmartMode(project)
@@ -956,8 +962,8 @@ class RenameSymbolTool : PsiToolBase() {
 
 class SafeDeleteTool : PsiToolBase() {
     override val name = "ide_safe_delete"
-    override val description = "Safely delete a symbol, checking for usages first. Reports any references that would be broken."
-    override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Relative file path"},"line":{"type":"integer","description":"Line number (1-based)"},"column":{"type":"integer","description":"Column number (1-based)"},"searchInComments":{"type":"boolean","description":"Also search for references in comments and strings. Default: false"}},"required":["file","line","column"]}"""
+    override val description = "Delete a symbol safely by first checking for usages. Use when removing code to avoid breaking references. Reports any references that would be broken before deleting."
+    override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Path to file relative to project root"},"line":{"type":"integer","description":"1-based line number where the symbol is located"},"column":{"type":"integer","description":"1-based column number"},"searchInComments":{"type":"boolean","description":"Also search for references in comments and strings (default: false)"}},"required":["file","line","column"]}"""
 
     override suspend fun doExecute(project: Project, arguments: JsonObject): ToolCallResult {
         requireSmartMode(project)
@@ -1007,7 +1013,7 @@ class SafeDeleteTool : PsiToolBase() {
 
 class GetIndexStatusTool : PsiToolBase() {
     override val name = "ide_get_index_status"
-    override val description = "Check if the IDE is currently indexing. Many PSI tools require indexing to be complete."
+    override val description = "Check if the IDE is ready for code intelligence operations. Use when other tools fail with indexing errors."
     override val inputSchema = """{"type":"object","properties":{},"required":[]}"""
     override val requiresPsiSync = false
 
