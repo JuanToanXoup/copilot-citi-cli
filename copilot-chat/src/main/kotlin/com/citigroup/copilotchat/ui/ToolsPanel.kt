@@ -17,7 +17,9 @@ import javax.swing.*
  * Panel showing all registered tools grouped by source (IDE Index, Built-in, MCP).
  * Each tool can be individually enabled/disabled via checkbox.
  */
-class ToolsPanel : JPanel(BorderLayout()) {
+class ToolsPanel(
+    private val onToolToggled: (() -> Unit)? = null,
+) : JPanel(BorderLayout()) {
 
     data class ToolInfo(
         val name: String,
@@ -127,6 +129,7 @@ class ToolsPanel : JPanel(BorderLayout()) {
         CopilotChatSettings.getInstance().setToolEnabled(info.name, info.enabled)
         toolList.repaint()
         updateStatusLabel()
+        onToolToggled?.invoke()
     }
 
     private fun updateStatusLabel() {

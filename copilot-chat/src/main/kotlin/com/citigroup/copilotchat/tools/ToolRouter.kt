@@ -1,5 +1,6 @@
 package com.citigroup.copilotchat.tools
 
+import com.citigroup.copilotchat.config.CopilotChatSettings
 import com.citigroup.copilotchat.tools.psi.PsiToolBase
 import com.citigroup.copilotchat.tools.psi.PsiTools
 import com.intellij.openapi.diagnostic.Logger
@@ -46,30 +47,33 @@ class ToolRouter(private val project: Project) {
      * Get all tool schemas to register with the server.
      * PSI tools are registered as a single compound "ide" tool.
      * Then ide-index tools (if any), then built-in tools.
+     * Respects disabled tools from settings.
      */
     fun getToolSchemas(): List<String> {
+        val settings = CopilotChatSettings.getInstance()
         val schemas = mutableListOf<String>()
         val registeredNames = mutableSetOf<String>()
 
-        // PSI tools as a single compound "ide" tool
+        // PSI tools as a single compound "ide" tool (filter disabled actions)
         try {
-            val compoundSchema = PsiTools.compoundSchema
+            val compoundSchema = PsiTools.buildFilteredCompoundSchema { name ->
+                settings.isToolEnabled(name)
+            }
             if (compoundSchema != null) {
                 schemas.add(compoundSchema)
                 registeredNames.add("ide")
-                // Track individual PSI names so they don't get re-registered
                 registeredNames.addAll(psiToolNames)
             }
         } catch (e: Throwable) {
             log.warn("Failed to load PSI compound schema, continuing with built-in tools", e)
         }
 
-        // ide-index tools (only add ones not already provided by PSI tools)
+        // ide-index tools (only add ones not already provided by PSI tools and not disabled)
         val ideSchemas = IdeIndexBridge.getToolSchemas()
         for (schema in ideSchemas) {
             val schemaObj = json.parseToJsonElement(schema).jsonObject
             val name = schemaObj["name"]?.jsonPrimitive?.contentOrNull ?: continue
-            if (name !in registeredNames) {
+            if (name !in registeredNames && settings.isToolEnabled(name)) {
                 schemas.add(schema)
                 registeredNames.add(name)
             }
@@ -78,11 +82,11 @@ class ToolRouter(private val project: Project) {
         // Determine which BuiltInTools to suppress
         val suppressedNames = if (psiToolNames.isNotEmpty()) PSI_SUPERSEDES else emptySet()
 
-        // Built-in tools (only add ones not already registered and not superseded)
+        // Built-in tools (only add ones not already registered, not superseded, not disabled)
         for (schema in BuiltInTools.schemas) {
             val schemaObj = json.parseToJsonElement(schema).jsonObject
             val name = schemaObj["name"]?.jsonPrimitive?.contentOrNull ?: continue
-            if (name !in registeredNames && name !in suppressedNames) {
+            if (name !in registeredNames && name !in suppressedNames && settings.isToolEnabled(name)) {
                 schemas.add(schema)
                 registeredNames.add(name)
             }
@@ -99,6 +103,13 @@ class ToolRouter(private val project: Project) {
      */
     suspend fun executeTool(name: String, input: JsonObject): JsonElement {
         log.info("Tool call: $name")
+
+        // Check if tool is disabled
+        val settings = CopilotChatSettings.getInstance()
+        if (!settings.isToolEnabled(name)) {
+            log.info("Tool '$name' is disabled, rejecting call")
+            return wrapResult("Error: Tool '$name' is disabled", isError = true)
+        }
 
         // Handle compound "ide" tool — extract action and route to PSI sub-tool
         if (name == "ide") {
@@ -146,6 +157,13 @@ class ToolRouter(private val project: Project) {
                 "Error: Unknown IDE action '$action'. Available: ${PsiTools.actionToToolName.keys.joinToString(", ")}",
                 isError = true
             )
+
+        // Check if this specific PSI tool is disabled
+        val settings = CopilotChatSettings.getInstance()
+        if (!settings.isToolEnabled(psiTool.name)) {
+            log.info("IDE action '$action' (${psiTool.name}) is disabled, rejecting call")
+            return wrapResult("Error: IDE action '$action' is disabled", isError = true)
+        }
 
         // Strip "action" from input, pass rest to the tool
         val toolInput = JsonObject(input.filterKeys { it != "action" })

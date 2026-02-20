@@ -287,11 +287,28 @@ class ConversationManager(private val project: Project) : Disposable {
         }
     }
 
+    /**
+     * Re-register tools with the language server (e.g., after toggling tools on/off).
+     */
+    fun reregisterTools() {
+        if (!initialized || !lspClient.isRunning) return
+        scope.launch {
+            try {
+                registerTools()
+            } catch (e: Exception) {
+                log.warn("Failed to re-register tools: ${e.message}", e)
+            }
+        }
+    }
+
     private suspend fun registerTools() {
         val schemas = toolRouter.getToolSchemas().toMutableList()
 
-        // Append client-side MCP tool schemas
-        val mcpSchemas = clientMcpManager?.getToolSchemas() ?: emptyList()
+        // Append client-side MCP tool schemas (filtering disabled tools)
+        val settings = CopilotChatSettings.getInstance()
+        val mcpSchemas = clientMcpManager?.getToolSchemas { name ->
+            settings.isToolEnabled(name)
+        } ?: emptyList()
         schemas.addAll(mcpSchemas)
 
         if (schemas.isEmpty()) return

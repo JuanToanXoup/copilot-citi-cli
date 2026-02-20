@@ -80,6 +80,21 @@ object PsiTools {
     fun findToolByAction(action: String): PsiToolBase? =
         actionToToolName[action]?.let { findTool(it) }
 
+    /**
+     * Build a compound schema that only includes tools passing the filter.
+     * Used to exclude disabled tools from registration.
+     */
+    fun buildFilteredCompoundSchema(isEnabled: (String) -> Boolean): String? {
+        val enabledTools = allTools.filter { isEnabled(it.name) }
+        if (enabledTools.isEmpty()) return null
+        return try {
+            buildCompoundSchemaFrom(enabledTools)
+        } catch (e: Throwable) {
+            log.warn("Failed to build filtered compound PSI schema", e)
+            null
+        }
+    }
+
     private fun buildSchemaJson(tool: PsiToolBase): String? = try {
         buildJsonObject {
             put("name", tool.name)
@@ -91,14 +106,16 @@ object PsiTools {
         null
     }
 
-    private fun buildCompoundSchema(): String? {
-        if (allTools.isEmpty()) return null
+    private fun buildCompoundSchema(): String? = buildCompoundSchemaFrom(allTools)
+
+    private fun buildCompoundSchemaFrom(tools: List<PsiToolBase>): String? {
+        if (tools.isEmpty()) return null
 
         val actionNames = mutableListOf<String>()
         val actionDocs = StringBuilder()
         val allProperties = mutableMapOf<String, JsonElement>()
 
-        for (tool in allTools) {
+        for (tool in tools) {
             val action = tool.name.removePrefix("ide_")
             actionNames.add(action)
 

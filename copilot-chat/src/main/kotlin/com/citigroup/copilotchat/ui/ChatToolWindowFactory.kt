@@ -30,8 +30,8 @@ class ChatToolWindowFactory : ToolWindowFactory, DumbAware {
         contentManager.addContent(chatContent)
         Disposer.register(toolWindow.disposable, chatPanel)
 
-        // Tools tab — registered tools viewer
-        val toolsPanel = ToolsPanel()
+        // Tools tab — registered tools viewer (re-registers tools on toggle)
+        val toolsPanel = ToolsPanel(onToolToggled = { chatPanel.onToolToggled() })
         val toolsContent = contentFactory.createContent(toolsPanel, "Tools", false)
         toolsContent.isCloseable = false
         contentManager.addContent(toolsContent)

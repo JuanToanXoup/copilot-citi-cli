@@ -204,6 +204,10 @@ class CopilotChatPanel(private val project: Project) : JPanel(BorderLayout()), D
         }
     }
 
+    fun onToolToggled() {
+        conversationManager.reregisterTools()
+    }
+
     fun onMcpConfigChanged() {
         scope.launch {
             try {

@@ -201,22 +201,33 @@ class ClientMcpManager(
      * Returns tool schemas for conversation/registerTools.
      * Each MCP server is registered as a single compound tool (server name = tool name).
      * The model picks the server tool, then specifies an "action" to route to the right sub-tool.
+     * @param isEnabled optional filter — receives the original tool name, returns true if enabled.
      */
-    fun getToolSchemas(): List<String> {
+    fun getToolSchemas(isEnabled: ((String) -> Boolean)? = null): List<String> {
         val schemas = mutableListOf<String>()
 
         for ((name, server) in stdioServers) {
-            if (server.tools.isNotEmpty()) {
-                schemas.add(buildCompoundSchema(name, server.tools))
+            val tools = filterTools(server.tools, isEnabled)
+            if (tools.isNotEmpty()) {
+                schemas.add(buildCompoundSchema(name, tools))
             }
         }
         for ((name, server) in sseServers) {
-            if (server.tools.isNotEmpty()) {
-                schemas.add(buildCompoundSchema(name, server.tools))
+            val tools = filterTools(server.tools, isEnabled)
+            if (tools.isNotEmpty()) {
+                schemas.add(buildCompoundSchema(name, tools))
             }
         }
 
         return schemas
+    }
+
+    private fun filterTools(tools: List<JsonObject>, isEnabled: ((String) -> Boolean)?): List<JsonObject> {
+        if (isEnabled == null) return tools
+        return tools.filter { tool ->
+            val toolName = tool["name"]?.jsonPrimitive?.contentOrNull ?: return@filter true
+            isEnabled(toolName)
+        }
     }
 
     /**
