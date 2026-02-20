@@ -39,6 +39,8 @@ class RagIndexer(private val project: Project) : Disposable {
         private set
     @Volatile var totalFiles: Int = 0
         private set
+    @Volatile var lastError: String? = null
+        private set
 
     companion object {
         private const val UPSERT_BATCH_SIZE = 20
@@ -82,12 +84,14 @@ class RagIndexer(private val project: Project) : Disposable {
             try {
                 isIndexing = true
                 indexedFiles = 0
+                lastError = null
                 log.info("Starting RAG indexing for project: ${project.name}")
 
                 // Ensure Qdrant is running
                 val qdrant = QdrantManager.getInstance()
                 if (!qdrant.ensureRunning()) {
                     log.warn("Failed to start Qdrant, aborting indexing")
+                    lastError = "Failed to start Qdrant. Check that the binary can be downloaded and ports 6333/6334 are available."
                     return@launch
                 }
 
@@ -146,6 +150,7 @@ class RagIndexer(private val project: Project) : Disposable {
                 log.info("RAG indexing cancelled")
             } catch (e: Exception) {
                 log.warn("RAG indexing failed: ${e.message}", e)
+                lastError = "Indexing failed: ${e.message}"
             } finally {
                 isIndexing = false
             }

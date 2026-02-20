@@ -477,6 +477,7 @@ class QdrantManager : Disposable {
     private fun buildHttpClient(): HttpClient {
         val builder = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
+            .followRedirects(HttpClient.Redirect.NORMAL)
         val proxyUrl = CopilotChatSettings.getInstance().proxyUrl
         if (proxyUrl.isNotBlank()) {
             try {

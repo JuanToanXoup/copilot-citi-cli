@@ -182,6 +182,7 @@ class MemoryPanel(private val project: Project) : JPanel(BorderLayout()), Dispos
         progressBar.isVisible = true
         progressBar.value = 0
         statusLabel.text = "Starting..."
+        statusLabel.foreground = JBColor.foreground()
 
         indexer.indexProject()
 
@@ -202,7 +203,14 @@ class MemoryPanel(private val project: Project) : JPanel(BorderLayout()), Dispos
         val indexer = RagIndexer.getInstance(project)
 
         if (!indexer.isIndexing) {
-            onIndexingDone("Done. ${indexer.indexedFiles} files indexed.")
+            val error = indexer.lastError
+            if (error != null) {
+                onIndexingDone(error)
+                statusLabel.foreground = JBColor.RED
+            } else {
+                onIndexingDone("Done. ${indexer.indexedFiles} files indexed.")
+                statusLabel.foreground = JBColor.foreground()
+            }
             return
         }
 
