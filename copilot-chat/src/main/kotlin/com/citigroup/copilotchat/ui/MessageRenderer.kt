@@ -64,19 +64,60 @@ class MessageRenderer {
     }
 
     fun renderMarkdown(markdown: String): String {
-        // Collapse 3+ consecutive blank lines to 2 (one paragraph break)
         val cleaned = markdown.replace(Regex("\n{3,}"), "\n\n")
         val document = parser.parse(cleaned)
         var html = renderer.render(document)
 
-        // Swing's HTMLEditorKit has hardcoded block spacing on <p> elements
-        // that CSS cannot override. Strip <p> tags and use <br> for spacing.
+        // Swing's HTMLEditorKit has hardcoded block spacing on <p>, <li>, <ul>, <ol>
+        // that CSS cannot override. Strip all block elements and use <br> instead.
+
+        // Convert <li> to bullet/number text (handle <ol> numbering)
+        html = convertListsToText(html)
+
+        // Strip <p> tags
         html = html.replace(Regex("<p>"), "")
         html = html.replace(Regex("</p>"), "<br>")
-        // Clean up double <br> from consecutive empty paragraphs
-        html = html.replace(Regex("(<br>\\s*){3,}"), "<br><br>")
+
+        // Clean up excessive <br> runs
+        html = html.replace(Regex("(<br\\s*/?>\\s*){3,}"), "<br><br>")
+        // Remove leading <br>
+        html = html.replace(Regex("^(\\s*<br\\s*/?>\\s*)+"), "")
 
         return "<html><body>$html</body></html>"
+    }
+
+    /**
+     * Replace <ul>/<ol>/<li> structure with plain text bullets/numbers + <br>.
+     * Swing's ListView/BlockView has hardcoded spacing that CSS can't remove.
+     */
+    private fun convertListsToText(html: String): String {
+        var result = html
+        // Process ordered lists: track numbering
+        val olPattern = Regex("<ol[^>]*>(.*?)</ol>", RegexOption.DOT_MATCHES_ALL)
+        result = olPattern.replace(result) { match ->
+            var counter = 0
+            val liPattern = Regex("<li[^>]*>(.*?)</li>", RegexOption.DOT_MATCHES_ALL)
+            val items = liPattern.replace(match.groupValues[1]) { liMatch ->
+                counter++
+                val content = liMatch.groupValues[1]
+                    .replace(Regex("<p>"), "").replace(Regex("</p>"), "")
+                    .trim()
+                "$counter. $content<br>"
+            }
+            items
+        }
+        // Process unordered lists
+        val ulPattern = Regex("<ul[^>]*>(.*?)</ul>", RegexOption.DOT_MATCHES_ALL)
+        result = ulPattern.replace(result) { match ->
+            val liPattern = Regex("<li[^>]*>(.*?)</li>", RegexOption.DOT_MATCHES_ALL)
+            liPattern.replace(match.groupValues[1]) { liMatch ->
+                val content = liMatch.groupValues[1]
+                    .replace(Regex("<p>"), "").replace(Regex("</p>"), "")
+                    .trim()
+                "\u2022 $content<br>"
+            }
+        }
+        return result
     }
 
     private fun updateAllPaneStyles() {
