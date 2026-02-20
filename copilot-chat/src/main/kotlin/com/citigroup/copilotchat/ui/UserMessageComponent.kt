@@ -50,5 +50,5 @@ class UserMessageComponent(private val text: String) : JPanel(BorderLayout()) {
     }
 
     private fun escapeHtml(text: String): String =
-        text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")
 }
