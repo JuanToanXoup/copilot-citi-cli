@@ -34,6 +34,14 @@ class LspClient : Disposable {
     /** Handler for server→client requests (e.g., invokeClientTool). */
     var serverRequestHandler: ((method: String, id: Int, params: JsonObject) -> Unit)? = null
 
+    /** Feature flags received from the server via featureFlagsNotification. */
+    @Volatile
+    var featureFlags: Map<String, Any> = emptyMap()
+        private set
+
+    /** Check if server-side MCP is allowed (from org feature flags). */
+    val isServerMcpEnabled: Boolean get() = featureFlags["mcp"] == true
+
     val isRunning: Boolean get() = process?.isAlive == true
 
     companion object {
@@ -104,6 +112,23 @@ class LspClient : Disposable {
                 val token = params["token"]?.jsonPrimitive?.contentOrNull ?: return
                 val value = params["value"]?.jsonObject ?: return
                 progressListeners[token]?.invoke(value)
+            }
+            // Feature flags notification from the server
+            method == "featureFlagsNotification" -> {
+                val params = obj["params"]?.jsonObject ?: return
+                val flags = mutableMapOf<String, Any>()
+                for ((key, value) in params) {
+                    when (value) {
+                        is JsonPrimitive -> {
+                            if (value.booleanOrNull != null) flags[key] = value.boolean
+                            else if (value.intOrNull != null) flags[key] = value.int
+                            else flags[key] = value.content
+                        }
+                        else -> flags[key] = value.toString()
+                    }
+                }
+                featureFlags = flags
+                log.info("Feature flags received: $flags")
             }
             // Other notifications — log and ignore
             else -> {

@@ -1,0 +1,294 @@
+package com.citigroup.copilotchat.mcp
+
+import com.citigroup.copilotchat.config.CopilotChatSettings
+import com.intellij.openapi.diagnostic.Logger
+import kotlinx.coroutines.delay
+import kotlinx.serialization.json.*
+
+/**
+ * Orchestrates multiple client-side MCP servers.
+ * Direct port of Python's ClientMCPManager from mcp.py.
+ *
+ * Spawns MCP server processes locally, discovers tools, registers them as
+ * client tools with prefixed names (mcp_<server>_<tool>), and routes
+ * invokeClientTool calls to the correct server.
+ */
+class ClientMcpManager {
+
+    private val log = Logger.getInstance(ClientMcpManager::class.java)
+    private val json = Json { ignoreUnknownKeys = true }
+
+    /** Active MCP servers keyed by name. */
+    private val stdioServers = mutableMapOf<String, McpServer>()
+    private val sseServers = mutableMapOf<String, McpSseServer>()
+
+    /** Maps prefixed tool name -> (serverName, originalToolName). */
+    private val toolMap = mutableMapOf<String, Pair<String, String>>()
+
+    /**
+     * Add MCP servers from settings entries.
+     */
+    fun addServers(entries: List<CopilotChatSettings.McpServerEntry>) {
+        for (entry in entries) {
+            if (!entry.enabled) continue
+
+            val envMap = mutableMapOf<String, String>()
+            if (entry.env.isNotBlank()) {
+                entry.env.lines().filter { "=" in it }.forEach { line ->
+                    val (k, v) = line.split("=", limit = 2)
+                    envMap[k.trim()] = v.trim()
+                }
+            }
+
+            if (entry.url.isNotBlank()) {
+                // SSE transport
+                sseServers[entry.name] = McpSseServer(
+                    name = entry.name,
+                    url = entry.url,
+                    env = envMap,
+                )
+            } else if (entry.command.isNotBlank()) {
+                // Stdio transport
+                val args = if (entry.args.isNotBlank()) {
+                    entry.args.split(" ").filter { it.isNotBlank() }
+                } else {
+                    emptyList()
+                }
+                stdioServers[entry.name] = McpServer(
+                    name = entry.name,
+                    command = entry.command,
+                    args = args,
+                    env = envMap,
+                )
+            } else {
+                log.warn("MCP: skipping '${entry.name}': need command (stdio) or url (SSE)")
+            }
+        }
+    }
+
+    /**
+     * Start all servers, initialize them, and discover tools.
+     */
+    suspend fun startAll(onProgress: ((String) -> Unit)? = null) {
+        // Start stdio servers
+        for ((name, server) in stdioServers) {
+            try {
+                onProgress?.invoke("Starting MCP: $name...")
+                server.start()
+                delay(500)
+                server.initialize()
+                delay(500)
+                server.listTools()
+                log.info("MCP $name: ${server.tools.size} tools")
+            } catch (e: Exception) {
+                log.warn("MCP $name: failed to start: ${e.message}")
+            }
+        }
+
+        // Start SSE servers
+        for ((name, server) in sseServers) {
+            try {
+                onProgress?.invoke("Starting MCP SSE: $name...")
+                server.start()
+                server.initialize()
+                server.listTools()
+                log.info("MCP SSE $name: ${server.tools.size} tools")
+            } catch (e: Exception) {
+                log.warn("MCP SSE $name: failed to start: ${e.message}")
+            }
+        }
+
+        // Build tool map with prefixed names
+        toolMap.clear()
+        for ((name, server) in stdioServers) {
+            for (tool in server.tools) {
+                val toolName = tool["name"]?.jsonPrimitive?.contentOrNull ?: continue
+                val prefixed = "mcp_${name}_${toolName}"
+                toolMap[prefixed] = Pair(name, toolName)
+            }
+        }
+        for ((name, server) in sseServers) {
+            for (tool in server.tools) {
+                val toolName = tool["name"]?.jsonPrimitive?.contentOrNull ?: continue
+                val prefixed = "mcp_${name}_${toolName}"
+                toolMap[prefixed] = Pair(name, toolName)
+            }
+        }
+    }
+
+    /**
+     * Returns tool schemas for conversation/registerTools.
+     * Tool names are prefixed with mcp_<server>_<tool>.
+     */
+    fun getToolSchemas(): List<String> {
+        val schemas = mutableListOf<String>()
+
+        for ((name, server) in stdioServers) {
+            schemas.addAll(buildToolSchemas(name, server.tools))
+        }
+        for ((name, server) in sseServers) {
+            schemas.addAll(buildToolSchemas(name, server.tools))
+        }
+
+        return schemas
+    }
+
+    /**
+     * Check if a tool name is a client-side MCP tool.
+     */
+    fun isMcpTool(name: String): Boolean = name in toolMap
+
+    /**
+     * Call a client-side MCP tool and return the result as text.
+     */
+    suspend fun callTool(name: String, input: JsonObject): String {
+        val (serverName, originalName) = toolMap[name]
+            ?: return "Unknown MCP tool: $name"
+
+        // Try stdio servers first, then SSE
+        val stdioServer = stdioServers[serverName]
+        if (stdioServer != null) {
+            return try {
+                stdioServer.callTool(originalName, input)
+            } catch (e: Exception) {
+                "MCP tool '$originalName' error: ${e.message}"
+            }
+        }
+
+        val sseServer = sseServers[serverName]
+        if (sseServer != null) {
+            return try {
+                sseServer.callTool(originalName, input)
+            } catch (e: Exception) {
+                "MCP tool '$originalName' error: ${e.message}"
+            }
+        }
+
+        return "MCP server '$serverName' not found"
+    }
+
+    /**
+     * Stop all MCP servers.
+     */
+    fun stopAll() {
+        for (server in stdioServers.values) {
+            try { server.stop() } catch (_: Exception) {}
+        }
+        for (server in sseServers.values) {
+            try { server.stop() } catch (_: Exception) {}
+        }
+        stdioServers.clear()
+        sseServers.clear()
+        toolMap.clear()
+    }
+
+    private fun buildToolSchemas(serverName: String, tools: List<JsonObject>): List<String> {
+        return tools.mapNotNull { tool ->
+            val toolName = tool["name"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+            val description = tool["description"]?.jsonPrimitive?.contentOrNull ?: toolName
+            val inputSchema = tool["inputSchema"]?.jsonObject
+                ?: buildJsonObject {
+                    put("type", "object")
+                    putJsonObject("properties") {}
+                }
+
+            // Sanitize and ensure required field
+            val sanitized = sanitizeSchema(inputSchema)
+            val withRequired = if ("required" !in sanitized) {
+                JsonObject(sanitized + ("required" to JsonArray(emptyList())))
+            } else {
+                sanitized
+            }
+
+            val prefixed = "mcp_${serverName}_${toolName}"
+            val schema = buildJsonObject {
+                put("name", prefixed)
+                put("description", "[$serverName] $description")
+                put("inputSchema", withRequired)
+            }
+            schema.toString()
+        }
+    }
+
+    /**
+     * Fix JSON Schema constructs that the Copilot server rejects.
+     * Port of Python's _sanitize_schema() from mcp.py.
+     *
+     * - Converts array-typed "type" (e.g. ["object", "null"]) to a string
+     * - Flattens anyOf/oneOf unions into a single type
+     * - Ensures every property has a "type" field
+     * - Recursively processes properties, items, additionalProperties
+     */
+    private fun sanitizeSchema(schema: JsonObject): JsonObject {
+        val mutable = schema.toMutableMap()
+
+        // Handle anyOf / oneOf
+        for (keyword in listOf("anyOf", "oneOf")) {
+            val variants = mutable[keyword]?.jsonArray
+            if (variants != null) {
+                val types = variants
+                    .mapNotNull { it as? JsonObject }
+                    .mapNotNull { v ->
+                        val t = v["type"]?.jsonPrimitive?.contentOrNull
+                        if (t != null && t != "null") t else null
+                    }
+                // Collect extra fields from the first non-null variant
+                val extra = mutableMapOf<String, JsonElement>()
+                for (v in variants) {
+                    val obj = v as? JsonObject ?: continue
+                    val t = obj["type"]?.jsonPrimitive?.contentOrNull
+                    if (t != null && t != "null") {
+                        for ((k, value) in obj) {
+                            if (k != "type") extra[k] = value
+                        }
+                        break
+                    }
+                }
+
+                mutable.remove(keyword)
+                mutable["type"] = JsonPrimitive(types.firstOrNull() ?: "string")
+                mutable.putAll(extra)
+            }
+        }
+
+        // Handle array "type" (e.g. ["object", "null"])
+        val typeEl = mutable["type"]
+        if (typeEl is JsonArray) {
+            val types = typeEl.mapNotNull {
+                val t = it.jsonPrimitive.contentOrNull
+                if (t != null && t != "null") t else null
+            }
+            mutable["type"] = JsonPrimitive(types.firstOrNull() ?: "string")
+        }
+
+        // Ensure "type" exists
+        if ("type" !in mutable && "properties" !in mutable) {
+            mutable["type"] = JsonPrimitive("string")
+        }
+
+        // Recursively sanitize properties
+        val properties = mutable["properties"]?.jsonObject
+        if (properties != null) {
+            val sanitizedProps = buildJsonObject {
+                for ((propName, propValue) in properties) {
+                    if (propValue is JsonObject) {
+                        put(propName, sanitizeSchema(propValue))
+                    } else {
+                        put(propName, propValue)
+                    }
+                }
+            }
+            mutable["properties"] = sanitizedProps
+        }
+
+        // Recursively sanitize items and additionalProperties
+        for (kw in listOf("items", "additionalProperties")) {
+            val nested = mutable[kw]
+            if (nested is JsonObject) {
+                mutable[kw] = sanitizeSchema(nested)
+            }
+        }
+
+        return JsonObject(mutable)
+    }
+}

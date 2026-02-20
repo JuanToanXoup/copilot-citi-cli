@@ -4,6 +4,7 @@ import com.citigroup.copilotchat.auth.CopilotAuth
 import com.citigroup.copilotchat.auth.CopilotBinaryLocator
 import com.citigroup.copilotchat.config.CopilotChatSettings
 import com.citigroup.copilotchat.lsp.*
+import com.citigroup.copilotchat.mcp.ClientMcpManager
 import com.citigroup.copilotchat.tools.ToolRouter
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.Service
@@ -37,6 +38,7 @@ class ConversationManager(private val project: Project) : Disposable {
     private var currentJob: Job? = null
     private var currentWorkDoneToken: String? = null
     private lateinit var toolRouter: ToolRouter
+    private var clientMcpManager: ClientMcpManager? = null
     private val initMutex = kotlinx.coroutines.sync.Mutex()
 
     private val lspClient: LspClient get() = LspClient.getInstance()
@@ -212,12 +214,33 @@ class ConversationManager(private val project: Project) : Disposable {
             log.info("Proxy configured: ${httpSettings["proxy"]}")
         }
 
-        // Register tools
-        registerTools()
+        // Wait briefly for feature flags (they arrive shortly after init)
+        val flagsStart = System.currentTimeMillis()
+        while (lspClient.featureFlags.isEmpty() && System.currentTimeMillis() - flagsStart < 3_000) {
+            delay(100)
+        }
 
-        // Auto-send MCP config from saved settings so MCP servers
-        // are available immediately without visiting the MCP tab
-        loadMcpConfigFromSettings()
+        // MCP: route to server-side or client-side based on feature flags
+        val mcpSettings = CopilotChatSettings.getInstance().mcpServers
+        val enabledMcpServers = mcpSettings.filter { it.enabled }
+
+        if (enabledMcpServers.isNotEmpty()) {
+            if (lspClient.isServerMcpEnabled) {
+                // Server-side MCP: send config via workspace/didChangeConfiguration
+                log.info("MCP: using server-side (org allows mcp)")
+                loadMcpConfigFromSettings()
+            } else {
+                // Client-side MCP: spawn processes locally
+                log.info("MCP: using client-side (org blocks server mcp)")
+                val manager = ClientMcpManager()
+                manager.addServers(enabledMcpServers)
+                manager.startAll()
+                clientMcpManager = manager
+            }
+        }
+
+        // Register tools (including client-side MCP tools if any)
+        registerTools()
 
         initialized = true
         } // end initMutex.withLock
@@ -259,7 +282,12 @@ class ConversationManager(private val project: Project) : Disposable {
     }
 
     private suspend fun registerTools() {
-        val schemas = toolRouter.getToolSchemas()
+        val schemas = toolRouter.getToolSchemas().toMutableList()
+
+        // Append client-side MCP tool schemas
+        val mcpSchemas = clientMcpManager?.getToolSchemas() ?: emptyList()
+        schemas.addAll(mcpSchemas)
+
         if (schemas.isEmpty()) return
 
         val params = buildJsonObject {
@@ -270,7 +298,8 @@ class ConversationManager(private val project: Project) : Disposable {
             }
         }
         lspClient.sendRequest("conversation/registerTools", params)
-        log.info("Registered ${schemas.size} client tools")
+        val mcpNote = if (mcpSchemas.isNotEmpty()) " + ${mcpSchemas.size} client-mcp" else ""
+        log.info("Registered ${schemas.size} client tools$mcpNote")
     }
 
     /**
@@ -474,13 +503,30 @@ class ConversationManager(private val project: Project) : Disposable {
 
                 _events.emit(ChatEvent.ToolCall(toolName, toolInput))
 
-                val result = toolRouter.executeTool(toolName, toolInput)
-                lspClient.sendResponse(id, result)
+                // Check client-side MCP tools first
+                val mcpManager = clientMcpManager
+                if (mcpManager != null && mcpManager.isMcpTool(toolName)) {
+                    val resultText = mcpManager.callTool(toolName, toolInput)
+                    val result = buildJsonArray {
+                        addJsonObject {
+                            putJsonArray("content") {
+                                addJsonObject { put("value", resultText) }
+                            }
+                            put("status", "success")
+                        }
+                        add(JsonNull)
+                    }
+                    lspClient.sendResponse(id, result)
+                    _events.emit(ChatEvent.ToolResult(toolName, resultText.take(200)))
+                } else {
+                    val result = toolRouter.executeTool(toolName, toolInput)
+                    lspClient.sendResponse(id, result)
 
-                val outputText = result.jsonArray.firstOrNull()?.jsonObject
-                    ?.get("content")?.jsonArray?.firstOrNull()?.jsonObject
-                    ?.get("value")?.jsonPrimitive?.contentOrNull ?: ""
-                _events.emit(ChatEvent.ToolResult(toolName, outputText.take(200)))
+                    val outputText = result.jsonArray.firstOrNull()?.jsonObject
+                        ?.get("content")?.jsonArray?.firstOrNull()?.jsonObject
+                        ?.get("value")?.jsonPrimitive?.contentOrNull ?: ""
+                    _events.emit(ChatEvent.ToolResult(toolName, outputText.take(200)))
+                }
             }
             "copilot/watchedFiles" -> {
                 lspClient.sendResponse(id, buildJsonObject {
@@ -521,6 +567,9 @@ class ConversationManager(private val project: Project) : Disposable {
     /** Start a fresh conversation. */
     fun newConversation() {
         cancel()
+        clientMcpManager?.stopAll()
+        clientMcpManager = null
+        initialized = false
         state = ConversationState(model = state.model, agentMode = state.agentMode)
     }
 
@@ -590,6 +639,8 @@ class ConversationManager(private val project: Project) : Disposable {
 
     override fun dispose() {
         cancel()
+        clientMcpManager?.stopAll()
+        clientMcpManager = null
         scope.cancel()
     }
 }
