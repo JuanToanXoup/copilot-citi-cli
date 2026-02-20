@@ -513,10 +513,28 @@ const Components = {
             div.innerHTML = `<span class="reply-marker">&#x23FA;</span>${this._esc(msg.text)}`;
         } else if (msg.type === 'tool_call') {
             div.classList.add('msg-tool');
-            const inputStr = msg.input && Object.keys(msg.input).length > 0
-                ? `<span class="tool-input">(${this._esc(JSON.stringify(msg.input).slice(0, 150))})</span>`
-                : '';
-            div.innerHTML = `&#x2502; <span class="tool-name">${this._esc(msg.name)}</span>${inputStr}`;
+            let inputHtml = '';
+            if (msg.input && Object.keys(msg.input).length > 0) {
+                const full = JSON.stringify(msg.input, null, 2);
+                const brief = this._briefInput(msg.input);
+                if (full.length > 80) {
+                    inputHtml = `<span class="tool-input">(${this._esc(brief)}) <a class="tool-expand" href="#">…</a></span>`
+                        + `<pre class="tool-detail" style="display:none">${this._esc(full)}</pre>`;
+                } else {
+                    inputHtml = `<span class="tool-input">(${this._esc(brief)})</span>`;
+                }
+            }
+            div.innerHTML = `&#x2502; <span class="tool-name">${this._esc(msg.name)}</span>${inputHtml}`;
+            const expander = div.querySelector('.tool-expand');
+            if (expander) {
+                expander.onclick = (e) => {
+                    e.preventDefault();
+                    const detail = div.querySelector('.tool-detail');
+                    const hidden = detail.style.display === 'none';
+                    detail.style.display = hidden ? 'block' : 'none';
+                    expander.textContent = hidden ? '▾' : '…';
+                };
+            }
         } else if (msg.type === 'error') {
             div.classList.add('msg-error');
             div.textContent = msg.text;
@@ -574,6 +592,14 @@ const Components = {
         span.textContent = text + '\n';
         container.appendChild(span);
         container.scrollTop = container.scrollHeight;
+    },
+
+    _briefInput(input) {
+        // Compact summary: show keys with truncated values
+        return Object.entries(input).map(([k, v]) => {
+            const s = typeof v === 'string' ? v : JSON.stringify(v);
+            return `${k}: ${s.length > 40 ? s.slice(0, 40) + '…' : s}`;
+        }).join(', ');
     },
 
     _esc(s) {

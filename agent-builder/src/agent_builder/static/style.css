@@ -294,6 +294,9 @@ body {
 
 .msg-tool .tool-name { font-weight: 600; }
 .msg-tool .tool-input { opacity: 0.6; margin-left: 2px; }
+.msg-tool .tool-expand { color: var(--accent-green); opacity: 0.7; text-decoration: none; margin-left: 4px; cursor: pointer; }
+.msg-tool .tool-expand:hover { opacity: 1; }
+.msg-tool .tool-detail { margin: 4px 0 4px 18px; padding: 6px 8px; background: var(--bg-secondary); border-radius: 4px; font-size: 11px; opacity: 0.8; white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow-y: auto; }
 
 .msg-error {
     color: var(--accent-red);
