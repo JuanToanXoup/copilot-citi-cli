@@ -5,6 +5,7 @@ import com.citigroup.copilotchat.auth.CopilotBinaryLocator
 import com.citigroup.copilotchat.config.CopilotChatSettings
 import com.citigroup.copilotchat.lsp.*
 import com.citigroup.copilotchat.mcp.ClientMcpManager
+import com.citigroup.copilotchat.rag.RagQueryService
 import com.citigroup.copilotchat.tools.ToolRouter
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.Service
@@ -352,6 +353,18 @@ class ConversationManager(private val project: Project) : Disposable {
                 val useModel = model ?: state.model
                 val useAgent = agentMode ?: state.agentMode
 
+                // RAG: retrieve relevant code context and prepend to message for LSP
+                val settings = CopilotChatSettings.getInstance()
+                val lspText = if (settings.ragEnabled) {
+                    val ragContext = try {
+                        RagQueryService.getInstance(project).retrieve(text, settings.ragTopK)
+                    } catch (e: Exception) {
+                        log.debug("RAG retrieval failed, continuing without context: ${e.message}")
+                        ""
+                    }
+                    if (ragContext.isNotEmpty()) "$ragContext\n\n$text" else text
+                } else text
+
                 state = state.copy(isStreaming = true)
                 state.messages.add(ChatMessage(ChatMessage.Role.USER, text))
 
@@ -371,7 +384,7 @@ class ConversationManager(private val project: Project) : Disposable {
                         val params = buildJsonObject {
                             put("workDoneToken", workDoneToken)
                             putJsonArray("turns") {
-                                addJsonObject { put("request", text) }
+                                addJsonObject { put("request", lspText) }
                             }
                             putJsonObject("capabilities") {
                                 put("allSkills", useAgent)
@@ -404,7 +417,7 @@ class ConversationManager(private val project: Project) : Disposable {
                         val params = buildJsonObject {
                             put("workDoneToken", workDoneToken)
                             put("conversationId", state.conversationId!!)
-                            put("message", text)
+                            put("message", lspText)
                             put("source", "panel")
                             if (useAgent) {
                                 put("chatMode", "Agent")

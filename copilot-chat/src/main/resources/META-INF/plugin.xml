@@ -30,6 +30,15 @@
         <!-- Project-level Conversation Manager -->
         <projectService serviceImplementation="com.citigroup.copilotchat.conversation.ConversationManager"/>
 
+        <!-- RAG: Qdrant binary lifecycle manager -->
+        <applicationService serviceImplementation="com.citigroup.copilotchat.rag.QdrantManager"/>
+
+        <!-- RAG: Background indexing service -->
+        <projectService serviceImplementation="com.citigroup.copilotchat.rag.RagIndexer"/>
+
+        <!-- RAG: Query pipeline -->
+        <projectService serviceImplementation="com.citigroup.copilotchat.rag.RagQueryService"/>
+
         <!-- Tool Window with content tabs (Chat, Tools, MCP, Workers) -->
         <toolWindow id="Copilot Chat"
                     anchor="right"

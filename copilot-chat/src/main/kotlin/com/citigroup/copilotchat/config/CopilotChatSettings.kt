@@ -43,6 +43,12 @@ class CopilotChatSettings : PersistentStateComponent<CopilotChatSettings.State> 
         /** Tool names that the user has explicitly disabled. */
         @XCollection(elementTypes = [String::class])
         var disabledTools: MutableList<String> = mutableListOf(),
+        /** RAG: master toggle for retrieval-augmented generation. */
+        var ragEnabled: Boolean = false,
+        /** RAG: number of context chunks to retrieve per query. */
+        var ragTopK: Int = 5,
+        /** RAG: automatically index project on open. */
+        var ragAutoIndex: Boolean = false,
     )
 
     private var myState = State()
@@ -102,6 +108,18 @@ class CopilotChatSettings : PersistentStateComponent<CopilotChatSettings.State> 
     var proxyUrl: String
         get() = myState.proxyUrl
         set(value) { myState.proxyUrl = value }
+
+    var ragEnabled: Boolean
+        get() = myState.ragEnabled
+        set(value) { myState.ragEnabled = value }
+
+    var ragTopK: Int
+        get() = myState.ragTopK
+        set(value) { myState.ragTopK = value }
+
+    var ragAutoIndex: Boolean
+        get() = myState.ragAutoIndex
+        set(value) { myState.ragAutoIndex = value }
 
     fun isToolEnabled(name: String): Boolean = name !in myState.disabledTools
 
