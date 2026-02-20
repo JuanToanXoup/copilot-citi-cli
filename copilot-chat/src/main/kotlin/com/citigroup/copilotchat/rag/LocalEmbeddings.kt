@@ -30,7 +30,14 @@ object LocalEmbeddings {
 
     @Volatile
     private var session: OrtSession? = null
-    private val env: OrtEnvironment = OrtEnvironment.getEnvironment()
+
+    // Lazy: OrtEnvironment triggers native lib loading via static init.
+    // IntelliJ's plugin classloader can't find the native libs without help,
+    // so we extract them first before touching any ONNX Runtime classes.
+    private val env: OrtEnvironment by lazy {
+        extractNativeLibrary()
+        OrtEnvironment.getEnvironment()
+    }
 
     /** Embed a single text string. Returns a float array of dimension 384. */
     fun embed(text: String): FloatArray = embedBatch(listOf(text)).first()
@@ -120,6 +127,58 @@ object LocalEmbeddings {
         }
 
         return sum
+    }
+
+    /**
+     * Extract ONNX Runtime native libraries from the JAR to a temp directory
+     * and set the system property so ONNX Runtime can find them.
+     *
+     * IntelliJ's plugin classloader isolates dependencies, which prevents
+     * ONNX Runtime's built-in native lib extraction from working.
+     */
+    private fun extractNativeLibrary() {
+        // If already set (e.g. by a previous call or user config), skip
+        if (System.getProperty("onnxruntime.native.path") != null) return
+
+        val osName = System.getProperty("os.name").lowercase()
+        val osArch = System.getProperty("os.arch").lowercase()
+
+        val (nativeDir, libNames) = when {
+            "mac" in osName && ("aarch64" in osArch || "arm64" in osArch) ->
+                "osx-aarch64" to listOf("libonnxruntime.dylib", "libonnxruntime4j_jni.dylib")
+            "mac" in osName ->
+                "osx-x64" to listOf("libonnxruntime.dylib", "libonnxruntime4j_jni.dylib")
+            "linux" in osName && ("aarch64" in osArch || "arm64" in osArch) ->
+                "linux-aarch64" to listOf("libonnxruntime.so", "libonnxruntime4j_jni.so")
+            "linux" in osName ->
+                "linux-x64" to listOf("libonnxruntime.so", "libonnxruntime4j_jni.so")
+            "win" in osName ->
+                "win-x64" to listOf("onnxruntime.dll", "onnxruntime4j_jni.dll", "onnxruntime_providers_shared.dll")
+            else -> return
+        }
+
+        val extractDir = File(System.getProperty("user.home"), ".copilot-chat/native/$nativeDir")
+        extractDir.mkdirs()
+
+        val classLoader = LocalEmbeddings::class.java.classLoader
+        for (libName in libNames) {
+            val target = File(extractDir, libName)
+            if (target.exists()) continue
+
+            val resourcePath = "ai/onnxruntime/native/$nativeDir/$libName"
+            val stream = classLoader.getResourceAsStream(resourcePath)
+            if (stream == null) {
+                log.warn("Native library not found in JAR: $resourcePath")
+                continue
+            }
+            stream.use { input ->
+                target.outputStream().use { output -> input.copyTo(output) }
+            }
+            log.info("Extracted native library: $resourcePath -> ${target.absolutePath}")
+        }
+
+        System.setProperty("onnxruntime.native.path", extractDir.absolutePath)
+        log.info("Set onnxruntime.native.path=${extractDir.absolutePath}")
     }
 
     @Synchronized

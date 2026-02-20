@@ -3,7 +3,7 @@
 kotlinxSerializationJson = "1.7.3"
 tomlj = "1.1.1"
 flexmark = "0.64.8"
-onnxruntime = "1.24.1"
+onnxruntime = "1.20.0"
 
 # plugins
 intellij = "1.17.4"
