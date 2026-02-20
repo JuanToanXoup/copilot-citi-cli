@@ -35,6 +35,8 @@ class CopilotChatSettings : PersistentStateComponent<CopilotChatSettings.State> 
         var agentModeDefault: Boolean = true,
         var agentConfigPath: String = "",
         var defaultsSeeded: Boolean = false,
+        var proxyHost: String = "",
+        var proxyPort: Int = 0,
         @XCollection(elementTypes = [McpServerEntry::class])
         var mcpServers: MutableList<McpServerEntry> = mutableListOf(),
         @XCollection(elementTypes = [WorkerEntry::class])
@@ -97,6 +99,14 @@ class CopilotChatSettings : PersistentStateComponent<CopilotChatSettings.State> 
     var disabledTools: MutableList<String>
         get() = myState.disabledTools
         set(value) { myState.disabledTools = value }
+
+    var proxyHost: String
+        get() = myState.proxyHost
+        set(value) { myState.proxyHost = value }
+
+    var proxyPort: Int
+        get() = myState.proxyPort
+        set(value) { myState.proxyPort = value }
 
     fun isToolEnabled(name: String): Boolean = name !in myState.disabledTools
 

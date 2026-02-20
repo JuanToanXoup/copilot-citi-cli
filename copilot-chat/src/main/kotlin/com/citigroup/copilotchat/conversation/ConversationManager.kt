@@ -113,7 +113,14 @@ class ConversationManager(private val project: Project) : Disposable {
                     put("version", "1.420.0")
                 }
                 putJsonObject("editorConfiguration") {}
-                putJsonObject("networkProxy") {}
+                putJsonObject("networkProxy") {
+                    val host = settings.proxyHost
+                    val port = settings.proxyPort
+                    if (host.isNotBlank() && port > 0) {
+                        put("host", host)
+                        put("port", port)
+                    }
+                }
                 put("githubAppId", auth.appId.ifBlank { "Iv1.b507a08c87ecfe98" })
             }
         }
@@ -136,7 +143,14 @@ class ConversationManager(private val project: Project) : Disposable {
                 put("version", "1.420.0")
             }
             putJsonObject("editorConfiguration") {}
-            putJsonObject("networkProxy") {}
+            putJsonObject("networkProxy") {
+                val host = settings.proxyHost
+                val port = settings.proxyPort
+                if (host.isNotBlank() && port > 0) {
+                    put("host", host)
+                    put("port", port)
+                }
+            }
         })
 
         // checkStatus

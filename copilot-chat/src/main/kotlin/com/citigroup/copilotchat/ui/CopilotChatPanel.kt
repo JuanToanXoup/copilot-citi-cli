@@ -1,19 +1,25 @@
 package com.citigroup.copilotchat.ui
 
+import com.citigroup.copilotchat.config.CopilotChatSettings
 import com.citigroup.copilotchat.conversation.ChatEvent
 import com.citigroup.copilotchat.conversation.ConversationManager
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.openapi.ui.Messages
 import com.intellij.ui.JBColor
 import com.intellij.ui.OnePixelSplitter
 import com.intellij.ui.components.JBScrollPane
+import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.JBUI
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.serialization.json.JsonObject
 import java.awt.BorderLayout
 import java.awt.FlowLayout
+import java.awt.GridBagConstraints
+import java.awt.GridBagLayout
 import javax.swing.*
 
 /**
@@ -84,6 +90,7 @@ class CopilotChatPanel(private val project: Project) : JPanel(BorderLayout()), D
 
             val actionsPanel = JPanel(FlowLayout(FlowLayout.RIGHT, 2, 0)).apply {
                 isOpaque = false
+                add(createIconButton(AllIcons.General.GearPlain, "Proxy Settings") { showProxyDialog() })
                 add(createIconButton(AllIcons.Vcs.History, "History"))
                 add(createIconButton(AllIcons.General.Add, "New Conversation") { newConversation() })
             }
@@ -255,6 +262,15 @@ class CopilotChatPanel(private val project: Project) : JPanel(BorderLayout()), D
         scrollManager.onContentAdded()
     }
 
+    private fun showProxyDialog() {
+        val settings = CopilotChatSettings.getInstance()
+        val dialog = ProxyDialog(settings.proxyHost, settings.proxyPort)
+        if (dialog.showAndGet()) {
+            settings.proxyHost = dialog.host
+            settings.proxyPort = dialog.port
+        }
+    }
+
     private fun newConversation() {
         conversationManager.newConversation()
         messagesPanel.removeAll()
@@ -272,5 +288,54 @@ class CopilotChatPanel(private val project: Project) : JPanel(BorderLayout()), D
 
     override fun dispose() {
         scope.cancel()
+    }
+}
+
+private class ProxyDialog(
+    currentHost: String,
+    currentPort: Int,
+) : DialogWrapper(true) {
+
+    private val hostField = JBTextField(currentHost)
+    private val portField = JBTextField(if (currentPort > 0) currentPort.toString() else "")
+
+    val host: String get() = hostField.text.trim()
+    val port: Int get() = portField.text.trim().toIntOrNull() ?: 0
+
+    init {
+        title = "Proxy Settings"
+        init()
+    }
+
+    override fun createCenterPanel(): JComponent {
+        val panel = JPanel(GridBagLayout())
+        val gbc = GridBagConstraints().apply {
+            fill = GridBagConstraints.HORIZONTAL
+            insets = JBUI.insets(4)
+        }
+
+        gbc.gridx = 0; gbc.gridy = 0; gbc.weightx = 0.0
+        panel.add(JLabel("Host:"), gbc)
+        gbc.gridx = 1; gbc.weightx = 1.0
+        panel.add(hostField, gbc)
+
+        gbc.gridx = 0; gbc.gridy = 1; gbc.weightx = 0.0
+        panel.add(JLabel("Port:"), gbc)
+        gbc.gridx = 1; gbc.weightx = 1.0
+        panel.add(portField, gbc)
+
+        gbc.gridx = 0; gbc.gridy = 2; gbc.gridwidth = 2
+        panel.add(JLabel("<html><i style='color: gray'>Leave empty to connect directly (no proxy).</i></html>"), gbc)
+
+        return panel
+    }
+
+    override fun doOKAction() {
+        val portText = portField.text.trim()
+        if (portText.isNotEmpty() && portText.toIntOrNull() == null) {
+            Messages.showErrorDialog("Port must be a number.", "Validation Error")
+            return
+        }
+        super.doOKAction()
     }
 }
