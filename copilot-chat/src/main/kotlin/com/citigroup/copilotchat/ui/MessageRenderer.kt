@@ -67,8 +67,16 @@ class MessageRenderer {
         // Collapse 3+ consecutive blank lines to 2 (one paragraph break)
         val cleaned = markdown.replace(Regex("\n{3,}"), "\n\n")
         val document = parser.parse(cleaned)
-        val htmlBody = renderer.render(document)
-        return "<html><body>$htmlBody</body></html>"
+        var html = renderer.render(document)
+
+        // Swing's HTMLEditorKit has hardcoded block spacing on <p> elements
+        // that CSS cannot override. Strip <p> tags and use <br> for spacing.
+        html = html.replace(Regex("<p>"), "")
+        html = html.replace(Regex("</p>"), "<br>")
+        // Clean up double <br> from consecutive empty paragraphs
+        html = html.replace(Regex("(<br>\\s*){3,}"), "<br><br>")
+
+        return "<html><body>$html</body></html>"
     }
 
     private fun updateAllPaneStyles() {
