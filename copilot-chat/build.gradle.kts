@@ -22,9 +22,6 @@ dependencies {
 
     // TOML config parsing
     implementation(libs.tomlj)
-
-    // Markdown rendering
-    implementation(libs.flexmark.all)
 }
 
 intellij {

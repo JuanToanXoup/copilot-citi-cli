@@ -1,50 +1,42 @@
 package com.citigroup.copilotchat.ui
 
-import com.intellij.util.ui.JBUI
-import javax.swing.*
+import java.awt.BorderLayout
+import javax.swing.BoxLayout
+import javax.swing.JPanel
 
 /**
- * Assistant message matching the official GitHub Copilot Chat UI.
- * Just the markdown content directly, with an optional step panel for tool calls.
+ * Assistant message component matching the official GitHub Copilot plugin's
+ * AbstractMessageComponent → MessageContentPanel → MarkdownPane hierarchy.
  *
- * Layout:
- *  ┌─────────────────────────────────────────────────┐
- *  │ [markdown content here...]                      │
- *  ├─────────────────────────────────────────────────┤
- *  │ ▸ 3 steps completed                            │  ← stepPanel (optional)
- *  └─────────────────────────────────────────────────┘
+ * Official structure (from decompiled bytecode):
+ *   AbstractMessageComponent (JPanel, BorderLayout, focusable=false)
+ *   ├── CENTER: MessageContentPanel (JPanel(VerticalLayout), opaque=false, focusable=false)
+ *   │   └── MarkdownPane (border = DefaultHorizontalBorder = empty(0, 12, 0, 12))
+ *   └── SOUTH: BottomLinePanel (toolbar actions — omitted here)
  */
 class AssistantMessageComponent(
-    val contentPane: JEditorPane,
-    private val messageRenderer: MessageRenderer,
-) : JPanel() {
+    val contentPane: MarkdownPane,
+) : JPanel(BorderLayout()) {
 
-    val stepPanel = StepPanelComponent()
     private val contentText = StringBuilder()
 
-    init {
+    // Matches official MessageContentPanel: JPanel(VerticalLayout()), opaque=false, focusable=false
+    private val contentPanel = JPanel().apply {
         layout = BoxLayout(this, BoxLayout.Y_AXIS)
         isOpaque = false
-        border = JBUI.Borders.empty(0, 0, 4, 0)
+        isFocusable = false
+    }
 
-        contentPane.alignmentX = LEFT_ALIGNMENT
-        add(contentPane)
-
-        stepPanel.alignmentX = LEFT_ALIGNMENT
-        add(stepPanel)
+    init {
+        isFocusable = false
+        isOpaque = false
+        contentPanel.add(contentPane)
+        add(contentPanel, BorderLayout.CENTER)
     }
 
     fun appendText(text: String) {
         contentText.append(text)
-        contentPane.text = messageRenderer.renderMarkdown(contentText.toString())
-    }
-
-    fun addStep(toolName: String, status: String = "running") {
-        stepPanel.addStep(toolName, status)
-    }
-
-    fun updateStep(toolName: String, status: String) {
-        stepPanel.updateStep(toolName, status)
+        contentPane.update(contentText.toString())
     }
 
     fun getText(): String = contentText.toString()

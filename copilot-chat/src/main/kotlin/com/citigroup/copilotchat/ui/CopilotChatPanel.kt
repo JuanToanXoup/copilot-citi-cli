@@ -149,7 +149,7 @@ class CopilotChatPanel(private val project: Project) : JPanel(BorderLayout()), D
         // Assistant message — 8px gap from user pill
         addItemSpacing()
         val pane = messageRenderer.createMessagePane()
-        val assistantMsg = AssistantMessageComponent(pane, messageRenderer)
+        val assistantMsg = AssistantMessageComponent(pane)
         addMessageComponent(assistantMsg)
         currentAssistantMessage = assistantMsg
 
@@ -173,17 +173,16 @@ class CopilotChatPanel(private val project: Project) : JPanel(BorderLayout()), D
             }
             is ChatEvent.AgentRound -> {
                 if (event.reply.isNotEmpty()) {
-                    // Create a fresh assistant message for each round's text,
-                    // so it appears after any tool calls that preceded it
                     val msg = currentAssistantMessage
-                    if (msg != null && msg.getText().isEmpty()) {
-                        // Reuse empty assistant message (just created, no text yet)
+                    if (msg != null) {
+                        // Append to existing assistant message so streamed
+                        // content (e.g. list items) accumulates in one pane
                         msg.appendText(event.reply)
                     } else {
-                        // Create new assistant message after tool calls
+                        // Create new assistant message (after tool calls nulled it)
                         addItemSpacing()
                         val pane = messageRenderer.createMessagePane()
-                        val newMsg = AssistantMessageComponent(pane, messageRenderer)
+                        val newMsg = AssistantMessageComponent(pane)
                         addMessageComponent(newMsg)
                         currentAssistantMessage = newMsg
                         newMsg.appendText(event.reply)

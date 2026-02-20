@@ -2,69 +2,61 @@ package com.citigroup.copilotchat.ui
 
 import com.intellij.icons.AllIcons
 import com.intellij.ui.JBColor
-import com.intellij.ui.components.JBScrollPane
 import com.intellij.util.ui.JBUI
 import kotlinx.serialization.json.JsonObject
 import java.awt.BorderLayout
-import java.awt.Dimension
-import java.awt.FlowLayout
+import java.awt.GridBagConstraints
+import java.awt.GridBagLayout
 import javax.swing.*
 
 /**
- * Collapsible panel showing a tool call — built on CollapsiblePanel,
- * matching the official Copilot plugin's AgentToolCallPanel pattern.
+ * Tool call panel matching the official GitHub Copilot plugin's AgentToolCallPanel.
  *
- * Shows tool name + brief input in the header. Expanding reveals full JSON input.
+ * Official structure (from decompiled bytecode):
+ *   AgentToolCallPanel (JPanel, GridBagLayout, opaque=false)
+ *   └── contentPanel (BorderLayout(6, 0), opaque=false, border=empty(4,6,4,6))
+ *       ├── CENTER: ProgressMessageComponent (tool name / progress)
+ *       └── EAST: icon (running spinner JLabel)
+ *
+ * Border: Style.Borders.AgentToolCallPanelBorder
  */
 class ToolCallPanel(
     private val toolName: String,
     private val input: JsonObject,
-) : JPanel(BorderLayout()) {
+) : JPanel(GridBagLayout()) {
 
     init {
         isOpaque = false
-        border = JBUI.Borders.empty(2, 8)
+        // Official uses Style.Borders.AgentToolCallPanelBorder
+        border = JBUI.Borders.empty(2, 12, 2, 12)
 
-        val toolColor = colorToHex(JBColor(0x6A737D, 0x8B949E))
-        val nameColor = colorToHex(JBColor(0x0366D6, 0x58A6FF))
-
-        // Trigger: function icon + tool name + brief input
-        val triggerPanel = JPanel(FlowLayout(FlowLayout.LEFT, 4, 0)).apply {
+        val contentPanel = JPanel(BorderLayout(6, 0)).apply {
             isOpaque = false
-            add(JLabel(AllIcons.Nodes.Function))
-
-            val briefInput = formatBriefInput(input)
-            add(JLabel("<html><span style='color: $nameColor'><b>$toolName</b></span> " +
-                "<span style='color: $toolColor'>${escapeHtml(briefInput)}</span></html>"))
+            border = JBUI.Borders.empty(4, 6, 4, 6)
         }
 
-        // Detail content: formatted JSON
-        val detailContent = JPanel(BorderLayout()).apply {
-            isOpaque = false
-            border = JBUI.Borders.empty(4, 24, 4, 8)
-
-            val detailText = JTextArea(formatJson(input)).apply {
-                isEditable = false
-                lineWrap = true
-                wrapStyleWord = true
-                font = java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.PLAIN, 11)
-                foreground = JBColor(0x586069, 0x8B949E)
-                background = JBColor(0xF6F8FA, 0x161B22)
-                border = JBUI.Borders.empty(4)
-            }
-            add(JBScrollPane(detailText).apply {
-                preferredSize = Dimension(0, 80)
-                maximumSize = Dimension(Int.MAX_VALUE, 120)
-            }, BorderLayout.CENTER)
-        }
-
-        val collapsible = CollapsiblePanel(
-            trigger = triggerPanel,
-            contentPanel = detailContent,
-            initiallyExpanded = false,
+        // Tool name label (matching official ProgressMessageComponent display)
+        val nameColor = JBColor(0x0366D6, 0x58A6FF)
+        val briefInput = formatBriefInput(input)
+        val label = JLabel(
+            "<html><b style='color: ${colorToHex(nameColor)}'>$toolName</b>" +
+                if (briefInput.isNotEmpty()) " <span style='color: ${colorToHex(JBColor(0x6A737D, 0x8B949E))}'>${escapeHtml(briefInput)}</span>" else "" +
+                "</html>"
         )
+        contentPanel.add(label, BorderLayout.CENTER)
 
-        add(collapsible, BorderLayout.CENTER)
+        // Icon (official uses running spinner from Companion.runningIcon())
+        val icon = JLabel(AllIcons.Nodes.Function)
+        contentPanel.add(icon, BorderLayout.EAST)
+
+        // GridBagConstraints matching official: fill=HORIZONTAL, weightx=1.0, anchor=NORTHWEST
+        val gbc = GridBagConstraints().apply {
+            gridx = 0; gridy = 0
+            fill = GridBagConstraints.HORIZONTAL
+            weightx = 1.0
+            anchor = GridBagConstraints.NORTHWEST
+        }
+        add(contentPanel, gbc)
     }
 
     private fun formatBriefInput(input: JsonObject): String {
@@ -74,18 +66,6 @@ class ToolCallPanel(
         }
         val brief = parts.joinToString(", ")
         return if (brief.length > 80) brief.take(80) + "..." else brief
-    }
-
-    private fun formatJson(input: JsonObject): String {
-        return try {
-            val sb = StringBuilder()
-            input.entries.forEach { (k, v) ->
-                sb.appendLine("$k: ${v.toString().removeSurrounding("\"")}")
-            }
-            sb.toString().trimEnd()
-        } catch (_: Exception) {
-            input.toString()
-        }
     }
 
     private fun escapeHtml(text: String): String =
