@@ -29,6 +29,7 @@ class CopilotChatPanel(private val project: Project) : JPanel(BorderLayout()), D
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val conversationManager = ConversationManager.getInstance(project)
     private val messageRenderer = MessageRenderer()
+    private var lastToolCallPanel: ToolCallPanel? = null
 
     // Messages area — 20px left/right padding matching official
     private val messagesPanel = VerticalStackPanel().apply {
@@ -159,6 +160,7 @@ class CopilotChatPanel(private val project: Project) : JPanel(BorderLayout()), D
     private fun handleEvent(event: ChatEvent) {
         when (event) {
             is ChatEvent.Delta -> {
+                lastToolCallPanel = null
                 currentAssistantMessage?.appendText(event.text)
                 scrollManager.onContentAdded()
             }
@@ -173,6 +175,7 @@ class CopilotChatPanel(private val project: Project) : JPanel(BorderLayout()), D
                 // shows the action and arguments, which is sufficient context.
             }
             is ChatEvent.AgentRound -> {
+                lastToolCallPanel = null
                 if (event.reply.isNotEmpty()) {
                     val msg = currentAssistantMessage
                     if (msg != null) {
@@ -192,11 +195,13 @@ class CopilotChatPanel(private val project: Project) : JPanel(BorderLayout()), D
                 }
             }
             is ChatEvent.Done -> {
+                lastToolCallPanel = null
                 inputPanel.isStreaming = false
                 currentAssistantMessage = null
                 scrollManager.onContentAdded()
             }
             is ChatEvent.Error -> {
+                lastToolCallPanel = null
                 inputPanel.isStreaming = false
                 currentAssistantMessage = null
                 addErrorMessage(event.message)
@@ -224,7 +229,16 @@ class CopilotChatPanel(private val project: Project) : JPanel(BorderLayout()), D
     }
 
     private fun addToolCallMessage(toolName: String, input: JsonObject) {
-        addMessageComponent(ToolCallPanel(toolName, input))
+        // Group consecutive calls to the same tool under one header
+        val existing = lastToolCallPanel
+        if (existing != null && existing.toolName == toolName) {
+            existing.addAction(input)
+            scrollManager.onContentAdded()
+            return
+        }
+        val panel = ToolCallPanel(toolName, input)
+        lastToolCallPanel = panel
+        addMessageComponent(panel)
     }
 
     private fun addToolResultMessage(toolName: String, output: String) {

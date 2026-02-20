@@ -1,73 +1,80 @@
 package com.citigroup.copilotchat.ui
 
-import com.intellij.icons.AllIcons
 import com.intellij.ui.JBColor
 import com.intellij.util.ui.JBUI
 import kotlinx.serialization.json.JsonObject
-import java.awt.BorderLayout
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import javax.swing.*
 
 /**
- * Tool call panel matching the official GitHub Copilot plugin's AgentToolCallPanel.
+ * Tool call panel that groups consecutive calls to the same tool under one header.
  *
- * Official structure (from decompiled bytecode):
- *   AgentToolCallPanel (JPanel, GridBagLayout, opaque=false)
- *   └── contentPanel (BorderLayout(6, 0), opaque=false, border=empty(4,6,4,6))
- *       ├── CENTER: ProgressMessageComponent (tool name / progress)
- *       └── EAST: icon (running spinner JLabel)
+ * Layout:
+ *   **toolName**
+ *     └ action=find_class, pattern=Foo
+ *     └ action=find_symbol, pattern=Foo
+ *     └ action=search_text, query=bar
  *
- * Border: Style.Borders.AgentToolCallPanelBorder
+ * Duplicate consecutive lines (same brief text) are skipped.
  */
 class ToolCallPanel(
-    private val toolName: String,
-    private val input: JsonObject,
+    val toolName: String,
+    input: JsonObject,
 ) : JPanel(GridBagLayout()) {
+
+    private var nextRow = 1
+    private var lastBrief: String? = null
 
     init {
         isOpaque = false
-        // Official uses Style.Borders.AgentToolCallPanelBorder
         border = JBUI.Borders.empty(2, 0)
 
-        val contentPanel = JPanel(BorderLayout(6, 0)).apply {
-            isOpaque = false
-            border = JBUI.Borders.empty(4, 0)
-        }
-
-        // Tool name header
+        // Tool name header (row 0)
         val nameColor = JBColor(0x0366D6, 0x58A6FF)
         val nameLabel = JLabel(
             "<html><b style='color: ${colorToHex(nameColor)}'>$toolName</b></html>"
         )
-        contentPanel.add(nameLabel, BorderLayout.CENTER)
-
-
-
-        val headerGbc = GridBagConstraints().apply {
+        nameLabel.border = JBUI.Borders.empty(4, 0)
+        add(nameLabel, GridBagConstraints().apply {
             gridx = 0; gridy = 0
             fill = GridBagConstraints.HORIZONTAL
             weightx = 1.0
             anchor = GridBagConstraints.NORTHWEST
-        }
-        add(contentPanel, headerGbc)
+        })
 
-        // Action and arguments on └ line below
-        val briefInput = formatBriefInput(input)
-        if (briefInput.isNotEmpty()) {
-            val argColor = colorToHex(JBColor(0x666666, 0x999999))
-            val argLabel = JLabel(
-                "<html><span style='color: $argColor'>  \u2514 ${escapeHtml(briefInput)}</span></html>"
-            )
-            argLabel.border = JBUI.Borders.empty(0, 8, 2, 0)
-            val argGbc = GridBagConstraints().apply {
-                gridx = 0; gridy = 1
-                fill = GridBagConstraints.HORIZONTAL
-                weightx = 1.0
-                anchor = GridBagConstraints.NORTHWEST
-            }
-            add(argLabel, argGbc)
-        }
+        // First action line
+        addActionLine(input)
+    }
+
+    /**
+     * Append another action line to this panel.
+     * Returns true if the line was added, false if it was a duplicate of the previous line.
+     */
+    fun addAction(input: JsonObject): Boolean {
+        return addActionLine(input)
+    }
+
+    private fun addActionLine(input: JsonObject): Boolean {
+        val brief = formatBriefInput(input)
+        if (brief.isEmpty()) return false
+        if (brief == lastBrief) return false // skip duplicate
+
+        lastBrief = brief
+        val argColor = colorToHex(JBColor(0x666666, 0x999999))
+        val argLabel = JLabel(
+            "<html><span style='color: $argColor'>  \u2514 ${escapeHtml(brief)}</span></html>"
+        )
+        argLabel.border = JBUI.Borders.empty(0, 8, 2, 0)
+        add(argLabel, GridBagConstraints().apply {
+            gridx = 0; gridy = nextRow++
+            fill = GridBagConstraints.HORIZONTAL
+            weightx = 1.0
+            anchor = GridBagConstraints.NORTHWEST
+        })
+        revalidate()
+        repaint()
+        return true
     }
 
     private fun formatBriefInput(input: JsonObject): String {
