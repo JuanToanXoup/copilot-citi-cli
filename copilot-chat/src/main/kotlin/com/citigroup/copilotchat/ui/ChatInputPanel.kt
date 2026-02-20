@@ -60,17 +60,31 @@ class ChatInputPanel(
         isOpaque = false
     }
 
+    private val buttonBorderColor = JBColor(0xC4C4C4, 0x4E5157)
+
     private val sendButton = JButton(AllIcons.Actions.Execute).apply {
         toolTipText = "Send (Enter)"
-        isBorderPainted = false
+        isBorderPainted = true
         isContentAreaFilled = false
+        isFocusPainted = false
+        border = BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(buttonBorderColor, 1, true),
+            JBUI.Borders.empty(4)
+        )
+        preferredSize = Dimension(32, 28)
         cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
     }
     private val stopButton = JButton(AllIcons.Actions.Suspend).apply {
         toolTipText = "Stop generating"
         isVisible = false
-        isBorderPainted = false
+        isBorderPainted = true
         isContentAreaFilled = false
+        isFocusPainted = false
+        border = BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(buttonBorderColor, 1, true),
+            JBUI.Borders.empty(4)
+        )
+        preferredSize = Dimension(32, 28)
         cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
     }
 

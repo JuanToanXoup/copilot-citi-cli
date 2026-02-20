@@ -87,7 +87,7 @@ class CopilotChatPanel(private val project: Project) : JPanel(BorderLayout()), D
             )
             add(titleLabel, BorderLayout.CENTER)
 
-            val actionsPanel = JPanel(FlowLayout(FlowLayout.RIGHT, 2, 0)).apply {
+            val actionsPanel = JPanel(FlowLayout(FlowLayout.RIGHT, 0, 0)).apply {
                 isOpaque = false
                 add(createIconButton(AllIcons.General.GearPlain, "Proxy Settings") { showProxyDialog() })
                 add(createIconButton(AllIcons.Vcs.History, "History"))
@@ -126,6 +126,9 @@ class CopilotChatPanel(private val project: Project) : JPanel(BorderLayout()), D
             toolTipText = tooltip
             isBorderPainted = false
             isContentAreaFilled = false
+            isFocusPainted = false
+            margin = JBUI.insets(2)
+            preferredSize = java.awt.Dimension(28, 28)
             cursor = java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR)
             if (action != null) addActionListener { action() }
         }
