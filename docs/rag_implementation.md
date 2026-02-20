@@ -69,7 +69,7 @@ POST https://api.githubcopilot.com/embeddings
 - **Vector dimension**: 1536 floats per text
 - **Batching**: Up to 50 texts per API call, with 200ms delay between batches to respect rate limits
 - **Token caching**: Session token cached in memory, auto-refreshed 5 minutes before expiry
-- **Proxy support**: Reads `proxyUrl` from `CopilotChatSettings` and configures `HttpClient` accordingly
+- **Proxy support**: Uses `HttpConfigurable.openHttpConnection()` (IntelliJ's HTTP stack) which handles IDE proxy settings including NTLM/Kerberos authentication
 - **Auth source**: Reads the `ghu_` token via `CopilotAuth.readAuth()` — the same token the rest of the plugin uses
 
 The token exchange endpoint (`copilot_internal/v2/token`) returns a short-lived JWT that grants access to Copilot services. The embeddings endpoint accepts the same request format as OpenAI's embeddings API.
@@ -132,14 +132,15 @@ ensureRunning()
 
 **Proxy handling:**
 
-QdrantManager uses two separate HTTP clients to handle corporate proxy environments correctly:
+All external HTTP calls use IntelliJ's built-in HTTP stack, which handles corporate proxy environments including NTLM and Kerberos authentication — the same proxy your IDE uses for plugin updates and Marketplace access (`Settings → HTTP Proxy`).
 
-| Client | Proxy | Redirects | Used for |
-|---|---|---|---|
-| `buildHttpClient()` | No | No | All local Qdrant REST calls (`localhost:6333`) |
-| `buildExternalHttpClient()` | Yes (from settings) | Yes (`NORMAL`) | Downloading binary from GitHub Releases |
+| Call | API Used | Proxy |
+|---|---|---|
+| Qdrant binary download | `HttpRequests.request().saveToFile()` | IDE proxy (NTLM/Kerberos) |
+| Copilot embeddings & token exchange | `HttpConfigurable.openHttpConnection()` | IDE proxy (NTLM/Kerberos) |
+| Local Qdrant REST calls | `java.net.http.HttpClient` | No proxy (localhost:6333) |
 
-The proxy URL comes from `CopilotChatSettings.proxyUrl` — the same proxy configured via the gear icon in the chat tool window. Local Qdrant calls must bypass the proxy because a corporate proxy would reject or timeout on `localhost` requests. The Qdrant process itself also runs without `HTTP_PROXY`/`HTTPS_PROXY` environment variables since it only listens locally.
+Local Qdrant calls bypass the proxy because a corporate proxy would reject or timeout on `localhost` requests. The Qdrant process itself also runs without `HTTP_PROXY`/`HTTPS_PROXY` environment variables since it only listens locally.
 
 **REST API wrappers:**
 
@@ -373,9 +374,11 @@ Three services registered:
 
 No additional dependencies were added. The implementation uses:
 
-- `java.net.http.HttpClient` (JDK 17) — HTTP calls to Qdrant REST API and Copilot Embeddings API
+- `java.net.http.HttpClient` (JDK 17) — local Qdrant REST API calls (no proxy needed)
+- `HttpConfigurable.openHttpConnection()` (IntelliJ Platform) — Copilot Embeddings API calls (NTLM/Kerberos proxy support)
+- `HttpRequests` (IntelliJ Platform) — Qdrant binary download (NTLM/Kerberos proxy support)
 - `kotlinx.serialization.json` (already in project) — JSON serialization/deserialization
-- IntelliJ Platform SDK — PSI, `ProjectFileIndex`, `ReadAction`, services, UI components
+- IntelliJ Platform SDK — PSI, `ProjectFileIndex`, `ChangeListManager`, `ReadAction`, services, UI components
 
 ## Verification
 
@@ -425,7 +428,9 @@ The integration test and manual testing caught several issues in the production 
 
 6. **Silent RAG failures**: All logging in `RagQueryService` and `ConversationManager` was at `debug` level, making it impossible to diagnose issues from IDE logs. Upgraded to `info`/`warn` level — logs now show whether RAG is enabled, how many chunks were injected, and specific failure reasons.
 
-7. **Proxy routing through localhost** (`QdrantManager`): The single `buildHttpClient()` applied the corporate proxy to all HTTP calls, including local Qdrant REST calls on `localhost:6333`. A corporate proxy would reject or timeout on localhost requests. Fixed by splitting into `buildHttpClient()` (proxy-free, for local calls) and `buildExternalHttpClient()` (with proxy, for GitHub download only). Also removed `HTTP_PROXY`/`HTTPS_PROXY` injection into the Qdrant process environment.
+7. **Proxy routing through localhost** (`QdrantManager`): The single `buildHttpClient()` applied the corporate proxy to all HTTP calls, including local Qdrant REST calls on `localhost:6333`. A corporate proxy would reject or timeout on localhost requests. Fixed by splitting into `buildHttpClient()` (proxy-free, for local calls) and using IntelliJ's `HttpRequests` for the download. Also removed `HTTP_PROXY`/`HTTPS_PROXY` injection into the Qdrant process environment.
+
+8. **407 Proxy Authentication Required** (`QdrantManager` + `CopilotEmbeddings`): Corporate proxies using NTLM or Kerberos authentication returned 407 because Java's `HttpClient` only supports Basic auth via `Authenticator`. Fixed by switching to IntelliJ's HTTP stack: `HttpRequests.request().saveToFile()` for the Qdrant download and `HttpConfigurable.openHttpConnection()` for embeddings API calls. These use `HttpURLConnection` under the hood, which supports NTLM/Kerberos — the same proxy stack the IDE uses for plugin updates and Marketplace.
 
 ### Manual Verification (in IDE)
 
