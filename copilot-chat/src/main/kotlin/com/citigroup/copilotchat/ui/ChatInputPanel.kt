@@ -179,7 +179,7 @@ class ChatInputPanel(
         // Bottom toolbar (GridBagLayout)
         val bottomToolbar = JPanel(GridBagLayout()).apply {
             isOpaque = false
-            border = JBUI.Borders.empty(0, 9, 0, 9)
+            border = JBUI.Borders.empty(0, 9, 6, 9)
         }
 
         // Left: Agent dropdown + Model selector
