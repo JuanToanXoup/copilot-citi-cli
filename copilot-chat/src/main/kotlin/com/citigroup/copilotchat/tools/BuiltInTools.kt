@@ -1,5 +1,6 @@
 package com.citigroup.copilotchat.tools
 
+import com.citigroup.copilotchat.ui.PlaywrightManager
 import com.intellij.openapi.diagnostic.Logger
 import kotlinx.serialization.json.*
 import java.io.File
@@ -40,6 +41,7 @@ object BuiltInTools {
         "github_repo" to ::executeGithubRepo,
         "get_library_docs" to ::executeGetLibraryDocs,
         "resolve_library_id" to ::executeResolveLibraryId,
+        "browser_record" to ::executeBrowserRecord,
     )
 
     /** Tool schemas in the format expected by conversation/registerTools. */
@@ -74,6 +76,8 @@ object BuiltInTools {
         """{"name":"github_repo","description":"Search code in a GitHub repository using the GitHub CLI (gh).","inputSchema":{"type":"object","properties":{"repo":{"type":"string","description":"The GitHub repository in 'owner/repo' format."},"query":{"type":"string","description":"The search query for code search."}},"required":["repo","query"]}}""",
         // ── Utilities ──
         """{"name":"memory","description":"Persistent memory store. Save, read, list, or delete named memory files for cross-session recall.","inputSchema":{"type":"object","properties":{"command":{"type":"string","description":"The operation: 'save', 'read', 'list', or 'delete'.","enum":["save","read","list","delete"]},"path":{"type":"string","description":"Memory file name. Required for save/read/delete."},"content":{"type":"string","description":"Content to save. Required for 'save' command."}},"required":["command"]}}""",
+        // ── Browser Recording ──
+        """{"name":"browser_record","description":"Start a Playwright codegen recording session. Opens a browser window where the user can interact with a web page. All interactions are recorded and converted into executable test code. The tool blocks until the user closes the browser window, then returns the generated code. Uses the shared managed Playwright installation.","inputSchema":{"type":"object","properties":{"url":{"type":"string","description":"The starting URL to navigate to. Default: https://example.com"},"target":{"type":"string","description":"Target language for generated code. Default: javascript.","enum":["javascript","python","python-async","python-pytest","csharp","java"]},"device":{"type":"string","description":"Device to emulate (e.g. 'Pixel 5', 'iPhone 12'). Optional."},"browser":{"type":"string","description":"Browser to use. Default: chromium.","enum":["chromium","firefox","webkit"]}},"required":[]}}""",
     )
 
     fun execute(name: String, input: JsonObject, workspaceRoot: String): String {
@@ -367,6 +371,71 @@ object BuiltInTools {
             }
             else -> "Unknown memory command: $command"
         }
+    }
+
+    // ── Browser Recording ────────────────────────────────────────
+
+    private fun executeBrowserRecord(input: JsonObject, ws: String): String {
+        val url = input.str("url") ?: "https://example.com"
+        val target = input.str("target") ?: "javascript"
+        val device = input.str("device")
+        val browser = input.str("browser") ?: "chromium"
+
+        val pw = PlaywrightManager
+        if (!pw.isInstalled && !pw.ensureInstalled()) {
+            return "Error: Failed to install Playwright. Check IDE logs for details."
+        }
+
+        val ext = when (target) {
+            "python", "python-async", "python-pytest" -> ".py"
+            "csharp" -> ".cs"
+            "java" -> ".java"
+            else -> ".js"
+        }
+        val outputFile = File.createTempFile("recording_", ext)
+        outputFile.deleteOnExit()
+
+        val cmd = mutableListOf(
+            "node", pw.playwrightCli.absolutePath, "codegen",
+            "--target=$target",
+            "--output=${outputFile.absolutePath}",
+        )
+        if (device != null) cmd.add("--device=$device")
+        if (browser != "chromium") cmd.add("--browser=$browser")
+        cmd.add(url)
+
+        val process = ProcessBuilder(cmd)
+            .directory(pw.home)
+            .redirectErrorStream(true)
+            .start()
+
+        // Drain output in background thread to prevent buffer deadlock
+        val outputCapture = StringBuilder()
+        val drainThread = Thread {
+            try {
+                process.inputStream.bufferedReader().forEachLine { outputCapture.appendLine(it) }
+            } catch (_: Exception) {}
+        }.apply { isDaemon = true; start() }
+
+        // Wait for user to close the browser (up to 10 minutes)
+        val finished = process.waitFor(600, java.util.concurrent.TimeUnit.SECONDS)
+        if (!finished) {
+            process.destroy()
+            process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)
+            if (process.isAlive) process.destroyForcibly()
+            return "Error: Recording timed out after 10 minutes."
+        }
+
+        drainThread.join(3000)
+
+        val code = if (outputFile.exists() && outputFile.length() > 0) {
+            outputFile.readText()
+        } else {
+            return "Recording session ended but no code was generated. The user may not have interacted with the page.\nProcess output: ${outputCapture.toString().take(2000)}"
+        }
+
+        outputFile.delete()
+        return "Recording completed successfully. Generated $target code:\n\n$code"
     }
 
     // ── Helpers ──────────────────────────────────────────────────

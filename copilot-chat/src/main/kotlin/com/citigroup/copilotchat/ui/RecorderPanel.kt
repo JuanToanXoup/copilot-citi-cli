@@ -41,11 +41,8 @@ class RecorderPanel(private val project: Project) : JPanel(BorderLayout()), Disp
     private val cardLayout = CardLayout()
     private val cardPanel = JPanel(cardLayout)
 
-    // Managed playwright installation directory — shared with the Playwright MCP server
-    private val playwrightHome = File(System.getProperty("user.home"), ".copilot-chat/playwright")
-    private val managedNodeModules get() = File(playwrightHome, "node_modules")
-    private val playwrightCli get() = File(managedNodeModules, "playwright/cli.js")
-    private val mcpCli get() = File(managedNodeModules, "@playwright/mcp/cli.js")
+    // Shared managed Playwright installation
+    private val pw get() = PlaywrightManager
 
     // IDLE card controls
     private val urlField = JBTextField("https://example.com")
@@ -225,57 +222,6 @@ class RecorderPanel(private val project: Project) : JPanel(BorderLayout()), Disp
 
     // ── Managed Playwright installation ──────────────────────────────────
 
-    private fun isPlaywrightInstalled(): Boolean = playwrightCli.exists() && mcpCli.exists()
-
-    /**
-     * Ensure Playwright is installed in the managed directory.
-     * Must be called from a background thread. Returns true on success.
-     */
-    private fun installPlaywright(): Boolean {
-        playwrightHome.mkdirs()
-
-        // Write a minimal package.json if missing
-        val packageJson = File(playwrightHome, "package.json")
-        if (!packageJson.exists()) {
-            packageJson.writeText("""{"private":true}""")
-        }
-
-        val npm = if (SystemInfo.isWindows) "npm.cmd" else "npm"
-
-        // Install both playwright (for codegen/replay) and @playwright/mcp (for AI agent)
-        // in the same node_modules so they share the same Chromium binary.
-        withStatus("Installing Playwright packages...")
-        val installProc = ProcessBuilder(npm, "install", "playwright", "@playwright/mcp@latest")
-            .directory(playwrightHome)
-            .redirectErrorStream(true)
-            .start()
-        val installOutput = installProc.inputStream.bufferedReader().readText()
-        installProc.waitFor()
-        if (installProc.exitValue() != 0) {
-            log.warn("npm install playwright @playwright/mcp failed:\n$installOutput")
-            withStatus("Failed to install Playwright.")
-            return false
-        }
-
-        // Install browser binaries (chromium only for speed)
-        withStatus("Downloading Chromium browser...")
-        val browsersProc = ProcessBuilder("node", playwrightCli.absolutePath, "install", "chromium")
-            .directory(playwrightHome)
-            .redirectErrorStream(true)
-            .also { it.environment().putAll(findPlaywrightMcpEnv()) }
-            .start()
-        val browsersOutput = browsersProc.inputStream.bufferedReader().readText()
-        browsersProc.waitFor()
-        if (browsersProc.exitValue() != 0) {
-            log.warn("playwright install chromium failed:\n$browsersOutput")
-            withStatus("Failed to download Chromium.")
-            return false
-        }
-
-        withStatus(" ")
-        return true
-    }
-
     private fun withStatus(text: String) {
         SwingUtilities.invokeLater { statusLabel.text = text }
     }
@@ -305,23 +251,21 @@ class RecorderPanel(private val project: Project) : JPanel(BorderLayout()), Disp
 
         scope.launch(Dispatchers.IO) {
             // Ensure playwright is installed before proceeding
-            if (!isPlaywrightInstalled()) {
-                withStatus("Setting up Playwright (first time only)...")
-                if (!installPlaywright()) {
-                    withContext(Dispatchers.Main) {
-                        startButton.isEnabled = true
-                        Messages.showErrorDialog(
-                            "Could not install Playwright. Check that Node.js and npm are on your PATH.",
-                            "Playwright Setup Failed"
-                        )
-                    }
-                    return@launch
+            pw.onStatus = { withStatus(it) }
+            if (!pw.ensureInstalled()) {
+                withContext(Dispatchers.Main) {
+                    startButton.isEnabled = true
+                    Messages.showErrorDialog(
+                        "Could not install Playwright. Check that Node.js and npm are on your PATH.",
+                        "Playwright Setup Failed"
+                    )
                 }
+                return@launch
             }
 
             // Build command using managed playwright CLI
             val cmd = mutableListOf(
-                "node", playwrightCli.absolutePath, "codegen",
+                "node", pw.playwrightCli.absolutePath, "codegen",
                 "--target=$target",
                 "--output=${outputFile!!.absolutePath}"
             )
@@ -333,7 +277,7 @@ class RecorderPanel(private val project: Project) : JPanel(BorderLayout()), Disp
 
             try {
                 val pb = ProcessBuilder(cmd)
-                pb.directory(playwrightHome)
+                pb.directory(pw.home)
                 pb.redirectErrorStream(false)
                 pb.environment().putAll(findPlaywrightMcpEnv())
 
@@ -482,7 +426,7 @@ class RecorderPanel(private val project: Project) : JPanel(BorderLayout()), Disp
                 pb.environment().putAll(findPlaywrightMcpEnv())
 
                 // Point NODE_PATH to managed node_modules so require('playwright') resolves
-                val nodeModulesPath = managedNodeModules.absolutePath
+                val nodeModulesPath = pw.nodeModules.absolutePath
                 val existing = pb.environment()["NODE_PATH"] ?: ""
                 val sep = if (SystemInfo.isWindows) ";" else ":"
                 pb.environment()["NODE_PATH"] =
