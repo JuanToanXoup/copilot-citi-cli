@@ -34,16 +34,43 @@ class CopilotChatSettings : PersistentStateComponent<CopilotChatSettings.State> 
         var defaultModel: String = "gpt-4.1",
         var agentModeDefault: Boolean = true,
         var agentConfigPath: String = "",
+        var defaultsSeeded: Boolean = false,
         @XCollection(elementTypes = [McpServerEntry::class])
         var mcpServers: MutableList<McpServerEntry> = mutableListOf(),
         @XCollection(elementTypes = [WorkerEntry::class])
         var workers: MutableList<WorkerEntry> = mutableListOf(),
+        /** Tool names that the user has explicitly disabled. */
+        @XCollection(elementTypes = [String::class])
+        var disabledTools: MutableList<String> = mutableListOf(),
     )
 
     private var myState = State()
 
     override fun getState(): State = myState
     override fun loadState(state: State) { myState = state }
+
+    fun ensureDefaults() {
+        if (myState.defaultsSeeded) return
+        myState.defaultsSeeded = true
+
+        // Seed default Playwright MCP server using the managed installation
+        // at ~/.copilot-chat/playwright/ so it shares the same Chromium as the Recorder.
+        val hasPlaywright = myState.mcpServers.any {
+            it.name.contains("playwright", ignoreCase = true)
+        }
+        if (!hasPlaywright) {
+            val mcpCli = java.io.File(
+                System.getProperty("user.home"),
+                ".copilot-chat/playwright/node_modules/@playwright/mcp/cli.js"
+            ).absolutePath
+            myState.mcpServers.add(McpServerEntry(
+                name = "playwright",
+                command = "node",
+                args = mcpCli,
+                enabled = true,
+            ))
+        }
+    }
 
     var binaryPath: String
         get() = myState.binaryPath
@@ -72,6 +99,17 @@ class CopilotChatSettings : PersistentStateComponent<CopilotChatSettings.State> 
     var workers: MutableList<WorkerEntry>
         get() = myState.workers
         set(value) { myState.workers = value }
+
+    var disabledTools: MutableList<String>
+        get() = myState.disabledTools
+        set(value) { myState.disabledTools = value }
+
+    fun isToolEnabled(name: String): Boolean = name !in myState.disabledTools
+
+    fun setToolEnabled(name: String, enabled: Boolean) {
+        if (enabled) myState.disabledTools.remove(name)
+        else if (name !in myState.disabledTools) myState.disabledTools.add(name)
+    }
 
     companion object {
         fun getInstance(): CopilotChatSettings =

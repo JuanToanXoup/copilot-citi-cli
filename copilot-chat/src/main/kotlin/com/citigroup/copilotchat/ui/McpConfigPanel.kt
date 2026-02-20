@@ -43,6 +43,10 @@ class McpConfigPanel(
                     toolTipText = "Remove Selected"
                     addActionListener { removeSelected() }
                 })
+                add(JButton(AllIcons.Actions.ToggleVisibility).apply {
+                    toolTipText = "Enable/Disable Selected"
+                    addActionListener { toggleSelected() }
+                })
             }
             add(buttons, BorderLayout.EAST)
         }
@@ -67,6 +71,7 @@ class McpConfigPanel(
     }
 
     private fun loadFromSettings() {
+        CopilotChatSettings.getInstance().ensureDefaults()
         listModel.clear()
         CopilotChatSettings.getInstance().mcpServers.forEach { listModel.addElement(it) }
     }
@@ -97,6 +102,15 @@ class McpConfigPanel(
             listModel.set(idx, dialog.result!!)
             saveToSettings()
         }
+    }
+
+    private fun toggleSelected() {
+        val idx = serverList.selectedIndex
+        if (idx < 0) return
+        val entry = listModel.getElementAt(idx)
+        entry.enabled = !entry.enabled
+        serverList.repaint()
+        saveToSettings()
     }
 
     private fun removeSelected() {

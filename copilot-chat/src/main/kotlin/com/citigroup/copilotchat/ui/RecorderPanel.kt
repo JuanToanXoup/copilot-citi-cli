@@ -1,5 +1,6 @@
 package com.citigroup.copilotchat.ui
 
+import com.citigroup.copilotchat.config.CopilotChatSettings
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
@@ -25,7 +26,10 @@ import javax.swing.*
 
 /**
  * Panel for recording browser interactions via Playwright codegen.
- * Three states: IDLE → RECORDING → COMPLETED, managed by CardLayout.
+ * Three states: IDLE -> RECORDING -> COMPLETED, managed by CardLayout.
+ *
+ * Playwright is auto-installed into a managed directory (~/.copilot-chat/playwright/)
+ * on first use, so users don't need a pre-existing installation.
  */
 class RecorderPanel(private val project: Project) : JPanel(BorderLayout()), Disposable {
 
@@ -36,6 +40,12 @@ class RecorderPanel(private val project: Project) : JPanel(BorderLayout()), Disp
 
     private val cardLayout = CardLayout()
     private val cardPanel = JPanel(cardLayout)
+
+    // Managed playwright installation directory — shared with the Playwright MCP server
+    private val playwrightHome = File(System.getProperty("user.home"), ".copilot-chat/playwright")
+    private val managedNodeModules get() = File(playwrightHome, "node_modules")
+    private val playwrightCli get() = File(managedNodeModules, "playwright/cli.js")
+    private val mcpCli get() = File(managedNodeModules, "@playwright/mcp/cli.js")
 
     // IDLE card controls
     private val urlField = JBTextField("https://example.com")
@@ -48,6 +58,7 @@ class RecorderPanel(private val project: Project) : JPanel(BorderLayout()), Disp
     ))
     private val browserCombo = ComboBox(arrayOf("chromium", "firefox", "webkit"))
     private val startButton = JButton("Start Recording")
+    private val statusLabel = JLabel(" ")
 
     // RECORDING card controls
     private val recordingUrlLabel = JLabel()
@@ -126,6 +137,14 @@ class RecorderPanel(private val project: Project) : JPanel(BorderLayout()), Disp
         gbc.fill = GridBagConstraints.NONE; gbc.anchor = GridBagConstraints.CENTER
         gbc.insets = JBUI.insets(12, 4, 4, 4)
         panel.add(startButton, gbc)
+        row++
+
+        // Status label (shows install progress)
+        gbc.gridx = 0; gbc.gridy = row; gbc.gridwidth = 4
+        gbc.fill = GridBagConstraints.HORIZONTAL; gbc.anchor = GridBagConstraints.CENTER
+        gbc.insets = JBUI.insets(4)
+        statusLabel.horizontalAlignment = SwingConstants.CENTER
+        panel.add(statusLabel, gbc)
 
         // Wrap so it's vertically centered
         val wrapper = JPanel(GridBagLayout())
@@ -186,7 +205,7 @@ class RecorderPanel(private val project: Project) : JPanel(BorderLayout()), Disp
 
         // Code editor
         val document = EditorFactory.getInstance().createDocument("")
-        codeEditor = EditorTextField(document, project, PlainTextFileType.INSTANCE, true, false)
+        codeEditor = EditorTextField(document, project, PlainTextFileType.INSTANCE, false, false)
         codeEditor.setOneLineMode(false)
         codeEditor.preferredSize = Dimension(0, 400)
         panel.add(codeEditor, BorderLayout.CENTER)
@@ -203,6 +222,65 @@ class RecorderPanel(private val project: Project) : JPanel(BorderLayout()), Disp
     private fun showState(state: State) {
         cardLayout.show(cardPanel, state.name)
     }
+
+    // ── Managed Playwright installation ──────────────────────────────────
+
+    private fun isPlaywrightInstalled(): Boolean = playwrightCli.exists() && mcpCli.exists()
+
+    /**
+     * Ensure Playwright is installed in the managed directory.
+     * Must be called from a background thread. Returns true on success.
+     */
+    private fun installPlaywright(): Boolean {
+        playwrightHome.mkdirs()
+
+        // Write a minimal package.json if missing
+        val packageJson = File(playwrightHome, "package.json")
+        if (!packageJson.exists()) {
+            packageJson.writeText("""{"private":true}""")
+        }
+
+        val npm = if (SystemInfo.isWindows) "npm.cmd" else "npm"
+
+        // Install both playwright (for codegen/replay) and @playwright/mcp (for AI agent)
+        // in the same node_modules so they share the same Chromium binary.
+        withStatus("Installing Playwright packages...")
+        val installProc = ProcessBuilder(npm, "install", "playwright", "@playwright/mcp@latest")
+            .directory(playwrightHome)
+            .redirectErrorStream(true)
+            .start()
+        val installOutput = installProc.inputStream.bufferedReader().readText()
+        installProc.waitFor()
+        if (installProc.exitValue() != 0) {
+            log.warn("npm install playwright @playwright/mcp failed:\n$installOutput")
+            withStatus("Failed to install Playwright.")
+            return false
+        }
+
+        // Install browser binaries (chromium only for speed)
+        withStatus("Downloading Chromium browser...")
+        val browsersProc = ProcessBuilder("node", playwrightCli.absolutePath, "install", "chromium")
+            .directory(playwrightHome)
+            .redirectErrorStream(true)
+            .also { it.environment().putAll(findPlaywrightMcpEnv()) }
+            .start()
+        val browsersOutput = browsersProc.inputStream.bufferedReader().readText()
+        browsersProc.waitFor()
+        if (browsersProc.exitValue() != 0) {
+            log.warn("playwright install chromium failed:\n$browsersOutput")
+            withStatus("Failed to download Chromium.")
+            return false
+        }
+
+        withStatus(" ")
+        return true
+    }
+
+    private fun withStatus(text: String) {
+        SwingUtilities.invokeLater { statusLabel.text = text }
+    }
+
+    // ── Recording ────────────────────────────────────────────────────────
 
     private fun startRecording() {
         val url = urlField.text.trim()
@@ -223,26 +301,41 @@ class RecorderPanel(private val project: Project) : JPanel(BorderLayout()), Disp
         outputFile = File.createTempFile("playwright_recording_", fileExtensionForTarget(target))
         outputFile!!.deleteOnExit()
 
-        // Build command
-        val npx = if (SystemInfo.isWindows) "npx.cmd" else "npx"
-        val cmd = mutableListOf(npx, "playwright", "codegen", "--target=$target", "--output=${outputFile!!.absolutePath}")
-
-        if (device != "(none)") {
-            cmd.add("--device=$device")
-        }
-        if (browser != "chromium") {
-            cmd.add("--browser=$browser")
-        }
-        cmd.add(url)
-
-        showState(State.RECORDING)
         startButton.isEnabled = false
 
         scope.launch(Dispatchers.IO) {
+            // Ensure playwright is installed before proceeding
+            if (!isPlaywrightInstalled()) {
+                withStatus("Setting up Playwright (first time only)...")
+                if (!installPlaywright()) {
+                    withContext(Dispatchers.Main) {
+                        startButton.isEnabled = true
+                        Messages.showErrorDialog(
+                            "Could not install Playwright. Check that Node.js and npm are on your PATH.",
+                            "Playwright Setup Failed"
+                        )
+                    }
+                    return@launch
+                }
+            }
+
+            // Build command using managed playwright CLI
+            val cmd = mutableListOf(
+                "node", playwrightCli.absolutePath, "codegen",
+                "--target=$target",
+                "--output=${outputFile!!.absolutePath}"
+            )
+            if (device != "(none)") cmd.add("--device=$device")
+            if (browser != "chromium") cmd.add("--browser=$browser")
+            cmd.add(url)
+
+            withContext(Dispatchers.Main) { showState(State.RECORDING) }
+
             try {
                 val pb = ProcessBuilder(cmd)
+                pb.directory(playwrightHome)
                 pb.redirectErrorStream(false)
-                pb.environment()["PLAYWRIGHT_BROWSERS_PATH"] = "0"
+                pb.environment().putAll(findPlaywrightMcpEnv())
 
                 val proc = pb.start()
                 playwrightProcess = proc
@@ -289,7 +382,7 @@ class RecorderPanel(private val project: Project) : JPanel(BorderLayout()), Disp
                 log.warn("Failed to run playwright codegen", e)
                 withContext(Dispatchers.Main) {
                     Messages.showErrorDialog(
-                        "Failed to start Playwright:\n${e.message}\n\nMake sure npx and playwright are installed.",
+                        "Failed to start Playwright:\n${e.message}",
                         "Playwright Error"
                     )
                     showState(State.IDLE)
@@ -327,8 +420,13 @@ class RecorderPanel(private val project: Project) : JPanel(BorderLayout()), Disp
         }
     }
 
+    // ── Code actions ─────────────────────────────────────────────────────
+
+    /** Read the current editor text (may have been edited by the user). */
+    private fun currentCode(): String = codeEditor.document.text
+
     private fun copyCode() {
-        val text = generatedCode
+        val text = currentCode()
         if (text.isNotEmpty()) {
             CopyPasteManager.getInstance().setContents(StringSelection(text))
         }
@@ -340,10 +438,11 @@ class RecorderPanel(private val project: Project) : JPanel(BorderLayout()), Disp
         val descriptor = FileSaverDescriptor("Save Generated Code", "Choose where to save the Playwright test", ext.removePrefix("."))
         val wrapper = FileChooserFactory.getInstance().createSaveFileDialog(descriptor, project)
         val result = wrapper.save(null as com.intellij.openapi.vfs.VirtualFile?, "test${ext}") ?: return
+        val code = currentCode()
 
         scope.launch(Dispatchers.IO) {
             try {
-                result.file.writeText(generatedCode)
+                result.file.writeText(code)
                 LocalFileSystem.getInstance().refreshAndFindFileByIoFile(result.file)
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
@@ -355,22 +454,40 @@ class RecorderPanel(private val project: Project) : JPanel(BorderLayout()), Disp
 
     private fun replayCode() {
         val target = targetCombo.selectedItem as String
-        val ext = fileExtensionForTarget(target)
-        val tempFile = File.createTempFile("playwright_replay_", ext)
-        tempFile.deleteOnExit()
-        tempFile.writeText(generatedCode)
+        val code = currentCode()
+        val node = if (SystemInfo.isWindows) "node.exe" else "node"
 
-        val npx = if (SystemInfo.isWindows) "npx.cmd" else "npx"
+        // Write to a temp file for execution
+        val tempDir = File(System.getProperty("java.io.tmpdir"), "pw_replay_${System.currentTimeMillis()}")
+        tempDir.mkdirs()
+
+        val ext = fileExtensionForTarget(target)
+        val testFile = File(tempDir, "recording${ext}")
+        testFile.writeText(code)
+
         val cmd = when {
-            target.startsWith("python") -> listOf("python", "-m", "pytest", tempFile.absolutePath, "-v")
-            target == "java" -> listOf(npx, "playwright", "test", tempFile.absolutePath)
-            else -> listOf(npx, "playwright", "test", tempFile.absolutePath)
+            target == "python" || target == "python-async" ->
+                listOf("python", testFile.absolutePath)
+            target == "python-pytest" ->
+                listOf("python", "-m", "pytest", testFile.absolutePath, "-v")
+            else ->
+                listOf(node, testFile.absolutePath)
         }
 
         scope.launch(Dispatchers.IO) {
             try {
                 val pb = ProcessBuilder(cmd)
+                pb.directory(File(project.basePath ?: "."))
                 pb.redirectErrorStream(true)
+                pb.environment().putAll(findPlaywrightMcpEnv())
+
+                // Point NODE_PATH to managed node_modules so require('playwright') resolves
+                val nodeModulesPath = managedNodeModules.absolutePath
+                val existing = pb.environment()["NODE_PATH"] ?: ""
+                val sep = if (SystemInfo.isWindows) ";" else ":"
+                pb.environment()["NODE_PATH"] =
+                    if (existing.isEmpty()) nodeModulesPath else "$existing$sep$nodeModulesPath"
+
                 val proc = pb.start()
                 val output = proc.inputStream.bufferedReader().readText()
                 proc.waitFor()
@@ -391,8 +508,31 @@ class RecorderPanel(private val project: Project) : JPanel(BorderLayout()), Disp
                 withContext(Dispatchers.Main) {
                     Messages.showErrorDialog("Failed to replay:\n${e.message}", "Replay Error")
                 }
+            } finally {
+                tempDir.deleteRecursively()
             }
         }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────
+
+    /** Parse env vars from the Playwright MCP server config entry (if any). */
+    private fun findPlaywrightMcpEnv(): Map<String, String> {
+        val entries = CopilotChatSettings.getInstance().mcpServers
+        val pwEntry = entries.firstOrNull { entry ->
+            entry.enabled && (
+                entry.name.contains("playwright", ignoreCase = true) ||
+                entry.command.contains("playwright", ignoreCase = true) ||
+                entry.args.contains("playwright", ignoreCase = true)
+            )
+        } ?: return emptyMap()
+
+        val envMap = mutableMapOf<String, String>()
+        pwEntry.env.lines().filter { "=" in it }.forEach { line ->
+            val (k, v) = line.split("=", limit = 2)
+            envMap[k.trim()] = v.trim()
+        }
+        return envMap
     }
 
     private fun fileExtensionForTarget(target: String): String = when (target) {
