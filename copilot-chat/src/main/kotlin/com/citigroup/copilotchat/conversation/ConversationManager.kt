@@ -457,10 +457,16 @@ class ConversationManager(private val project: Project) : Disposable {
             }
 
             // Extract tool calls from the round (server-side tools like MCP)
+            // Skip client-side MCP tools — they already emit events in handleServerRequest()
             val toolCalls = round["toolCalls"]?.jsonArray
             toolCalls?.forEach { toolCallEl ->
                 val tc = toolCallEl.jsonObject
                 val name = tc["name"]?.jsonPrimitive?.contentOrNull ?: return@forEach
+
+                // Client-side MCP tools already emitted ToolCall/ToolResult
+                // in handleServerRequest() — don't duplicate them
+                if (clientMcpManager?.isMcpTool(name) == true) return@forEach
+
                 val status = tc["status"]?.jsonPrimitive?.contentOrNull ?: ""
                 val input = tc["input"]?.jsonObject ?: JsonObject(emptyMap())
                 val progressMessage = tc["progressMessage"]?.jsonPrimitive?.contentOrNull
