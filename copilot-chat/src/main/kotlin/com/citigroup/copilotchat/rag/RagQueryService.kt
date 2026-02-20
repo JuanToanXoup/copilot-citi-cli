@@ -8,7 +8,7 @@ import com.intellij.openapi.project.Project
  * Query pipeline for RAG: embeds user query, searches Qdrant, formats results as XML context.
  *
  * Flow:
- *   1. Embed user query via [CopilotEmbeddings]
+ *   1. Embed user query via [LocalEmbeddings]
  *   2. Search Qdrant collection for similar code chunks
  *   3. Deduplicate overlapping chunks
  *   4. Format as `<rag_context>` XML block
@@ -22,7 +22,7 @@ class RagQueryService(private val project: Project) : com.intellij.openapi.Dispo
     companion object {
         private const val MAX_CONTEXT_CHARS = 4000
         private const val DEFAULT_TOP_K = 5
-        private const val SCORE_THRESHOLD = 0.3f
+        private const val SCORE_THRESHOLD = 0.25f
 
         fun getInstance(project: Project): RagQueryService =
             project.getService(RagQueryService::class.java)
@@ -55,7 +55,7 @@ class RagQueryService(private val project: Project) : com.intellij.openapi.Dispo
         val collection = indexer.collectionName()
 
         // Embed the query
-        val queryVector = CopilotEmbeddings.embed(query)
+        val queryVector = LocalEmbeddings.embed(query)
         log.info("RAG: embedded query (${query.take(50)}...), searching collection '$collection'")
 
         // Search Qdrant

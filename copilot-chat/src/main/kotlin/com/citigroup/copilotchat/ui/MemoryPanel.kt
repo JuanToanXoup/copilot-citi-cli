@@ -114,7 +114,8 @@ class MemoryPanel(private val project: Project) : JPanel(BorderLayout()), Dispos
             "When RAG is enabled, each chat message is augmented with the most relevant " +
             "code snippets from your project — giving the model deeper context without manual file references." +
             "<br/><br/>" +
-            "Indexing uses PSI-aware chunking (functions, classes) and the Copilot embeddings API. " +
+            "Indexing uses PSI-aware chunking (functions, classes) and a local ONNX embedding model " +
+            "(bge-small-en-v1.5) that runs entirely on-device — no network calls needed. " +
             "Unchanged files are skipped on re-index." +
             "</div></html>"
         ).apply {

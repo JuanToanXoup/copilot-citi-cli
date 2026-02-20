@@ -262,7 +262,7 @@ class QdrantManager : Disposable {
 
     // ── Collection management ──
 
-    fun ensureCollection(name: String, vectorSize: Int = 1536) {
+    fun ensureCollection(name: String, vectorSize: Int = 384) {
         val client = buildHttpClient()
 
         // Check if collection exists
@@ -273,7 +273,26 @@ class QdrantManager : Disposable {
             .build()
 
         val checkResp = client.send(checkReq, HttpResponse.BodyHandlers.ofString())
-        if (checkResp.statusCode() == 200) return // already exists
+        if (checkResp.statusCode() == 200) {
+            // Verify dimension matches — if not, delete and recreate (handles migration from 1536 to 384)
+            try {
+                val body = json.parseToJsonElement(checkResp.body()).jsonObject
+                val existingSize = body["result"]?.jsonObject
+                    ?.get("config")?.jsonObject
+                    ?.get("params")?.jsonObject
+                    ?.get("vectors")?.jsonObject
+                    ?.get("size")?.jsonPrimitive?.intOrNull
+                if (existingSize != null && existingSize != vectorSize) {
+                    log.info("Collection '$name' has dimension $existingSize, expected $vectorSize — recreating")
+                    deleteCollection(name)
+                } else {
+                    return // already exists with correct dimension
+                }
+            } catch (e: Exception) {
+                log.debug("Could not verify collection dimension: ${e.message}")
+                return // assume existing collection is fine
+            }
+        }
 
         // Create collection
         val createBody = buildJsonObject {
@@ -462,6 +481,22 @@ class QdrantManager : Disposable {
         } while (offset != null)
 
         return results
+    }
+
+    /** Delete a collection. Used for dimension migration. */
+    private fun deleteCollection(name: String) {
+        val client = buildHttpClient()
+        val request = HttpRequest.newBuilder()
+            .uri(URI("$BASE_URL/collections/$name"))
+            .timeout(Duration.ofSeconds(10))
+            .DELETE()
+            .build()
+        val resp = client.send(request, HttpResponse.BodyHandlers.ofString())
+        if (resp.statusCode() in 200..299) {
+            log.info("Deleted collection '$name' for dimension migration")
+        } else {
+            log.warn("Failed to delete collection '$name': ${resp.body().take(200)}")
+        }
     }
 
     /** HTTP client for local Qdrant REST API calls — never uses proxy. */

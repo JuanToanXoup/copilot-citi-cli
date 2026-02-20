@@ -9,6 +9,9 @@ import java.net.URL
 import java.time.Instant
 
 /**
+ * @deprecated Replaced by [LocalEmbeddings] which uses a local ONNX model (bge-small-en-v1.5)
+ * instead of the remote Copilot API. Kept for reference only — no active callers.
+ *
  * Embedding client using the Copilot Internal Embeddings API.
  *
  * Token flow:

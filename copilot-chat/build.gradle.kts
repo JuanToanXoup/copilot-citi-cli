@@ -22,6 +22,9 @@ dependencies {
 
     // TOML config parsing
     implementation(libs.tomlj)
+
+    // ONNX Runtime for local embeddings (all-MiniLM-L6-v2)
+    implementation(libs.onnxruntime)
 }
 
 intellij {
