@@ -1,14 +1,10 @@
 package com.citigroup.copilotchat.rag
 
 import com.citigroup.copilotchat.auth.CopilotAuth
-import com.citigroup.copilotchat.config.CopilotChatSettings
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.util.net.HttpConfigurable
 import kotlinx.serialization.json.*
-import java.net.URI
-import java.net.http.HttpClient
-import java.net.http.HttpRequest
-import java.net.http.HttpResponse
-import java.time.Duration
+import java.net.HttpURLConnection
 import java.time.Instant
 
 /**
@@ -20,6 +16,9 @@ import java.time.Instant
  *   3. Call `POST https://api.githubcopilot.com/embeddings` with session token
  *
  * Session tokens expire ~30 min; cached and auto-refreshed.
+ *
+ * Uses [HttpConfigurable.openConnection] for all HTTP calls, which handles
+ * IDE proxy settings including NTLM/Kerberos authentication.
  */
 object CopilotEmbeddings {
 
@@ -41,55 +40,13 @@ object CopilotEmbeddings {
     @Volatile private var tokenExpiry: Instant = Instant.EPOCH
 
     /**
-     * Build HTTP client with proxy support.
-     * Priority: IDE proxy settings (Settings → HTTP Proxy) → plugin proxyUrl setting.
+     * Open an [HttpURLConnection] via IDE proxy settings (handles NTLM/Kerberos).
      */
-    private fun buildHttpClient(): HttpClient {
-        val builder = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(30))
-
-        // Try IDE's built-in proxy settings first
-        try {
-            val ideProxy = com.intellij.util.net.HttpConfigurable.getInstance()
-            if (ideProxy.USE_HTTP_PROXY && ideProxy.PROXY_HOST.isNotBlank()) {
-                builder.proxy(java.net.ProxySelector.of(
-                    java.net.InetSocketAddress(ideProxy.PROXY_HOST, ideProxy.PROXY_PORT)
-                ))
-                val login = ideProxy.proxyLogin
-                val password = ideProxy.plainProxyPassword
-                if (!login.isNullOrBlank()) {
-                    builder.authenticator(object : java.net.Authenticator() {
-                        override fun getPasswordAuthentication(): java.net.PasswordAuthentication =
-                            java.net.PasswordAuthentication(login, (password ?: "").toCharArray())
-                    })
-                }
-                return builder.build()
-            }
-        } catch (e: Exception) {
-            log.warn("Failed to read IDE proxy settings: ${e.message}")
-        }
-
-        // Fall back to plugin's proxyUrl setting
-        val proxyUrl = CopilotChatSettings.getInstance().proxyUrl
-        if (proxyUrl.isNotBlank()) {
-            try {
-                val uri = URI(proxyUrl)
-                builder.proxy(java.net.ProxySelector.of(java.net.InetSocketAddress(uri.host, uri.port)))
-                val userInfo = uri.userInfo
-                if (userInfo != null) {
-                    val parts = userInfo.split(":", limit = 2)
-                    val username = parts[0]
-                    val password = parts.getOrElse(1) { "" }
-                    builder.authenticator(object : java.net.Authenticator() {
-                        override fun getPasswordAuthentication(): java.net.PasswordAuthentication =
-                            java.net.PasswordAuthentication(username, password.toCharArray())
-                    })
-                }
-            } catch (e: Exception) {
-                log.warn("Failed to configure proxy for embeddings: ${e.message}")
-            }
-        }
-        return builder.build()
+    private fun openConnection(url: String): HttpURLConnection {
+        val connection = HttpConfigurable.getInstance().openHttpConnection(url)
+        connection.connectTimeout = 30_000
+        connection.readTimeout = 30_000
+        return connection
     }
 
     /**
@@ -104,24 +61,27 @@ object CopilotEmbeddings {
         }
 
         val auth = CopilotAuth.readAuth()
-        val client = buildHttpClient()
 
-        val request = HttpRequest.newBuilder()
-            .uri(URI(TOKEN_EXCHANGE_URL))
-            .header("Authorization", "token ${auth.token}")
-            .header("Accept", "application/json")
-            .header("Editor-Version", "JetBrains-IC/2025.2")
-            .header("Editor-Plugin-Version", "copilot-intellij/1.420.0")
-            .GET()
-            .timeout(Duration.ofSeconds(15))
-            .build()
+        val connection = openConnection(TOKEN_EXCHANGE_URL)
+        connection.requestMethod = "GET"
+        connection.setRequestProperty("Authorization", "token ${auth.token}")
+        connection.setRequestProperty("Accept", "application/json")
+        connection.setRequestProperty("Editor-Version", "JetBrains-IC/2025.2")
+        connection.setRequestProperty("Editor-Plugin-Version", "copilot-intellij/1.420.0")
+        connection.readTimeout = 15_000
 
-        val response = client.send(request, HttpResponse.BodyHandlers.ofString())
-        if (response.statusCode() != 200) {
-            throw RuntimeException("Token exchange failed (${response.statusCode()}): ${response.body().take(200)}")
+        val statusCode = connection.responseCode
+        val responseBody = if (statusCode in 200..299) {
+            connection.inputStream.bufferedReader().readText()
+        } else {
+            connection.errorStream?.bufferedReader()?.readText() ?: ""
         }
 
-        val body = json.parseToJsonElement(response.body()).jsonObject
+        if (statusCode != 200) {
+            throw RuntimeException("Token exchange failed ($statusCode): ${responseBody.take(200)}")
+        }
+
+        val body = json.parseToJsonElement(responseBody).jsonObject
         val token = body["token"]?.jsonPrimitive?.contentOrNull
             ?: throw RuntimeException("No 'token' field in token exchange response")
 
@@ -161,7 +121,6 @@ object CopilotEmbeddings {
     }
 
     private fun callEmbeddingsApi(texts: List<String>): List<FloatArray> {
-        val client = buildHttpClient()
         val requestBody = buildJsonObject {
             put("model", MODEL)
             putJsonArray("input") {
@@ -174,31 +133,34 @@ object CopilotEmbeddings {
         for (attempt in 0 until MAX_RETRIES) {
             val token = ensureSessionToken()
 
-            val request = HttpRequest.newBuilder()
-                .uri(URI(EMBEDDINGS_URL))
-                .header("Authorization", "Bearer $token")
-                .header("Content-Type", "application/json")
-                .header("Editor-Version", "JetBrains-IC/2025.2")
-                .header("Editor-Plugin-Version", "copilot-intellij/1.420.0")
-                .header("Copilot-Integration-Id", "vscode-chat")
-                .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
-                .timeout(Duration.ofSeconds(30))
-                .build()
+            val connection = openConnection(EMBEDDINGS_URL)
+            connection.requestMethod = "POST"
+            connection.doOutput = true
+            connection.setRequestProperty("Authorization", "Bearer $token")
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.setRequestProperty("Editor-Version", "JetBrains-IC/2025.2")
+            connection.setRequestProperty("Editor-Plugin-Version", "copilot-intellij/1.420.0")
+            connection.setRequestProperty("Copilot-Integration-Id", "vscode-chat")
 
-            val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+            connection.outputStream.bufferedWriter().use { it.write(requestBody.toString()) }
+
+            val statusCode = connection.responseCode
+            val responseBody = if (statusCode in 200..299) {
+                connection.inputStream.bufferedReader().readText()
+            } else {
+                connection.errorStream?.bufferedReader()?.readText() ?: ""
+            }
 
             when {
-                response.statusCode() == 200 -> {
-                    return parseEmbeddingsResponse(response.body())
+                statusCode == 200 -> {
+                    return parseEmbeddingsResponse(responseBody)
                 }
 
-                response.statusCode() == 429 -> {
-                    val retryAfter = response.headers().firstValue("retry-after").orElse(null)
+                statusCode == 429 -> {
+                    val retryAfter = connection.getHeaderField("retry-after")
                     val delayMs = if (retryAfter != null) {
-                        // Retry-After is in seconds
                         (retryAfter.toLongOrNull() ?: 1) * 1000
                     } else {
-                        // Exponential backoff: 500ms, 1s, 2s, 4s...
                         (INITIAL_RETRY_DELAY_MS shl attempt).coerceAtMost(MAX_RETRY_DELAY_MS)
                     }
                     log.warn("Embeddings API rate limited (429), retrying in ${delayMs}ms (attempt ${attempt + 1}/$MAX_RETRIES)")
@@ -206,8 +168,7 @@ object CopilotEmbeddings {
                     lastException = RuntimeException("Rate limited (429)")
                 }
 
-                response.statusCode() == 401 -> {
-                    // Token expired mid-flight — force refresh and retry
+                statusCode == 401 -> {
                     log.info("Embeddings API returned 401, refreshing session token")
                     sessionToken = null
                     tokenExpiry = Instant.EPOCH
@@ -215,7 +176,7 @@ object CopilotEmbeddings {
                 }
 
                 else -> {
-                    throw RuntimeException("Embeddings API failed (${response.statusCode()}): ${response.body().take(200)}")
+                    throw RuntimeException("Embeddings API failed ($statusCode): ${responseBody.take(200)}")
                 }
             }
         }
