@@ -1017,14 +1017,23 @@ def _init_client_internal(workspace: str, agent_mode: bool = False,
     if mcp_config:
         _emit("Starting MCP servers...")
         time.sleep(0.5)
-        if client.is_server_mcp_enabled:
-            print(f"[*] MCP: using server-side (org allows mcp)")
-            client.configure_mcp(mcp_config)
+        # Split config: url-based (SSE) servers must always run client-side
+        # because the Copilot language server only supports command-based
+        # (stdio) MCP servers.
+        sse_servers = {n: c for n, c in mcp_config.items() if "url" in c}
+        stdio_servers = {n: c for n, c in mcp_config.items() if "url" not in c}
+
+        if stdio_servers and client.is_server_mcp_enabled:
+            print(f"[*] MCP: server-side: {', '.join(stdio_servers.keys())}")
+            client.configure_mcp(stdio_servers)
             time.sleep(4)
-        else:
-            print(f"[*] MCP: using client-side (org blocks server mcp)")
+        elif stdio_servers:
+            sse_servers.update(stdio_servers)
+
+        if sse_servers:
+            print(f"[*] MCP: client-side: {', '.join(sse_servers.keys())}")
             manager = ClientMCPManager()
-            manager.add_servers(mcp_config)
+            manager.add_servers(sse_servers)
             manager.start_all(on_progress=on_progress)
             client.client_mcp = manager
 
