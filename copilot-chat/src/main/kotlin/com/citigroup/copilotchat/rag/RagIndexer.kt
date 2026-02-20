@@ -49,6 +49,7 @@ class RagIndexer(private val project: Project) : Disposable {
 
     companion object {
         private const val UPSERT_BATCH_SIZE = 20
+        private const val MAX_CONSECUTIVE_FAILURES = 3
         private val EXCLUDED_DIRS = setOf(
             "build", "out", "target", "node_modules", ".gradle", ".idea",
             ".git", "dist", "vendor", "__pycache__", ".venv", "venv",
@@ -129,21 +130,36 @@ class RagIndexer(private val project: Project) : Disposable {
                 log.info("Found $totalFiles files to index")
 
                 val currentFilePaths = mutableSetOf<String>()
+                var consecutiveFailures = 0
+                var lastFailureMessage: String? = null
 
                 for (file in files) {
                     if (!isActive) break
 
+                    // Abort early if embeddings are consistently failing (e.g. proxy blocks the API)
+                    if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+                        val remaining = totalFiles - indexedFiles
+                        log.warn("Aborting indexing: $MAX_CONSECUTIVE_FAILURES consecutive embedding failures. Last error: $lastFailureMessage")
+                        lastError = "Embeddings API unreachable ($lastFailureMessage). " +
+                            "Your proxy may be blocking api.githubcopilot.com — ask IT to whitelist it."
+                        failedFiles += remaining
+                        indexedFiles = totalFiles
+                        break
+                    }
+
                     try {
                         when (indexFile(file, collection, existingHashes)) {
-                            IndexResult.INDEXED -> {}
-                            IndexResult.SKIPPED -> skippedFiles++
-                            IndexResult.FAILED -> failedFiles++
+                            IndexResult.INDEXED -> { consecutiveFailures = 0 }
+                            IndexResult.SKIPPED -> { consecutiveFailures = 0; skippedFiles++ }
+                            IndexResult.FAILED -> { consecutiveFailures++; failedFiles++ }
                         }
                         currentFilePaths.add(file.path)
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
                         log.warn("Failed to index ${file.path}: ${e.message}")
+                        lastFailureMessage = e.message
+                        consecutiveFailures++
                         failedFiles++
                     }
 
@@ -216,12 +232,7 @@ class RagIndexer(private val project: Project) : Disposable {
             }
         }
 
-        val vectors = try {
-            CopilotEmbeddings.embedBatch(texts)
-        } catch (e: Exception) {
-            log.warn("Embedding failed for $filePath: ${e.message}")
-            return IndexResult.FAILED
-        }
+        val vectors = CopilotEmbeddings.embedBatch(texts)
 
         // Build Qdrant points
         val points = chunks.zip(vectors).map { (chunk, vector) ->
