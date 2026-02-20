@@ -311,6 +311,21 @@ class ConversationManager(private val project: Project) : Disposable {
         } ?: emptyList()
         schemas.addAll(mcpSchemas)
 
+        // Suppress browser_record when Playwright MCP tools are available
+        val hasMcpBrowserTools = mcpSchemas.any { schema ->
+            val name = try {
+                json.parseToJsonElement(schema).jsonObject["name"]?.jsonPrimitive?.contentOrNull
+            } catch (_: Exception) { null }
+            name != null && (name.startsWith("browser_") || name.contains("playwright"))
+        }
+        if (hasMcpBrowserTools) {
+            schemas.removeAll { schema ->
+                try {
+                    json.parseToJsonElement(schema).jsonObject["name"]?.jsonPrimitive?.contentOrNull == "browser_record"
+                } catch (_: Exception) { false }
+            }
+        }
+
         if (schemas.isEmpty()) return
 
         val params = buildJsonObject {
