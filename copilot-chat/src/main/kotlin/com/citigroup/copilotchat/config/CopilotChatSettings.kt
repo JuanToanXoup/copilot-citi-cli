@@ -50,31 +50,20 @@ class CopilotChatSettings : PersistentStateComponent<CopilotChatSettings.State> 
     override fun loadState(state: State) { myState = state }
 
     fun ensureDefaults() {
-        val mcpCliPath = java.io.File(
-            System.getProperty("user.home"),
-            ".copilot-chat/playwright/node_modules/@playwright/mcp/cli.js"
-        ).absolutePath
+        if (myState.defaultsSeeded) return
+        myState.defaultsSeeded = true
 
-        // Always migrate existing playwright entries to use the managed installation
-        val existingPw = myState.mcpServers.firstOrNull {
+        val hasPlaywright = myState.mcpServers.any {
             it.name.contains("playwright", ignoreCase = true)
         }
-        if (existingPw != null) {
-            // Update to managed path if still pointing at npx or an old path
-            if (existingPw.command != "node" || existingPw.args != mcpCliPath) {
-                existingPw.command = "node"
-                existingPw.args = mcpCliPath
-            }
-        } else if (!myState.defaultsSeeded) {
-            // First time — seed the default entry
+        if (!hasPlaywright) {
             myState.mcpServers.add(McpServerEntry(
                 name = "playwright",
-                command = "node",
-                args = mcpCliPath,
+                command = "npx",
+                args = "-y @playwright/mcp@latest",
                 enabled = true,
             ))
         }
-        myState.defaultsSeeded = true
     }
 
     var binaryPath: String

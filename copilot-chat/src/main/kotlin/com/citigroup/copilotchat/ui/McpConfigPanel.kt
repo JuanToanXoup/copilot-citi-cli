@@ -128,22 +128,12 @@ class McpConfigPanel(
         }
     }
 
-    /**
-     * Build MCP config map for sending to language server.
-     * If a managed Playwright entry is present but not yet installed,
-     * triggers installation first so the MCP server can start.
-     */
+    /** Build MCP config map for sending to language server. */
     fun buildMcpConfig(): Map<String, Map<String, Any>> {
         val config = mutableMapOf<String, Map<String, Any>>()
         for (i in 0 until listModel.size()) {
             val entry = listModel.getElementAt(i)
             if (!entry.enabled) continue
-
-            // Auto-install managed Playwright if needed before the MCP server starts
-            if (isManagedPlaywrightEntry(entry) && !PlaywrightManager.isInstalled) {
-                PlaywrightManager.ensureInstalled()
-            }
-
             val serverConfig = mutableMapOf<String, Any>()
             if (entry.url.isNotBlank()) {
                 serverConfig["url"] = entry.url
@@ -164,10 +154,6 @@ class McpConfigPanel(
             config[entry.name] = serverConfig
         }
         return config
-    }
-
-    private fun isManagedPlaywrightEntry(entry: McpServerEntry): Boolean {
-        return entry.args.contains(".copilot-chat/playwright/")
     }
 
     private class McpServerCellRenderer : DefaultListCellRenderer() {
