@@ -53,6 +53,13 @@ class ChatToolWindowFactory : ToolWindowFactory, DumbAware {
         contentManager.addContent(workersContent)
         Disposer.register(toolWindow.disposable, workerPanel)
 
+        // Recorder tab — Playwright codegen
+        val recorderPanel = RecorderPanel(project)
+        val recorderContent = contentFactory.createContent(recorderPanel, "Recorder", false)
+        recorderContent.isCloseable = false
+        contentManager.addContent(recorderContent)
+        Disposer.register(toolWindow.disposable, recorderPanel)
+
         // Select Chat tab by default
         contentManager.setSelectedContent(chatContent)
     }
