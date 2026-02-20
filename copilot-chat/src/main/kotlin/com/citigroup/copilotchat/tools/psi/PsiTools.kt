@@ -3,6 +3,7 @@ package com.citigroup.copilotchat.tools.psi
 import com.intellij.codeInsight.daemon.impl.DaemonCodeAnalyzerEx
 import com.intellij.codeInsight.intention.IntentionManager
 import com.intellij.lang.annotation.HighlightSeverity
+import com.intellij.openapi.application.EDT
 import com.intellij.lang.documentation.DocumentationProvider
 import com.intellij.navigation.ChooseByNameContributor
 import com.intellij.navigation.ChooseByNameContributorEx
@@ -19,6 +20,9 @@ import com.intellij.psi.search.UsageSearchContext
 import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.util.Processor
 import com.intellij.util.indexing.FindSymbolParameters
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
@@ -665,58 +669,85 @@ class GetDiagnosticsTool : PsiToolBase() {
     override val description = "Get code problems (errors, warnings) and available quick fixes for a file. Provides full IDE-level analysis including quick-fix suggestions and intention actions."
     override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Path to file relative to project root"},"includeIntentions":{"type":"boolean","description":"Include available quick-fix intentions (default: false)"},"startLine":{"type":"integer","description":"Filter problems to start from this line"},"endLine":{"type":"integer","description":"Filter problems to end at this line"}},"required":["file"]}"""
 
+    companion object {
+        private const val DAEMON_ANALYSIS_WAIT_MS = 500L
+    }
+
     override suspend fun doExecute(project: Project, arguments: JsonObject): ToolCallResult {
         val filePath = arguments.str("file") ?: return createErrorResult("file is required")
         val includeIntentions = arguments.bool("includeIntentions") ?: false
         val filterStartLine = arguments.int("startLine")
         val filterEndLine = arguments.int("endLine")
 
-        return suspendingReadAction {
-            val psiFile = getPsiFile(project, filePath)
-                ?: return@suspendingReadAction createErrorResult("File not found: $filePath")
-            val doc = PsiDocumentManager.getInstance(project).getDocument(psiFile)
-                ?: return@suspendingReadAction createErrorResult("No document for file: $filePath")
+        val virtualFile = suspendingReadAction {
+            getPsiFile(project, filePath)?.virtualFile
+        } ?: return createErrorResult("File not found: $filePath")
 
-            val problems = mutableListOf<ProblemInfo>()
+        // Ensure file is open so daemon can analyze it
+        val fileEditorManager = com.intellij.openapi.fileEditor.FileEditorManager.getInstance(project)
+        val wasAlreadyOpen = fileEditorManager.isFileOpen(virtualFile)
 
-            // Collect syntax errors from PSI tree
-            psiFile.accept(object : PsiRecursiveElementVisitor() {
-                override fun visitErrorElement(element: PsiErrorElement) {
-                    val ln = doc.getLineNumber(element.textOffset) + 1
-                    if (filterStartLine != null && ln < filterStartLine) return
-                    if (filterEndLine != null && ln > filterEndLine) return
-                    val col = element.textOffset - doc.getLineStartOffset(ln - 1) + 1
-                    problems.add(ProblemInfo(element.errorDescription, "ERROR", getRelativePath(project, psiFile.virtualFile), ln, col, null, null))
-                }
-            })
+        if (!wasAlreadyOpen) {
+            withContext(Dispatchers.EDT) {
+                fileEditorManager.openFile(virtualFile, false)
+            }
+            delay(DAEMON_ANALYSIS_WAIT_MS)
+        }
 
-            // Collect cached highlights from DaemonCodeAnalyzer if the file has been analyzed
-            try {
-                DaemonCodeAnalyzerEx.processHighlights(
-                    doc, project, HighlightSeverity.WARNING,
-                    0, doc.textLength
-                ) { h ->
-                    if (h.description != null) {
-                        val startLine = doc.getLineNumber(h.startOffset) + 1
-                        if (filterStartLine != null && startLine < filterStartLine) return@processHighlights true
-                        if (filterEndLine != null && startLine > filterEndLine) return@processHighlights true
-                        val startCol = h.startOffset - doc.getLineStartOffset(startLine - 1) + 1
-                        val endLine = doc.getLineNumber(h.endOffset) + 1
-                        val endCol = h.endOffset - doc.getLineStartOffset(endLine - 1) + 1
-                        problems.add(ProblemInfo(h.description, h.severity.displayName, getRelativePath(project, psiFile.virtualFile), startLine, startCol, endLine, endCol))
+        return try {
+            suspendingReadAction {
+                val psiFile = getPsiFile(project, filePath)
+                    ?: return@suspendingReadAction createErrorResult("File not found: $filePath")
+                val doc = PsiDocumentManager.getInstance(project).getDocument(psiFile)
+                    ?: return@suspendingReadAction createErrorResult("No document for file: $filePath")
+
+                val problems = mutableListOf<ProblemInfo>()
+
+                // Collect syntax errors from PSI tree
+                psiFile.accept(object : PsiRecursiveElementVisitor() {
+                    override fun visitErrorElement(element: PsiErrorElement) {
+                        val ln = doc.getLineNumber(element.textOffset) + 1
+                        if (filterStartLine != null && ln < filterStartLine) return
+                        if (filterEndLine != null && ln > filterEndLine) return
+                        val col = element.textOffset - doc.getLineStartOffset(ln - 1) + 1
+                        problems.add(ProblemInfo(element.errorDescription, "ERROR", getRelativePath(project, psiFile.virtualFile), ln, col, null, null))
                     }
-                    problems.size < 200
-                }
-            } catch (_: Exception) {}
+                })
 
-            val intentions = if (includeIntentions) {
+                // Collect highlights from DaemonCodeAnalyzer (now available since file is open)
                 try {
-                    val manager = IntentionManager.getInstance()
-                    manager.availableIntentions.take(20).map { IntentionInfo(it.familyName, it.text.takeIf { t -> t != it.familyName }) }
-                } catch (_: Exception) { emptyList() }
-            } else emptyList()
+                    DaemonCodeAnalyzerEx.processHighlights(
+                        doc, project, HighlightSeverity.WARNING,
+                        0, doc.textLength
+                    ) { h ->
+                        if (h.description != null) {
+                            val startLine = doc.getLineNumber(h.startOffset) + 1
+                            if (filterStartLine != null && startLine < filterStartLine) return@processHighlights true
+                            if (filterEndLine != null && startLine > filterEndLine) return@processHighlights true
+                            val startCol = h.startOffset - doc.getLineStartOffset(startLine - 1) + 1
+                            val endLine = doc.getLineNumber(h.endOffset) + 1
+                            val endCol = h.endOffset - doc.getLineStartOffset(endLine - 1) + 1
+                            problems.add(ProblemInfo(h.description, h.severity.displayName, getRelativePath(project, psiFile.virtualFile), startLine, startCol, endLine, endCol))
+                        }
+                        problems.size < 200
+                    }
+                } catch (_: Exception) {}
 
-            createJsonResult(DiagnosticsResult(problems, intentions, problems.size, intentions.size))
+                val intentions = if (includeIntentions) {
+                    try {
+                        val manager = IntentionManager.getInstance()
+                        manager.availableIntentions.take(20).map { IntentionInfo(it.familyName, it.text.takeIf { t -> t != it.familyName }) }
+                    } catch (_: Exception) { emptyList() }
+                } else emptyList()
+
+                createJsonResult(DiagnosticsResult(problems, intentions, problems.size, intentions.size))
+            }
+        } finally {
+            if (!wasAlreadyOpen) {
+                withContext(Dispatchers.EDT) {
+                    fileEditorManager.closeFile(virtualFile)
+                }
+            }
         }
     }
 }
@@ -1134,36 +1165,119 @@ class RenameSymbolTool : PsiToolBase() {
             return createErrorResult("'$newName' is not a valid identifier for ${suspendingReadAction { target.language.displayName }}")
         }
 
+        // Check for naming conflicts before executing
+        val conflictMessage = suspendingReadAction {
+            try {
+                val processorEp = Class.forName("com.intellij.refactoring.rename.RenamePsiElementProcessor")
+                val forElement = processorEp.getMethod("forElement", PsiElement::class.java)
+                val renameProcessor = forElement.invoke(null, target)
+                val multiMapClass = Class.forName("com.intellij.util.containers.MultiMap")
+                val conflicts = multiMapClass.getConstructor().newInstance()
+                val findConflicts = renameProcessor.javaClass.getMethod(
+                    "findExistingNameConflicts", PsiElement::class.java, String::class.java, multiMapClass
+                )
+                findConflicts.invoke(renameProcessor, target, newName, conflicts)
+                val isEmpty = multiMapClass.getMethod("isEmpty").invoke(conflicts) as Boolean
+                if (!isEmpty) {
+                    @Suppress("UNCHECKED_CAST")
+                    val values = multiMapClass.getMethod("values").invoke(conflicts) as Collection<String>
+                    val msgs = values.take(3).joinToString("; ")
+                    val more = if (values.size > 3) " (and ${values.size - 3} more)" else ""
+                    "Name conflict: $msgs$more"
+                } else null
+            } catch (_: Exception) { null }
+        }
+        if (conflictMessage != null) {
+            return createErrorResult(conflictMessage)
+        }
+
+        // Substitute element if needed (e.g., light elements → real elements)
+        val effectiveTarget = suspendingReadAction {
+            try {
+                val processorEp = Class.forName("com.intellij.refactoring.rename.RenamePsiElementProcessor")
+                val forElement = processorEp.getMethod("forElement", PsiElement::class.java)
+                val renameProc = forElement.invoke(null, target)
+                val substitute = renameProc.javaClass.getMethod("substituteElementToRename", PsiElement::class.java, com.intellij.openapi.editor.Editor::class.java)
+                (substitute.invoke(renameProc, target, null) as? PsiElement) ?: target
+            } catch (_: Exception) { target }
+        }
+
         return try {
             val processorClass = Class.forName("com.intellij.refactoring.rename.RenameProcessor")
             val affectedFiles = mutableSetOf<String>()
+            var relatedRenamesCount = 0
 
             suspendingWriteAction(project, "Rename to $newName") {
                 val processor = processorClass.getConstructor(
                     Project::class.java, PsiElement::class.java,
                     String::class.java, Boolean::class.javaPrimitiveType, Boolean::class.javaPrimitiveType
-                ).newInstance(project, target, newName, false, false)
-                processorClass.getMethod("run").invoke(processor)
+                ).newInstance(project, effectiveTarget, newName, false, false)
 
-                // Collect affected files
+                // Add related elements via AutomaticRenamerFactory
                 try {
-                    val getUsages = processorClass.getMethod("findUsages")
+                    val factoryEp = Class.forName("com.intellij.refactoring.rename.naming.AutomaticRenamerFactory")
+                    val epNameField = factoryEp.getDeclaredField("EP_NAME")
+                    val epName = epNameField.get(null)
                     @Suppress("UNCHECKED_CAST")
-                    val usages = getUsages.invoke(processor) as? Array<Any>
-                    usages?.forEach { usage ->
+                    val factories = epName.javaClass.getMethod("getExtensionList").invoke(epName) as List<Any>
+                    val usageInfoClass = Class.forName("com.intellij.usageView.UsageInfo")
+                    val emptyUsages = java.lang.reflect.Array.newInstance(usageInfoClass, 0)
+
+                    for (factory in factories) {
                         try {
-                            val vf = usage.javaClass.getMethod("getFile").invoke(usage)
-                            if (vf != null) {
-                                val path = (vf as com.intellij.openapi.vfs.VirtualFile).path
-                                val basePath = project.basePath ?: ""
-                                affectedFiles.add(path.removePrefix(basePath).removePrefix("/"))
+                            val isApplicable = factory.javaClass.getMethod("isApplicable", PsiElement::class.java)
+                            if (isApplicable.invoke(factory, effectiveTarget) != true) continue
+
+                            val createRenamer = factory.javaClass.getMethod("createRenamer", PsiElement::class.java, String::class.java, java.util.Collection::class.java)
+                            val renamer = createRenamer.invoke(factory, effectiveTarget, newName, java.util.Collections.EMPTY_LIST) ?: continue
+
+                            @Suppress("UNCHECKED_CAST")
+                            val elements = renamer.javaClass.getMethod("getElements").invoke(renamer) as? Collection<PsiNamedElement> ?: continue
+                            for (relatedElement in elements) {
+                                if (relatedElement == effectiveTarget) continue
+                                val relatedNewName = renamer.javaClass.getMethod("getNewName", PsiNamedElement::class.java).invoke(renamer, relatedElement) as? String ?: continue
+                                val currentName = relatedElement.name ?: continue
+                                if (currentName == relatedNewName) continue
+
+                                // Add to processor's rename map
+                                val addElement = processorClass.getMethod("addElement", PsiElement::class.java, String::class.java)
+                                addElement.invoke(processor, relatedElement, relatedNewName)
+                                relatedRenamesCount++
+
+                                relatedElement.containingFile?.virtualFile?.let { vf ->
+                                    val basePath = project.basePath ?: ""
+                                    affectedFiles.add(vf.path.removePrefix(basePath).removePrefix("/"))
+                                }
                             }
                         } catch (_: Exception) {}
                     }
                 } catch (_: Exception) {}
+
+                // Disable preview dialog for headless operation
+                try {
+                    processorClass.getMethod("setPreviewUsages", Boolean::class.javaPrimitiveType)
+                        .invoke(processor, false)
+                } catch (_: Exception) {}
+
+                processorClass.getMethod("run").invoke(processor)
+
+                // Commit and save documents
+                PsiDocumentManager.getInstance(project).commitAllDocuments()
+                com.intellij.openapi.fileEditor.FileDocumentManager.getInstance().saveAllDocuments()
+
+                // Collect affected files from the target
+                effectiveTarget.containingFile?.virtualFile?.let { vf ->
+                    val basePath = project.basePath ?: ""
+                    affectedFiles.add(vf.path.removePrefix(basePath).removePrefix("/"))
+                }
             }
 
-            createJsonResult(RefactoringResult(true, affectedFiles.toList(), affectedFiles.size, "Renamed to '$newName'"))
+            val msg = if (relatedRenamesCount > 0) {
+                "Renamed to '$newName' (including $relatedRenamesCount related element(s))"
+            } else {
+                "Renamed to '$newName'"
+            }
+            createJsonResult(RefactoringResult(true, affectedFiles.toList(), affectedFiles.size + relatedRenamesCount, msg))
         } catch (e: Exception) {
             createErrorResult("Rename failed: ${e.cause?.message ?: e.message}")
         }
@@ -1172,8 +1286,13 @@ class RenameSymbolTool : PsiToolBase() {
 
 class SafeDeleteTool : PsiToolBase() {
     override val name = "ide_safe_delete"
-    override val description = "Delete a symbol or file safely by first checking for usages. Use when removing code to avoid breaking references. Reports any references that would be broken before deleting."
+    override val description = "Delete a symbol or file safely by first checking for usages. Use when removing code to avoid breaking references. Reports any references that would be broken before deleting. When cursor is on whitespace or a comment, suggests nearby deletable symbols."
     override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Path to file relative to project root"},"line":{"type":"integer","description":"1-based line number where the symbol is located (required when targetType is 'symbol')"},"column":{"type":"integer","description":"1-based column number (required when targetType is 'symbol')"},"searchInComments":{"type":"boolean","description":"Also search for references in comments and strings (default: false)"},"targetType":{"type":"string","description":"What to delete: 'symbol' (default) or 'file'","enum":["symbol","file"]},"force":{"type":"boolean","description":"Force delete even if usages exist (default: false)"}},"required":["file"]}"""
+
+    companion object {
+        private const val NEARBY_SEARCH_DISTANCE = 10
+        private const val MAX_SUGGESTIONS = 5
+    }
 
     override suspend fun doExecute(project: Project, arguments: JsonObject): ToolCallResult {
         requireSmartMode(project)
@@ -1192,6 +1311,23 @@ class SafeDeleteTool : PsiToolBase() {
 
         val element = suspendingReadAction { findPsiElement(project, file, line, column) }
             ?: return createErrorResult("No element found at $file:$line:$column")
+
+        // Check if cursor is on whitespace or comment — suggest nearby symbols
+        val nearbySuggestion = suspendingReadAction {
+            if (element is PsiWhiteSpace || element is PsiComment) {
+                // For doc comments, check if the next sibling is the documented symbol
+                val docAdjacent = findDocAdjacentSymbol(element)
+                if (docAdjacent != null) {
+                    return@suspendingReadAction formatNearbySymbolError("doc comment", listOf(docAdjacent), project)
+                }
+                val suggestions = findNearbySymbols(element.containingFile, line, project)
+                val elementType = if (element is PsiWhiteSpace) "whitespace" else "comment"
+                return@suspendingReadAction formatNearbySymbolError(elementType, suggestions, project)
+            }
+            null
+        }
+        if (nearbySuggestion != null) return nearbySuggestion
+
         val target = suspendingReadAction { PsiUtils.resolveTargetElement(element) }
             ?: return createErrorResult("Cannot resolve symbol at $file:$line:$column")
 
@@ -1230,18 +1366,33 @@ class SafeDeleteTool : PsiToolBase() {
             ?: return createErrorResult("File not found: $filePath")
 
         if (!force) {
-            val usageCount = suspendingReadAction {
-                var count = 0
-                ReferencesSearch.search(psiFile, GlobalSearchScope.projectScope(project)).forEach(Processor { count++; count < 100 })
-                count
+            // Only check top-level declarations and filter to external-only usages
+            val externalUsageCount = suspendingReadAction {
+                val topLevel = collectTopLevelDeclarations(psiFile)
+                var externalCount = 0
+                for (element in topLevel) {
+                    ReferencesSearch.search(element, GlobalSearchScope.projectScope(project)).forEach(Processor { ref ->
+                        val refFile = ref.element.containingFile?.virtualFile
+                        val targetVf = psiFile.virtualFile
+                        // Only count usages from OTHER files
+                        if (refFile != null && refFile != targetVf) {
+                            externalCount++
+                        }
+                        externalCount < 100
+                    })
+                    if (externalCount >= 100) break
+                }
+                externalCount
             }
-            if (usageCount > 0) {
-                return createErrorResult("Cannot safely delete file: found $usageCount usage(s) of symbols in this file. Set force=true to delete anyway.")
+            if (externalUsageCount > 0) {
+                return createErrorResult("Cannot safely delete file: found $externalUsageCount external usage(s) of symbols in this file. Internal usages within the file are excluded. Set force=true to delete anyway.")
             }
         }
 
         return try {
             val processorClass = Class.forName("com.intellij.refactoring.safeDelete.SafeDeleteProcessor")
+            val symbolCount = suspendingReadAction { collectTopLevelDeclarations(psiFile).size }
+
             suspendingWriteAction(project, "Safe delete file") {
                 val create = processorClass.getMethod("createInstance",
                     Project::class.java, Array<PsiElement>::class.java,
@@ -1249,10 +1400,77 @@ class SafeDeleteTool : PsiToolBase() {
                 val processor = create.invoke(null, project, arrayOf(psiFile), searchInComments, false, false)
                 processorClass.getMethod("run").invoke(processor)
             }
-            createJsonResult(RefactoringResult(true, listOf(filePath), 1, "File deleted: $filePath"))
+
+            val msg = if (force) {
+                "Force-deleted file '$filePath' (may have had external usages that are now broken)"
+            } else {
+                "Successfully deleted file '$filePath' (contained $symbolCount top-level symbol(s) with no external usages)"
+            }
+            createJsonResult(RefactoringResult(true, listOf(filePath), 1, msg))
         } catch (e: Exception) {
             createErrorResult("File delete failed: ${e.cause?.message ?: e.message}")
         }
+    }
+
+    private fun collectTopLevelDeclarations(psiFile: PsiFile): List<PsiNamedElement> {
+        val result = mutableListOf<PsiNamedElement>()
+        for (child in psiFile.children) {
+            if (child is PsiNamedElement && child.name != null) {
+                result.add(child)
+            }
+        }
+        return result
+    }
+
+    private fun findDocAdjacentSymbol(commentElement: PsiElement): PsiNamedElement? {
+        if (commentElement !is PsiComment) return null
+        val text = commentElement.text
+        val isDocComment = text.startsWith("/**") || text.startsWith("///")
+        if (!isDocComment) return null
+
+        var sibling = commentElement.nextSibling
+        while (sibling != null && sibling is PsiWhiteSpace) {
+            sibling = sibling.nextSibling
+        }
+        return if (sibling is PsiNamedElement && sibling !is PsiFile && sibling.name != null) sibling else null
+    }
+
+    private fun findNearbySymbols(psiFile: PsiFile, currentLine: Int, project: Project): List<PsiNamedElement> {
+        val doc = PsiDocumentManager.getInstance(project).getDocument(psiFile) ?: return emptyList()
+        val startLine = maxOf(1, currentLine - NEARBY_SEARCH_DISTANCE)
+        val endLine = minOf(doc.lineCount, currentLine + NEARBY_SEARCH_DISTANCE)
+        val startOffset = doc.getLineStartOffset(startLine - 1)
+        val endOffset = if (endLine <= doc.lineCount) doc.getLineEndOffset(endLine - 1) else doc.textLength
+
+        val results = mutableListOf<Pair<PsiNamedElement, Int>>()
+        com.intellij.psi.util.PsiTreeUtil.processElements(psiFile) { element ->
+            if (element.textOffset < startOffset || element.textOffset > endOffset) return@processElements true
+            if (element is PsiNamedElement && element !is PsiFile && element.name != null) {
+                val elemLine = doc.getLineNumber(element.textOffset) + 1
+                val distance = kotlin.math.abs(elemLine - currentLine)
+                if (distance <= NEARBY_SEARCH_DISTANCE) {
+                    results.add(element to distance)
+                }
+            }
+            true
+        }
+        return results.sortedBy { it.second }.take(MAX_SUGGESTIONS).map { it.first }
+    }
+
+    private fun formatNearbySymbolError(elementType: String, suggestions: List<PsiNamedElement>, project: Project): ToolCallResult {
+        if (suggestions.isEmpty()) {
+            return createErrorResult("Cursor is on $elementType, not a deletable symbol. No nearby symbols found within $NEARBY_SEARCH_DISTANCE lines.")
+        }
+        val suggestionLines = suggestions.mapNotNull { elem ->
+            val doc = PsiDocumentManager.getInstance(project).getDocument(elem.containingFile) ?: return@mapNotNull null
+            val line = doc.getLineNumber(elem.textOffset) + 1
+            val col = elem.textOffset - doc.getLineStartOffset(line - 1) + 1
+            val kind = determineKind(elem)
+            "  - ${elem.name} ($kind) at line $line, column $col"
+        }
+        return createErrorResult(
+            "Cursor is on $elementType, not a deletable symbol. Nearby symbols:\n${suggestionLines.joinToString("\n")}\nUse one of these positions to target a specific symbol."
+        )
     }
 }
 
