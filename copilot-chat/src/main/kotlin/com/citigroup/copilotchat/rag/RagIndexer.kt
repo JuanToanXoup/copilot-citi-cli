@@ -42,6 +42,8 @@ class RagIndexer(private val project: Project) : Disposable {
         private set
     @Volatile var skippedFiles: Int = 0
         private set
+    @Volatile var failedFiles: Int = 0
+        private set
     @Volatile var lastError: String? = null
         private set
 
@@ -88,6 +90,7 @@ class RagIndexer(private val project: Project) : Disposable {
                 isIndexing = true
                 indexedFiles = 0
                 skippedFiles = 0
+                failedFiles = 0
                 lastError = null
                 log.info("Starting RAG indexing for project: ${project.name}")
 
@@ -131,13 +134,17 @@ class RagIndexer(private val project: Project) : Disposable {
                     if (!isActive) break
 
                     try {
-                        val reindexed = indexFile(file, collection, existingHashes)
+                        when (indexFile(file, collection, existingHashes)) {
+                            IndexResult.INDEXED -> {}
+                            IndexResult.SKIPPED -> skippedFiles++
+                            IndexResult.FAILED -> failedFiles++
+                        }
                         currentFilePaths.add(file.path)
-                        if (!reindexed) skippedFiles++
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        log.debug("Failed to index ${file.path}: ${e.message}")
+                        log.warn("Failed to index ${file.path}: ${e.message}")
+                        failedFiles++
                     }
 
                     indexedFiles++
@@ -155,8 +162,8 @@ class RagIndexer(private val project: Project) : Disposable {
                     }
                 }
 
-                val reindexed = indexedFiles - skippedFiles
-                log.info("RAG indexing complete: $indexedFiles files checked, $reindexed re-indexed, $skippedFiles unchanged")
+                val actuallyIndexed = indexedFiles - skippedFiles - failedFiles
+                log.info("RAG indexing complete: $indexedFiles checked, $actuallyIndexed indexed, $skippedFiles unchanged, $failedFiles failed")
 
             } catch (e: CancellationException) {
                 log.info("RAG indexing cancelled")
@@ -169,26 +176,27 @@ class RagIndexer(private val project: Project) : Disposable {
         }
     }
 
+    private enum class IndexResult { INDEXED, SKIPPED, FAILED }
+
     /**
      * Index a single file. Skips if content hash hasn't changed.
-     * Returns true if the file was actually re-indexed, false if skipped.
      */
     private suspend fun indexFile(
         virtualFile: VirtualFile,
         collection: String,
         existingHashes: Map<String, String>,
-    ): Boolean {
+    ): IndexResult {
         val filePath = virtualFile.path
         val content = ReadAction.compute<String?, Throwable> {
             try {
                 String(virtualFile.contentsToByteArray(), Charsets.UTF_8)
             } catch (_: Exception) { null }
-        } ?: return false
+        } ?: return IndexResult.FAILED
 
         val contentHash = md5(content)
 
         // Skip if unchanged
-        if (existingHashes[filePath] == contentHash) return false
+        if (existingHashes[filePath] == contentHash) return IndexResult.SKIPPED
 
         // Chunk via PSI
         val chunks = ReadAction.compute<List<CodeChunk>, Throwable> {
@@ -196,7 +204,7 @@ class RagIndexer(private val project: Project) : Disposable {
             PsiChunker.chunkFile(psiFile, project)
         }
 
-        if (chunks.isEmpty()) return false
+        if (chunks.isEmpty()) return IndexResult.FAILED
 
         // Embed all chunks
         val texts = chunks.map { chunk ->
@@ -211,8 +219,8 @@ class RagIndexer(private val project: Project) : Disposable {
         val vectors = try {
             CopilotEmbeddings.embedBatch(texts)
         } catch (e: Exception) {
-            log.debug("Embedding failed for $filePath: ${e.message}")
-            return false
+            log.warn("Embedding failed for $filePath: ${e.message}")
+            return IndexResult.FAILED
         }
 
         // Build Qdrant points
@@ -244,7 +252,7 @@ class RagIndexer(private val project: Project) : Disposable {
         }
 
         log.debug("Indexed $filePath: ${chunks.size} chunks")
-        return true
+        return IndexResult.INDEXED
     }
 
     /**

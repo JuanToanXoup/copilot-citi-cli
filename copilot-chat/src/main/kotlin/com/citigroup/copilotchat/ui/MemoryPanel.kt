@@ -208,14 +208,14 @@ class MemoryPanel(private val project: Project) : JPanel(BorderLayout()), Dispos
                 onIndexingDone(error)
                 statusLabel.foreground = JBColor.RED
             } else {
-                val reindexed = indexer.indexedFiles - indexer.skippedFiles
-                val msg = if (indexer.skippedFiles > 0) {
-                    "Done. $reindexed files indexed, ${indexer.skippedFiles} unchanged."
-                } else {
-                    "Done. ${indexer.indexedFiles} files indexed."
-                }
+                val actuallyIndexed = indexer.indexedFiles - indexer.skippedFiles - indexer.failedFiles
+                val parts = mutableListOf<String>()
+                if (actuallyIndexed > 0) parts.add("$actuallyIndexed indexed")
+                if (indexer.skippedFiles > 0) parts.add("${indexer.skippedFiles} unchanged")
+                if (indexer.failedFiles > 0) parts.add("${indexer.failedFiles} failed")
+                val msg = "Done. ${parts.joinToString(", ")}."
                 onIndexingDone(msg)
-                statusLabel.foreground = JBColor.foreground()
+                statusLabel.foreground = if (indexer.failedFiles > 0) JBColor.RED else JBColor.foreground()
             }
             return
         }
