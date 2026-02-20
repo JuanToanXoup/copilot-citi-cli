@@ -232,7 +232,7 @@ class ConversationManager(private val project: Project) : Disposable {
             } else {
                 // Client-side MCP: spawn processes locally
                 log.info("MCP: using client-side (org blocks server mcp)")
-                val manager = ClientMcpManager()
+                val manager = ClientMcpManager(proxyUrl = settings.proxyUrl)
                 manager.addServers(enabledMcpServers)
                 manager.startAll()
                 clientMcpManager = manager
@@ -610,7 +610,7 @@ class ConversationManager(private val project: Project) : Disposable {
             val settings = CopilotChatSettings.getInstance()
             val enabledMcpServers = settings.mcpServers.filter { it.enabled }
             if (enabledMcpServers.isNotEmpty()) {
-                val manager = ClientMcpManager()
+                val manager = ClientMcpManager(proxyUrl = settings.proxyUrl)
                 manager.addServers(enabledMcpServers)
                 manager.startAll()
                 clientMcpManager = manager

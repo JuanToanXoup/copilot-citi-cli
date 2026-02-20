@@ -13,7 +13,10 @@ import kotlinx.serialization.json.*
  * client tools with prefixed names (mcp_<server>_<tool>), and routes
  * invokeClientTool calls to the correct server.
  */
-class ClientMcpManager {
+class ClientMcpManager(
+    /** Proxy URL to inject into MCP server processes (HTTP_PROXY/HTTPS_PROXY). */
+    private val proxyUrl: String = "",
+) {
 
     private val log = Logger.getInstance(ClientMcpManager::class.java)
     private val json = Json { ignoreUnknownKeys = true }
@@ -26,13 +29,73 @@ class ClientMcpManager {
     private val toolMap = mutableMapOf<String, Pair<String, String>>()
 
     /**
+     * Build environment vars that every MCP server process needs:
+     * proxy settings + augmented PATH for IntelliJ (which launches with a minimal PATH).
+     */
+    private fun buildBaseEnv(): Map<String, String> {
+        val base = mutableMapOf<String, String>()
+
+        // Inject proxy so npm/npx can reach registries behind corporate proxies
+        if (proxyUrl.isNotBlank()) {
+            base["HTTP_PROXY"] = proxyUrl
+            base["HTTPS_PROXY"] = proxyUrl
+            // npm also reads this lowercase variant
+            base["http_proxy"] = proxyUrl
+            base["https_proxy"] = proxyUrl
+        }
+
+        // Augment PATH — IntelliJ on macOS often has a minimal PATH that
+        // misses /usr/local/bin, homebrew, nvm, volta, etc.
+        val extraPaths = listOf(
+            "/usr/local/bin",
+            "/opt/homebrew/bin",
+            "/opt/homebrew/sbin",
+            "${System.getProperty("user.home")}/.nvm/versions/node/*/bin",  // nvm
+            "${System.getProperty("user.home")}/.volta/bin",                // volta
+            "${System.getProperty("user.home")}/.local/bin",
+        )
+        val currentPath = System.getenv("PATH") ?: ""
+        val currentDirs = currentPath.split(java.io.File.pathSeparator).toSet()
+
+        // Resolve glob patterns (nvm node version dirs) and add missing dirs
+        val resolved = extraPaths.flatMap { pattern ->
+            if ("*" in pattern) {
+                try {
+                    java.nio.file.FileSystems.getDefault()
+                        .getPathMatcher("glob:$pattern")
+                    // Simple glob: list parent dir and filter
+                    val parent = java.io.File(pattern.substringBefore("*"))
+                    if (parent.isDirectory) {
+                        parent.listFiles()
+                            ?.filter { it.isDirectory }
+                            ?.map { java.io.File(it, pattern.substringAfterLast("*/")).absolutePath }
+                            ?.filter { java.io.File(it).isDirectory }
+                            ?: emptyList()
+                    } else emptyList()
+                } catch (_: Exception) { emptyList() }
+            } else {
+                listOf(pattern)
+            }
+        }.filter { it !in currentDirs && java.io.File(it).isDirectory }
+
+        if (resolved.isNotEmpty()) {
+            base["PATH"] = (resolved + currentPath).joinToString(java.io.File.pathSeparator)
+        }
+
+        return base
+    }
+
+    /**
      * Add MCP servers from settings entries.
      */
     fun addServers(entries: List<CopilotChatSettings.McpServerEntry>) {
+        val baseEnv = buildBaseEnv()
+
         for (entry in entries) {
             if (!entry.enabled) continue
 
             val envMap = mutableMapOf<String, String>()
+            envMap.putAll(baseEnv)
             if (entry.env.isNotBlank()) {
                 entry.env.lines().filter { "=" in it }.forEach { line ->
                     val (k, v) = line.split("=", limit = 2)
