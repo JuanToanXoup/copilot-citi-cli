@@ -53,7 +53,7 @@ class FindFileTool : AbstractMcpTool() {
 
         Returns: matching files with name, path, and containing directory.
 
-        Parameters: query (required), includeLibraries (optional, default: false), limit (optional, default: 25, max: 100).
+        Parameters: query (required), includeLibraries (optional, default: true), limit (optional, default: 25, max: 100).
 
         Example: {"query": "UserService.java"} or {"query": "*Test.kt"} or {"query": "BG"} (matches build.gradle)
     """.trimIndent()
@@ -71,7 +71,7 @@ class FindFileTool : AbstractMcpTool() {
             }
             putJsonObject(ParamNames.INCLUDE_LIBRARIES) {
                 put(SchemaConstants.TYPE, SchemaConstants.TYPE_BOOLEAN)
-                put(SchemaConstants.DESCRIPTION, "Include files from library dependencies. Default: false.")
+                put(SchemaConstants.DESCRIPTION, "Include files from library dependencies. Default: true.")
             }
             putJsonObject(ParamNames.LIMIT) {
                 put(SchemaConstants.TYPE, SchemaConstants.TYPE_INTEGER)
@@ -86,7 +86,7 @@ class FindFileTool : AbstractMcpTool() {
     override suspend fun doExecute(project: Project, arguments: JsonObject): ToolCallResult {
         val query = arguments[ParamNames.QUERY]?.jsonPrimitive?.content
             ?: return createErrorResult("Missing required parameter: ${ParamNames.QUERY}")
-        val includeLibraries = arguments[ParamNames.INCLUDE_LIBRARIES]?.jsonPrimitive?.boolean ?: false
+        val includeLibraries = arguments[ParamNames.INCLUDE_LIBRARIES]?.jsonPrimitive?.boolean ?: true
         val limit = (arguments[ParamNames.LIMIT]?.jsonPrimitive?.int ?: DEFAULT_LIMIT)
             .coerceIn(1, MAX_LIMIT)
 

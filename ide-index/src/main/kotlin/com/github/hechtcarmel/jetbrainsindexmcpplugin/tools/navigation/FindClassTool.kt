@@ -54,9 +54,9 @@ class FindClassTool : AbstractMcpTool() {
 
         Returns: matching classes with qualified names, file paths, line numbers, and kind (class/interface/enum).
 
-        Parameters: query (required), includeLibraries (optional, default: false), limit (optional, default: 25, max: 100).
+        Parameters: query (required), includeLibraries (optional, default: true), limit (optional, default: 25, max: 100).
 
-        Example: {"query": "UserService"} or {"query": "U*Impl"} or {"query": "USvc", "includeLibraries": true}
+        Example: {"query": "UserService"} or {"query": "U*Impl"} or {"query": "USvc", "includeLibraries": false}
     """.trimIndent()
 
     override val inputSchema: JsonObject = buildJsonObject {
@@ -72,7 +72,7 @@ class FindClassTool : AbstractMcpTool() {
             }
             putJsonObject(ParamNames.INCLUDE_LIBRARIES) {
                 put(SchemaConstants.TYPE, SchemaConstants.TYPE_BOOLEAN)
-                put(SchemaConstants.DESCRIPTION, "Include classes from library dependencies. Default: false.")
+                put(SchemaConstants.DESCRIPTION, "Include classes from library dependencies. Default: true.")
             }
             putJsonObject(ParamNames.LIMIT) {
                 put(SchemaConstants.TYPE, SchemaConstants.TYPE_INTEGER)
@@ -87,7 +87,7 @@ class FindClassTool : AbstractMcpTool() {
     override suspend fun doExecute(project: Project, arguments: JsonObject): ToolCallResult {
         val query = arguments[ParamNames.QUERY]?.jsonPrimitive?.content
             ?: return createErrorResult("Missing required parameter: ${ParamNames.QUERY}")
-        val includeLibraries = arguments[ParamNames.INCLUDE_LIBRARIES]?.jsonPrimitive?.boolean ?: false
+        val includeLibraries = arguments[ParamNames.INCLUDE_LIBRARIES]?.jsonPrimitive?.boolean ?: true
         val limit = (arguments[ParamNames.LIMIT]?.jsonPrimitive?.int ?: DEFAULT_LIMIT)
             .coerceIn(1, MAX_LIMIT)
 

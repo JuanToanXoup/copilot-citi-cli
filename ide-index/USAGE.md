@@ -453,7 +453,7 @@ Searches for code symbols (classes, interfaces, methods, fields) by name using t
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `query` | string | Yes | Search pattern (supports substring and camelCase matching) |
-| `includeLibraries` | boolean | No | Include symbols from library dependencies (default: false) |
+| `includeLibraries` | boolean | No | Include symbols from library dependencies (default: true) |
 | `limit` | integer | No | Maximum results to return (default: 25, max: 100) |
 
 **Example Request:**
