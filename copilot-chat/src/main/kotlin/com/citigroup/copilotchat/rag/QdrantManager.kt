@@ -91,7 +91,7 @@ class QdrantManager : Disposable {
         onStatus?.invoke("Downloading Qdrant $QDRANT_VERSION...")
 
         try {
-            val client = buildHttpClient()
+            val client = buildExternalHttpClient()
             val request = HttpRequest.newBuilder()
                 .uri(URI(downloadUrl))
                 .timeout(Duration.ofMinutes(5))
@@ -471,7 +471,14 @@ class QdrantManager : Disposable {
         return results
     }
 
-    private fun buildHttpClient(): HttpClient {
+    /** HTTP client for local Qdrant REST API calls — never uses proxy. */
+    private fun buildHttpClient(): HttpClient =
+        HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(10))
+            .build()
+
+    /** HTTP client for external calls (GitHub releases download) — uses proxy if configured. */
+    private fun buildExternalHttpClient(): HttpClient {
         val builder = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .followRedirects(HttpClient.Redirect.NORMAL)
@@ -485,15 +492,8 @@ class QdrantManager : Disposable {
         return builder.build()
     }
 
-    private fun buildProcessEnv(): MutableMap<String, String> {
-        val env = System.getenv().toMutableMap()
-        val proxyUrl = CopilotChatSettings.getInstance().proxyUrl
-        if (proxyUrl.isNotBlank()) {
-            env["HTTP_PROXY"] = proxyUrl
-            env["HTTPS_PROXY"] = proxyUrl
-        }
-        return env
-    }
+    private fun buildProcessEnv(): MutableMap<String, String> =
+        System.getenv().toMutableMap()
 
     override fun dispose() {
         stop()
