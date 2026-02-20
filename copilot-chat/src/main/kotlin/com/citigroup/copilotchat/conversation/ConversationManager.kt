@@ -160,15 +160,32 @@ class ConversationManager(private val project: Project) : Disposable {
 
         // Configure proxy via workspace/didChangeConfiguration (matches Python CLI's configure_proxy)
         if (proxyUrl.isNotBlank()) {
+            val parsed = java.net.URI(proxyUrl)
+            val httpSettings = buildJsonObject {
+                put("proxyStrictSSL", false)
+
+                val userInfo = parsed.userInfo
+                if (userInfo != null) {
+                    // Extract credentials and build Basic auth header
+                    val authHeader = "Basic " + java.util.Base64.getEncoder()
+                        .encodeToString(userInfo.toByteArray())
+                    put("proxyAuthorization", authHeader)
+                    // Send clean URL without credentials
+                    val cleanUri = java.net.URI(
+                        parsed.scheme, null, parsed.host, parsed.port,
+                        parsed.path, parsed.query, parsed.fragment
+                    )
+                    put("proxy", cleanUri.toString())
+                } else {
+                    put("proxy", proxyUrl)
+                }
+            }
             lspClient.sendNotification("workspace/didChangeConfiguration", buildJsonObject {
                 putJsonObject("settings") {
-                    putJsonObject("http") {
-                        put("proxy", proxyUrl)
-                        put("proxyStrictSSL", false)
-                    }
+                    put("http", httpSettings)
                 }
             })
-            log.info("Proxy configured: $proxyUrl")
+            log.info("Proxy configured: ${httpSettings["proxy"]}")
         }
 
         // Register tools
