@@ -1,5 +1,6 @@
 package com.citigroup.copilotchat.tools
 
+import com.citigroup.copilotchat.tools.psi.PsiToolBase
 import com.citigroup.copilotchat.tools.psi.PsiTools
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
@@ -43,22 +44,24 @@ class ToolRouter(private val project: Project) {
 
     /**
      * Get all tool schemas to register with the server.
-     * Combines PSI tools, ide-index tools (if available), and built-in tools.
+     * PSI tools are registered as a single compound "ide" tool.
+     * Then ide-index tools (if any), then built-in tools.
      */
     fun getToolSchemas(): List<String> {
         val schemas = mutableListOf<String>()
         val registeredNames = mutableSetOf<String>()
 
-        // PSI tools first (direct IDE integration, no reflection needed)
+        // PSI tools as a single compound "ide" tool
         try {
-            for (schema in PsiTools.schemas) {
-                val schemaObj = json.parseToJsonElement(schema).jsonObject
-                val name = schemaObj["name"]?.jsonPrimitive?.contentOrNull ?: continue
-                schemas.add(schema)
-                registeredNames.add(name)
+            val compoundSchema = PsiTools.compoundSchema
+            if (compoundSchema != null) {
+                schemas.add(compoundSchema)
+                registeredNames.add("ide")
+                // Track individual PSI names so they don't get re-registered
+                registeredNames.addAll(psiToolNames)
             }
         } catch (e: Throwable) {
-            log.warn("Failed to load PSI tool schemas, continuing with built-in tools", e)
+            log.warn("Failed to load PSI compound schema, continuing with built-in tools", e)
         }
 
         // ide-index tools (only add ones not already provided by PSI tools)
@@ -85,7 +88,8 @@ class ToolRouter(private val project: Project) {
             }
         }
 
-        log.info("Registered ${schemas.size} tools (${psiToolNames.size} PSI, ${ideSchemas.size} ide-index, rest built-in)")
+        val psiCount = if (PsiTools.compoundSchema != null) PsiTools.allTools.size else 0
+        log.info("Registered ${schemas.size} tools ($psiCount PSI in compound 'ide', ${ideSchemas.size} ide-index, rest built-in)")
         return schemas
     }
 
@@ -96,6 +100,11 @@ class ToolRouter(private val project: Project) {
     suspend fun executeTool(name: String, input: JsonObject): JsonElement {
         log.info("Tool call: $name")
 
+        // Handle compound "ide" tool — extract action and route to PSI sub-tool
+        if (name == "ide") {
+            return executeIdeTool(input)
+        }
+
         // Check for redirect (e.g., grep_search → ide_search_text)
         val effectiveName = if (name in TOOL_REDIRECTS && TOOL_REDIRECTS[name] in psiToolNames) {
             val redirected = TOOL_REDIRECTS[name]!!
@@ -103,22 +112,10 @@ class ToolRouter(private val project: Project) {
             redirected
         } else name
 
-        // Try PSI tools first
+        // Try PSI tools by full name (fallback if model uses individual names)
         val psiTool = PsiTools.findTool(effectiveName)
         if (psiTool != null) {
-            return try {
-                val result = psiTool.execute(project, input)
-                val text = result.content.joinToString("\n") { block ->
-                    when (block) {
-                        is com.citigroup.copilotchat.tools.psi.ContentBlock.Text -> block.text
-                    }
-                }
-                wrapResult(text, isError = result.isError)
-            } catch (e: Exception) {
-                log.warn("PSI tool $effectiveName failed, falling back", e)
-                // Fall through to other providers
-                tryFallback(name, input)
-            }
+            return executePsiTool(psiTool, input, name)
         }
 
         // Try ide-index
@@ -138,6 +135,36 @@ class ToolRouter(private val project: Project) {
         // Unknown tool
         log.warn("Unknown tool: $name")
         return wrapResult("Error: Unknown tool: $name", isError = true)
+    }
+
+    private suspend fun executeIdeTool(input: JsonObject): JsonElement {
+        val action = input["action"]?.jsonPrimitive?.contentOrNull
+            ?: return wrapResult("Error: 'action' parameter is required for the 'ide' tool", isError = true)
+
+        val psiTool = PsiTools.findToolByAction(action)
+            ?: return wrapResult(
+                "Error: Unknown IDE action '$action'. Available: ${PsiTools.actionToToolName.keys.joinToString(", ")}",
+                isError = true
+            )
+
+        // Strip "action" from input, pass rest to the tool
+        val toolInput = JsonObject(input.filterKeys { it != "action" })
+        return executePsiTool(psiTool, toolInput, "ide/$action")
+    }
+
+    private suspend fun executePsiTool(tool: PsiToolBase, input: JsonObject, displayName: String): JsonElement {
+        return try {
+            val result = tool.execute(project, input)
+            val text = result.content.joinToString("\n") { block ->
+                when (block) {
+                    is com.citigroup.copilotchat.tools.psi.ContentBlock.Text -> block.text
+                }
+            }
+            wrapResult(text, isError = result.isError)
+        } catch (e: Exception) {
+            log.warn("PSI tool $displayName failed, falling back", e)
+            tryFallback(displayName, input)
+        }
     }
 
     private fun tryFallback(name: String, input: JsonObject): JsonElement {
