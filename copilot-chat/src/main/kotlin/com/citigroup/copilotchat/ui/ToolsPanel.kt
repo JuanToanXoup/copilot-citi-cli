@@ -299,7 +299,9 @@ class ToolsPanel(
         ): Component {
             super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column)
             foreground = JBColor(0x666666, 0x999999)
-            text = (value as? String)?.take(80) ?: ""
+            val full = (value as? String) ?: ""
+            text = full
+            toolTipText = if (full.length > 80) "<html><body style='width:300px'>$full</body></html>" else full
             border = JBUI.Borders.empty(0, 4)
             return this
         }
@@ -325,7 +327,8 @@ class ToolsPanel(
             text = "<html><b style='$nameStyle'>${info.name}</b> " +
                     "<span style='color: $sourceColor'>[${info.source}]</span> " +
                     "<span style='color: $statusColor; font-size: 9px'>$statusIcon</span><br/>" +
-                    "<span style='color: gray; font-size: 10px'>${info.description.take(100)}</span></html>"
+                    "<span style='color: gray; font-size: 10px'>${info.description}</span></html>"
+            toolTipText = if (info.description.length > 100) "<html><body style='width:300px'>${info.description}</body></html>" else info.description
             icon = null
             return this
         }
