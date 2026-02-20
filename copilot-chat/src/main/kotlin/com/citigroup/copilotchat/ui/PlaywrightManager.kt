@@ -1,5 +1,6 @@
 package com.citigroup.copilotchat.ui
 
+import com.citigroup.copilotchat.config.CopilotChatSettings
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.util.SystemInfo
 import java.io.File
@@ -24,6 +25,70 @@ object PlaywrightManager {
     var onStatus: ((String) -> Unit)? = null
 
     /**
+     * Build environment map with proxy and augmented PATH for spawning
+     * npm/node processes from inside IntelliJ (which has a minimal PATH).
+     */
+    fun buildProcessEnv(): MutableMap<String, String> {
+        val env = System.getenv().toMutableMap()
+
+        // Inject proxy so npm can reach registries behind corporate proxies
+        val proxyUrl = CopilotChatSettings.getInstance().proxyUrl
+        if (proxyUrl.isNotBlank()) {
+            env["HTTP_PROXY"] = proxyUrl
+            env["HTTPS_PROXY"] = proxyUrl
+            env["http_proxy"] = proxyUrl
+            env["https_proxy"] = proxyUrl
+        }
+
+        // Augment PATH — IntelliJ on macOS often has a minimal PATH
+        val extraPaths = listOf(
+            "/usr/local/bin",
+            "/opt/homebrew/bin",
+            "/opt/homebrew/sbin",
+            "${System.getProperty("user.home")}/.volta/bin",
+            "${System.getProperty("user.home")}/.local/bin",
+        )
+        val currentPath = env["PATH"] ?: ""
+        val currentDirs = currentPath.split(File.pathSeparator).toSet()
+
+        // Also scan for nvm node versions
+        val nvmDir = File(System.getProperty("user.home"), ".nvm/versions/node")
+        val nvmBins = if (nvmDir.isDirectory) {
+            nvmDir.listFiles()
+                ?.filter { it.isDirectory }
+                ?.map { File(it, "bin").absolutePath }
+                ?.filter { File(it).isDirectory }
+                ?: emptyList()
+        } else emptyList()
+
+        val toAdd = (extraPaths + nvmBins).filter { it !in currentDirs && File(it).isDirectory }
+        if (toAdd.isNotEmpty()) {
+            env["PATH"] = (toAdd + currentPath).joinToString(File.pathSeparator)
+        }
+
+        return env
+    }
+
+    /**
+     * Resolve a command name (like "npm" or "node") using the augmented PATH.
+     */
+    fun resolveCommand(cmd: String, env: Map<String, String> = buildProcessEnv()): String {
+        val path = env["PATH"] ?: System.getenv("PATH") ?: return cmd
+        for (dir in path.split(File.pathSeparator)) {
+            if (dir.isBlank()) continue
+            val file = File(dir, cmd)
+            if (file.canExecute()) return file.absolutePath
+            if (SystemInfo.isWindows) {
+                for (ext in listOf(".cmd", ".bat", ".exe")) {
+                    val withExt = File(dir, cmd + ext)
+                    if (withExt.canExecute()) return withExt.absolutePath
+                }
+            }
+        }
+        return cmd
+    }
+
+    /**
      * Ensure both playwright and @playwright/mcp are installed in the managed
      * directory. Downloads Chromium if needed. Must be called from a background
      * thread. Returns true on success.
@@ -42,13 +107,18 @@ object PlaywrightManager {
             packageJson.writeText("""{"private":true}""")
         }
 
-        val npm = if (SystemInfo.isWindows) "npm.cmd" else "npm"
+        val env = buildProcessEnv()
+        val npm = resolveCommand(if (SystemInfo.isWindows) "npm.cmd" else "npm", env)
+        val node = resolveCommand("node", env)
+
+        log.info("PlaywrightManager: npm=$npm, node=$node")
 
         // Install both packages in the same node_modules
         onStatus?.invoke("Installing Playwright packages...")
         val installProc = ProcessBuilder(npm, "install", "playwright", "@playwright/mcp@latest")
             .directory(home)
             .redirectErrorStream(true)
+            .apply { environment().putAll(env) }
             .start()
         val installOutput = installProc.inputStream.bufferedReader().readText()
         installProc.waitFor()
@@ -60,9 +130,10 @@ object PlaywrightManager {
 
         // Download Chromium browser binary
         onStatus?.invoke("Downloading Chromium browser...")
-        val browsersProc = ProcessBuilder("node", playwrightCli.absolutePath, "install", "chromium")
+        val browsersProc = ProcessBuilder(node, playwrightCli.absolutePath, "install", "chromium")
             .directory(home)
             .redirectErrorStream(true)
+            .apply { environment().putAll(env) }
             .start()
         val browsersOutput = browsersProc.inputStream.bufferedReader().readText()
         browsersProc.waitFor()

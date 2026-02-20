@@ -264,8 +264,12 @@ class RecorderPanel(private val project: Project) : JPanel(BorderLayout()), Disp
             }
 
             // Build command using managed playwright CLI
+            val env = pw.buildProcessEnv()
+            env.putAll(findPlaywrightMcpEnv())
+            val node = pw.resolveCommand("node", env)
+
             val cmd = mutableListOf(
-                "node", pw.playwrightCli.absolutePath, "codegen",
+                node, pw.playwrightCli.absolutePath, "codegen",
                 "--target=$target",
                 "--output=${outputFile!!.absolutePath}"
             )
@@ -279,7 +283,7 @@ class RecorderPanel(private val project: Project) : JPanel(BorderLayout()), Disp
                 val pb = ProcessBuilder(cmd)
                 pb.directory(pw.home)
                 pb.redirectErrorStream(false)
-                pb.environment().putAll(findPlaywrightMcpEnv())
+                pb.environment().putAll(env)
 
                 val proc = pb.start()
                 playwrightProcess = proc
@@ -399,7 +403,9 @@ class RecorderPanel(private val project: Project) : JPanel(BorderLayout()), Disp
     private fun replayCode() {
         val target = targetCombo.selectedItem as String
         val code = currentCode()
-        val node = if (SystemInfo.isWindows) "node.exe" else "node"
+        val replayEnv = pw.buildProcessEnv()
+        replayEnv.putAll(findPlaywrightMcpEnv())
+        val node = pw.resolveCommand(if (SystemInfo.isWindows) "node.exe" else "node", replayEnv)
 
         // Write to a temp file for execution
         val tempDir = File(System.getProperty("java.io.tmpdir"), "pw_replay_${System.currentTimeMillis()}")
@@ -423,7 +429,7 @@ class RecorderPanel(private val project: Project) : JPanel(BorderLayout()), Disp
                 val pb = ProcessBuilder(cmd)
                 pb.directory(File(project.basePath ?: "."))
                 pb.redirectErrorStream(true)
-                pb.environment().putAll(findPlaywrightMcpEnv())
+                pb.environment().putAll(replayEnv)
 
                 // Point NODE_PATH to managed node_modules so require('playwright') resolves
                 val nodeModulesPath = pw.nodeModules.absolutePath

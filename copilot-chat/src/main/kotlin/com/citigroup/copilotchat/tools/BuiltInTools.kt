@@ -395,8 +395,11 @@ object BuiltInTools {
         val outputFile = File.createTempFile("recording_", ext)
         outputFile.deleteOnExit()
 
+        val env = pw.buildProcessEnv()
+        val node = pw.resolveCommand("node", env)
+
         val cmd = mutableListOf(
-            "node", pw.playwrightCli.absolutePath, "codegen",
+            node, pw.playwrightCli.absolutePath, "codegen",
             "--target=$target",
             "--output=${outputFile.absolutePath}",
         )
@@ -407,6 +410,7 @@ object BuiltInTools {
         val process = ProcessBuilder(cmd)
             .directory(pw.home)
             .redirectErrorStream(true)
+            .apply { environment().putAll(env) }
             .start()
 
         // Drain output in background thread to prevent buffer deadlock
