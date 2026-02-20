@@ -160,7 +160,6 @@ class CopilotChatPanel(private val project: Project) : JPanel(BorderLayout()), D
     private fun handleEvent(event: ChatEvent) {
         when (event) {
             is ChatEvent.Delta -> {
-                lastToolCallPanel = null
                 currentAssistantMessage?.appendText(event.text)
                 scrollManager.onContentAdded()
             }
@@ -175,8 +174,8 @@ class CopilotChatPanel(private val project: Project) : JPanel(BorderLayout()), D
                 // shows the action and arguments, which is sufficient context.
             }
             is ChatEvent.AgentRound -> {
-                lastToolCallPanel = null
                 if (event.reply.isNotEmpty()) {
+                    lastToolCallPanel = null
                     val msg = currentAssistantMessage
                     if (msg != null) {
                         // Append to existing assistant message so streamed
