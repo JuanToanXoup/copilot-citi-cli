@@ -33,11 +33,13 @@ class ChatInputPanel(
     private val initPlaceholder = "Starting up..."
     private val placeholderText: String get() = if (isInitializing) initPlaceholder else readyPlaceholder
 
+    private val controlHeight = 32
+
     // Agent mode dropdown (matches official UI)
     val agentDropdown = JComboBox(arrayOf("Agent", "Ask")).apply {
         selectedIndex = 0
-        maximumSize = Dimension(100, 28)
-        preferredSize = Dimension(90, 28)
+        maximumSize = Dimension(100, controlHeight)
+        preferredSize = Dimension(90, controlHeight)
     }
 
     val isAgentMode: Boolean
@@ -49,8 +51,8 @@ class ChatInputPanel(
         set(value) {
             field = value
             if (value != null) {
-                value.maximumSize = Dimension(120, 28)
-                value.preferredSize = Dimension(100, 28)
+                value.maximumSize = Dimension(120, controlHeight)
+                value.preferredSize = Dimension(100, controlHeight)
                 leftPanel?.add(value)
                 leftPanel?.revalidate()
             }
@@ -71,7 +73,7 @@ class ChatInputPanel(
             BorderFactory.createLineBorder(buttonBorderColor, 1, true),
             JBUI.Borders.empty(4)
         )
-        preferredSize = Dimension(32, 28)
+        preferredSize = Dimension(controlHeight, controlHeight)
         cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
     }
     private val stopButton = JButton(AllIcons.Actions.Suspend).apply {
@@ -84,7 +86,7 @@ class ChatInputPanel(
             BorderFactory.createLineBorder(buttonBorderColor, 1, true),
             JBUI.Borders.empty(4)
         )
-        preferredSize = Dimension(32, 28)
+        preferredSize = Dimension(controlHeight, controlHeight)
         cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
     }
 
