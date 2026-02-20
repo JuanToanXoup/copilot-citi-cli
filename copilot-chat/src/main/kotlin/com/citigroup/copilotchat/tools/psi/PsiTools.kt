@@ -173,7 +173,7 @@ object PsiTools {
 class FindUsagesTool : PsiToolBase() {
     override val name = "ide_find_references"
     override val description = "Find all references/usages of a symbol across the project. Use when you need to understand how a class, method, field, or variable is used before modifying or removing it."
-    override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Path to file relative to project root"},"line":{"type":"integer","description":"1-based line number where the symbol is located"},"column":{"type":"integer","description":"1-based column number within the line"},"includeLibraries":{"type":"boolean","description":"Include usages in libraries (default: false)"},"maxResults":{"type":"integer","description":"Maximum number of references to return (default: 200, max: 500)"}},"required":["file","line","column"]}"""
+    override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Path to file relative to project root"},"line":{"type":"integer","description":"1-based line number where the symbol is located"},"column":{"type":"integer","description":"1-based column number within the line"},"includeLibraries":{"type":"boolean","description":"Include usages in libraries (default: false)"},"maxResults":{"type":"integer","description":"Maximum number of references to return (default: 100, max: 500)"}},"required":["file","line","column"]}"""
 
     override suspend fun doExecute(project: Project, arguments: JsonObject): ToolCallResult {
         requireSmartMode(project)
@@ -181,6 +181,7 @@ class FindUsagesTool : PsiToolBase() {
         val line = arguments.int("line") ?: return createErrorResult("line is required")
         val column = arguments.int("column") ?: return createErrorResult("column is required")
         val includeLibs = arguments.bool("includeLibraries") ?: false
+        val maxResults = (arguments.int("maxResults") ?: 100).coerceIn(1, 500)
 
         val element = suspendingReadAction { findPsiElement(project, file, line, column) }
             ?: return createErrorResult("No element found at $file:$line:$column")
@@ -194,6 +195,7 @@ class FindUsagesTool : PsiToolBase() {
         suspendingReadAction {
             ReferencesSearch.search(target, scope).forEach(Processor { ref ->
                 checkCanceled()
+                if (count.get() >= maxResults) return@Processor false
                 val el = ref.element
                 val psiFile = el.containingFile ?: return@Processor true
                 val vf = psiFile.virtualFile ?: return@Processor true
@@ -201,13 +203,28 @@ class FindUsagesTool : PsiToolBase() {
                 val ln = doc.getLineNumber(el.textOffset) + 1
                 val col = el.textOffset - doc.getLineStartOffset(ln - 1) + 1
                 val ctx = getLineText(doc, ln).trim()
-                usages.add(UsageLocation(getRelativePath(project, vf), ln, col, ctx, "reference"))
-                count.incrementAndGet() < 200
+                usages.add(UsageLocation(getRelativePath(project, vf), ln, col, ctx, classifyUsage(el)))
+                val slot = count.incrementAndGet()
+                slot < maxResults
             })
         }
 
-        val result = FindUsagesResult(usages.toList().sortedWith(compareBy({ it.file }, { it.line })), count.get())
+        val usagesList = usages.toList().sortedWith(compareBy({ it.file }, { it.line }))
+        val result = FindUsagesResult(usagesList, usagesList.size)
         return createJsonResult(result)
+    }
+
+    private fun classifyUsage(element: PsiElement): String {
+        val parentClass = element.parent?.javaClass?.simpleName ?: "Unknown"
+        return when {
+            parentClass.contains("MethodCall") -> "method_call"
+            parentClass.contains("Field") -> "field_access"
+            parentClass.contains("Import") -> "import"
+            parentClass.contains("Parameter") -> "parameter"
+            parentClass.contains("Variable") -> "variable"
+            parentClass.contains("Reference") -> "reference"
+            else -> "reference"
+        }
     }
 }
 
@@ -244,51 +261,72 @@ class FindDefinitionTool : PsiToolBase() {
 class SearchTextTool : PsiToolBase() {
     override val name = "ide_search_text"
     override val description = "Search for exact word matches using the IDE's pre-built word index. Significantly faster than file scanning, but only matches exact words — not regex or patterns. Use for finding identifiers, keywords, or specific strings."
-    override val inputSchema = """{"type":"object","properties":{"query":{"type":"string","description":"Exact word to search for (not a pattern/regex)"},"caseSensitive":{"type":"boolean","description":"Case-sensitive search (default: false)"},"maxResults":{"type":"integer","description":"Maximum results to return (default: 100, max: 500)"}},"required":["query"]}"""
+    override val inputSchema = """{"type":"object","properties":{"query":{"type":"string","description":"Exact word to search for (not a pattern/regex)"},"context":{"type":"string","description":"Where to search: \"code\", \"comments\", \"strings\", or \"all\" (default: \"all\")","enum":["code","comments","strings","all"]},"caseSensitive":{"type":"boolean","description":"Case-sensitive search (default: true)"},"maxResults":{"type":"integer","description":"Maximum results to return (default: 100, max: 500)"}},"required":["query"]}"""
 
     override suspend fun doExecute(project: Project, arguments: JsonObject): ToolCallResult {
         val query = arguments.str("query") ?: return createErrorResult("query is required")
-        val caseSensitive = arguments.bool("caseSensitive") ?: false
-        val maxResults = arguments.int("maxResults") ?: 100
+        if (query.isBlank()) return createErrorResult("query cannot be empty")
+        val contextStr = arguments.str("context") ?: "all"
+        val caseSensitive = arguments.bool("caseSensitive") ?: true
+        val maxResults = (arguments.int("maxResults") ?: 100).coerceIn(1, 500)
 
+        val searchContext = parseSearchContext(contextStr)
         val matches = ConcurrentLinkedQueue<TextMatch>()
         val count = AtomicInteger(0)
         val scope = GlobalSearchScope.projectScope(project)
 
         suspendingReadAction {
             val searchHelper = PsiSearchHelper.getInstance(project)
-            val searchContext = UsageSearchContext.IN_CODE.toInt() or
-                    UsageSearchContext.IN_STRINGS.toInt() or
-                    UsageSearchContext.IN_COMMENTS.toInt()
 
             searchHelper.processElementsWithWord(
-                { element, offsetInElement ->
+                { element, _ ->
                     checkCanceled()
                     if (count.get() >= maxResults) return@processElementsWithWord false
                     val psiFile = element.containingFile ?: return@processElementsWithWord true
                     val vf = psiFile.virtualFile ?: return@processElementsWithWord true
                     val doc = PsiDocumentManager.getInstance(project).getDocument(psiFile)
                         ?: return@processElementsWithWord true
-                    val offset = element.textOffset + offsetInElement
+                    val offset = element.textOffset
                     val ln = doc.getLineNumber(offset) + 1
                     val col = offset - doc.getLineStartOffset(ln - 1) + 1
                     val ctx = getLineText(doc, ln).trim()
-                    matches.add(TextMatch(getRelativePath(project, vf), ln, col, ctx, "code"))
-                    count.incrementAndGet() < maxResults
+                    val ctxType = determineContextType(element, searchContext)
+                    matches.add(TextMatch(getRelativePath(project, vf), ln, col, ctx, ctxType))
+                    val slot = count.incrementAndGet()
+                    slot < maxResults
                 },
                 scope,
                 query,
-                searchContext.toShort(),
+                searchContext,
                 caseSensitive
             )
         }
 
         val result = SearchTextResult(
-            matches.toList().sortedWith(compareBy({ it.file }, { it.line })).take(maxResults),
-            count.get(),
+            matches.toList().sortedWith(compareBy({ it.file }, { it.line })),
+            matches.size,
             query
         )
         return createJsonResult(result)
+    }
+
+    private fun parseSearchContext(contextStr: String): Short = when (contextStr.lowercase()) {
+        "code" -> UsageSearchContext.IN_CODE
+        "comments" -> UsageSearchContext.IN_COMMENTS
+        "strings" -> UsageSearchContext.IN_STRINGS
+        else -> UsageSearchContext.ANY
+    }
+
+    private fun determineContextType(element: PsiElement, searchContext: Short): String {
+        if (searchContext == UsageSearchContext.IN_COMMENTS) return "COMMENT"
+        if (searchContext == UsageSearchContext.IN_STRINGS) return "STRING_LITERAL"
+        if (searchContext == UsageSearchContext.IN_CODE) return "CODE"
+        val elementType = element.node?.elementType?.toString() ?: ""
+        return when {
+            elementType.contains("COMMENT", ignoreCase = true) -> "COMMENT"
+            elementType.contains("STRING", ignoreCase = true) || elementType.contains("LITERAL", ignoreCase = true) -> "STRING_LITERAL"
+            else -> "CODE"
+        }
     }
 }
 
@@ -735,8 +773,11 @@ class TypeInfoTool : PsiToolBase() {
                 ?: return@suspendingReadAction createErrorResult("No element found at $file:$line:$column")
             val target = PsiUtils.resolveTargetElement(element) ?: element
 
-            // Try to get type via reflection (works for Java PsiVariable, PsiExpression, etc.)
-            val typeText = tryGetType(target)
+            // Try ExpressionTypeProvider EP first (works across all languages)
+            val typeFromEP = tryGetTypeViaProvider(element) ?: tryGetTypeViaProvider(target)
+
+            // Fall back to reflection-based approach
+            val typeText = typeFromEP ?: tryGetTypeViaReflection(target) ?: tryGetTypeViaReflection(element)
                 ?: return@suspendingReadAction createErrorResult("Cannot determine type at $file:$line:$column")
 
             val symbolName = (target as? PsiNamedElement)?.name ?: target.text?.take(50) ?: "unknown"
@@ -745,21 +786,38 @@ class TypeInfoTool : PsiToolBase() {
         }
     }
 
-    private fun tryGetType(element: PsiElement): String? {
-        // Try PsiVariable.getType()
+    private fun tryGetTypeViaProvider(element: PsiElement): String? {
         try {
-            val getType = element.javaClass.getMethod("getType")
-            val type = getType.invoke(element) ?: return null
-            val presentable = type.javaClass.getMethod("getPresentableText")
-            return presentable.invoke(type) as? String
+            val epName = com.intellij.openapi.extensions.ExtensionPointName
+                .create<Any>("com.intellij.expressionTypeProvider")
+            for (provider in epName.extensionList) {
+                try {
+                    val getExprs = provider.javaClass.getMethod("getExpressionsAt", PsiElement::class.java)
+                    @Suppress("UNCHECKED_CAST")
+                    val expressions = getExprs.invoke(provider, element) as? List<*> ?: continue
+                    for (expr in expressions) {
+                        if (expr == null) continue
+                        val getHint = provider.javaClass.getMethod("getInformationHint", PsiElement::class.java)
+                        val hint = getHint.invoke(provider, expr) as? String
+                        if (!hint.isNullOrBlank()) {
+                            return hint.replace(Regex("<[^>]+>"), "").trim()
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
         } catch (_: Exception) {}
+        return null
+    }
 
-        // Try PsiExpression.getType()
+    private fun tryGetTypeViaReflection(element: PsiElement): String? {
+        // Try getType() -> getPresentableText() (PsiVariable, PsiExpression, etc.)
         try {
             val getType = element.javaClass.getMethod("getType")
             val type = getType.invoke(element) ?: return null
-            val canonical = type.javaClass.getMethod("getCanonicalText")
-            return canonical.invoke(type) as? String
+            val presentable = try { type.javaClass.getMethod("getPresentableText").invoke(type) as? String } catch (_: Exception) { null }
+            if (presentable != null) return presentable
+            val canonical = try { type.javaClass.getMethod("getCanonicalText").invoke(type) as? String } catch (_: Exception) { null }
+            if (canonical != null) return canonical
         } catch (_: Exception) {}
 
         // Walk up to find a typed element
@@ -802,7 +860,7 @@ class ParameterInfoTool : PsiToolBase() {
     }
 
     private fun tryExtractParams(element: PsiElement): ParameterInfoResult? {
-        // Try PsiMethod via reflection
+        // Try Java PsiMethod
         try {
             val psiMethodClass = Class.forName("com.intellij.psi.PsiMethod")
             if (psiMethodClass.isInstance(element)) {
@@ -833,6 +891,83 @@ class ParameterInfoTool : PsiToolBase() {
             }
         } catch (_: Exception) {}
 
+        // Try Kotlin KtNamedFunction
+        try {
+            val ktFuncClass = Class.forName("org.jetbrains.kotlin.psi.KtNamedFunction")
+            if (ktFuncClass.isInstance(element)) {
+                val name = (element.javaClass.getMethod("getName").invoke(element) as? String) ?: "unknown"
+                val paramList = element.javaClass.getMethod("getValueParameterList").invoke(element) as? PsiElement
+                val details = if (paramList != null) {
+                    @Suppress("UNCHECKED_CAST")
+                    val parameters = paramList.javaClass.getMethod("getParameters").invoke(paramList) as? List<*> ?: emptyList<Any>()
+                    parameters.filterIsInstance<PsiElement>().map { p ->
+                        val pName = (p.javaClass.getMethod("getName").invoke(p) as? String) ?: "?"
+                        val pType = try { (p.javaClass.getMethod("getTypeReference").invoke(p) as? PsiElement)?.text } catch (_: Exception) { null }
+                        ParameterDetail(pName, pType ?: "Any", null)
+                    }
+                } else emptyList()
+                val returnType = try { (element.javaClass.getMethod("getTypeReference").invoke(element) as? PsiElement)?.text } catch (_: Exception) { null }
+                val containingClass = try {
+                    val ktClsClass = Class.forName("org.jetbrains.kotlin.psi.KtClassOrObject")
+                    @Suppress("UNCHECKED_CAST")
+                    val cc = com.intellij.psi.util.PsiTreeUtil.getParentOfType(element, ktClsClass as Class<out PsiElement>)
+                    cc?.let { it.javaClass.getMethod("getName").invoke(it) as? String }
+                } catch (_: Exception) { null }
+                return ParameterInfoResult(name, containingClass, returnType, details)
+            }
+        } catch (_: Exception) {}
+
+        // Try Python PyFunction
+        try {
+            val pyFuncClass = Class.forName("com.jetbrains.python.psi.PyFunction")
+            if (pyFuncClass.isInstance(element)) {
+                val name = (element.javaClass.getMethod("getName").invoke(element) as? String) ?: "unknown"
+                val paramList = element.javaClass.getMethod("getParameterList").invoke(element)
+                @Suppress("UNCHECKED_CAST")
+                val parameters = paramList.javaClass.getMethod("getParameters").invoke(paramList) as? Array<*> ?: emptyArray<Any>()
+                val details = parameters.filterIsInstance<PsiElement>().map { p ->
+                    val pName = (p.javaClass.getMethod("getName").invoke(p) as? String) ?: "?"
+                    val pType = try { p.javaClass.getMethod("getTypeText").invoke(p) as? String } catch (_: Exception) { null }
+                    ParameterDetail(pName, pType ?: "Any", null)
+                }
+                val returnType = try {
+                    val annotation = element.javaClass.getMethod("getAnnotation").invoke(element) as? PsiElement
+                    annotation?.text
+                } catch (_: Exception) { null }
+                val containingClass = try {
+                    val pyClsClass = Class.forName("com.jetbrains.python.psi.PyClass")
+                    @Suppress("UNCHECKED_CAST")
+                    val cc = com.intellij.psi.util.PsiTreeUtil.getParentOfType(element, pyClsClass as Class<out PsiElement>)
+                    cc?.let { it.javaClass.getMethod("getName").invoke(it) as? String }
+                } catch (_: Exception) { null }
+                return ParameterInfoResult(name, containingClass, returnType, details)
+            }
+        } catch (_: Exception) {}
+
+        // Try JavaScript/TypeScript JSFunction
+        try {
+            val jsFuncClass = Class.forName("com.intellij.lang.javascript.psi.JSFunction")
+            if (jsFuncClass.isInstance(element)) {
+                val name = (element.javaClass.getMethod("getName").invoke(element) as? String) ?: "unknown"
+                val paramList = element.javaClass.getMethod("getParameterList").invoke(element)
+                @Suppress("UNCHECKED_CAST")
+                val parameters = paramList.javaClass.getMethod("getParameters").invoke(paramList) as? Array<*> ?: emptyArray<Any>()
+                val details = parameters.filterIsInstance<PsiElement>().map { p ->
+                    val pName = (p.javaClass.getMethod("getName").invoke(p) as? String) ?: "?"
+                    val pType = try { p.javaClass.getMethod("getType").invoke(p)?.toString() } catch (_: Exception) { null }
+                    ParameterDetail(pName, pType ?: "any", null)
+                }
+                val returnType = try { element.javaClass.getMethod("getReturnType").invoke(element)?.toString() } catch (_: Exception) { null }
+                val containingClass = try {
+                    val jsClsClass = Class.forName("com.intellij.lang.javascript.psi.ecmal4.JSClass")
+                    @Suppress("UNCHECKED_CAST")
+                    val cc = com.intellij.psi.util.PsiTreeUtil.getParentOfType(element, jsClsClass as Class<out PsiElement>)
+                    cc?.let { it.javaClass.getMethod("getName").invoke(it) as? String }
+                } catch (_: Exception) { null }
+                return ParameterInfoResult(name, containingClass, returnType, details)
+            }
+        } catch (_: Exception) {}
+
         // Walk up to find a method-like element
         var current = element.parent
         repeat(10) {
@@ -848,58 +983,120 @@ class ParameterInfoTool : PsiToolBase() {
 class StructuralSearchTool : PsiToolBase() {
     override val name = "ide_structural_search"
     override val description = "Search for code patterns using IntelliJ's structural search engine. Finds code that matches a structural pattern, not just text."
-    override val inputSchema = """{"type":"object","properties":{"pattern":{"type":"string","description":"Structural search pattern using template variable syntax for capture variables"},"fileType":{"type":"string","description":"File type to search in: 'Java', 'Kotlin', 'Python', 'JavaScript', etc. (default: 'Java')"},"maxResults":{"type":"integer","description":"Maximum number of results to return (default: 100, max: 200)"}},"required":["pattern"]}"""
+    override val inputSchema = """{"type":"object","properties":{"pattern":{"type":"string","description":"Structural search pattern using template variable syntax for capture variables"},"fileType":{"type":"string","description":"File type to search in: 'Java', 'Kotlin', 'Python', 'JavaScript', etc. (default: 'Java')"},"scope":{"type":"string","description":"Search scope: 'project' (default) or 'file' (requires file parameter)"},"file":{"type":"string","description":"Path to file relative to project root. Only used when scope is 'file'."},"maxResults":{"type":"integer","description":"Maximum number of results to return (default: 50, max: 200)"}},"required":["pattern"]}"""
 
     override suspend fun doExecute(project: Project, arguments: JsonObject): ToolCallResult {
         val pattern = arguments.str("pattern") ?: return createErrorResult("pattern is required")
-        val fileType = arguments.str("fileType") ?: "java"
+        val fileType = arguments.str("fileType") ?: "Java"
+        val scopeStr = arguments.str("scope") ?: "project"
+        val filePath = arguments.str("file")
+        val maxResults = (arguments.int("maxResults") ?: 50).coerceIn(1, 200)
 
-        return try {
-            val matcherClass = Class.forName("com.intellij.structuralsearch.Matcher")
-            val optionsClass = Class.forName("com.intellij.structuralsearch.MatchOptions")
+        if (scopeStr == "file" && filePath == null) {
+            return createErrorResult("When scope is 'file', the 'file' parameter is required.")
+        }
 
-            val options = optionsClass.getConstructor().newInstance()
-            optionsClass.getMethod("setSearchPattern", String::class.java).invoke(options, pattern)
-            optionsClass.getMethod("setScope", SearchScope::class.java)
-                .invoke(options, GlobalSearchScope.projectScope(project))
+        requireSmartMode(project)
 
-            // Set file type
+        return suspendingReadAction {
             try {
-                val ftManager = com.intellij.openapi.fileTypes.FileTypeManager.getInstance()
-                val ft = ftManager.getStdFileType(fileType.uppercase())
-                optionsClass.getMethod("setFileType", com.intellij.openapi.fileTypes.FileType::class.java).invoke(options, ft)
-            } catch (_: Exception) {}
+                val matchOptionsClass = Class.forName("com.intellij.structuralsearch.MatchOptions")
+                val matcherClass = Class.forName("com.intellij.structuralsearch.Matcher")
+                val matchResultSinkClass = Class.forName("com.intellij.structuralsearch.MatchResultSink")
+                val matchResultClass = Class.forName("com.intellij.structuralsearch.MatchResult")
 
-            val matcher = matcherClass.getConstructor(Project::class.java).newInstance(project)
+                val matchOptions = matchOptionsClass.getConstructor().newInstance()
 
-            // Use Matcher.findMatches(MatchOptions) which returns List<MatchResult>
-            val findMatchesMethod = matcherClass.methods.firstOrNull {
-                it.name == "findMatches" && it.parameterCount == 1
-            } ?: return createErrorResult("Structural search API not available")
+                // Set search pattern
+                matchOptionsClass.getMethod("setSearchPattern", String::class.java).invoke(matchOptions, pattern)
 
-            val matches = mutableListOf<StructuralMatch>()
-            suspendingReadAction {
-                @Suppress("UNCHECKED_CAST")
-                val results = findMatchesMethod.invoke(matcher, options) as? List<Any> ?: emptyList()
-                for (result in results.take(100)) {
+                // Resolve LanguageFileType
+                val resolvedFileType = resolveLanguageFileType(fileType)
+                if (resolvedFileType != null) {
                     try {
-                        val getMatch = result.javaClass.getMethod("getMatch")
-                        val matchElement = getMatch.invoke(result) as? PsiElement ?: continue
-                        val psiFile = matchElement.containingFile ?: continue
-                        val vf = psiFile.virtualFile ?: continue
-                        val doc = PsiDocumentManager.getInstance(project).getDocument(psiFile) ?: continue
-                        val ln = doc.getLineNumber(matchElement.textOffset) + 1
-                        matches.add(StructuralMatch(getRelativePath(project, vf), ln, matchElement.text.take(200)))
+                        matchOptionsClass.getMethod("setFileType", com.intellij.openapi.fileTypes.FileType::class.java).invoke(matchOptions, resolvedFileType)
                     } catch (_: Exception) {}
                 }
-            }
 
-            createJsonResult(StructuralSearchResult(matches.take(100), matches.size, pattern))
-        } catch (e: ClassNotFoundException) {
-            createErrorResult("Structural search is not available in this IDE edition")
-        } catch (e: Exception) {
-            createErrorResult("Structural search failed: ${e.message}")
+                // Set recursive
+                try { matchOptionsClass.getMethod("setRecursiveSearch", Boolean::class.javaPrimitiveType).invoke(matchOptions, true) } catch (_: Exception) {}
+
+                // Set scope
+                val searchScope = when (scopeStr) {
+                    "file" -> {
+                        val vf = resolveFile(project, filePath!!)
+                            ?: return@suspendingReadAction createErrorResult("File not found: $filePath")
+                        GlobalSearchScope.fileScope(project, vf)
+                    }
+                    else -> GlobalSearchScope.projectScope(project)
+                }
+                try { matchOptionsClass.getMethod("setScope", SearchScope::class.java).invoke(matchOptions, searchScope) } catch (_: Exception) {}
+
+                val collectedResults = mutableListOf<Any>()
+                val matcher = matcherClass.getConstructor(Project::class.java, matchOptionsClass).newInstance(project, matchOptions)
+
+                // Use MatchResultSink callback API
+                val sinkProxy = java.lang.reflect.Proxy.newProxyInstance(
+                    matchResultSinkClass.classLoader,
+                    arrayOf(matchResultSinkClass)
+                ) { _, method, args ->
+                    when (method.name) {
+                        "newMatch" -> {
+                            if (args != null && args.isNotEmpty()) collectedResults.add(args[0])
+                            null
+                        }
+                        "getProgressIndicator" -> {
+                            try { Class.forName("com.intellij.openapi.progress.EmptyProgressIndicator").getConstructor().newInstance() } catch (_: Exception) { null }
+                        }
+                        else -> null
+                    }
+                }
+
+                // Try MatchResultSink-based findMatches first
+                val sinkMethod = matcherClass.methods.firstOrNull { it.name == "findMatches" && it.parameterCount == 1 && matchResultSinkClass.isAssignableFrom(it.parameterTypes[0]) }
+                if (sinkMethod != null) {
+                    sinkMethod.invoke(matcher, sinkProxy)
+                } else {
+                    // Fallback: findMatches() returning List
+                    val listMethod = matcherClass.methods.firstOrNull { it.name == "findMatches" && it.parameterCount == 0 }
+                        ?: return@suspendingReadAction createErrorResult("Structural search API not available in this IDE edition")
+                    @Suppress("UNCHECKED_CAST")
+                    val results = listMethod.invoke(matcher) as? List<Any> ?: emptyList()
+                    collectedResults.addAll(results)
+                }
+
+                val getMatchMethod = try { matchResultClass.getMethod("getMatch") } catch (_: Exception) { null }
+                val matches = collectedResults.take(maxResults).mapNotNull { result ->
+                    try {
+                        val matchElement = getMatchMethod?.invoke(result) as? PsiElement ?: return@mapNotNull null
+                        val psiFile = matchElement.containingFile ?: return@mapNotNull null
+                        val vf = psiFile.virtualFile ?: return@mapNotNull null
+                        val doc = PsiDocumentManager.getInstance(project).getDocument(psiFile) ?: return@mapNotNull null
+                        val ln = doc.getLineNumber(matchElement.textOffset) + 1
+                        StructuralMatch(getRelativePath(project, vf), ln, matchElement.text.take(200))
+                    } catch (_: Exception) { null }
+                }
+
+                createJsonResult(StructuralSearchResult(matches, collectedResults.size, pattern))
+            } catch (e: ClassNotFoundException) {
+                createErrorResult("Structural search is not available in this IDE edition")
+            } catch (e: Exception) {
+                createErrorResult("Structural search failed: ${e.message}")
+            }
         }
+    }
+
+    private fun resolveLanguageFileType(fileTypeName: String): com.intellij.openapi.fileTypes.FileType? {
+        val registry = com.intellij.openapi.fileTypes.FileTypeManager.getInstance()
+        // Try exact match among LanguageFileType instances
+        for (ft in registry.registeredFileTypes) {
+            if (ft is com.intellij.openapi.fileTypes.LanguageFileType && ft.name.equals(fileTypeName, ignoreCase = true)) return ft
+        }
+        // Fallback: try by extension
+        val extensionMap = mapOf("java" to "java", "kotlin" to "kt", "python" to "py", "javascript" to "js", "typescript" to "ts", "xml" to "xml", "html" to "html", "css" to "css", "json" to "json", "yaml" to "yaml", "go" to "go", "rust" to "rs", "php" to "php")
+        val ext = extensionMap[fileTypeName.lowercase()] ?: fileTypeName.lowercase()
+        val ft = registry.getFileTypeByExtension(ext)
+        return ft as? com.intellij.openapi.fileTypes.LanguageFileType
     }
 }
 
@@ -923,6 +1120,19 @@ class RenameSymbolTool : PsiToolBase() {
             ?: return createErrorResult("No element found at $file:$line:$column")
         val target = suspendingReadAction { PsiUtils.resolveTargetElement(element) }
             ?: return createErrorResult("Cannot resolve symbol at $file:$line:$column")
+
+        // Validate the new name against language naming rules
+        val isValidName = suspendingReadAction {
+            try {
+                val lang = target.language
+                val validator = com.intellij.lang.LanguageExtension<com.intellij.lang.refactoring.NamesValidator>("com.intellij.lang.namesValidator")
+                    .forLanguage(lang)
+                validator?.isIdentifier(newName, project) ?: true
+            } catch (_: Exception) { true }
+        }
+        if (!isValidName) {
+            return createErrorResult("'$newName' is not a valid identifier for ${suspendingReadAction { target.language.displayName }}")
+        }
 
         return try {
             val processorClass = Class.forName("com.intellij.refactoring.rename.RenameProcessor")
@@ -962,30 +1172,39 @@ class RenameSymbolTool : PsiToolBase() {
 
 class SafeDeleteTool : PsiToolBase() {
     override val name = "ide_safe_delete"
-    override val description = "Delete a symbol safely by first checking for usages. Use when removing code to avoid breaking references. Reports any references that would be broken before deleting."
-    override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Path to file relative to project root"},"line":{"type":"integer","description":"1-based line number where the symbol is located"},"column":{"type":"integer","description":"1-based column number"},"searchInComments":{"type":"boolean","description":"Also search for references in comments and strings (default: false)"}},"required":["file","line","column"]}"""
+    override val description = "Delete a symbol or file safely by first checking for usages. Use when removing code to avoid breaking references. Reports any references that would be broken before deleting."
+    override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Path to file relative to project root"},"line":{"type":"integer","description":"1-based line number where the symbol is located (required when targetType is 'symbol')"},"column":{"type":"integer","description":"1-based column number (required when targetType is 'symbol')"},"searchInComments":{"type":"boolean","description":"Also search for references in comments and strings (default: false)"},"targetType":{"type":"string","description":"What to delete: 'symbol' (default) or 'file'","enum":["symbol","file"]},"force":{"type":"boolean","description":"Force delete even if usages exist (default: false)"}},"required":["file"]}"""
 
     override suspend fun doExecute(project: Project, arguments: JsonObject): ToolCallResult {
         requireSmartMode(project)
         val file = arguments.str("file") ?: return createErrorResult("file is required")
-        val line = arguments.int("line") ?: return createErrorResult("line is required")
-        val column = arguments.int("column") ?: return createErrorResult("column is required")
+        val targetType = arguments.str("targetType") ?: "symbol"
+        val force = arguments.bool("force") ?: false
         val searchInComments = arguments.bool("searchInComments") ?: false
+
+        if (targetType == "file") {
+            return deleteFile(project, file, force, searchInComments)
+        }
+
+        // Symbol mode - line and column required
+        val line = arguments.int("line") ?: return createErrorResult("line is required for symbol deletion")
+        val column = arguments.int("column") ?: return createErrorResult("column is required for symbol deletion")
 
         val element = suspendingReadAction { findPsiElement(project, file, line, column) }
             ?: return createErrorResult("No element found at $file:$line:$column")
         val target = suspendingReadAction { PsiUtils.resolveTargetElement(element) }
             ?: return createErrorResult("Cannot resolve symbol at $file:$line:$column")
 
-        // First check for usages
-        val usageCount = suspendingReadAction {
-            var count = 0
-            ReferencesSearch.search(target, GlobalSearchScope.projectScope(project)).forEach(Processor { count++; count < 100 })
-            count
-        }
-
-        if (usageCount > 0) {
-            return createErrorResult("Cannot safely delete: found $usageCount usage(s). Remove references first or use force delete.")
+        // Check for usages
+        if (!force) {
+            val usageCount = suspendingReadAction {
+                var count = 0
+                ReferencesSearch.search(target, GlobalSearchScope.projectScope(project)).forEach(Processor { count++; count < 100 })
+                count
+            }
+            if (usageCount > 0) {
+                return createErrorResult("Cannot safely delete: found $usageCount usage(s). Remove references first or set force=true.")
+            }
         }
 
         return try {
@@ -1003,6 +1222,36 @@ class SafeDeleteTool : PsiToolBase() {
             createJsonResult(RefactoringResult(true, listOf(affectedFile), 1, "Successfully deleted"))
         } catch (e: Exception) {
             createErrorResult("Safe delete failed: ${e.cause?.message ?: e.message}")
+        }
+    }
+
+    private suspend fun deleteFile(project: Project, filePath: String, force: Boolean, searchInComments: Boolean): ToolCallResult {
+        val psiFile = suspendingReadAction { getPsiFile(project, filePath) }
+            ?: return createErrorResult("File not found: $filePath")
+
+        if (!force) {
+            val usageCount = suspendingReadAction {
+                var count = 0
+                ReferencesSearch.search(psiFile, GlobalSearchScope.projectScope(project)).forEach(Processor { count++; count < 100 })
+                count
+            }
+            if (usageCount > 0) {
+                return createErrorResult("Cannot safely delete file: found $usageCount usage(s) of symbols in this file. Set force=true to delete anyway.")
+            }
+        }
+
+        return try {
+            val processorClass = Class.forName("com.intellij.refactoring.safeDelete.SafeDeleteProcessor")
+            suspendingWriteAction(project, "Safe delete file") {
+                val create = processorClass.getMethod("createInstance",
+                    Project::class.java, Array<PsiElement>::class.java,
+                    Boolean::class.javaPrimitiveType, Boolean::class.javaPrimitiveType, Boolean::class.javaPrimitiveType)
+                val processor = create.invoke(null, project, arrayOf(psiFile), searchInComments, false, false)
+                processorClass.getMethod("run").invoke(processor)
+            }
+            createJsonResult(RefactoringResult(true, listOf(filePath), 1, "File deleted: $filePath"))
+        } catch (e: Exception) {
+            createErrorResult("File delete failed: ${e.cause?.message ?: e.message}")
         }
     }
 }
