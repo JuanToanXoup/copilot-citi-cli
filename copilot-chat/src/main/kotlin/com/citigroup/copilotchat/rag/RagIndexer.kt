@@ -7,6 +7,7 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectFileIndex
+import com.intellij.openapi.vcs.changes.ChangeListManager
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiManager
 import kotlinx.coroutines.*
@@ -285,6 +286,9 @@ class RagIndexer(private val project: Project) : Disposable {
             if (parent.name in EXCLUDED_DIRS) return false
             parent = parent.parent
         }
+
+        // Respect .gitignore and VCS ignore rules
+        if (ChangeListManager.getInstance(project).isIgnoredFile(file)) return false
 
         return true
     }

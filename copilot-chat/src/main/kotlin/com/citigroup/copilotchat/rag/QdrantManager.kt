@@ -477,19 +477,57 @@ class QdrantManager : Disposable {
             .connectTimeout(Duration.ofSeconds(10))
             .build()
 
-    /** HTTP client for external calls (GitHub releases download) — uses proxy if configured. */
+    /** HTTP client for external calls (GitHub releases download) — uses IDE or plugin proxy. */
     private fun buildExternalHttpClient(): HttpClient {
         val builder = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .followRedirects(HttpClient.Redirect.NORMAL)
+        configureProxy(builder)
+        return builder.build()
+    }
+
+    /**
+     * Configure proxy on an HttpClient builder.
+     * Priority: IDE proxy settings (Settings → HTTP Proxy) → plugin proxyUrl setting.
+     */
+    private fun configureProxy(builder: HttpClient.Builder) {
+        // Try IDE's built-in proxy settings first
+        try {
+            val ideProxy = com.intellij.util.net.HttpConfigurable.getInstance()
+            if (ideProxy.USE_HTTP_PROXY && ideProxy.PROXY_HOST.isNotBlank()) {
+                builder.proxy(java.net.ProxySelector.of(
+                    java.net.InetSocketAddress(ideProxy.PROXY_HOST, ideProxy.PROXY_PORT)
+                ))
+                val login = ideProxy.proxyLogin
+                val password = ideProxy.plainProxyPassword
+                if (!login.isNullOrBlank()) {
+                    builder.authenticator(object : java.net.Authenticator() {
+                        override fun getPasswordAuthentication(): java.net.PasswordAuthentication =
+                            java.net.PasswordAuthentication(login, (password ?: "").toCharArray())
+                    })
+                }
+                return
+            }
+        } catch (_: Exception) {}
+
+        // Fall back to plugin's proxyUrl setting
         val proxyUrl = CopilotChatSettings.getInstance().proxyUrl
         if (proxyUrl.isNotBlank()) {
             try {
                 val uri = URI(proxyUrl)
                 builder.proxy(java.net.ProxySelector.of(java.net.InetSocketAddress(uri.host, uri.port)))
+                val userInfo = uri.userInfo
+                if (userInfo != null) {
+                    val parts = userInfo.split(":", limit = 2)
+                    val username = parts[0]
+                    val password = parts.getOrElse(1) { "" }
+                    builder.authenticator(object : java.net.Authenticator() {
+                        override fun getPasswordAuthentication(): java.net.PasswordAuthentication =
+                            java.net.PasswordAuthentication(username, password.toCharArray())
+                    })
+                }
             } catch (_: Exception) {}
         }
-        return builder.build()
     }
 
     private fun buildProcessEnv(): MutableMap<String, String> =
