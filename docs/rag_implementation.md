@@ -74,6 +74,36 @@ POST https://api.githubcopilot.com/embeddings
 
 The token exchange endpoint (`copilot_internal/v2/token`) returns a short-lived JWT that grants access to Copilot services. The embeddings endpoint accepts the same request format as OpenAI's embeddings API.
 
+**Retry and rate limit handling:**
+
+Since the embeddings API has unknown rate limits (it's an internal Copilot endpoint), `callEmbeddingsApi()` implements retry logic for transient failures:
+
+| HTTP Status | Behavior |
+|---|---|
+| **200** | Parse and return vectors |
+| **429** (rate limited) | Read `Retry-After` header if present; otherwise exponential backoff starting at 500ms (500ms → 1s → 2s → 4s), capped at 30s. Up to 4 retries. |
+| **401** (unauthorized) | Session token likely expired mid-flight. Force-clear cached token, re-acquire via token exchange, retry. |
+| **Other errors** | Fail immediately — no point retrying a 400 or 500. |
+
+```
+callEmbeddingsApi(texts)
+    │
+    ├── attempt 0: POST /embeddings
+    │       200 → return vectors
+    │       429 → sleep(Retry-After or 500ms) → retry
+    │       401 → clear token cache → retry
+    │
+    ├── attempt 1: POST /embeddings (with backoff)
+    │       429 → sleep(1s) → retry
+    │       ...
+    │
+    ├── attempt 2: sleep(2s) → retry
+    ├── attempt 3: sleep(4s) → retry
+    └── all failed → throw exception (caller skips this batch)
+```
+
+In `RagIndexer`, a failed batch means those chunks are skipped — indexing continues with the remaining files. On the next re-index, unchanged files are still skipped (MD5 hash match), so only the previously failed files are retried.
+
 ### 2. QdrantManager (`rag/QdrantManager.kt`)
 
 Manages a bundled [Qdrant](https://qdrant.tech/) binary for local vector storage. Qdrant is a high-performance vector database written in Rust. We download a platform-specific binary and run it as a local process — no Docker, no external service.
