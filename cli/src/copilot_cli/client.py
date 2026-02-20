@@ -71,6 +71,7 @@ class CopilotClient:
         self.workspace_root = "/tmp/copilot-workspace"
         self.verbose = False
         self._spinner_clear = None  # callable set by cmd_chat to clear spinner
+        self._on_progress = None  # callable set during _collect_chat_reply for tool call events
         self.client_mcp: ClientMCPManager | None = None  # Client-side MCP bridge
         self.lsp_bridge: LSPBridgeManager | None = None  # LSP bridge for code intelligence
 
@@ -522,6 +523,8 @@ class CopilotClient:
             if self._spinner_clear:
                 self._spinner_clear()
             print(f"\033[32m⏺\033[0m \033[1m{tool_name}\033[0m\033[37m({json.dumps(tool_input)[:150]})\033[0m")
+            if self._on_progress:
+                self._on_progress("tool_call", {"name": tool_name, "input": tool_input})
             result = self._execute_client_tool(tool_name, tool_input)
             # Client-side MCP tools already return the tuple format.
             # All other tools (including former "built-ins") are registered
@@ -690,8 +693,10 @@ class CopilotClient:
             timeout: Max seconds to wait for response.
             on_progress: Optional callback ``(kind, data) -> None`` invoked on
                 each progress update.  ``kind`` is one of ``"delta"``,
-                ``"agent_round"``, ``"annotation"``, ``"reference"``,
-                ``"done"``.
+                ``"tool_call"``, ``"agent_round"``, ``"annotation"``,
+                ``"reference"``, ``"done"``.  ``"tool_call"`` fires in
+                real-time when the server invokes a client tool, with
+                ``data = {"name": str, "input": dict}``.
 
         Returns dict with:
             text: The full reply text
@@ -703,6 +708,10 @@ class CopilotClient:
         last_activity = start
         inactivity_limit = 60  # seconds with no updates before giving up
         done = False
+
+        # Store on_progress on instance so _handle_server_request can fire
+        # tool_call events in real-time as they happen.
+        self._on_progress = on_progress
 
         while time.time() - start < timeout and not done:
             time.sleep(0.1)
@@ -769,6 +778,8 @@ class CopilotClient:
                     f"No response from Copilot for {inactivity_limit}s. "
                     "Check your network/proxy settings."
                 )
+
+        self._on_progress = None
 
         if not done:
             raise TimeoutError(

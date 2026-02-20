@@ -482,19 +482,13 @@ class BuilderHandler(BaseHTTPRequestHandler):
                 if delta:
                     sent_text.append(delta)
                     self._sse_send({"type": "delta", "data": delta})
+            elif kind == "tool_call":
+                # Real-time tool invocation from _handle_server_request
+                tool_name = data.get("name", "")
+                if tool_name:
+                    self._sse_send({"type": "tool_call", "name": tool_name})
             elif kind == "agent_round":
-                # Agent rounds contain tool calls and reply text
-                # Extract tool call info from the round
-                steps = data.get("steps", [])
-                for step in steps:
-                    tool_name = step.get("toolName") or step.get("name", "")
-                    if tool_name:
-                        self._sse_send({"type": "tool_call", "name": tool_name})
-                # If no steps but has description, report that
-                desc = data.get("description", "")
-                if not steps and desc:
-                    self._sse_send({"type": "tool_call", "name": desc})
-                # Forward reply text from the round
+                # Forward reply text from completed agent round
                 reply = data.get("reply", "")
                 if reply:
                     sent_text.append(reply)
