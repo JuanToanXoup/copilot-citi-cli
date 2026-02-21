@@ -40,4 +40,6 @@ class AssistantMessageComponent(
     }
 
     fun getText(): String = contentText.toString()
+
+    fun hasContent(): Boolean = contentText.isNotEmpty()
 }

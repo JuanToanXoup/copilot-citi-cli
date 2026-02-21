@@ -337,9 +337,14 @@ class ConversationManager(private val project: Project) : Disposable {
                 }
             }
         }
-        lspClient.sendRequest("conversation/registerTools", params)
+        val resp = lspClient.sendRequest("conversation/registerTools", params)
+        val toolNames = schemas.mapNotNull { schema ->
+            try { json.parseToJsonElement(schema).jsonObject["name"]?.jsonPrimitive?.contentOrNull }
+            catch (_: Exception) { null }
+        }
         val mcpNote = if (mcpSchemas.isNotEmpty()) " + ${mcpSchemas.size} client-mcp" else ""
-        log.info("Registered ${schemas.size} client tools$mcpNote")
+        log.info("Registered ${schemas.size} client tools: ${toolNames.joinToString(", ")}$mcpNote")
+        log.info("registerTools response: $resp")
     }
 
     /**

@@ -50,6 +50,12 @@ object BuiltInTools {
         "get_library_docs" to ::executeGetLibraryDocs,
         "resolve_library_id" to ::executeResolveLibraryId,
         "browser_record" to ::executeBrowserRecord,
+        // Agent tools — fallback executors so ToolRouter routes them properly.
+        // Actual execution is handled by AgentService for the lead conversation.
+        "delegate_task" to { _, _ -> "Error: delegate_task is only available in the Agent tab" },
+        "create_team" to { _, _ -> "Error: create_team is only available in the Agent tab" },
+        "send_message" to { _, _ -> "Error: send_message is only available in the Agent tab" },
+        "delete_team" to { _, _ -> "Error: delete_team is only available in the Agent tab" },
     )
 
     /** Tool schemas in the format expected by conversation/registerTools. */
@@ -88,6 +94,12 @@ object BuiltInTools {
         """{"name":"recall","description":"Retrieve stored knowledge by topic. Uses both semantic similarity and keyword matching to find relevant memories saved with the remember tool.","inputSchema":{"type":"object","properties":{"topic":{"type":"string","description":"The topic or question to search memories for."},"category":{"type":"string","description":"Optional: filter results to a specific category.","enum":["semantic","procedural","failure","general"]}},"required":["topic"]}}""",
         // ── Browser Recording ──
         """{"name":"browser_record","description":"Record user interactions in a browser and generate Playwright test code. ONLY use when the user explicitly asks to record a test, generate test code, or use codegen. Do NOT use for general web browsing, navigation, or automation — use Playwright MCP tools for those instead. Opens a codegen browser, records interactions until closed, then returns executable test code.","inputSchema":{"type":"object","properties":{"url":{"type":"string","description":"The starting URL to navigate to. Default: https://example.com"},"target":{"type":"string","description":"Target language for generated code. Default: javascript.","enum":["javascript","python","python-async","python-pytest","csharp","java"]},"device":{"type":"string","description":"Device to emulate (e.g. 'Pixel 5', 'iPhone 12'). Optional."},"browser":{"type":"string","description":"Browser to use. Default: chromium.","enum":["chromium","firefox","webkit"]}},"required":[]}}""",
+        // ── Agent Delegation ──
+        """{"name":"delegate_task","description":"Delegate a task to a specialized sub-agent for autonomous execution. Available agent types: Explore (fast codebase search), Plan (architecture and design), Bash (shell commands), general-purpose (all tools).","inputSchema":{"type":"object","properties":{"description":{"type":"string","description":"A short (3-5 word) description of the task"},"prompt":{"type":"string","description":"The detailed task for the agent to perform"},"subagent_type":{"type":"string","description":"The type of agent: Explore, Plan, Bash, or general-purpose"},"model":{"type":"string","description":"Optional model override"},"max_turns":{"type":"integer","description":"Maximum number of agentic turns before stopping"}},"required":["description","prompt","subagent_type"]}}""",
+        // ── Team Tools ──
+        """{"name":"create_team","description":"Create a new agent team with persistent teammate agents that communicate via mailboxes.","inputSchema":{"type":"object","properties":{"name":{"type":"string","description":"Team name"},"description":{"type":"string","description":"What this team is for"},"members":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string","description":"Teammate name"},"agentType":{"type":"string","description":"Agent type (e.g., Explore, general-purpose)"},"initialPrompt":{"type":"string","description":"Initial task for this teammate"},"model":{"type":"string","description":"Optional model override"}},"required":["name","agentType","initialPrompt"]},"description":"List of teammates to spawn"}},"required":["name","members"]}}""",
+        """{"name":"send_message","description":"Send a message to a teammate's mailbox.","inputSchema":{"type":"object","properties":{"to":{"type":"string","description":"Recipient teammate name"},"text":{"type":"string","description":"Message content"},"summary":{"type":"string","description":"Optional brief summary"}},"required":["to","text"]}}""",
+        """{"name":"delete_team","description":"Disband the active team and stop all teammates.","inputSchema":{"type":"object","properties":{"name":{"type":"string","description":"Team name to delete"}},"required":["name"]}}""",
     )
 
     fun execute(name: String, input: JsonObject, workspaceRoot: String): String {

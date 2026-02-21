@@ -187,7 +187,7 @@ class AgentPanel(private val project: Project) : JPanel(BorderLayout()), Disposa
                 val assistantMsg = AssistantMessageComponent(contentPane)
                 collapsible.getContent().add(assistantMsg)
 
-                subagentPanels[event.agentId] = SubagentPanelState(collapsible, assistantMsg)
+                subagentPanels[event.agentId] = SubagentPanelState(collapsible, assistantMsg, headerLabel)
                 addMessageComponent(collapsible)
                 scrollManager.onContentAdded()
             }
@@ -205,11 +205,21 @@ class AgentPanel(private val project: Project) : JPanel(BorderLayout()), Disposa
             is AgentEvent.SubagentCompleted -> {
                 val state = subagentPanels[event.agentId]
                 if (state != null) {
-                    // Collapse the panel and update header
+                    // If deltas didn't stream any content, set the full result
+                    // so it's available when the user expands the panel
+                    if (event.result.isNotBlank() && !state.assistantMessage.hasContent()) {
+                        state.assistantMessage.appendText(event.result)
+                    }
+                    // Update header to show completion status
+                    val statusIcon = if (event.status == "success") "\u2713" else "\u2717"
+                    val currentText = state.headerLabel.text
+                    state.headerLabel.text = "$statusIcon $currentText"
+                    state.headerLabel.foreground = if (event.status == "success")
+                        JBColor(0x28A745, 0x3FB950)
+                    else
+                        JBColor(0xCB2431, 0xF85149)
+                    // Collapse — user can expand to see full output
                     state.collapsible.collapse()
-                    val statusIcon = if (event.status == "success") "Done" else "Failed"
-                    addItemSpacing()
-                    addStatusLine("[Subagent] $statusIcon: ${event.result.take(100)}")
                 }
                 subagentPanels.remove(event.agentId)
                 scrollManager.onContentAdded()
@@ -346,5 +356,6 @@ class AgentPanel(private val project: Project) : JPanel(BorderLayout()), Disposa
     private data class SubagentPanelState(
         val collapsible: CollapsiblePanel,
         val assistantMessage: AssistantMessageComponent,
+        val headerLabel: JLabel,
     )
 }

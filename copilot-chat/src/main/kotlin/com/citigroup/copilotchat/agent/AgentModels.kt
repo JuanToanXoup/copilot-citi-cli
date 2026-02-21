@@ -9,12 +9,18 @@ enum class AgentSource { BUILT_IN, CUSTOM_PROJECT, CUSTOM_USER }
 enum class AgentModel {
     INHERIT, HAIKU, SONNET, OPUS;
 
-    /** Resolve to an actual model ID string, falling back to parent if INHERIT. */
+    /**
+     * Resolve to an actual model ID string accepted by the Copilot language server.
+     * Falls back to parentModel if INHERIT.
+     *
+     * These IDs must match the server's model catalog (e.g. from copilot/models).
+     * Invalid IDs cause the server to create the conversation but produce no output.
+     */
     fun resolveModelId(parentModel: String): String = when (this) {
         INHERIT -> parentModel
-        HAIKU -> "claude-haiku"
-        SONNET -> "claude-sonnet"
-        OPUS -> "claude-opus"
+        HAIKU -> "gpt-4.1"
+        SONNET -> "gpt-4.1"
+        OPUS -> "gpt-4.1"
     }
 }
 

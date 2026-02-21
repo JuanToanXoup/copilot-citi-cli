@@ -5,7 +5,7 @@ import java.io.File
 
 /**
  * Registry of agent definitions (built-in + custom from .md files).
- * Provides the delegate_task tool schema and agent lookup.
+ * Provides agent loading and lookup.
  */
 object AgentRegistry {
 
@@ -153,53 +153,6 @@ object AgentRegistry {
             background = background,
             maxTurns = maxTurns,
         )
-    }
-
-    /**
-     * Build the JSON tool schema for delegate_task, listing all available agents
-     * in the description so the model knows which subagent_type values are valid.
-     */
-    fun buildDelegateTaskSchema(agents: List<AgentDefinition>): String {
-        val agentList = agents.joinToString("\n") { agent ->
-            "- ${agent.agentType}: ${agent.whenToUse}"
-        }
-        val escapedAgentList = agentList
-            .replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\n", "\\n")
-
-        return """
-        {
-            "name": "delegate_task",
-            "description": "Launch a specialized agent to handle a complex task autonomously. Available agent types:\\n$escapedAgentList",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "description": {
-                        "type": "string",
-                        "description": "A short (3-5 word) description of the task"
-                    },
-                    "prompt": {
-                        "type": "string",
-                        "description": "The detailed task for the agent to perform"
-                    },
-                    "subagent_type": {
-                        "type": "string",
-                        "description": "The type of agent to use (e.g., Explore, Plan, Bash, general-purpose)"
-                    },
-                    "model": {
-                        "type": "string",
-                        "description": "Optional model override for this agent"
-                    },
-                    "max_turns": {
-                        "type": "integer",
-                        "description": "Maximum number of agentic turns before stopping"
-                    }
-                },
-                "required": ["description", "prompt", "subagent_type"]
-            }
-        }
-        """.trimIndent()
     }
 
     /** Case-insensitive agent lookup by type. */

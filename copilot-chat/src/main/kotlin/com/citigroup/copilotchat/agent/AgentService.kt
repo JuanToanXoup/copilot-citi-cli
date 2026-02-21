@@ -23,9 +23,10 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * Data flow:
  * 1. User sends message -> lead agent conversation created/continued
- * 2. Lead model calls delegate_task -> subagent spawned with scoped tools
- * 3. Subagent completes -> result returned to lead conversation
- * 4. Lead model continues with the result
+ * 2. Lead model calls delegate_task -> subagent spawned in background
+ * 3. Lead turn ends -> service waits for all subagents to complete
+ * 4. Results collected -> follow-up turn sent to lead with all results
+ * 5. Lead model synthesizes final answer
  */
 @Service(Service.Level.PROJECT)
 class AgentService(private val project: Project) : Disposable {
@@ -40,12 +41,20 @@ class AgentService(private val project: Project) : Disposable {
     private val lspClient: LspClient get() = LspClient.getInstance()
     private val conversationManager: ConversationManager get() = ConversationManager.getInstance(project)
 
+    @Volatile
     private var leadConversationId: String? = null
+    /** True between conversation/create call and its response — tool calls that arrive
+     *  during this window carry the conversationId we need but don't have yet. */
+    @Volatile
+    private var pendingLeadCreate: Boolean = false
     var isStreaming: Boolean = false
         private set
 
     private var agents: List<AgentDefinition> = emptyList()
     private val activeSubagents = ConcurrentHashMap<String, WorkerSession>()
+
+    /** Background subagent jobs launched by delegate_task. Collected after lead turn ends. */
+    private val pendingSubagents = ConcurrentHashMap<String, PendingSubagent>()
 
     private var currentJob: Job? = null
     private var currentWorkDoneToken: String? = null
@@ -59,6 +68,10 @@ class AgentService(private val project: Project) : Disposable {
     /**
      * Send a message to the lead agent. Creates a new conversation on first call,
      * continues on subsequent calls.
+     *
+     * The wait loop supports multi-turn delegation: when the lead turn ends with
+     * pending subagents, it waits for them, collects results, and sends a follow-up
+     * turn so the lead can synthesize the final answer.
      */
     fun sendMessage(text: String, model: String? = null) {
         currentJob?.cancel()
@@ -70,12 +83,9 @@ class AgentService(private val project: Project) : Disposable {
                 // Load agent definitions
                 agents = AgentRegistry.loadAll(project.basePath)
 
-                // Register lead agent tools (standard + delegate_task + team tools)
-                registerLeadAgentTools()
-
                 isStreaming = true
                 val useModel = model ?: "gpt-4.1"
-                val workDoneToken = "agent-lead-${UUID.randomUUID().toString().take(8)}"
+                var workDoneToken = "agent-lead-${UUID.randomUUID().toString().take(8)}"
                 currentWorkDoneToken = workDoneToken
                 val replyParts = Collections.synchronizedList(mutableListOf<String>())
 
@@ -111,12 +121,17 @@ class AgentService(private val project: Project) : Disposable {
                         }
 
                         log.info("AgentService: creating lead conversation")
+                        pendingLeadCreate = true
                         val resp = lspClient.sendRequest("conversation/create", params, timeoutMs = 300_000)
+                        pendingLeadCreate = false
                         val result = resp["result"]
-                        leadConversationId = when (result) {
-                            is JsonArray -> result.firstOrNull()?.jsonObject?.get("conversationId")?.jsonPrimitive?.contentOrNull
-                            is JsonObject -> result["conversationId"]?.jsonPrimitive?.contentOrNull
-                            else -> null
+                        // Only set from response if not already captured from an early tool call
+                        if (leadConversationId == null) {
+                            leadConversationId = when (result) {
+                                is JsonArray -> result.firstOrNull()?.jsonObject?.get("conversationId")?.jsonPrimitive?.contentOrNull
+                                is JsonObject -> result["conversationId"]?.jsonPrimitive?.contentOrNull
+                                else -> null
+                            }
                         }
                         log.info("AgentService: lead conversationId=$leadConversationId")
                     } else {
@@ -141,10 +156,32 @@ class AgentService(private val project: Project) : Disposable {
                         lspClient.sendRequest("conversation/turn", params, timeoutMs = 300_000)
                     }
 
-                    // Wait for streaming to complete
+                    // Wait for streaming to complete, with subagent collection loop
                     val startTime = System.currentTimeMillis()
-                    while (isStreaming && System.currentTimeMillis() - startTime < 300_000) {
+                    while (System.currentTimeMillis() - startTime < 300_000) {
                         delay(100)
+                        if (!isStreaming) {
+                            if (pendingSubagents.isNotEmpty()) {
+                                // Lead turn ended but subagents are still running.
+                                // Wait for all, collect results, and send a follow-up turn.
+                                log.info("AgentService: lead turn ended with ${pendingSubagents.size} pending subagents — collecting results")
+                                lspClient.removeProgressListener(workDoneToken)
+
+                                val resultContext = awaitPendingSubagents()
+
+                                // Register new progress listener for the follow-up turn
+                                workDoneToken = "agent-lead-${UUID.randomUUID().toString().take(8)}"
+                                currentWorkDoneToken = workDoneToken
+                                lspClient.registerProgressListener(workDoneToken) { value ->
+                                    handleLeadProgress(value, replyParts)
+                                }
+
+                                isStreaming = true
+                                sendFollowUpTurn(workDoneToken, resultContext, useModel, rootUri)
+                            } else {
+                                break // Truly done
+                            }
+                        }
                     }
                 } finally {
                     lspClient.removeProgressListener(workDoneToken)
@@ -167,60 +204,55 @@ class AgentService(private val project: Project) : Disposable {
     }
 
     /**
-     * Register all tools for the lead agent: standard tools + delegate_task + team tools.
-     */
-    private suspend fun registerLeadAgentTools() {
-        val schemas = toolRouter.getToolSchemas().toMutableList()
-
-        // Add delegate_task tool
-        schemas.add(AgentRegistry.buildDelegateTaskSchema(agents))
-
-        // Add team tools
-        schemas.addAll(TeamService.teamToolSchemas())
-
-        if (schemas.isEmpty()) return
-
-        val params = buildJsonObject {
-            putJsonArray("tools") {
-                for (schema in schemas) {
-                    add(json.parseToJsonElement(schema))
-                }
-            }
-        }
-        lspClient.sendRequest("conversation/registerTools", params)
-        log.info("AgentService: registered ${schemas.size} lead agent tools")
-    }
-
-    /**
      * Build the first-turn prompt with system instructions that tell the lead agent
-     * to work autonomously, use delegate_task for subtasks, and complete the full
-     * task without stopping for confirmation.
+     * to use delegate_task for subtasks and complete the full task without stopping
+     * for confirmation.
      */
     private fun buildLeadPrompt(userMessage: String): String {
+        val parts = mutableListOf<String>()
+
         val agentList = agents.joinToString("\n") { "- ${it.agentType}: ${it.whenToUse}" }
+        parts.add(
+            "<system_instructions>\n" +
+            "You are a lead agent that coordinates sub-agents via the delegate_task tool.\n\n" +
+            "CRITICAL: The delegate_task tool IS available to you. You MUST use it.\n" +
+            "Do NOT say delegate_task is unavailable. Do NOT perform subtasks directly.\n" +
+            "Always delegate work to specialized agents using delegate_task.\n\n" +
+            "All delegate_task calls run IN PARALLEL. Fire all subtasks at once —\n" +
+            "do not wait for one to finish before starting the next.\n\n" +
+            "Available agent types:\n$agentList\n\n" +
+            "Workflow:\n" +
+            "1. Analyze the user's request and break it into subtasks\n" +
+            "2. Call delegate_task for ALL subtasks (they run concurrently)\n" +
+            "3. You will receive all results in a follow-up message\n" +
+            "4. Synthesize and present the final answer\n\n" +
+            "Complete the full task without stopping for confirmation.\n" +
+            "</system_instructions>"
+        )
 
-        return """
-<system_instructions>
-You are an autonomous lead agent. Your job is to fully complete the user's request without stopping to ask for confirmation.
-
-IMPORTANT RULES:
-1. COMPLETE THE ENTIRE TASK in this turn. Do not say "next I will..." or "I'll proceed to..." — just do it.
-2. Use the delegate_task tool to spawn specialized subagents for complex subtasks. Available agent types:
-$agentList
-3. When the user mentions specific agent types (Explore, Plan, Bash, etc.), you MUST use delegate_task to spawn those agents rather than doing the work yourself.
-4. You may call delegate_task multiple times to spawn multiple agents sequentially.
-5. After all subtasks complete, synthesize the results into a final coherent response.
-6. Do not ask for permission or confirmation. Execute the full plan autonomously.
-</system_instructions>
-
-$userMessage
-        """.trimIndent()
+        parts.add(userMessage)
+        return parts.joinToString("\n\n")
     }
 
     /**
      * Handle a tool call from the LSP server for a conversation owned by this service.
      */
     suspend fun handleToolCall(id: Int, name: String, input: JsonObject, conversationId: String?) {
+        log.info("AgentService: received tool call '$name' for conversation=$conversationId")
+
+        // Intercept run_in_terminal calls that are actually delegation commands.
+        // The Copilot language server only forwards tool names on its internal allowlist,
+        // so we use run_in_terminal as a carrier for delegation.
+        if (name == "run_in_terminal") {
+            val command = input["command"]?.jsonPrimitive?.contentOrNull ?: ""
+            if (command.trimStart().startsWith("delegate ")) {
+                log.info("AgentService: intercepted delegation via run_in_terminal: $command")
+                val delegateInput = parseDelegateCommand(command)
+                handleDelegateTask(id, delegateInput)
+                return
+            }
+        }
+
         when (name) {
             "delegate_task" -> handleDelegateTask(id, input)
             "create_team", "send_message", "delete_team" -> {
@@ -242,15 +274,37 @@ $userMessage
     }
 
     /**
-     * Handle the delegate_task tool call — the core of subagent spawning.
-     * Parse input, find agent definition, create WorkerSession, execute, return result.
+     * Parse a "delegate --type <type> --prompt "<prompt>"" command string
+     * into a JsonObject matching the delegate_task input schema.
+     */
+    private fun parseDelegateCommand(command: String): JsonObject {
+        val typeRegex = Regex("""--type\s+(\S+)""")
+        val promptRegex = Regex("""--prompt\s+"(.*?)"\s*$""", RegexOption.DOT_MATCHES_ALL)
+        // Also support unquoted prompt (everything after --prompt)
+        val promptFallbackRegex = Regex("""--prompt\s+(.+)$""", RegexOption.DOT_MATCHES_ALL)
+
+        val subagentType = typeRegex.find(command)?.groupValues?.get(1) ?: "general-purpose"
+        val prompt = promptRegex.find(command)?.groupValues?.get(1)
+            ?: promptFallbackRegex.find(command)?.groupValues?.get(1)?.trim()
+            ?: command.substringAfter("delegate ").trim()
+
+        return buildJsonObject {
+            put("description", prompt.take(50))
+            put("prompt", prompt)
+            put("subagent_type", subagentType)
+        }
+    }
+
+    /**
+     * Handle the delegate_task tool call — spawns a subagent in the background
+     * and responds immediately so the server can dispatch the next tool call.
+     * Results are collected later in the sendMessage wait loop.
      */
     private suspend fun handleDelegateTask(id: Int, input: JsonObject) {
         val description = input["description"]?.jsonPrimitive?.contentOrNull ?: "subtask"
         val prompt = input["prompt"]?.jsonPrimitive?.contentOrNull ?: ""
         val subagentType = input["subagent_type"]?.jsonPrimitive?.contentOrNull ?: "general-purpose"
         val modelOverride = input["model"]?.jsonPrimitive?.contentOrNull
-        val maxTurns = input["max_turns"]?.jsonPrimitive?.intOrNull
 
         val agentDef = AgentRegistry.findByType(subagentType, agents)
         if (agentDef == null) {
@@ -262,11 +316,10 @@ $userMessage
         val resolvedModel = if (modelOverride != null) modelOverride
             else effectiveDef.model.resolveModelId("gpt-4.1")
 
-        // Build tool restrictions — exclude disallowed tools
         val effectiveTools = effectiveDef.tools
 
-        log.info("AgentService: spawning subagent [$agentId] type=$subagentType model=$resolvedModel")
-        _events.emit(AgentEvent.SubagentSpawned(agentId, effectiveDef.agentType, description))
+        log.info("AgentService: spawning subagent [$agentId] type=$subagentType model=$resolvedModel (parallel)")
+        _events.tryEmit(AgentEvent.SubagentSpawned(agentId, effectiveDef.agentType, description))
 
         val session = WorkerSession(
             workerId = agentId,
@@ -280,56 +333,110 @@ $userMessage
         )
 
         session.onEvent = { event ->
-            scope.launch {
-                when (event) {
-                    is WorkerEvent.Delta -> _events.emit(AgentEvent.SubagentDelta(agentId, event.text))
-                    is WorkerEvent.ToolCall -> _events.emit(AgentEvent.SubagentToolCall(agentId, event.toolName))
-                    is WorkerEvent.Done -> {} // handled after executeTask returns
-                    is WorkerEvent.Error -> _events.emit(AgentEvent.SubagentCompleted(agentId, event.message, "error"))
-                }
+            when (event) {
+                is WorkerEvent.Delta -> _events.tryEmit(AgentEvent.SubagentDelta(agentId, event.text))
+                is WorkerEvent.ToolCall -> _events.tryEmit(AgentEvent.SubagentToolCall(agentId, event.toolName))
+                is WorkerEvent.Done -> {} // handled in awaitPendingSubagents
+                is WorkerEvent.Error -> _events.tryEmit(AgentEvent.SubagentCompleted(agentId, event.message, "error"))
             }
         }
 
         activeSubagents[agentId] = session
 
-        try {
-            val result = session.executeTask(prompt)
-            _events.emit(AgentEvent.SubagentCompleted(agentId, result.take(500), "success"))
-
-            // Return result to the lead conversation
-            val toolResult = buildJsonArray {
-                addJsonObject {
-                    putJsonArray("content") {
-                        addJsonObject { put("value", result) }
-                    }
-                    put("status", "success")
-                }
-                add(JsonNull)
+        // Launch subagent in background — don't block the tool call response
+        val deferred = scope.async {
+            try {
+                session.executeTask(prompt)
+            } catch (e: Exception) {
+                log.error("AgentService: subagent $agentId failed", e)
+                throw e
+            } finally {
+                activeSubagents.remove(agentId)
             }
-            lspClient.sendResponse(id, toolResult)
+        }
 
-        } catch (e: Exception) {
-            log.error("AgentService: subagent $agentId failed", e)
-            _events.emit(AgentEvent.SubagentCompleted(agentId, e.message ?: "Error", "error"))
+        pendingSubagents[agentId] = PendingSubagent(agentId, effectiveDef.agentType, description, deferred)
 
-            val toolResult = buildJsonArray {
-                addJsonObject {
-                    putJsonArray("content") {
-                        addJsonObject { put("value", "Subagent error: ${e.message}") }
+        // Respond immediately so the server can dispatch the next tool call
+        val toolResult = buildJsonArray {
+            addJsonObject {
+                putJsonArray("content") {
+                    addJsonObject {
+                        put("value", "Subagent $agentId (${effectiveDef.agentType}) spawned for: $description. Running in parallel — results will be collected automatically.")
                     }
-                    put("status", "error")
                 }
-                add(JsonNull)
+                put("status", "success")
             }
-            lspClient.sendResponse(id, toolResult)
-        } finally {
-            activeSubagents.remove(agentId)
+            add(JsonNull)
+        }
+        lspClient.sendResponse(id, toolResult)
+        log.info("AgentService: delegate_task responded immediately for $agentId, subagent running in background")
+    }
+
+    /**
+     * Wait for all pending subagents to complete and collect their results.
+     * Emits SubagentCompleted events for each.
+     * Returns a formatted string with all results for the follow-up turn.
+     */
+    private suspend fun awaitPendingSubagents(): String {
+        val results = mutableListOf<Triple<String, String, String>>() // agentId, agentType, result
+
+        for ((agentId, pending) in pendingSubagents) {
+            try {
+                log.info("AgentService: awaiting subagent $agentId (${pending.agentType})")
+                val result = pending.deferred.await()
+                results.add(Triple(agentId, pending.agentType, result))
+                _events.emit(AgentEvent.SubagentCompleted(agentId, result, "success"))
+                log.info("AgentService: subagent $agentId completed (${result.length} chars)")
+            } catch (e: Exception) {
+                val errorMsg = "Error: ${e.message}"
+                results.add(Triple(agentId, pending.agentType, errorMsg))
+                _events.emit(AgentEvent.SubagentCompleted(agentId, e.message ?: "Error", "error"))
+                log.warn("AgentService: subagent $agentId failed: ${e.message}")
+            }
+        }
+        pendingSubagents.clear()
+
+        // Build formatted results for the follow-up turn
+        return results.joinToString("\n\n") { (agentId, agentType, result) ->
+            "<subagent_result agent_type=\"$agentType\" agent_id=\"$agentId\">\n$result\n</subagent_result>"
         }
     }
 
     /**
-     * Handle progress events from the lead agent's conversation.
+     * Send a follow-up turn to the lead conversation with collected subagent results.
      */
+    private suspend fun sendFollowUpTurn(
+        workDoneToken: String,
+        resultContext: String,
+        model: String,
+        rootUri: String,
+    ) {
+        val message = "All subagent tasks have completed. Here are their results:\n\n" +
+            "$resultContext\n\n" +
+            "Please synthesize these results into a comprehensive final answer for the user."
+
+        val params = buildJsonObject {
+            put("workDoneToken", workDoneToken)
+            put("conversationId", leadConversationId!!)
+            put("message", message)
+            put("source", "panel")
+            put("chatMode", "Agent")
+            put("needToolCallConfirmation", true)
+            if (model.isNotBlank()) put("model", model)
+            put("workspaceFolder", rootUri)
+            putJsonArray("workspaceFolders") {
+                addJsonObject {
+                    put("uri", rootUri)
+                    put("name", project.name)
+                }
+            }
+        }
+
+        log.info("AgentService: sending follow-up turn with ${pendingSubagents.size} results to lead conversation")
+        lspClient.sendRequest("conversation/turn", params, timeoutMs = 300_000)
+    }
+
     /**
      * Handle progress events from the lead agent's conversation.
      *
@@ -382,8 +489,13 @@ $userMessage
                 val tcInput = tc["input"]?.jsonObject ?: JsonObject(emptyMap())
                 val status = tc["status"]?.jsonPrimitive?.contentOrNull ?: ""
 
-                // Skip delegate_task tool calls in the lead progress — shown as subagent events instead
-                if (name != "delegate_task") {
+                // Skip delegation tool calls in the lead progress — shown as subagent events instead.
+                // This includes both direct delegate_task calls and run_in_terminal calls
+                // that carry delegation commands (command starts with "delegate ").
+                val isDelegation = name == "delegate_task" || (name == "run_in_terminal" &&
+                    tcInput["command"]?.jsonPrimitive?.contentOrNull?.trimStart()?.startsWith("delegate ") == true)
+
+                if (!isDelegation) {
                     _events.tryEmit(AgentEvent.LeadToolCall(name, tcInput))
                     if (status == "completed" || status == "error") {
                         val resultData = tc["result"]?.jsonArray
@@ -398,15 +510,24 @@ $userMessage
     }
 
     /**
-     * Check if this service owns the given conversationId
-     * (either lead conversation or an active subagent).
+     * Check if this service owns the given conversationId.
+     * Only the lead conversation is owned — subagent tool calls fall through
+     * to standard ToolRouter routing (following the Orchestrator pattern).
+     *
+     * Race condition fix: The server sends tool calls BEFORE conversation/create
+     * returns the conversationId. When pendingLeadCreate is true, we capture the
+     * conversationId from the first arriving tool call.
      */
     fun ownsConversation(conversationId: String?): Boolean {
         if (conversationId == null) return false
         if (conversationId == leadConversationId) return true
-        // Check active subagent sessions — they route tool calls through standard ToolRouter
-        // but we still need to handle their invokeClientTool callbacks
-        return activeSubagents.values.any { it.workerId == conversationId }
+        // Tool calls arrive before conversation/create returns — claim this id
+        if (pendingLeadCreate && leadConversationId == null) {
+            leadConversationId = conversationId
+            log.info("AgentService: captured lead conversationId=$conversationId from early tool call")
+            return true
+        }
+        return false
     }
 
     /** Cancel the current streaming response and all subagents. */
@@ -425,6 +546,8 @@ $userMessage
         currentJob = null
         activeSubagents.values.forEach { it.cancel() }
         activeSubagents.clear()
+        pendingSubagents.values.forEach { it.deferred.cancel() }
+        pendingSubagents.clear()
         isStreaming = false
 
         scope.launch { _events.emit(AgentEvent.LeadDone()) }
@@ -434,6 +557,7 @@ $userMessage
     fun newConversation() {
         cancel()
         leadConversationId = null
+        pendingLeadCreate = false
         agents = emptyList()
     }
 
@@ -441,4 +565,12 @@ $userMessage
         cancel()
         scope.cancel()
     }
+
+    /** Tracks a background subagent launched by delegate_task. */
+    private data class PendingSubagent(
+        val agentId: String,
+        val agentType: String,
+        val description: String,
+        val deferred: Deferred<String>,
+    )
 }

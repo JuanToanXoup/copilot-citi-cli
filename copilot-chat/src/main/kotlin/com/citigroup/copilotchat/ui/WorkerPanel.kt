@@ -388,6 +388,36 @@ class WorkerPanel(private val project: Project) : JPanel(BorderLayout()), Dispos
                 orchestrateButton.isVisible = true
                 cancelButton.isVisible = false
             }
+            is OrchestratorEvent.TaskSkipped -> {
+                val ws = findWorkerState(event.task.workerRole)
+                if (ws != null) {
+                    ws.status = "skipped"
+                    ws.output.append("\n--- Task ${event.task.index} skipped ---\n${event.result.result}\n")
+                    workerList.repaint()
+                }
+                outputArea.text = outputArea.text + "\n[SKIPPED] Task ${event.task.index} (${event.task.workerRole}): ${event.result.result}\n"
+            }
+            is OrchestratorEvent.Deadlock -> {
+                outputArea.text = outputArea.text + "\n[DAG DEADLOCK] Pending: ${event.pending}, Completed: ${event.completed}\n"
+            }
+            is OrchestratorEvent.SupervisorEvaluating -> {
+                outputArea.text = outputArea.text + "\n[SUPERVISOR] Evaluating (iteration ${event.iteration})...\n"
+            }
+            is OrchestratorEvent.SupervisorVerdictEvent -> {
+                outputArea.text = outputArea.text + "[SUPERVISOR] ${event.decision}: ${event.reasoning}\n"
+            }
+            is OrchestratorEvent.FollowUpPlanned -> {
+                val taskList = event.tasks.joinToString("\n") { t ->
+                    "  ${t.index}. [${t.workerRole}] ${t.task}"
+                }
+                outputArea.text = outputArea.text + "\nFollow-up tasks:\n$taskList\n"
+            }
+            is OrchestratorEvent.WaitingForUser -> {
+                outputArea.text = outputArea.text + "\n[WAITING] Supervisor question: ${event.question}\n"
+            }
+            is OrchestratorEvent.UserResponded -> {
+                outputArea.text = outputArea.text + "[USER] ${event.response}\n"
+            }
         }
     }
 

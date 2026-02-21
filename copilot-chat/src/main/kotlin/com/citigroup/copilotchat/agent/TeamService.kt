@@ -31,66 +31,6 @@ class TeamService(private val project: Project) : Disposable {
     companion object {
         fun getInstance(project: Project): TeamService =
             project.getService(TeamService::class.java)
-
-        /** JSON schemas for the team tools (create_team, send_message, delete_team). */
-        fun teamToolSchemas(): List<String> = listOf(
-            """
-            {
-                "name": "create_team",
-                "description": "Create a new agent team. Spawns persistent teammate agents that communicate via mailboxes.",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "name": { "type": "string", "description": "Team name (used as directory name)" },
-                        "description": { "type": "string", "description": "What this team is for" },
-                        "members": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "name": { "type": "string", "description": "Teammate name" },
-                                    "agentType": { "type": "string", "description": "Agent type (e.g., Explore, general-purpose)" },
-                                    "initialPrompt": { "type": "string", "description": "Initial task for this teammate" },
-                                    "model": { "type": "string", "description": "Optional model override" }
-                                },
-                                "required": ["name", "agentType", "initialPrompt"]
-                            },
-                            "description": "List of teammates to spawn"
-                        }
-                    },
-                    "required": ["name", "members"]
-                }
-            }
-            """.trimIndent(),
-            """
-            {
-                "name": "send_message",
-                "description": "Send a message to a teammate's mailbox. The teammate will receive it when they next check their inbox.",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "to": { "type": "string", "description": "Recipient teammate name" },
-                        "text": { "type": "string", "description": "Message content" },
-                        "summary": { "type": "string", "description": "Optional brief summary" }
-                    },
-                    "required": ["to", "text"]
-                }
-            }
-            """.trimIndent(),
-            """
-            {
-                "name": "delete_team",
-                "description": "Disband the active team. Stops all teammates and cleans up resources.",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "name": { "type": "string", "description": "Team name to delete" }
-                    },
-                    "required": ["name"]
-                }
-            }
-            """.trimIndent(),
-        )
     }
 
     /**

@@ -42,7 +42,9 @@ class WorkerSession(
     ): String {
         val prompt = buildPrompt(task, dependencyContext)
         val workDoneToken = "worker-${workerId}-${UUID.randomUUID().toString().take(8)}"
-        val replyParts = mutableListOf<String>()
+        // Must be thread-safe: progress handler writes from the LSP reader thread (Dispatchers.IO)
+        // while this coroutine reads from Dispatchers.Default.
+        val replyParts = Collections.synchronizedList(mutableListOf<String>())
 
         // Register progress listener for this worker's token
         lspClient.registerProgressListener(workDoneToken) { value ->
@@ -86,6 +88,17 @@ class WorkerSession(
                     else -> null
                 }
                 log.info("WorkerSession[$role] got conversationId=$conversationId")
+
+                // Fallback: extract reply text from the create response if progress
+                // events didn't deliver any (can happen with invalid/unsupported models).
+                val hasRealParts = synchronized(replyParts) { replyParts.any { it != DONE_SENTINEL } }
+                if (!hasRealParts) {
+                    val responseReply = extractReplyFromResponse(result)
+                    if (responseReply.isNotBlank()) {
+                        log.info("WorkerSession[$role] extracted ${responseReply.length} chars from create response (no progress events)")
+                        replyParts.add(0, responseReply)
+                    }
+                }
             } else {
                 // Follow-up turn on existing conversation
                 val params = buildJsonObject {
@@ -117,10 +130,13 @@ class WorkerSession(
             while (System.currentTimeMillis() - startTime < timeout) {
                 delay(100)
                 // Check if we got an "end" progress event
-                if (replyParts.lastOrNull() == DONE_SENTINEL) {
-                    replyParts.removeLast()
-                    break
+                val done = synchronized(replyParts) {
+                    if (replyParts.lastOrNull() == DONE_SENTINEL) {
+                        replyParts.removeLast()
+                        true
+                    } else false
                 }
+                if (done) break
             }
 
         } finally {
@@ -128,9 +144,45 @@ class WorkerSession(
             isFirstTurn = false
         }
 
-        val fullReply = replyParts.joinToString("")
-        log.info("WorkerSession[$role] task complete (${fullReply.length} chars)")
+        val fullReply = synchronized(replyParts) { replyParts.joinToString("") }
+        if (fullReply.isEmpty()) {
+            log.warn("WorkerSession[$role] task complete with EMPTY result (model=$model, agent=$agentMode)")
+        } else {
+            log.info("WorkerSession[$role] task complete (${fullReply.length} chars)")
+        }
         return fullReply
+    }
+
+    /**
+     * Try to extract reply text from the conversation/create response.
+     * The response can be a JsonObject or JsonArray containing reply/message fields,
+     * or editAgentRounds with reply text in each round.
+     */
+    private fun extractReplyFromResponse(result: JsonElement?): String {
+        if (result == null) return ""
+        return try {
+            val obj = when (result) {
+                is JsonArray -> result.firstOrNull()?.jsonObject
+                is JsonObject -> result
+                else -> null
+            } ?: return ""
+
+            // Try common reply fields
+            val directReply = obj["reply"]?.jsonPrimitive?.contentOrNull
+                ?: obj["message"]?.jsonPrimitive?.contentOrNull
+            if (!directReply.isNullOrBlank()) return directReply
+
+            // Try extracting from editAgentRounds (agent mode responses)
+            val rounds = obj["editAgentRounds"]?.jsonArray
+            if (rounds != null && rounds.isNotEmpty()) {
+                val roundReplies = rounds.mapNotNull { roundEl ->
+                    roundEl.jsonObject["reply"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
+                }
+                if (roundReplies.isNotEmpty()) return roundReplies.joinToString("")
+            }
+
+            ""
+        } catch (_: Exception) { "" }
     }
 
     /**
@@ -185,13 +237,7 @@ class WorkerSession(
     private fun handleProgress(value: JsonObject, replyParts: MutableList<String>) {
         val kind = value["kind"]?.jsonPrimitive?.contentOrNull
 
-        if (kind == "end") {
-            replyParts.add(DONE_SENTINEL)
-            onEvent?.invoke(WorkerEvent.Done(workerId))
-            return
-        }
-
-        // Reply/delta text
+        // Extract text from any event (including "end" which can carry final reply)
         val reply = value["reply"]?.jsonPrimitive?.contentOrNull
         if (reply != null) {
             replyParts.add(reply)
@@ -225,6 +271,11 @@ class WorkerSession(
                 val name = tc["name"]?.jsonPrimitive?.contentOrNull ?: return@forEach
                 onEvent?.invoke(WorkerEvent.ToolCall(workerId, name))
             }
+        }
+
+        if (kind == "end") {
+            replyParts.add(DONE_SENTINEL)
+            onEvent?.invoke(WorkerEvent.Done(workerId))
         }
     }
 

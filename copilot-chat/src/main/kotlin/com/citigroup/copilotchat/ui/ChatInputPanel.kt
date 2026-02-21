@@ -45,6 +45,12 @@ class ChatInputPanel(
     val isAgentMode: Boolean
         get() = agentDropdown.selectedIndex == 0
 
+    var showAgentDropdown: Boolean = true
+        set(value) {
+            field = value
+            agentDropdown.isVisible = value
+        }
+
     // Model selector — placed on the left next to Agent dropdown
     private var leftPanel: JPanel? = null
     var modelSelector: JComboBox<String>? = null
