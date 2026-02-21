@@ -1,10 +1,16 @@
 import { useState, useCallback, useRef, type KeyboardEvent } from 'react'
+import { ToolPopover } from './ToolPopover'
 
 const SLASH_COMMANDS = [
   { command: '/new', description: 'New conversation' },
   { command: '/clear', description: 'Clear current conversation' },
   { command: '/settings', description: 'Open settings' },
   { command: '/tools', description: 'Open tool popover' },
+  { command: '/changes', description: 'View file changes' },
+  { command: '/commit', description: 'Stage and commit' },
+  { command: '/push', description: 'Push to remote' },
+  { command: '/pull', description: 'Pull from remote' },
+  { command: '/branch', description: 'Switch or create branch' },
 ] as const
 
 interface ChatInputProps {
@@ -24,6 +30,7 @@ export function ChatInput({
 }: ChatInputProps) {
   const [text, setText] = useState('')
   const [showSlashMenu, setShowSlashMenu] = useState(false)
+  const [showToolPopover, setShowToolPopover] = useState(false)
   const [slashIndex, setSlashIndex] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -114,7 +121,21 @@ export function ChatInput({
         </div>
       )}
 
+      {/* Tool popover */}
+      {showToolPopover && (
+        <ToolPopover onClose={() => setShowToolPopover(false)} />
+      )}
+
       <div className="flex items-end gap-2 p-4">
+        <button
+          onClick={() => setShowToolPopover((s) => !s)}
+          className="px-2 py-2.5 text-gray-500 hover:text-white transition-colors"
+          title="Available tools"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M14.5 2.7a1 1 0 0 0-1.4-.1L9.9 5.3a.5.5 0 0 1-.6.1L7.7 4.2a1 1 0 0 0-1.2.2L1.2 10a1 1 0 0 0 .2 1.4l3.8 3a1 1 0 0 0 1.3-.1l5.3-5.7a.5.5 0 0 1 .6-.1l1.6 1.1a1 1 0 0 0 1.2-.2l.5-.6a1 1 0 0 0-.2-1.4L14.5 2.7z"/>
+          </svg>
+        </button>
         <textarea
           ref={textareaRef}
           value={text}

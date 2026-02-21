@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, forwardRef } from 'react'
 import { useAgentStore, type ChatMessage } from '../stores/agent-store'
+import { useSettingsStore } from '../stores/settings-store'
 
 interface ChatPanelProps {
   selectedNodeId: string | null
@@ -8,11 +9,11 @@ interface ChatPanelProps {
 
 export function ChatPanel({ selectedNodeId }: ChatPanelProps) {
   const messages = useAgentStore((s) => s.messages)
+  const toolDisplayMode = useSettingsStore((s) => s.toolDisplayMode)
   const scrollRef = useRef<HTMLDivElement>(null)
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map())
-
-  // Track which message is actively highlighted (with fade timer)
   const [highlightedMsgId, setHighlightedMsgId] = useState<string | null>(null)
+  const [showHiddenTools, setShowHiddenTools] = useState(false)
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -32,10 +33,15 @@ export function ChatPanel({ selectedNodeId }: ChatPanelProps) {
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }
-    // Fade highlight after 3 seconds
     const timer = setTimeout(() => setHighlightedMsgId(null), 3000)
     return () => clearTimeout(timer)
   }, [selectedNodeId, messages])
+
+  // Filter tool messages based on display mode
+  const toolCount = messages.filter((m) => m.type === 'tool').length
+  const visibleMessages = toolDisplayMode === 'hidden' && !showHiddenTools
+    ? messages.filter((m) => m.type !== 'tool')
+    : messages
 
   return (
     <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
@@ -44,11 +50,20 @@ export function ChatPanel({ selectedNodeId }: ChatPanelProps) {
           Send a message or type &quot;demo&quot; to get started
         </div>
       )}
-      {messages.map((msg) => (
+      {toolDisplayMode === 'hidden' && toolCount > 0 && (
+        <button
+          onClick={() => setShowHiddenTools((s) => !s)}
+          className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+        >
+          {showHiddenTools ? 'Hide' : 'Show'} {toolCount} tool call{toolCount !== 1 ? 's' : ''}
+        </button>
+      )}
+      {visibleMessages.map((msg) => (
         <MessageBubble
           key={msg.id}
           message={msg}
           isHighlighted={msg.id === highlightedMsgId}
+          toolDisplayMode={toolDisplayMode}
           ref={(el) => {
             if (el) messageRefs.current.set(msg.id, el)
             else messageRefs.current.delete(msg.id)
@@ -62,10 +77,12 @@ export function ChatPanel({ selectedNodeId }: ChatPanelProps) {
 interface MessageBubbleProps {
   message: ChatMessage
   isHighlighted: boolean
+  toolDisplayMode: string
 }
 
 const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(
-  ({ message, isHighlighted }, ref) => {
+  ({ message, isHighlighted, toolDisplayMode }, ref) => {
+    const [toolExpanded, setToolExpanded] = useState(false)
     const highlightClass = isHighlighted
       ? 'border-l-2 border-l-blue-400 bg-blue-950/20 transition-all duration-300'
       : 'border-l-2 border-l-transparent transition-all duration-700'
@@ -106,9 +123,33 @@ const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(
         )
 
       case 'tool':
+        // Collapsible blocks mode (default)
+        if (toolDisplayMode === 'collapsible') {
+          return (
+            <div
+              ref={ref}
+              className={`rounded border border-gray-800 text-xs text-gray-400 cursor-pointer hover:border-gray-700 transition-colors ${highlightClass}`}
+              onClick={() => setToolExpanded((s) => !s)}
+            >
+              <div className="flex items-center gap-2 px-3 py-1.5">
+                <StatusDot status={message.status} />
+                <span className="font-mono">{message.meta?.toolName}</span>
+                <span className="text-gray-600 ml-auto">{toolExpanded ? '▾' : '▸'}</span>
+              </div>
+              {toolExpanded && (
+                <div className="px-3 py-2 border-t border-gray-800 text-gray-500 font-mono text-[11px]">
+                  <p>Input: (tool parameters)</p>
+                  <p>Output: (tool result)</p>
+                  <p>Status: {message.status}</p>
+                </div>
+              )}
+            </div>
+          )
+        }
+        // Minimal inline mode
         return (
-          <div ref={ref} className={`rounded border border-gray-800 px-3 py-1.5 text-xs text-gray-400 ${highlightClass}`}>
-            <span className="flex items-center gap-2">
+          <div ref={ref} className={`text-xs text-gray-500 py-0.5 ${highlightClass}`}>
+            <span className="flex items-center gap-1.5">
               <StatusDot status={message.status} />
               <span className="font-mono">{message.meta?.toolName}</span>
             </span>
@@ -121,7 +162,6 @@ const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(
             <p>{message.text}</p>
             <button
               onClick={() => {
-                // TODO: implement retry — re-send the last user message
                 useAgentStore.getState().addStatusMessage('Retrying...')
               }}
               className="mt-2 text-xs px-3 py-1 rounded bg-red-900/50 border border-red-700
