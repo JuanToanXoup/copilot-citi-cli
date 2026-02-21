@@ -340,6 +340,7 @@ class AgentService(private val project: Project) : Disposable {
             val roundReply = round["reply"]?.jsonPrimitive?.contentOrNull ?: ""
             if (roundReply.isNotEmpty()) {
                 replyParts.add(roundReply)
+                _events.emit(AgentEvent.LeadDelta(roundReply))
             }
 
             val toolCalls = round["toolCalls"]?.jsonArray
