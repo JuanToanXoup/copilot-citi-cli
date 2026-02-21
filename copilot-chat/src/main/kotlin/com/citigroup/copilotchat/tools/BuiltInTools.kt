@@ -5,6 +5,7 @@ import com.citigroup.copilotchat.rag.VectorPoint
 import com.citigroup.copilotchat.rag.VectorStore
 import com.citigroup.copilotchat.ui.PlaywrightManager
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.util.io.HttpRequests
 import kotlinx.serialization.json.*
 import java.io.File
 import java.security.MessageDigest
@@ -76,8 +77,8 @@ object BuiltInTools {
         """{"name":"get_errors","description":"Check files for syntax/compile errors.","inputSchema":{"type":"object","properties":{"filePaths":{"type":"array","items":{"type":"string"},"description":"File paths to check. Omit for all files."}},"required":[]}}""",
         """{"name":"get_doc_info","description":"Extract documentation — docstrings, module-level comments, and function/class signatures — from source files.","inputSchema":{"type":"object","properties":{"filePaths":{"type":"array","items":{"type":"string"},"description":"File paths to extract documentation from."}},"required":["filePaths"]}}""",
         """{"name":"get_project_setup_info","description":"Return project setup information — detected frameworks, config files, entry points, and common commands.","inputSchema":{"type":"object","properties":{"projectType":{"type":"string","description":"Hint for what kind of project: 'auto', 'python', 'node', 'java', 'go', 'rust', etc."}},"required":["projectType"]}}""",
-        """{"name":"get_library_docs","description":"Fetches documentation and code examples for a library. Call resolve_library_id first to get the library ID.","inputSchema":{"type":"object","properties":{"libraryId":{"type":"string","description":"Library ID from resolve_library_id."},"query":{"type":"string","description":"Specific question or task."}},"required":["libraryId","query"]}}""",
-        """{"name":"resolve_library_id","description":"Resolves a library/package name to a library ID. Call this BEFORE get_library_docs.","inputSchema":{"type":"object","properties":{"libraryName":{"type":"string","description":"Library name to search for."},"query":{"type":"string","description":"The user's question or task."}},"required":["libraryName"]}}""",
+        """{"name":"get_library_docs","description":"Fetches up-to-date documentation and code examples for a library. You MUST call resolve_library_id first to get the correct library ID. Bundled docs are available for: playwright, selenium, cucumber, gherkin, java, mermaid. For other libraries, falls back to Context7 API.","inputSchema":{"type":"object","properties":{"libraryId":{"type":"string","description":"Library ID obtained from resolve_library_id. Use the exact ID returned."},"query":{"type":"string","description":"Specific topic, API, or task to search for (e.g. 'how to click a button', 'locator strategies', 'wait for element')."}},"required":["libraryId","query"]}}""",
+        """{"name":"resolve_library_id","description":"Resolves a library/package name to a library ID for use with get_library_docs. You MUST call this BEFORE get_library_docs to get the correct ID. Bundled: playwright, selenium, cucumber, gherkin, java, mermaid. Other libraries are resolved via Context7 API.","inputSchema":{"type":"object","properties":{"libraryName":{"type":"string","description":"Library or package name to resolve (e.g. 'playwright', 'selenium-java', 'cucumber', 'mermaid')."},"query":{"type":"string","description":"Optional: the user's question to help disambiguate results."}},"required":["libraryName"]}}""",
         // ── Web & External ──
         """{"name":"fetch_web_page","description":"Fetch content from one or more URLs.","inputSchema":{"type":"object","properties":{"urls":{"type":"array","items":{"type":"string"},"description":"URLs to fetch content from."},"query":{"type":"string","description":"What to look for in the page content."}},"required":["urls","query"]}}""",
         """{"name":"github_repo","description":"Search code in a GitHub repository using the GitHub CLI (gh).","inputSchema":{"type":"object","properties":{"repo":{"type":"string","description":"The GitHub repository in 'owner/repo' format."},"query":{"type":"string","description":"The search query for code search."}},"required":["repo","query"]}}""",
@@ -318,19 +319,70 @@ object BuiltInTools {
     }
 
     private fun executeGetLibraryDocs(input: JsonObject, ws: String): String {
-        val libraryId = input.str("libraryId") ?: return "Error: libraryId is required"
+        val rawId = input.str("libraryId") ?: return "Error: libraryId is required"
         val query = input.str("query") ?: ""
-        return "Library docs lookup for '$libraryId' (query: $query) — use resolve_library_id first. Bundled docs available for: Playwright, Selenium, Cucumber, Gherkin, Java."
+
+        // Normalize: Context7 format "/microsoft/playwright" → extract last segment
+        val libraryId = rawId.trim().removePrefix("/").split("/").last().lowercase()
+
+        // Try local bundled docs first
+        val localResult = LibraryDocs.searchDocs(libraryId, query, OUTPUT_LIMIT)
+        if (localResult.isNotEmpty()) return localResult
+
+        // Fallback: try Context7 API for external libraries
+        if (rawId.isNotBlank() && query.isNotBlank()) {
+            try {
+                val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
+                val encodedId = java.net.URLEncoder.encode(rawId, "UTF-8")
+                val url = "https://context7.com/api/v2/context?query=$encodedQuery&libraryId=$encodedId&tokens=2000"
+                val response = HttpRequests.request(url)
+                    .accept("application/json")
+                    .connectTimeout(15_000)
+                    .readTimeout(15_000)
+                    .readString()
+                if (response.isNotBlank()) return response.take(OUTPUT_LIMIT)
+            } catch (e: Exception) {
+                log.info("Context7 API fallback failed for '$rawId': ${e.message}")
+            }
+        }
+
+        return "No documentation found for library '$rawId'. Bundled docs available for: ${LibraryDocs.bundledIds.joinToString(", ")}."
     }
 
     private fun executeResolveLibraryId(input: JsonObject, ws: String): String {
         val libraryName = input.str("libraryName") ?: return "Error: libraryName is required"
-        val known = mapOf(
-            "playwright" to "playwright", "selenium" to "selenium",
-            "cucumber" to "cucumber", "gherkin" to "gherkin", "java" to "java",
-        )
-        val id = known[libraryName.lowercase()]
-        return if (id != null) "Resolved: $id" else "Unknown library: $libraryName. Try Context7 API for external docs."
+
+        // Try local bundled docs first
+        val localMatches = LibraryDocs.resolve(libraryName)
+        if (localMatches.isNotEmpty()) {
+            return buildString {
+                for (lib in localMatches) {
+                    appendLine("- ID: ${lib.id}")
+                    appendLine("  Title: ${lib.title}")
+                    appendLine("  Description: ${lib.description}")
+                    appendLine("  Source: bundled")
+                }
+                append("Use the ID with get_library_docs to fetch documentation.")
+            }
+        }
+
+        // Fallback: try Context7 API for external libraries
+        try {
+            val encodedName = java.net.URLEncoder.encode(libraryName, "UTF-8")
+            val url = "https://context7.com/api/v2/libs/search?query=$encodedName&libraryName=$encodedName"
+            val response = HttpRequests.request(url)
+                .accept("application/json")
+                .connectTimeout(10_000)
+                .readTimeout(10_000)
+                .readString()
+            if (response.isNotBlank()) {
+                return "Context7 results for '$libraryName':\n${response.take(OUTPUT_LIMIT)}\n\nUse the returned ID with get_library_docs."
+            }
+        } catch (e: Exception) {
+            log.info("Context7 API search failed for '$libraryName': ${e.message}")
+        }
+
+        return "No bundled docs for '$libraryName' and Context7 is unreachable. Bundled libraries: ${LibraryDocs.bundledIds.joinToString(", ")}."
     }
 
     // ── Web & External ───────────────────────────────────────────
