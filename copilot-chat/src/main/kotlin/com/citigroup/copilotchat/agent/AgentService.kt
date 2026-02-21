@@ -34,7 +34,7 @@ class AgentService(private val project: Project) : Disposable {
     private val json = Json { ignoreUnknownKeys = true }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    internal val _events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 64)
+    internal val _events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 512)
     val events: SharedFlow<AgentEvent> = _events
 
     private val lspClient: LspClient get() = LspClient.getInstance()
@@ -201,21 +201,14 @@ class AgentService(private val project: Project) : Disposable {
                 lspClient.sendResponse(id, result)
             }
             else -> {
-                // Standard tool — route through ToolRouter
-                val isChatConversation = conversationId == leadConversationId
-                if (isChatConversation) {
-                    _events.emit(AgentEvent.LeadToolCall(name, input))
-                }
-
+                // Standard tool — execute and respond immediately.
+                // Do NOT emit LeadToolCall/LeadToolResult here; those events are
+                // already emitted by handleLeadProgress() from editAgentRounds.
+                // Emitting here too would double the event count and fill the
+                // SharedFlow buffer, causing emit() to suspend and deadlock the
+                // tool response path.
                 val result = toolRouter.executeTool(name, input)
                 lspClient.sendResponse(id, result)
-
-                if (isChatConversation) {
-                    val outputText = result.jsonArray.firstOrNull()?.jsonObject
-                        ?.get("content")?.jsonArray?.firstOrNull()?.jsonObject
-                        ?.get("value")?.jsonPrimitive?.contentOrNull ?: ""
-                    _events.emit(AgentEvent.LeadToolResult(name, outputText.take(200)))
-                }
             }
         }
     }
