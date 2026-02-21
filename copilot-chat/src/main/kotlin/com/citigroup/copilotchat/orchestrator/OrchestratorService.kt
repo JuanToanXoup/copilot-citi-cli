@@ -39,25 +39,36 @@ class OrchestratorService(private val project: Project) : Disposable {
         fun getInstance(project: Project): OrchestratorService =
             project.getService(OrchestratorService::class.java)
 
-        private const val PLANNING_SYSTEM_PROMPT = """You are an orchestrator agent. Your job is to break down complex tasks into discrete subtasks and assign them to specialised worker agents.
+        private const val PLANNING_SYSTEM_PROMPT = """You are an orchestrator agent. Your job is to:
+1. Select which worker agents to deploy from the available catalog
+2. Break down the goal into discrete subtasks and assign them to those workers
 
-Available workers:
-{workers_description}
+Available worker presets:
+{preset_catalog}
 
-When given a task, respond with a JSON array of subtask assignments. Each element must have:
-- "worker_role": one of the available worker roles
-- "task": a clear, self-contained description of what the worker should do
-- "depends_on": list of task indices (0-based) that must complete first, or []
+{user_workers_section}
+
+Respond with a JSON object containing two fields:
+- "workers": array of worker role names to deploy (from the presets above, or user-configured workers)
+- "tasks": array of subtask assignments, each with:
+  - "worker_role": one of the selected worker roles
+  - "task": a clear, self-contained description of what the worker should do
+  - "depends_on": list of task indices (0-based) that must complete first, or []
+
+Only select workers that are actually needed for the goal. Do not deploy unnecessary workers.
 
 Example response:
 ```json
-[
-  {"worker_role": "bug_fixer", "task": "Find and fix the null pointer in auth.py line 42", "depends_on": []},
-  {"worker_role": "test_writer", "task": "Write unit tests for the auth.py fix", "depends_on": [0]}
-]
+{
+  "workers": ["researcher", "coder"],
+  "tasks": [
+    {"worker_role": "researcher", "task": "Read and analyze the README file structure", "depends_on": []},
+    {"worker_role": "coder", "task": "Implement the suggested improvements", "depends_on": [0]}
+  ]
+}
 ```
 
-IMPORTANT: Respond ONLY with the JSON array. No other text."""
+IMPORTANT: Respond ONLY with the JSON object. No other text."""
     }
 
     /**
@@ -70,12 +81,6 @@ IMPORTANT: Respond ONLY with the JSON array. No other text."""
             return
         }
 
-        val workers = CopilotChatSettings.getInstance().workers.filter { it.enabled }
-        if (workers.isEmpty()) {
-            scope.launch { _events.emit(OrchestratorEvent.Error("No workers configured")) }
-            return
-        }
-
         isRunning = true
         orchestrationJob = scope.launch {
             try {
@@ -84,19 +89,20 @@ IMPORTANT: Respond ONLY with the JSON array. No other text."""
                 // Ensure LSP is initialized
                 ConversationManager.getInstance(project).ensureInitialized()
 
-                // Step 1: Plan
-                val tasks = planTasks(goal, workers)
-                _events.emit(OrchestratorEvent.PlanCompleted(tasks))
+                // Step 1: Plan (auto-selects workers from presets + user config)
+                val plan = planTasksAutoWorkers(goal)
+                _events.emit(OrchestratorEvent.WorkersGenerated(plan.workers))
+                _events.emit(OrchestratorEvent.PlanCompleted(plan.tasks))
 
                 // Step 2: Execute DAG
-                val results = executeDag(tasks, workers)
+                val results = executeDag(plan.tasks, plan.workers)
 
                 // Step 3: Synthesize
                 _events.emit(OrchestratorEvent.SummarizeStarted)
                 val summary = summarize(goal, results)
                 _events.emit(OrchestratorEvent.SummarizeCompleted(summary))
 
-                _events.emit(OrchestratorEvent.Finished(tasks, results, summary))
+                _events.emit(OrchestratorEvent.Finished(plan.tasks, results, summary))
 
             } catch (e: CancellationException) {
                 _events.emit(OrchestratorEvent.Error("Orchestration cancelled"))
@@ -120,17 +126,26 @@ IMPORTANT: Respond ONLY with the JSON array. No other text."""
     }
 
     /**
-     * Use a chat-only WorkerSession to decompose the goal into a task plan.
-     * Port of Python Orchestrator._plan_tasks().
+     * Plan tasks with automatic worker selection.
+     * Sends the preset catalog + user workers to the LLM, which returns both
+     * the workers to deploy and the task assignments in one JSON response.
      */
-    private suspend fun planTasks(
-        goal: String,
-        workers: List<CopilotChatSettings.WorkerEntry>,
-    ): List<PlannedTask> {
-        val workersDesc = workers.joinToString("\n") { w ->
-            "- ${w.role}: ${w.description.ifBlank { w.systemPrompt.take(120) }}"
+    private suspend fun planTasksAutoWorkers(goal: String): OrchestrationPlan {
+        val userWorkers = CopilotChatSettings.getInstance().workers.filter { it.enabled }
+
+        // Build user workers section for prompt
+        val userWorkersSection = if (userWorkers.isNotEmpty()) {
+            "User-configured workers (these override presets with the same role):\n" +
+                userWorkers.joinToString("\n") { w ->
+                    "- ${w.role}: ${w.description.ifBlank { w.systemPrompt.take(120) }}"
+                }
+        } else {
+            "No user-configured workers. Select from the presets above."
         }
-        val planningPrompt = PLANNING_SYSTEM_PROMPT.replace("{workers_description}", workersDesc) +
+
+        val planningPrompt = PLANNING_SYSTEM_PROMPT
+            .replace("{preset_catalog}", WorkerPresets.catalogDescription())
+            .replace("{user_workers_section}", userWorkersSection) +
             "\n\nGoal: $goal"
 
         // Create a chat-only session for planning (no agent mode, no tools)
@@ -157,12 +172,51 @@ IMPORTANT: Respond ONLY with the JSON array. No other text."""
         }
         jsonStr = jsonStr.trim()
 
-        val validRoles = workers.map { it.role }.toSet()
-        val fallbackRole = workers.first().role
+        return try {
+            val root = Json.parseToJsonElement(jsonStr).jsonObject
 
-        val tasks = try {
-            val arr = Json.parseToJsonElement(jsonStr).jsonArray
-            arr.mapIndexed { index, el ->
+            // Parse selected workers
+            val workerRoles = root["workers"]?.jsonArray
+                ?.mapNotNull { it.jsonPrimitive.contentOrNull }
+                ?: listOf("coder")
+
+            // Materialize WorkerEntry objects: user overrides take precedence over presets
+            val materializedWorkers = workerRoles.map { role ->
+                val userWorker = userWorkers.find { it.role == role }
+                if (userWorker != null) {
+                    userWorker  // user-configured worker overrides preset
+                } else {
+                    val preset = WorkerPresets.findByRole(role)
+                    if (preset != null) {
+                        CopilotChatSettings.WorkerEntry(
+                            role = preset.role,
+                            description = preset.description,
+                            systemPrompt = preset.systemPrompt,
+                            enabled = true,
+                            toolsEnabled = preset.toolsEnabled?.toMutableList(),
+                            agentMode = preset.agentMode,
+                        )
+                    } else {
+                        // Unknown role — create a generic agent
+                        log.warn("Unknown worker role '$role' from planner, using generic agent")
+                        CopilotChatSettings.WorkerEntry(
+                            role = role,
+                            description = "Generic agent for $role tasks",
+                            systemPrompt = "You are a helpful assistant specializing in $role tasks.",
+                            enabled = true,
+                            toolsEnabled = null,
+                            agentMode = true,
+                        )
+                    }
+                }
+            }
+
+            // Parse tasks
+            val validRoles = materializedWorkers.map { it.role }.toSet()
+            val fallbackRole = materializedWorkers.firstOrNull()?.role ?: "coder"
+
+            val tasksArray = root["tasks"]?.jsonArray ?: throw IllegalStateException("No tasks in plan")
+            val tasks = tasksArray.mapIndexed { index, el ->
                 val obj = el.jsonObject
                 var role = obj["worker_role"]?.jsonPrimitive?.contentOrNull ?: fallbackRole
                 if (role !in validRoles) role = fallbackRole
@@ -171,13 +225,29 @@ IMPORTANT: Respond ONLY with the JSON array. No other text."""
                 val deps = depsArray?.mapNotNull { it.jsonPrimitive.intOrNull } ?: emptyList()
                 PlannedTask(index, role, task, deps)
             }
-        } catch (e: Exception) {
-            log.warn("Failed to parse plan JSON, falling back to single task: ${e.message}")
-            listOf(PlannedTask(0, fallbackRole, goal, emptyList()))
-        }
 
-        log.info("Planned ${tasks.size} task(s): ${tasks.map { "${it.index}:[${it.workerRole}]" }}")
-        return tasks
+            log.info("Auto-planned ${materializedWorkers.size} worker(s), ${tasks.size} task(s)")
+            OrchestrationPlan(materializedWorkers, tasks)
+
+        } catch (e: Exception) {
+            log.warn("Failed to parse auto-worker plan, falling back to single coder: ${e.message}")
+            // Fallback: single coder worker with the full goal
+            val fallbackWorker = userWorkers.find { it.role == "coder" }
+                ?: WorkerPresets.findByRole("coder")!!.let { preset ->
+                    CopilotChatSettings.WorkerEntry(
+                        role = preset.role,
+                        description = preset.description,
+                        systemPrompt = preset.systemPrompt,
+                        enabled = true,
+                        toolsEnabled = preset.toolsEnabled?.toMutableList(),
+                        agentMode = preset.agentMode,
+                    )
+                }
+            OrchestrationPlan(
+                workers = listOf(fallbackWorker),
+                tasks = listOf(PlannedTask(0, fallbackWorker.role, goal, emptyList())),
+            )
+        }
     }
 
     /**
@@ -369,9 +439,16 @@ data class TaskResult(
     val result: String,
 )
 
+/** Combined plan: auto-selected workers + task assignments. */
+data class OrchestrationPlan(
+    val workers: List<CopilotChatSettings.WorkerEntry>,
+    val tasks: List<PlannedTask>,
+)
+
 /** Events emitted by the orchestrator for UI integration. */
 sealed class OrchestratorEvent {
     data class PlanStarted(val goal: String) : OrchestratorEvent()
+    data class WorkersGenerated(val workers: List<CopilotChatSettings.WorkerEntry>) : OrchestratorEvent()
     data class PlanCompleted(val tasks: List<PlannedTask>) : OrchestratorEvent()
     data class TaskAssigned(val task: PlannedTask) : OrchestratorEvent()
     data class TaskProgress(val workerRole: String, val text: String) : OrchestratorEvent()
