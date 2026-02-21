@@ -6,7 +6,7 @@ export default defineConfig({
     lib: {
       entry: path.resolve(__dirname, 'src/preload/index.ts'),
       formats: ['cjs'],
-      fileName: () => 'index.js',
+      fileName: () => 'index.cjs',
     },
     outDir: 'dist/preload',
     emptyOutDir: true,

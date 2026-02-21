@@ -30,11 +30,13 @@ function MainApp() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [selectedNode, setSelectedNode] = useState<Node | null>(null)
   const [dividerPosition, setDividerPosition] = useState(50)
+  const [sidebarWidth, setSidebarWidth] = useState(224) // px (w-56 = 14rem = 224px)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [changesOpen, setChangesOpen] = useState(false)
   const isProcessing = useAgentStore((s) => s.isProcessing)
   const dividerRef = useRef<HTMLDivElement>(null)
+  const sidebarDividerRef = useRef<HTMLDivElement>(null)
 
   // Cycle view modes: Split → Chat → Graph → Split
   const cycleViewMode = useCallback(() => {
@@ -103,6 +105,30 @@ function MainApp() {
       document.addEventListener('mouseup', onMouseUp)
     },
     [dividerPosition],
+  )
+
+  // Resizable sidebar drag
+  const handleSidebarDividerMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      const startX = e.clientX
+      const startWidth = sidebarWidth
+
+      const onMouseMove = (moveEvent: MouseEvent) => {
+        const delta = moveEvent.clientX - startX
+        const newWidth = Math.min(480, Math.max(140, startWidth + delta))
+        setSidebarWidth(newWidth)
+      }
+
+      const onMouseUp = () => {
+        document.removeEventListener('mousemove', onMouseMove)
+        document.removeEventListener('mouseup', onMouseUp)
+      }
+
+      document.addEventListener('mousemove', onMouseMove)
+      document.addEventListener('mouseup', onMouseUp)
+    },
+    [sidebarWidth],
   )
 
   const handleSend = useCallback((text: string) => {
@@ -201,9 +227,19 @@ function MainApp() {
       <div className="flex flex-1 overflow-hidden">
         {/* File tree sidebar */}
         {sidebarOpen && (
-          <div className="w-56 shrink-0 border-r border-gray-800 bg-gray-900 overflow-y-auto">
-            <FileTree />
-          </div>
+          <>
+            <div
+              className="shrink-0 bg-gray-900 overflow-y-auto"
+              style={{ width: `${sidebarWidth}px` }}
+            >
+              <FileTree />
+            </div>
+            <div
+              ref={sidebarDividerRef}
+              onMouseDown={handleSidebarDividerMouseDown}
+              className="w-1 shrink-0 bg-gray-800 hover:bg-blue-500 cursor-col-resize transition-colors"
+            />
+          </>
         )}
 
         {/* Chat + Graph panes */}

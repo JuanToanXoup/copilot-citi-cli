@@ -2,10 +2,38 @@ interface ProjectPickerProps {
   onSelect: (path: string) => void
 }
 
+// Type for the Electron API exposed via preload
+declare global {
+  interface Window {
+    api?: {
+      dialog: {
+        openDirectory: () => Promise<string | null>
+      }
+    }
+  }
+}
+
 export function ProjectPicker({ onSelect }: ProjectPickerProps) {
-  const handleOpenFolder = () => {
-    // In full app: window.api.dialog.openDirectory()
-    // For now, simulate with a prompt
+  const handleOpenFolder = async () => {
+    // Use native Electron dialog if available
+    if (window.api?.dialog?.openDirectory) {
+      const path = await window.api.dialog.openDirectory()
+      if (path) onSelect(path)
+      return
+    }
+
+    // Browser fallback: File System Access API (Chromium)
+    if ('showDirectoryPicker' in window) {
+      try {
+        const handle = await window.showDirectoryPicker()
+        onSelect(handle.name)
+      } catch {
+        // User cancelled
+      }
+      return
+    }
+
+    // Last resort
     const path = window.prompt('Enter project path:')
     if (path) onSelect(path)
   }

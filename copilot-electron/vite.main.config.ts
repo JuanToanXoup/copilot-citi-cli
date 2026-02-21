@@ -5,7 +5,7 @@ export default defineConfig({
   build: {
     lib: {
       entry: path.resolve(__dirname, 'src/main/index.ts'),
-      formats: ['cjs'],
+      formats: ['es'],
       fileName: () => 'index.js',
     },
     outDir: 'dist/main',

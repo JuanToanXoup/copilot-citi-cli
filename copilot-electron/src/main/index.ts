@@ -1,6 +1,10 @@
 import { app, BrowserWindow } from 'electron'
 import path from 'path'
+import { fileURLToPath } from 'url'
 import { registerIpc } from './ipc'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 let mainWindow: BrowserWindow | null = null
 
@@ -11,7 +15,7 @@ function createWindow() {
     minWidth: 800,
     minHeight: 600,
     webPreferences: {
-      preload: path.join(__dirname, '../preload/index.js'),
+      preload: path.join(__dirname, '../preload/index.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
     },

@@ -5,6 +5,8 @@ import {
   AGENT_CANCEL,
   AGENT_NEW_CONVERSATION,
   AGENT_EVENT,
+  DIALOG_OPEN_DIRECTORY,
+  FS_READ_DIRECTORY,
 } from '@shared/ipc-channels'
 
 const api = {
@@ -20,6 +22,14 @@ const api = {
         ipcRenderer.removeListener(AGENT_EVENT, listener)
       }
     },
+  },
+  dialog: {
+    openDirectory: (): Promise<string | null> =>
+      ipcRenderer.invoke(DIALOG_OPEN_DIRECTORY),
+  },
+  fs: {
+    readDirectory: (dirPath: string): Promise<Array<{ name: string; path: string; isDirectory: boolean }>> =>
+      ipcRenderer.invoke(FS_READ_DIRECTORY, dirPath),
   },
 }
 
