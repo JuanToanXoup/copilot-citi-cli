@@ -2,8 +2,8 @@ package com.citigroup.copilotchat.ui
 
 import com.citigroup.copilotchat.config.CopilotChatSettings
 import com.citigroup.copilotchat.config.CopilotChatSettings.WorkerEntry
-import com.citigroup.copilotchat.conversation.ChatEvent
 import com.citigroup.copilotchat.conversation.ConversationManager
+import com.citigroup.copilotchat.orchestrator.*
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
@@ -14,8 +14,8 @@ import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.JBUI
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.collectLatest
 import java.awt.*
+import java.util.*
 import javax.swing.*
 
 /**
@@ -33,6 +33,7 @@ class WorkerPanel(private val project: Project) : JPanel(BorderLayout()), Dispos
     // Orchestrator input at top
     private val orchestrateField = JBTextField()
     private val orchestrateButton = JButton("Orchestrate")
+    private val cancelButton = JButton("Cancel").apply { isVisible = false }
 
     // Worker output area on the right
     private val outputArea = JTextArea().apply {
@@ -46,11 +47,13 @@ class WorkerPanel(private val project: Project) : JPanel(BorderLayout()), Dispos
     private val taskField = JBTextField()
     private val sendTaskButton = JButton(AllIcons.Actions.Execute)
 
+    // Per-worker sessions for direct task sends
+    private val workerSessions = mutableMapOf<String, WorkerSession>()
+
     data class WorkerState(
         val entry: WorkerEntry,
         var status: String = "idle",
         val output: StringBuilder = StringBuilder(),
-        var conversationManager: ConversationManager? = null,
     ) {
         override fun toString() = "[${status}] ${entry.role}"
     }
@@ -59,13 +62,19 @@ class WorkerPanel(private val project: Project) : JPanel(BorderLayout()), Dispos
         border = JBUI.Borders.empty(4)
 
         // === Top: Orchestrator bar ===
+        val buttonPanel = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.X_AXIS)
+            add(orchestrateButton)
+            add(cancelButton)
+        }
         val orchestratorBar = JPanel(BorderLayout()).apply {
             border = JBUI.Borders.empty(4)
             add(JLabel("Goal: "), BorderLayout.WEST)
             add(orchestrateField, BorderLayout.CENTER)
-            add(orchestrateButton, BorderLayout.EAST)
+            add(buttonPanel, BorderLayout.EAST)
         }
         orchestrateButton.addActionListener { orchestrate() }
+        cancelButton.addActionListener { cancelOrchestration() }
 
         // === Left: Worker list ===
         workerList.cellRenderer = WorkerCellRenderer()
@@ -157,6 +166,9 @@ class WorkerPanel(private val project: Project) : JPanel(BorderLayout()), Dispos
         outputArea.text = ws.output.toString()
     }
 
+    /**
+     * Send a task directly to the selected worker using an isolated WorkerSession.
+     */
     private fun sendTaskToWorker() {
         val idx = workerList.selectedIndex
         if (idx < 0) {
@@ -173,44 +185,73 @@ class WorkerPanel(private val project: Project) : JPanel(BorderLayout()), Dispos
         outputArea.text = ws.output.toString()
         workerList.repaint()
 
-        // Use the project's ConversationManager to send a prefixed message
-        val cm = ConversationManager.getInstance(project)
-        val prompt = buildWorkerPrompt(ws.entry, task)
-
-        scope.launch {
-            cm.events.collectLatest { event ->
-                when (event) {
-                    is ChatEvent.Delta -> {
-                        ws.output.append(event.text)
-                        if (workerList.selectedIndex == idx) {
-                            outputArea.text = ws.output.toString()
-                            outputArea.caretPosition = outputArea.document.length
+        // Get or create an isolated WorkerSession for this worker
+        val session = workerSessions.getOrPut(ws.entry.role) {
+            WorkerSession(
+                workerId = "${ws.entry.role}-direct-${UUID.randomUUID().toString().take(6)}",
+                role = ws.entry.role,
+                systemPrompt = ws.entry.systemPrompt,
+                model = ws.entry.model.ifBlank { CopilotChatSettings.getInstance().defaultModel },
+                agentMode = ws.entry.agentMode,
+                toolsEnabled = ws.entry.toolsEnabled,
+                projectName = project.name,
+                workspaceRoot = project.basePath ?: "/tmp",
+            ).also { session ->
+                session.onEvent = { event ->
+                    SwingUtilities.invokeLater {
+                        when (event) {
+                            is WorkerEvent.Delta -> {
+                                ws.output.append(event.text)
+                                if (workerList.selectedIndex == idx) {
+                                    outputArea.text = ws.output.toString()
+                                    outputArea.caretPosition = outputArea.document.length
+                                }
+                            }
+                            is WorkerEvent.ToolCall -> {
+                                ws.output.append("\n[tool] ${event.toolName}\n")
+                            }
+                            is WorkerEvent.Done -> {
+                                ws.status = "idle"
+                                ws.output.append("\n--- Done ---\n")
+                                workerList.repaint()
+                                if (workerList.selectedIndex == idx) {
+                                    outputArea.text = ws.output.toString()
+                                }
+                            }
+                            is WorkerEvent.Error -> {
+                                ws.status = "error"
+                                ws.output.append("\n[error] ${event.message}\n")
+                                workerList.repaint()
+                            }
                         }
                     }
-                    is ChatEvent.ToolCall -> {
-                        ws.output.append("\n[tool] ${event.name}\n")
-                    }
-                    is ChatEvent.Done -> {
-                        ws.status = "idle"
-                        ws.output.append("\n--- Done ---\n")
-                        workerList.repaint()
-                        if (workerList.selectedIndex == idx) {
-                            outputArea.text = ws.output.toString()
-                        }
-                    }
-                    is ChatEvent.Error -> {
-                        ws.status = "error"
-                        ws.output.append("\n[error] ${event.message}\n")
-                        workerList.repaint()
-                    }
-                    else -> {}
                 }
             }
         }
 
-        cm.sendMessage(prompt)
+        scope.launch {
+            try {
+                ConversationManager.getInstance(project).ensureInitialized()
+                session.executeTask(task)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                SwingUtilities.invokeLater {
+                    ws.status = "error"
+                    ws.output.append("\n[error] ${e.message}\n")
+                    workerList.repaint()
+                    if (workerList.selectedIndex == idx) {
+                        outputArea.text = ws.output.toString()
+                    }
+                }
+            }
+        }
     }
 
+    /**
+     * Orchestrate a goal across all workers using OrchestratorService.
+     * Delegates planning, parallel DAG execution, and synthesis to the service.
+     */
     private fun orchestrate() {
         val goal = orchestrateField.text.trim()
         if (goal.isEmpty()) return
@@ -219,39 +260,123 @@ class WorkerPanel(private val project: Project) : JPanel(BorderLayout()), Dispos
             return
         }
 
-        // Build an orchestration prompt that decomposes the goal into worker tasks
-        val workerDescs = (0 until workerListModel.size()).map { i ->
-            val w = workerListModel.getElementAt(i).entry
-            "- ${w.role}: ${w.description}"
-        }.joinToString("\n")
+        val orchestrator = OrchestratorService.getInstance(project)
+        if (orchestrator.isRunning) {
+            Messages.showInfoMessage("Orchestration already in progress.", "Busy")
+            return
+        }
 
-        val orchestrationPrompt = """You are an orchestrator. Break down this goal into tasks for the available workers.
+        // Reset all worker states
+        for (i in 0 until workerListModel.size()) {
+            val ws = workerListModel.getElementAt(i)
+            ws.status = "idle"
+            ws.output.clear()
+        }
+        workerList.repaint()
 
-Available workers:
-$workerDescs
+        // Show cancel button
+        orchestrateButton.isVisible = false
+        cancelButton.isVisible = true
 
-Goal: $goal
+        // Collect orchestrator events for UI updates
+        scope.launch {
+            orchestrator.events.collect { event ->
+                SwingUtilities.invokeLater {
+                    handleOrchestratorEvent(event)
+                }
+            }
+        }
 
-For each subtask, specify which worker role should handle it and what the task is.
-Then execute each subtask by working through them sequentially."""
+        orchestrator.run(goal)
+    }
 
-        val cm = ConversationManager.getInstance(project)
-        cm.sendMessage(orchestrationPrompt)
+    private fun cancelOrchestration() {
+        OrchestratorService.getInstance(project).cancel()
+        orchestrateButton.isVisible = true
+        cancelButton.isVisible = false
 
-        // Show output in first worker for now
-        if (workerListModel.size() > 0) {
-            workerList.selectedIndex = 0
+        for (i in 0 until workerListModel.size()) {
+            val ws = workerListModel.getElementAt(i)
+            if (ws.status == "working") {
+                ws.status = "idle"
+                ws.output.append("\n--- Cancelled ---\n")
+            }
+        }
+        workerList.repaint()
+        showWorkerOutput()
+    }
+
+    private fun handleOrchestratorEvent(event: OrchestratorEvent) {
+        when (event) {
+            is OrchestratorEvent.PlanStarted -> {
+                outputArea.text = "Planning task decomposition for: ${event.goal}\n"
+            }
+            is OrchestratorEvent.PlanCompleted -> {
+                val planText = event.tasks.joinToString("\n") { t ->
+                    val deps = if (t.dependsOn.isNotEmpty()) " (after: ${t.dependsOn})" else ""
+                    "  ${t.index}. [${t.workerRole}]$deps ${t.task}"
+                }
+                outputArea.text = outputArea.text + "\nPlan (${event.tasks.size} tasks):\n$planText\n\n"
+            }
+            is OrchestratorEvent.TaskAssigned -> {
+                val ws = findWorkerState(event.task.workerRole)
+                if (ws != null) {
+                    ws.status = "working"
+                    ws.output.append("--- Task ${event.task.index}: ${event.task.task} ---\n")
+                    workerList.repaint()
+                }
+            }
+            is OrchestratorEvent.TaskProgress -> {
+                val ws = findWorkerState(event.workerRole)
+                if (ws != null) {
+                    ws.output.append(event.text)
+                    // If this worker is selected, update the display
+                    val selectedWs = workerList.selectedValue
+                    if (selectedWs?.entry?.role == event.workerRole) {
+                        outputArea.text = ws.output.toString()
+                        outputArea.caretPosition = outputArea.document.length
+                    }
+                }
+            }
+            is OrchestratorEvent.TaskCompleted -> {
+                val ws = findWorkerState(event.result.workerRole)
+                if (ws != null) {
+                    ws.status = if (event.result.status == "success") "done" else "error"
+                    ws.output.append("\n--- Task ${event.result.index} ${event.result.status} ---\n")
+                    workerList.repaint()
+                }
+            }
+            is OrchestratorEvent.SummarizeStarted -> {
+                outputArea.text = outputArea.text + "\nGenerating summary...\n"
+            }
+            is OrchestratorEvent.SummarizeCompleted -> {
+                outputArea.text = outputArea.text + "\n=== Summary ===\n${event.summary}\n"
+            }
+            is OrchestratorEvent.Finished -> {
+                orchestrateButton.isVisible = true
+                cancelButton.isVisible = false
+
+                // Update all workers to final state
+                for (i in 0 until workerListModel.size()) {
+                    val ws = workerListModel.getElementAt(i)
+                    if (ws.status == "working") ws.status = "done"
+                }
+                workerList.repaint()
+            }
+            is OrchestratorEvent.Error -> {
+                outputArea.text = outputArea.text + "\n[ERROR] ${event.message}\n"
+                orchestrateButton.isVisible = true
+                cancelButton.isVisible = false
+            }
         }
     }
 
-    private fun buildWorkerPrompt(worker: WorkerEntry, task: String): String {
-        val sb = StringBuilder()
-        if (worker.systemPrompt.isNotBlank()) {
-            sb.append("System instructions: ${worker.systemPrompt}\n\n")
+    private fun findWorkerState(role: String): WorkerState? {
+        for (i in 0 until workerListModel.size()) {
+            val ws = workerListModel.getElementAt(i)
+            if (ws.entry.role == role) return ws
         }
-        sb.append("You are acting as a '${worker.role}' specialist. ${worker.description}\n\n")
-        sb.append("Task: $task")
-        return sb.toString()
+        return null
     }
 
     private class WorkerCellRenderer : DefaultListCellRenderer() {
@@ -263,12 +388,14 @@ Then execute each subtask by working through them sequentially."""
             val statusColor = when (ws.status) {
                 "working" -> "#FF9800"
                 "error" -> "#F44336"
+                "done" -> "#2196F3"
                 else -> "#4CAF50"
             }
             text = "<html><b>${ws.entry.role}</b> <span style='color: $statusColor'>[${ws.status}]</span></html>"
             icon = when (ws.status) {
                 "working" -> AllIcons.Process.Step_1
                 "error" -> AllIcons.General.Error
+                "done" -> AllIcons.Actions.Checked
                 else -> AllIcons.Nodes.Deploy
             }
             return this
@@ -276,6 +403,7 @@ Then execute each subtask by working through them sequentially."""
     }
 
     override fun dispose() {
+        workerSessions.clear()
         scope.cancel()
     }
 }
@@ -291,6 +419,10 @@ class WorkerDialog(private val existing: WorkerEntry?) : DialogWrapper(true) {
     private val descField = JBTextField(existing?.description ?: "")
     private val modelField = JBTextField(existing?.model ?: "")
     private val promptArea = JTextArea(existing?.systemPrompt ?: "", 5, 40)
+    private val agentModeCheckbox = JCheckBox("Agent Mode (tool calling)", existing?.agentMode ?: true)
+    private val toolsEnabledArea = JTextArea(
+        existing?.toolsEnabled?.joinToString(", ") ?: "", 2, 40
+    )
 
     init {
         title = if (existing != null) "Edit Worker" else "Add Worker"
@@ -326,9 +458,24 @@ class WorkerDialog(private val existing: WorkerEntry?) : DialogWrapper(true) {
         panel.add(promptScroll, gbc)
         row++
 
-        // Presets hint
+        addRow("", agentModeCheckbox)
+
+        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0.0
+        panel.add(JLabel("Tools Enabled:"), gbc)
+        gbc.gridx = 1; gbc.weightx = 1.0
+        val toolsScroll = JBScrollPane(toolsEnabledArea)
+        toolsScroll.preferredSize = Dimension(400, 50)
+        panel.add(toolsScroll, gbc)
+        row++
+
+        // Hints
         gbc.gridx = 0; gbc.gridy = row; gbc.gridwidth = 2
-        panel.add(JLabel("<html><i style='color: gray'>Examples: bug_fixer, test_writer, code_reviewer, playwright_tester</i></html>"), gbc)
+        panel.add(JLabel("<html><i style='color: gray'>Tools: comma-separated names, blank = all tools. " +
+            "Examples: read_file, grep_search, list_dir</i></html>"), gbc)
+        row++
+
+        gbc.gridy = row; gbc.gridwidth = 2
+        panel.add(JLabel("<html><i style='color: gray'>Presets: bug_fixer, test_writer, code_reviewer, playwright_tester</i></html>"), gbc)
 
         return panel
     }
@@ -338,12 +485,22 @@ class WorkerDialog(private val existing: WorkerEntry?) : DialogWrapper(true) {
             Messages.showErrorDialog("Worker role is required.", "Validation Error")
             return
         }
+
+        val toolsText = toolsEnabledArea.text.trim()
+        val toolsList: MutableList<String>? = if (toolsText.isBlank()) {
+            null // null = all tools
+        } else {
+            toolsText.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toMutableList()
+        }
+
         result = WorkerEntry(
             role = roleField.text.trim(),
             description = descField.text.trim(),
             model = modelField.text.trim(),
             systemPrompt = promptArea.text.trim(),
             enabled = true,
+            toolsEnabled = toolsList,
+            agentMode = agentModeCheckbox.isSelected,
         )
         super.doOKAction()
     }

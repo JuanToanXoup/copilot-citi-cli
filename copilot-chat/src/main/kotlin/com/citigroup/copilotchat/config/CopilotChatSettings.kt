@@ -26,6 +26,9 @@ class CopilotChatSettings : PersistentStateComponent<CopilotChatSettings.State> 
         var model: String = "",
         var systemPrompt: String = "",
         var enabled: Boolean = true,
+        @XCollection(elementTypes = [String::class])
+        var toolsEnabled: MutableList<String>? = null,  // null = all tools
+        var agentMode: Boolean = true,
     )
 
     data class State(

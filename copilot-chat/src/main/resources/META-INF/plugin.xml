@@ -30,6 +30,9 @@
         <!-- Project-level Conversation Manager -->
         <projectService serviceImplementation="com.citigroup.copilotchat.conversation.ConversationManager"/>
 
+        <!-- Project-level Orchestrator -->
+        <projectService serviceImplementation="com.citigroup.copilotchat.orchestrator.OrchestratorService"/>
+
         <!-- RAG: In-memory vector store with file persistence -->
         <applicationService serviceImplementation="com.citigroup.copilotchat.rag.VectorStore"/>
 
