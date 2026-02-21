@@ -16,6 +16,8 @@ export function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [selectedNode, setSelectedNode] = useState<Node | null>(null)
   const [dividerPosition, setDividerPosition] = useState(50) // percentage
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
   const isProcessing = useAgentStore((s) => s.isProcessing)
   const dividerRef = useRef<HTMLDivElement>(null)
 
@@ -35,7 +37,18 @@ export function App() {
       } else if (meta && e.key === '/') {
         e.preventDefault()
         setSidebarOpen((s) => !s)
+      } else if (meta && e.key === 'n' && !e.shiftKey) {
+        e.preventDefault()
+        handleNewConversation()
+      } else if (meta && e.shiftKey && e.key === 'p') {
+        e.preventDefault()
+        setSettingsOpen((s) => !s)
+      } else if (meta && e.key === 'k') {
+        e.preventDefault()
+        setPaletteOpen((s) => !s)
       } else if (e.key === 'Escape') {
+        setSettingsOpen(false)
+        setPaletteOpen(false)
         setSelectedNode(null)
       }
     }
@@ -76,6 +89,14 @@ export function App() {
       useFlowStore.getState().onReset()
       useAgentStore.getState().reset()
       setSelectedNode(null)
+      return
+    }
+    if (text === '/settings') {
+      setSettingsOpen(true)
+      return
+    }
+    if (text === '/tools') {
+      // TODO: open tool popover
       return
     }
 
@@ -194,6 +215,16 @@ export function App() {
 
       {/* Status bar */}
       <StatusBar connected={false} viewMode={viewMode} />
+
+      {/* Command Palette (Cmd+K) */}
+      {paletteOpen && (
+        <CommandPalette onClose={() => setPaletteOpen(false)} />
+      )}
+
+      {/* Settings modal (Cmd+Shift+P) */}
+      {settingsOpen && (
+        <SettingsModal onClose={() => setSettingsOpen(false)} />
+      )}
     </div>
   )
 }
@@ -208,5 +239,82 @@ function ViewModeButton({ label, active, onClick }: { label: string; active: boo
     >
       {label}
     </button>
+  )
+}
+
+function CommandPalette({ onClose }: { onClose: () => void }) {
+  const [query, setQuery] = useState('')
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]" onClick={onClose}>
+      <div
+        className="w-[480px] bg-gray-900 border border-gray-700 rounded-xl shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <input
+          autoFocus
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search conversations..."
+          className="w-full px-4 py-3 bg-transparent text-sm text-gray-100 placeholder-gray-500
+                     border-b border-gray-800 outline-none"
+          onKeyDown={(e) => e.key === 'Escape' && onClose()}
+        />
+        <div className="max-h-64 overflow-y-auto p-2">
+          <div className="text-xs text-gray-500 px-2 py-1.5 uppercase tracking-wide">
+            Conversations
+          </div>
+          <div className="text-sm text-gray-400 px-2 py-6 text-center">
+            No conversations yet
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SettingsModal({ onClose }: { onClose: () => void }) {
+  const sections = ['Connection', 'Agents', 'Tools', 'Theme', 'Chat', 'Keybindings'] as const
+  const [activeSection, setActiveSection] = useState<string>(sections[0])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div
+        className="w-[640px] h-[480px] bg-gray-900 border border-gray-700 rounded-xl shadow-2xl flex overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Sidebar */}
+        <div className="w-44 border-r border-gray-800 p-3 space-y-0.5">
+          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 px-2">
+            Settings
+          </div>
+          {sections.map((s) => (
+            <button
+              key={s}
+              onClick={() => setActiveSection(s)}
+              className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors ${
+                activeSection === s
+                  ? 'bg-gray-800 text-white'
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
+              }`}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+        {/* Content */}
+        <div className="flex-1 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-100">{activeSection}</h2>
+            <button onClick={onClose} className="text-gray-500 hover:text-white text-sm">
+              Esc
+            </button>
+          </div>
+          <p className="text-sm text-gray-500">
+            {activeSection} settings will be configured here.
+          </p>
+        </div>
+      </div>
+    </div>
   )
 }

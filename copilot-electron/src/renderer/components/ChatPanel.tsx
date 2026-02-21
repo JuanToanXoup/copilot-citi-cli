@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState, forwardRef } from 'react'
 import { useAgentStore, type ChatMessage } from '../stores/agent-store'
 
 interface ChatPanelProps {
@@ -11,34 +11,44 @@ export function ChatPanel({ selectedNodeId }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
+  // Track which message is actively highlighted (with fade timer)
+  const [highlightedMsgId, setHighlightedMsgId] = useState<string | null>(null)
+
   // Auto-scroll to bottom on new messages
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages.length])
 
-  // Scroll to selected node's corresponding message
+  // Scroll to selected node's corresponding message, set highlight with fade
   useEffect(() => {
-    if (!selectedNodeId) return
+    if (!selectedNodeId) {
+      setHighlightedMsgId(null)
+      return
+    }
     const msg = messages.find((m) => m.nodeId === selectedNodeId)
     if (!msg) return
+    setHighlightedMsgId(msg.id)
     const el = messageRefs.current.get(msg.id)
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }
+    // Fade highlight after 3 seconds
+    const timer = setTimeout(() => setHighlightedMsgId(null), 3000)
+    return () => clearTimeout(timer)
   }, [selectedNodeId, messages])
 
   return (
     <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
       {messages.length === 0 && (
         <div className="flex items-center justify-center h-full text-gray-600 text-sm">
-          Send a message or type "demo" to get started
+          Send a message or type &quot;demo&quot; to get started
         </div>
       )}
       {messages.map((msg) => (
         <MessageBubble
           key={msg.id}
           message={msg}
-          isHighlighted={msg.nodeId === selectedNodeId}
+          isHighlighted={msg.id === highlightedMsgId}
           ref={(el) => {
             if (el) messageRefs.current.set(msg.id, el)
             else messageRefs.current.delete(msg.id)
@@ -49,8 +59,6 @@ export function ChatPanel({ selectedNodeId }: ChatPanelProps) {
   )
 }
 
-import { forwardRef } from 'react'
-
 interface MessageBubbleProps {
   message: ChatMessage
   isHighlighted: boolean
@@ -58,7 +66,9 @@ interface MessageBubbleProps {
 
 const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(
   ({ message, isHighlighted }, ref) => {
-    const highlightClass = isHighlighted ? 'border-l-2 border-l-blue-400 bg-blue-950/20' : ''
+    const highlightClass = isHighlighted
+      ? 'border-l-2 border-l-blue-400 bg-blue-950/20 transition-all duration-300'
+      : 'border-l-2 border-l-transparent transition-all duration-700'
 
     switch (message.type) {
       case 'user':
@@ -108,7 +118,17 @@ const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(
       case 'error':
         return (
           <div ref={ref} className="rounded-lg border border-red-800 bg-red-950/30 px-4 py-2.5 text-sm text-red-300">
-            {message.text}
+            <p>{message.text}</p>
+            <button
+              onClick={() => {
+                // TODO: implement retry — re-send the last user message
+                useAgentStore.getState().addStatusMessage('Retrying...')
+              }}
+              className="mt-2 text-xs px-3 py-1 rounded bg-red-900/50 border border-red-700
+                         text-red-300 hover:bg-red-800/50 transition-colors"
+            >
+              Retry
+            </button>
           </div>
         )
 
