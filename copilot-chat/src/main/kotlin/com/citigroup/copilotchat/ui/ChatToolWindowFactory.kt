@@ -30,6 +30,20 @@ class ChatToolWindowFactory : ToolWindowFactory, DumbAware {
         contentManager.addContent(chatContent)
         Disposer.register(toolWindow.disposable, chatPanel)
 
+        // Orchestrator tab — chat-style orchestration
+        val orchestratorPanel = OrchestratorPanel(project)
+        val orchestratorContent = contentFactory.createContent(orchestratorPanel, "Orchestrator", false)
+        orchestratorContent.isCloseable = false
+        contentManager.addContent(orchestratorContent)
+        Disposer.register(toolWindow.disposable, orchestratorPanel)
+
+        // Agent tab — Claude Code architecture (delegate_task, subagents, teams)
+        val agentPanel = AgentPanel(project)
+        val agentContent = contentFactory.createContent(agentPanel, "Agent", false)
+        agentContent.isCloseable = false
+        contentManager.addContent(agentContent)
+        Disposer.register(toolWindow.disposable, agentPanel)
+
         // Tools tab — registered tools viewer (re-registers tools on toggle)
         val toolsPanel = ToolsPanel(onToolToggled = { chatPanel.onToolToggled() })
         val toolsContent = contentFactory.createContent(toolsPanel, "Tools", false)

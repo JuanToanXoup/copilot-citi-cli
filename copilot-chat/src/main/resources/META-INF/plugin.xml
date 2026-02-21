@@ -33,6 +33,12 @@
         <!-- Project-level Orchestrator -->
         <projectService serviceImplementation="com.citigroup.copilotchat.orchestrator.OrchestratorService"/>
 
+        <!-- Project-level Agent Service (Claude Code architecture) -->
+        <projectService serviceImplementation="com.citigroup.copilotchat.agent.AgentService"/>
+
+        <!-- Project-level Team Service (agent team communication) -->
+        <projectService serviceImplementation="com.citigroup.copilotchat.agent.TeamService"/>
+
         <!-- RAG: In-memory vector store with file persistence -->
         <applicationService serviceImplementation="com.citigroup.copilotchat.rag.VectorStore"/>
 

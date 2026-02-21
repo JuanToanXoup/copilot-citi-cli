@@ -1,5 +1,6 @@
 package com.citigroup.copilotchat.conversation
 
+import com.citigroup.copilotchat.agent.AgentService
 import com.citigroup.copilotchat.auth.CopilotAuth
 import com.citigroup.copilotchat.auth.CopilotBinaryLocator
 import com.citigroup.copilotchat.config.CopilotChatSettings
@@ -552,6 +553,35 @@ class ConversationManager(private val project: Project) : Disposable {
     }
 
     private suspend fun handleServerRequest(method: String, id: Int, params: JsonObject) {
+        // Route Agent tab conversations to AgentService
+        val callConvId = params["conversationId"]?.jsonPrimitive?.contentOrNull
+        val agentService = try { AgentService.getInstance(project) } catch (_: Exception) { null }
+        if (agentService != null && agentService.ownsConversation(callConvId)) {
+            when (method) {
+                "conversation/invokeClientToolConfirmation" -> {
+                    val result = buildJsonArray {
+                        addJsonObject { put("result", "accept") }
+                        add(JsonNull)
+                    }
+                    lspClient.sendResponse(id, result)
+                }
+                "conversation/invokeClientTool" -> {
+                    val toolName = params["name"]?.jsonPrimitive?.contentOrNull
+                        ?: params["toolName"]?.jsonPrimitive?.contentOrNull
+                        ?: "unknown"
+                    val toolInput = params["input"]?.jsonObject
+                        ?: params["arguments"]?.jsonObject
+                        ?: JsonObject(emptyMap())
+                    agentService.handleToolCall(id, toolName, toolInput, callConvId)
+                }
+                else -> {
+                    // Fall through to default handlers below
+                    handleDefaultServerRequest(method, id, params)
+                }
+            }
+            return
+        }
+
         when (method) {
             "conversation/invokeClientToolConfirmation" -> {
                 val result = buildJsonArray {
@@ -568,7 +598,13 @@ class ConversationManager(private val project: Project) : Disposable {
                     ?: params["arguments"]?.jsonObject
                     ?: JsonObject(emptyMap())
 
-                _events.emit(ChatEvent.ToolCall(toolName, toolInput))
+                // Only emit ChatEvents if this tool call belongs to the Chat tab's conversation.
+                // Worker sessions have their own conversationIds and should not leak into Chat.
+                val isChatConversation = callConvId == null || callConvId == state.conversationId
+
+                if (isChatConversation) {
+                    _events.emit(ChatEvent.ToolCall(toolName, toolInput))
+                }
 
                 // Check client-side MCP tools first
                 val mcpManager = clientMcpManager
@@ -584,17 +620,38 @@ class ConversationManager(private val project: Project) : Disposable {
                         add(JsonNull)
                     }
                     lspClient.sendResponse(id, result)
-                    _events.emit(ChatEvent.ToolResult(toolName, resultText.take(200)))
+                    if (isChatConversation) {
+                        _events.emit(ChatEvent.ToolResult(toolName, resultText.take(200)))
+                    }
                 } else {
                     val result = toolRouter.executeTool(toolName, toolInput)
                     lspClient.sendResponse(id, result)
 
-                    val outputText = result.jsonArray.firstOrNull()?.jsonObject
-                        ?.get("content")?.jsonArray?.firstOrNull()?.jsonObject
-                        ?.get("value")?.jsonPrimitive?.contentOrNull ?: ""
-                    _events.emit(ChatEvent.ToolResult(toolName, outputText.take(200)))
+                    if (isChatConversation) {
+                        val outputText = result.jsonArray.firstOrNull()?.jsonObject
+                            ?.get("content")?.jsonArray?.firstOrNull()?.jsonObject
+                            ?.get("value")?.jsonPrimitive?.contentOrNull ?: ""
+                        _events.emit(ChatEvent.ToolResult(toolName, outputText.take(200)))
+                    }
                 }
             }
+            "copilot/watchedFiles" -> {
+                lspClient.sendResponse(id, buildJsonObject {
+                    putJsonArray("watchedFiles") {}
+                })
+            }
+            "window/showMessageRequest" -> {
+                lspClient.sendResponse(id, JsonNull)
+            }
+            else -> {
+                log.debug("Unhandled server request: $method")
+                lspClient.sendResponse(id, JsonNull)
+            }
+        }
+    }
+
+    private suspend fun handleDefaultServerRequest(method: String, id: Int, params: JsonObject) {
+        when (method) {
             "copilot/watchedFiles" -> {
                 lspClient.sendResponse(id, buildJsonObject {
                     putJsonArray("watchedFiles") {}
