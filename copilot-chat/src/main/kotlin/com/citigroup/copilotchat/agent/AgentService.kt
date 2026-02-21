@@ -80,7 +80,7 @@ class AgentService(private val project: Project) : Disposable {
                 val replyParts = Collections.synchronizedList(mutableListOf<String>())
 
                 lspClient.registerProgressListener(workDoneToken) { value ->
-                    scope.launch { handleLeadProgress(value, replyParts) }
+                    handleLeadProgress(value, replyParts)
                 }
 
                 try {
@@ -302,7 +302,16 @@ class AgentService(private val project: Project) : Disposable {
     /**
      * Handle progress events from the lead agent's conversation.
      */
-    private suspend fun handleLeadProgress(value: JsonObject, replyParts: MutableList<String>) {
+    /**
+     * Handle progress events from the lead agent's conversation.
+     *
+     * IMPORTANT: uses tryEmit() (non-suspending) instead of emit() to avoid
+     * blocking the Dispatchers.Default thread pool. If coroutines here block
+     * on emit(), they starve threads needed by the tool call handler in
+     * ConversationManager, deadlocking the conversation. Dropped UI events
+     * are acceptable since LeadDone carries the full accumulated text.
+     */
+    private fun handleLeadProgress(value: JsonObject, replyParts: MutableList<String>) {
         val kind = value["kind"]?.jsonPrimitive?.contentOrNull
 
         if (kind == "end") {
@@ -313,19 +322,19 @@ class AgentService(private val project: Project) : Disposable {
         val reply = value["reply"]?.jsonPrimitive?.contentOrNull
         if (reply != null) {
             replyParts.add(reply)
-            _events.emit(AgentEvent.LeadDelta(reply))
+            _events.tryEmit(AgentEvent.LeadDelta(reply))
         }
 
         val delta = value["delta"]?.jsonPrimitive?.contentOrNull
         if (delta != null) {
             replyParts.add(delta)
-            _events.emit(AgentEvent.LeadDelta(delta))
+            _events.tryEmit(AgentEvent.LeadDelta(delta))
         }
 
         val message = value["message"]?.jsonPrimitive?.contentOrNull
         if (message != null && kind != "begin") {
             replyParts.add(message)
-            _events.emit(AgentEvent.LeadDelta(message))
+            _events.tryEmit(AgentEvent.LeadDelta(message))
         }
 
         // Agent rounds
@@ -335,7 +344,7 @@ class AgentService(private val project: Project) : Disposable {
             val roundReply = round["reply"]?.jsonPrimitive?.contentOrNull ?: ""
             if (roundReply.isNotEmpty()) {
                 replyParts.add(roundReply)
-                _events.emit(AgentEvent.LeadDelta(roundReply))
+                _events.tryEmit(AgentEvent.LeadDelta(roundReply))
             }
 
             val toolCalls = round["toolCalls"]?.jsonArray
@@ -347,13 +356,13 @@ class AgentService(private val project: Project) : Disposable {
 
                 // Skip delegate_task tool calls in the lead progress — shown as subagent events instead
                 if (name != "delegate_task") {
-                    _events.emit(AgentEvent.LeadToolCall(name, tcInput))
+                    _events.tryEmit(AgentEvent.LeadToolCall(name, tcInput))
                     if (status == "completed" || status == "error") {
                         val resultData = tc["result"]?.jsonArray
                         val resultText = resultData?.firstOrNull()?.jsonObject
                             ?.get("content")?.jsonPrimitive?.contentOrNull
                             ?: status
-                        _events.emit(AgentEvent.LeadToolResult(name, resultText.take(200)))
+                        _events.tryEmit(AgentEvent.LeadToolResult(name, resultText.take(200)))
                     }
                 }
             }
