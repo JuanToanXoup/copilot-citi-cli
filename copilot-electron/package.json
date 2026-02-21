@@ -10,7 +10,8 @@
     "build:renderer": "vite build",
     "build:main": "vite build --config vite.main.config.ts",
     "build:preload": "vite build --config vite.preload.config.ts",
-    "preview": "electron dist/main/index.js"
+    "preview": "electron dist/main/index.js",
+    "package": "electron-builder"
   },
   "dependencies": {
     "@xyflow/react": "^12.4.0",
