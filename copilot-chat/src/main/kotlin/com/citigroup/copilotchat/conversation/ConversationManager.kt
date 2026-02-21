@@ -709,12 +709,6 @@ class ConversationManager(private val project: Project) : Disposable {
         scope.launch { _events.emit(ChatEvent.Done("")) }
     }
 
-    /**
-     * Returns a map of MCP server name -> list of (action name, description), or empty if no client-side MCP.
-     */
-    fun getMcpServerActions(): Map<String, List<Pair<String, String>>> =
-        clientMcpManager?.getServerActions() ?: emptyMap()
-
     /** Start a fresh conversation. */
     fun newConversation() {
         cancel()

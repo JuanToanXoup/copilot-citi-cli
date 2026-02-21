@@ -40,3 +40,18 @@ tasks.register<Delete>("clean") {
     delete("dist")
     delete("node_modules")
 }
+
+tasks.register<com.github.gradle.node.npm.task.NpmTask>("viteBuild") {
+    description = "Build all Vite targets"
+    group = "build"
+    dependsOn("npmInstall")
+    npmCommand = listOf("run", "build")
+}
+
+tasks.register<com.github.gradle.node.npm.task.NpxTask>("viteBuildAndRun") {
+    description = "Build with Vite and run Electron"
+    group = "application"
+    dependsOn("viteBuild")
+    command = "electron"
+    args = listOf("dist/main/index.js")
+}
