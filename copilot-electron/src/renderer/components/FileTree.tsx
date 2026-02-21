@@ -12,12 +12,20 @@ declare global {
   interface Window {
     api?: {
       dialog: { openDirectory: () => Promise<string | null> }
-      fs: { readDirectory: (path: string) => Promise<FileEntry[]> }
+      fs: {
+        readDirectory: (path: string) => Promise<FileEntry[]>
+        readFile: (path: string) => Promise<string | null>
+        writeFile: (path: string, content: string) => Promise<boolean>
+      }
     }
   }
 }
 
-export function FileTree() {
+interface FileTreeProps {
+  onFileSelect?: (path: string, name: string) => void
+}
+
+export function FileTree({ onFileSelect }: FileTreeProps) {
   const projectPath = useSettingsStore((s) => s.projectPath)
   const [entries, setEntries] = useState<FileEntry[]>([])
 
@@ -50,14 +58,14 @@ export function FileTree() {
       </div>
       <div className="flex-1 overflow-y-auto">
         {entries.map((entry) => (
-          <TreeNode key={entry.path} entry={entry} depth={0} />
+          <TreeNode key={entry.path} entry={entry} depth={0} onFileSelect={onFileSelect} />
         ))}
       </div>
     </div>
   )
 }
 
-function TreeNode({ entry, depth }: { entry: FileEntry; depth: number }) {
+function TreeNode({ entry, depth, onFileSelect }: { entry: FileEntry; depth: number; onFileSelect?: (path: string, name: string) => void }) {
   const [expanded, setExpanded] = useState(false)
   const [children, setChildren] = useState<FileEntry[]>([])
   const [loaded, setLoaded] = useState(false)
@@ -104,7 +112,7 @@ function TreeNode({ entry, depth }: { entry: FileEntry; depth: number }) {
               style={{ left: `${paddingLeft + 5}px` }}
             />
             {children.map((child) => (
-              <TreeNode key={child.path} entry={child} depth={depth + 1} />
+              <TreeNode key={child.path} entry={child} depth={depth + 1} onFileSelect={onFileSelect} />
             ))}
           </div>
         )}
@@ -115,6 +123,7 @@ function TreeNode({ entry, depth }: { entry: FileEntry; depth: number }) {
   const FileIconComponent = getFileIcon(entry.name)
   return (
     <div
+      onClick={() => onFileSelect?.(entry.path, entry.name)}
       className="flex items-center gap-1 py-[2px] pr-2 hover:bg-[#2b2d30] cursor-pointer transition-colors"
       style={{ paddingLeft: `${paddingLeft}px` }}
     >

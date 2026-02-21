@@ -215,6 +215,10 @@ class AgentService(private val project: Project) : Disposable {
         val parts = mutableListOf<String>()
 
         val agentList = agents.joinToString("\n") { "- ${it.agentType}: ${it.whenToUse}" }
+
+        // Build a tool-to-agents table dynamically from tool schemas + agent definitions
+        val toolTable = buildToolAgentTable()
+
         parts.add(
             "<system_instructions>\n" +
             "You are a lead agent that coordinates sub-agents via the delegate_task tool.\n\n" +
@@ -228,6 +232,7 @@ class AgentService(private val project: Project) : Disposable {
             "Only use multiple rounds when a subtask genuinely needs the output of another.\n" +
             "Maximize parallelism — if tasks are independent, fire them all in one round.\n\n" +
             "Available agent types:\n$agentList\n\n" +
+            toolTable + "\n\n" +
             "Workflow:\n" +
             "1. Analyze the user's request and break it into subtasks\n" +
             "2. Identify dependencies — which subtasks need results from others?\n" +
@@ -241,6 +246,52 @@ class AgentService(private val project: Project) : Disposable {
 
         parts.add(userMessage)
         return parts.joinToString("\n\n")
+    }
+
+    /**
+     * Build a markdown table mapping each tool to its description and which agents can use it.
+     * Constructed dynamically from ToolRouter schemas, agent definitions, and MCP server actions.
+     */
+    private fun buildToolAgentTable(): String {
+        val sb = StringBuilder()
+        sb.appendLine("<available_tools>")
+        sb.appendLine("Tool | Description | Available to agents")
+        sb.appendLine("--- | --- | ---")
+
+        // Exclude delegation/team tools — the lead agent handles those itself
+        val excludedTools = setOf("delegate_task", "create_team", "send_message", "delete_team")
+
+        // Collect in-process tool names + descriptions from ToolRouter schemas
+        val toolSchemas = toolRouter.getToolSchemas()
+        for (schema in toolSchemas) {
+            try {
+                val obj = json.parseToJsonElement(schema).jsonObject
+                val name = obj["name"]?.jsonPrimitive?.contentOrNull ?: continue
+                if (name in excludedTools) continue
+                val desc = obj["description"]?.jsonPrimitive?.contentOrNull ?: ""
+                // Truncate long descriptions for prompt brevity
+                val shortDesc = if (desc.length > 120) desc.take(117) + "..." else desc
+                val availableAgents = agents.filter { agent ->
+                    val allowed = agent.tools
+                    name !in agent.disallowedTools && (allowed == null || name in allowed)
+                }.joinToString(", ") { it.agentType }
+                sb.appendLine("$name | $shortDesc | $availableAgents")
+            } catch (_: Exception) { /* skip malformed schemas */ }
+        }
+
+        // Append MCP tools — available to agents with tools=null (e.g. general-purpose)
+        val mcpActions = conversationManager.getMcpServerActions()
+        val allToolsAgents = agents.filter { it.tools == null }
+            .joinToString(", ") { it.agentType }
+        for ((server, actions) in mcpActions) {
+            for ((action, desc) in actions) {
+                val shortDesc = if (desc.length > 120) desc.take(117) + "..." else desc
+                sb.appendLine("$server/$action | $shortDesc | $allToolsAgents")
+            }
+        }
+
+        sb.append("</available_tools>")
+        return sb.toString()
     }
 
     /**

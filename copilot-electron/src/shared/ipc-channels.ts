@@ -8,6 +8,8 @@ export const CHAT_MESSAGE = 'chat:message' as const
 export const SETTINGS_UPDATE = 'settings:update' as const
 export const DIALOG_OPEN_DIRECTORY = 'dialog:open-directory' as const
 export const FS_READ_DIRECTORY = 'fs:read-directory' as const
+export const FS_READ_FILE = 'fs:read-file' as const
+export const FS_WRITE_FILE = 'fs:write-file' as const
 
 // Main → Renderer
 export const AGENT_EVENT = 'agent:event' as const

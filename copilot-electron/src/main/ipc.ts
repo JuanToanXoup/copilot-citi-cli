@@ -8,6 +8,8 @@ import {
   AGENT_EVENT,
   DIALOG_OPEN_DIRECTORY,
   FS_READ_DIRECTORY,
+  FS_READ_FILE,
+  FS_WRITE_FILE,
 } from '@shared/ipc-channels'
 import type { AgentEvent } from '@shared/events'
 
@@ -34,6 +36,23 @@ export function registerIpc(): void {
     })
     if (result.canceled || result.filePaths.length === 0) return null
     return result.filePaths[0]
+  })
+
+  ipcMain.handle(FS_READ_FILE, async (_event, filePath: string) => {
+    try {
+      return fs.readFileSync(filePath, 'utf-8')
+    } catch {
+      return null
+    }
+  })
+
+  ipcMain.handle(FS_WRITE_FILE, async (_event, filePath: string, content: string) => {
+    try {
+      fs.writeFileSync(filePath, content, 'utf-8')
+      return true
+    } catch {
+      return false
+    }
   })
 
   ipcMain.handle(FS_READ_DIRECTORY, async (_event, dirPath: string) => {

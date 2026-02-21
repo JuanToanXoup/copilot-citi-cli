@@ -236,6 +236,18 @@ class ClientMcpManager(
     fun isMcpTool(name: String): Boolean = name in compoundToolNames
 
     /**
+     * Returns a map of server name -> list of (action name, description) for all running MCP servers.
+     * Used by the lead agent prompt to advertise available MCP tools to subagents.
+     */
+    fun getServerActions(): Map<String, List<Pair<String, String>>> =
+        serverToolIndex.mapValues { (_, tools) ->
+            tools.map { (name, schema) ->
+                val desc = schema["description"]?.jsonPrimitive?.contentOrNull ?: ""
+                name to desc
+            }
+        }
+
+    /**
      * Call a client-side MCP tool. The input must contain an "action" field
      * that maps to the original tool name within the server.
      */

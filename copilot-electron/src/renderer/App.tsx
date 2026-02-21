@@ -7,6 +7,8 @@ import { FileTree } from './components/FileTree'
 import { StatusBar } from './components/StatusBar'
 import { ChangesPanel } from './components/ChangesPanel'
 import { ProjectPicker } from './components/ProjectPicker'
+import { ActivityBar, type SidePanel } from './components/ActivityBar'
+import { FileEditor, type OpenFile, prefetchFile } from './components/FileEditor'
 import { useFlowStore } from './stores/flow-store'
 import { useAgentStore } from './stores/agent-store'
 import { useSettingsStore, type ThemeTokens, type ToolDisplayMode, type ColorMode } from './stores/settings-store'
@@ -27,16 +29,44 @@ export function App() {
 
 function MainApp() {
   const [viewMode, setViewMode] = useState<ViewMode>('split')
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [activePanel, setActivePanel] = useState<SidePanel | null>('explorer')
   const [selectedNode, setSelectedNode] = useState<Node | null>(null)
   const [dividerPosition, setDividerPosition] = useState(50)
-  const [sidebarWidth, setSidebarWidth] = useState(300)
+  const [sidebarWidth, setSidebarWidth] = useState(260)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [changesOpen, setChangesOpen] = useState(false)
+  const [openFiles, setOpenFiles] = useState<OpenFile[]>([])
+  const [activeFile, setActiveFile] = useState<string | null>(null)
+  const [editorWidth, setEditorWidth] = useState(500)
   const isProcessing = useAgentStore((s) => s.isProcessing)
   const dividerRef = useRef<HTMLDivElement>(null)
   const sidebarDividerRef = useRef<HTMLDivElement>(null)
+  const editorDividerRef = useRef<HTMLDivElement>(null)
+
+  const handlePanelToggle = useCallback((panel: SidePanel) => {
+    setActivePanel((prev) => (prev === panel ? null : panel))
+  }, [])
+
+  const handleFileSelect = useCallback((path: string, name: string) => {
+    prefetchFile(path) // start loading immediately, before React re-renders
+    setOpenFiles((prev) => {
+      if (prev.some((f) => f.path === path)) return prev
+      return [...prev, { path, name }]
+    })
+    setActiveFile(path)
+  }, [])
+
+  const handleCloseFile = useCallback((path: string) => {
+    setOpenFiles((prev) => {
+      const next = prev.filter((f) => f.path !== path)
+      // If closing the active file, switch to the last remaining tab or null
+      setActiveFile((current) =>
+        current === path ? (next.length > 0 ? next[next.length - 1].path : null) : current,
+      )
+      return next
+    })
+  }, [])
 
   // Cycle view modes: Split → Chat → Graph → Split
   const cycleViewMode = useCallback(() => {
@@ -59,7 +89,7 @@ function MainApp() {
         cycleViewMode()
       } else if (meta && e.key === '/') {
         e.preventDefault()
-        setSidebarOpen((s) => !s)
+        setActivePanel((s) => (s ? null : 'explorer'))
       } else if (meta && e.key === 'n' && !e.shiftKey) {
         e.preventDefault()
         handleNewConversation()
@@ -131,6 +161,30 @@ function MainApp() {
     [sidebarWidth],
   )
 
+  // Resizable editor drag
+  const handleEditorDividerMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      const startX = e.clientX
+      const startWidth = editorWidth
+
+      const onMouseMove = (moveEvent: MouseEvent) => {
+        const delta = moveEvent.clientX - startX
+        const newWidth = Math.min(1200, Math.max(200, startWidth + delta))
+        setEditorWidth(newWidth)
+      }
+
+      const onMouseUp = () => {
+        document.removeEventListener('mousemove', onMouseMove)
+        document.removeEventListener('mouseup', onMouseUp)
+      }
+
+      document.addEventListener('mousemove', onMouseMove)
+      document.addEventListener('mouseup', onMouseUp)
+    },
+    [editorWidth],
+  )
+
   const handleSend = useCallback((text: string) => {
     // Slash commands
     if (text === '/new' || text === '/clear') {
@@ -148,7 +202,7 @@ function MainApp() {
       return
     }
     if (text === '/changes') {
-      setChangesOpen(true)
+      setActivePanel('vcs')
       return
     }
     // Git slash commands — stubs until IPC is wired
@@ -176,29 +230,16 @@ function MainApp() {
   const showChat = viewMode === 'split' || viewMode === 'chat'
   const showGraph = viewMode === 'split' || viewMode === 'graph'
 
+  const sidebarOpen = activePanel !== null
+
   return (
     <div className="flex flex-col h-screen bg-gray-950 text-gray-100">
       {/* Toolbar */}
       <div className="flex items-center justify-between px-4 py-2 bg-gray-900 border-b border-gray-800 shrink-0">
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => setSidebarOpen((s) => !s)}
-            className="text-xs px-2 py-1 text-gray-400 hover:text-white transition-colors"
-            title="Toggle file tree (Cmd+/)"
-          >
-            {sidebarOpen ? '◀' : '▶'}
-          </button>
           <span className="text-sm font-medium text-gray-300">Copilot Desktop</span>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setChangesOpen(true)}
-            className="text-xs px-3 py-1.5 bg-gray-800 border border-gray-700 rounded
-                       text-gray-400 hover:text-white hover:border-gray-600 transition-colors"
-            title="View changes"
-          >
-            Changes
-          </button>
           {/* View mode toggle */}
           <div className="flex items-center bg-gray-800 rounded-lg border border-gray-700 p-0.5">
             <ViewModeButton label="Chat" active={viewMode === 'chat'} onClick={() => setViewMode('chat')} />
@@ -213,26 +254,34 @@ function MainApp() {
           >
             + New
           </button>
-          <button
-            onClick={() => setSettingsOpen(true)}
-            className="text-xs px-2 py-1.5 text-gray-400 hover:text-white transition-colors"
-            title="Settings (Cmd+Shift+P)"
-          >
-            ⚙
-          </button>
         </div>
       </div>
 
       {/* Main content area */}
       <div className="flex flex-1 overflow-hidden">
-        {/* File tree sidebar */}
+        {/* Activity bar */}
+        <ActivityBar
+          activePanel={activePanel}
+          onPanelToggle={handlePanelToggle}
+          onSettingsOpen={() => setSettingsOpen(true)}
+        />
+
+        {/* Side panel (explorer / search / vcs) */}
         {sidebarOpen && (
           <>
             <div
               className="shrink-0 bg-gray-900 overflow-y-auto"
               style={{ width: `${sidebarWidth}px` }}
             >
-              <FileTree />
+              {activePanel === 'explorer' && (
+                <FileTree onFileSelect={handleFileSelect} />
+              )}
+              {activePanel === 'search' && (
+                <SearchPanel />
+              )}
+              {activePanel === 'vcs' && (
+                <VcsPanel />
+              )}
             </div>
             <div
               ref={sidebarDividerRef}
@@ -241,6 +290,21 @@ function MainApp() {
             />
           </>
         )}
+
+        {/* Editor area */}
+        <div className="shrink-0 overflow-hidden" style={{ width: `${editorWidth}px` }}>
+          <FileEditor
+            openFiles={openFiles}
+            activeFile={activeFile}
+            onSelectFile={setActiveFile}
+            onCloseFile={handleCloseFile}
+          />
+        </div>
+        <div
+          ref={editorDividerRef}
+          onMouseDown={handleEditorDividerMouseDown}
+          className="w-1 shrink-0 bg-gray-800 hover:bg-blue-500 cursor-col-resize transition-colors"
+        />
 
         {/* Chat + Graph panes */}
         <div className="flex flex-1 overflow-hidden relative">
@@ -544,6 +608,44 @@ function KeybindingsSettings() {
           </kbd>
         </div>
       ))}
+    </div>
+  )
+}
+
+function SearchPanel() {
+  const [query, setQuery] = useState('')
+  return (
+    <div className="p-3 h-full flex flex-col">
+      <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">
+        Search
+      </div>
+      <input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search files..."
+        className="w-full px-2 py-1.5 text-xs bg-gray-800 border border-gray-700 rounded
+                   text-gray-100 placeholder-gray-600 focus:border-blue-500 outline-none mb-2"
+      />
+      <div className="flex-1 flex items-center justify-center">
+        <p className="text-xs text-gray-600 text-center px-4">
+          {query ? `Search results for "${query}" coming soon` : 'Type to search across files'}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function VcsPanel() {
+  return (
+    <div className="p-3 h-full flex flex-col">
+      <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">
+        Source Control
+      </div>
+      <div className="flex-1 flex items-center justify-center">
+        <p className="text-xs text-gray-600 text-center px-4">
+          Git integration coming soon
+        </p>
+      </div>
     </div>
   )
 }

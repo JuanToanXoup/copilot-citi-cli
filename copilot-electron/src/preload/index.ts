@@ -7,6 +7,8 @@ import {
   AGENT_EVENT,
   DIALOG_OPEN_DIRECTORY,
   FS_READ_DIRECTORY,
+  FS_READ_FILE,
+  FS_WRITE_FILE,
 } from '@shared/ipc-channels'
 
 const api = {
@@ -30,6 +32,10 @@ const api = {
   fs: {
     readDirectory: (dirPath: string): Promise<Array<{ name: string; path: string; isDirectory: boolean }>> =>
       ipcRenderer.invoke(FS_READ_DIRECTORY, dirPath),
+    readFile: (filePath: string): Promise<string | null> =>
+      ipcRenderer.invoke(FS_READ_FILE, filePath),
+    writeFile: (filePath: string, content: string): Promise<boolean> =>
+      ipcRenderer.invoke(FS_WRITE_FILE, filePath, content),
   },
 }
 
