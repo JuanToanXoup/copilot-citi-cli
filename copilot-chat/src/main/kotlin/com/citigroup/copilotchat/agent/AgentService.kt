@@ -85,12 +85,14 @@ class AgentService(private val project: Project) : Disposable {
 
                 try {
                     val rootUri = project.basePath?.let { "file://$it" } ?: "file:///tmp"
+                    val isFirstTurn = leadConversationId == null
+                    val prompt = if (isFirstTurn) buildLeadPrompt(text) else text
 
-                    if (leadConversationId == null) {
+                    if (isFirstTurn) {
                         val params = buildJsonObject {
                             put("workDoneToken", workDoneToken)
                             putJsonArray("turns") {
-                                addJsonObject { put("request", text) }
+                                addJsonObject { put("request", prompt) }
                             }
                             putJsonObject("capabilities") {
                                 put("allSkills", true)
@@ -187,6 +189,32 @@ class AgentService(private val project: Project) : Disposable {
         }
         lspClient.sendRequest("conversation/registerTools", params)
         log.info("AgentService: registered ${schemas.size} lead agent tools")
+    }
+
+    /**
+     * Build the first-turn prompt with system instructions that tell the lead agent
+     * to work autonomously, use delegate_task for subtasks, and complete the full
+     * task without stopping for confirmation.
+     */
+    private fun buildLeadPrompt(userMessage: String): String {
+        val agentList = agents.joinToString("\n") { "- ${it.agentType}: ${it.whenToUse}" }
+
+        return """
+<system_instructions>
+You are an autonomous lead agent. Your job is to fully complete the user's request without stopping to ask for confirmation.
+
+IMPORTANT RULES:
+1. COMPLETE THE ENTIRE TASK in this turn. Do not say "next I will..." or "I'll proceed to..." — just do it.
+2. Use the delegate_task tool to spawn specialized subagents for complex subtasks. Available agent types:
+$agentList
+3. When the user mentions specific agent types (Explore, Plan, Bash, etc.), you MUST use delegate_task to spawn those agents rather than doing the work yourself.
+4. You may call delegate_task multiple times to spawn multiple agents sequentially.
+5. After all subtasks complete, synthesize the results into a final coherent response.
+6. Do not ask for permission or confirmation. Execute the full plan autonomously.
+</system_instructions>
+
+$userMessage
+        """.trimIndent()
     }
 
     /**
