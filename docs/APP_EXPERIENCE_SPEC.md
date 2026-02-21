@@ -27,7 +27,7 @@ Standalone Electron desktop app that replaces the IntelliJ plugin. Connects dire
 - **File tree sidebar** (far left): Collapsible. Displays the project directory structure like an IDE. Loaded from the project root selected at startup.
 - **Chat panel** (center-left): Scrollable conversation view with streaming markdown.
 - **Flow graph** (right): React Flow canvas showing the agent orchestration as a DAG.
-- **Chat input** (bottom): Spans the width of the active panes.
+- **Chat input** (bottom): Always visible in all view modes. Spans the width of the active panes. In graph-only mode, the input still appears so the user can send messages (which create new turns in the graph).
 
 ### View Modes
 
@@ -65,6 +65,7 @@ Chat and graph are **two representations of the same conversation**. They are al
 
 | Node | Purpose | Visual |
 |------|---------|--------|
+| **TurnGroupNode** | Container wrapping all nodes in a turn | Subtle rounded border, faint background tint, "Turn N" label top-left. Not clickable. |
 | **UserNode** | User's message | Gray border, displays message text |
 | **LeadNode** | Lead agent for a turn | Yellow (running), green (done), red (error). Shows "Lead Agent · Turn N" for turns > 1 |
 | **SubagentNode** | Delegated subagent | Blue (running), green (success), red (error). Shows agent type, description, text preview |
@@ -90,9 +91,9 @@ Each user message starts a new vertical section:
 [Code]  [Explore] [Terminal: npm test]
 ```
 
-- Turns are chained vertically via **dashed gray edges** from the previous turn's lead to the next turn's user node.
-- Within a turn, edges from lead to children are **solid and animated** while active.
-- Dagre handles layout automatically.
+- Turns are chained vertically via **dashed spine edges** between turn group containers.
+- Within a turn, edges from lead to children are **animated particle edges** while active, settling to solid lines on completion.
+- Dagre handles layout of child nodes automatically; group containers are computed from child bounding boxes.
 
 ### Visual Rendering
 
@@ -271,10 +272,9 @@ The chat input supports **`/` slash commands** for explicit actions:
 | `/clear` | Clear current conversation |
 | `/settings` | Open settings |
 | `/tools` | Open tool popover |
-| `/commit` | Commit staged changes |
-| `/push` | Push to remote |
-
 Typing `/` shows an autocomplete dropdown. Tool and agent selection happens through natural language — no `@` or `#` prefixes.
+
+Git-specific slash commands (`/commit`, `/push`, `/pull`, `/branch`) are documented in Section 15.
 
 ---
 
@@ -393,11 +393,25 @@ my-project/
 └── .copilot/
     ├── config.json          # Project settings
     ├── theme.json           # Theme token overrides
-    └── conversations/
-        ├── 2026-02-21_explore-auth.json
-        ├── 2026-02-21_add-jwt.json
-        └── ...
+    ├── tools.json           # MCP server config, tool permissions
+    ├── conversations/       # Conversation history (commit to git)
+    │   ├── 2026-02-21_explore-auth.json
+    │   ├── 2026-02-21_add-jwt.json
+    │   └── ...
+    └── logs/                # Debug logs (gitignored)
+        └── 2026-02-21.log
 ```
+
+### What to commit
+
+The `.copilot/` directory should include a `.gitignore` that excludes transient data:
+
+```
+# .copilot/.gitignore
+logs/
+```
+
+Everything else (`config.json`, `theme.json`, `tools.json`, `conversations/`) is safe to commit and share with teammates.
 
 - Each conversation is a single JSON file containing the full message history, agent events, and metadata.
 - File names include the date and a short summary derived from the first user message.
@@ -528,13 +542,13 @@ IDE-standard defaults:
 | `Cmd+N` | New conversation tab |
 | `Cmd+W` | Close current tab |
 | `Cmd+/` | Toggle file tree sidebar |
-| `Cmd+\` | Toggle between view modes (chat/graph/split) |
+| `Cmd+\` | Cycle view modes: Split → Chat only → Graph only → Split |
 | `Cmd+Shift+P` | Open settings |
 | `Escape` | Close panels, deselect nodes, cancel search |
 
 ---
 
-## 20. Summary
+## 21. Summary
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
