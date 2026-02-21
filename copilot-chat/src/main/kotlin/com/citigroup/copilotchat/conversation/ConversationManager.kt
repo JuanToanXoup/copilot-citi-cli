@@ -611,6 +611,22 @@ class ConversationManager(private val project: Project) : Disposable {
                     _events.emit(ChatEvent.ToolCall(toolName, toolInput))
                 }
 
+                // Hard-enforce per-agent tool restrictions for subagent conversations
+                val agentSvc = try { AgentService.getInstance(project) } catch (_: Exception) { null }
+                if (agentSvc != null && !agentSvc.isToolAllowedForConversation(callConvId, toolName)) {
+                    val errorResult = buildJsonArray {
+                        addJsonObject {
+                            putJsonArray("content") {
+                                addJsonObject { put("value", "Tool '$toolName' is not available for this agent type.") }
+                            }
+                            put("status", "error")
+                        }
+                        add(JsonNull)
+                    }
+                    lspClient.sendResponse(id, errorResult)
+                    return
+                }
+
                 // Check client-side MCP tools first
                 val mcpManager = clientMcpManager
                 if (mcpManager != null && mcpManager.isMcpTool(toolName)) {

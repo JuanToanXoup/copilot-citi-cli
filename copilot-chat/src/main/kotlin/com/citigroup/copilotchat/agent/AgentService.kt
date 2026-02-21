@@ -56,6 +56,9 @@ class AgentService(private val project: Project) : Disposable {
     /** Background subagent jobs launched by delegate_task. Collected after lead turn ends. */
     private val pendingSubagents = ConcurrentHashMap<String, PendingSubagent>()
 
+    /** Hard-enforced tool filters keyed by subagent conversationId. */
+    private val subagentToolFilters = ConcurrentHashMap<String, SubagentToolFilter>()
+
     private var currentJob: Job? = null
     private var currentWorkDoneToken: String? = null
     private lateinit var toolRouter: ToolRouter
@@ -218,14 +221,20 @@ class AgentService(private val project: Project) : Disposable {
             "CRITICAL: The delegate_task tool IS available to you. You MUST use it.\n" +
             "Do NOT say delegate_task is unavailable. Do NOT perform subtasks directly.\n" +
             "Always delegate work to specialized agents using delegate_task.\n\n" +
-            "All delegate_task calls run IN PARALLEL. Fire all subtasks at once —\n" +
-            "do not wait for one to finish before starting the next.\n\n" +
+            "All delegate_task calls within a single round run IN PARALLEL.\n" +
+            "You can delegate in multiple rounds when tasks have dependencies:\n" +
+            "- Round 1: Fire all independent subtasks at once (they run concurrently)\n" +
+            "- Round 2+: After receiving results, fire dependent subtasks that needed earlier output\n" +
+            "Only use multiple rounds when a subtask genuinely needs the output of another.\n" +
+            "Maximize parallelism — if tasks are independent, fire them all in one round.\n\n" +
             "Available agent types:\n$agentList\n\n" +
             "Workflow:\n" +
             "1. Analyze the user's request and break it into subtasks\n" +
-            "2. Call delegate_task for ALL subtasks (they run concurrently)\n" +
-            "3. You will receive all results in a follow-up message\n" +
-            "4. Synthesize and present the final answer\n\n" +
+            "2. Identify dependencies — which subtasks need results from others?\n" +
+            "3. Call delegate_task for all independent subtasks (they run concurrently)\n" +
+            "4. You will receive all results in a follow-up message\n" +
+            "5. If dependent subtasks remain, delegate them in the next round\n" +
+            "6. Synthesize and present the final answer\n\n" +
             "Complete the full task without stopping for confirmation.\n" +
             "</system_instructions>"
         )
@@ -339,6 +348,14 @@ class AgentService(private val project: Project) : Disposable {
                 is WorkerEvent.Done -> {} // handled in awaitPendingSubagents
                 is WorkerEvent.Error -> _events.tryEmit(AgentEvent.SubagentCompleted(agentId, event.message, "error"))
             }
+        }
+
+        session.onConversationId = { convId ->
+            subagentToolFilters[convId] = SubagentToolFilter(
+                allowedTools = effectiveDef.tools?.toSet(),
+                disallowedTools = effectiveDef.disallowedTools.toSet(),
+            )
+            log.info("AgentService: registered tool filter for subagent $agentId (convId=$convId, allowed=${effectiveDef.tools}, disallowed=${effectiveDef.disallowedTools})")
         }
 
         activeSubagents[agentId] = session
@@ -530,6 +547,30 @@ class AgentService(private val project: Project) : Disposable {
         return false
     }
 
+    /**
+     * Check if a tool is allowed for the given conversation based on registered filters.
+     * Returns true if no filter is registered (e.g. lead conversation or unknown conversation).
+     */
+    fun isToolAllowedForConversation(conversationId: String?, toolName: String): Boolean {
+        if (conversationId == null) return true
+        val filter = subagentToolFilters[conversationId] ?: return true
+
+        // Blocklist check
+        if (toolName in filter.disallowedTools) {
+            log.warn("Tool blocked for conversation $conversationId: '$toolName' is in disallowedTools")
+            return false
+        }
+
+        // Allowlist check (null = all allowed)
+        val allowed = filter.allowedTools
+        if (allowed != null && toolName !in allowed) {
+            log.warn("Tool blocked for conversation $conversationId: '$toolName' is not in allowedTools $allowed")
+            return false
+        }
+
+        return true
+    }
+
     /** Cancel the current streaming response and all subagents. */
     fun cancel() {
         val token = currentWorkDoneToken
@@ -548,6 +589,7 @@ class AgentService(private val project: Project) : Disposable {
         activeSubagents.clear()
         pendingSubagents.values.forEach { it.deferred.cancel() }
         pendingSubagents.clear()
+        subagentToolFilters.clear()
         isStreaming = false
 
         scope.launch { _events.emit(AgentEvent.LeadDone()) }
@@ -572,5 +614,11 @@ class AgentService(private val project: Project) : Disposable {
         val agentType: String,
         val description: String,
         val deferred: Deferred<String>,
+    )
+
+    /** Hard-enforced tool filter for a subagent conversation. */
+    private data class SubagentToolFilter(
+        val allowedTools: Set<String>?,   // null = all allowed
+        val disallowedTools: Set<String>,
     )
 }

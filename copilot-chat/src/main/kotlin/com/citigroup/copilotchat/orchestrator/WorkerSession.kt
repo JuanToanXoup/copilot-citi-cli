@@ -32,6 +32,9 @@ class WorkerSession(
     /** Callback for streaming events during task execution. */
     var onEvent: ((WorkerEvent) -> Unit)? = null
 
+    /** Callback fired once when the conversationId is first captured. */
+    var onConversationId: ((String) -> Unit)? = null
+
     /**
      * Execute a task in this worker's conversation.
      * Creates a new conversation on first call, continues via conversation/turn on subsequent calls.
@@ -88,6 +91,7 @@ class WorkerSession(
                     else -> null
                 }
                 log.info("WorkerSession[$role] got conversationId=$conversationId")
+                conversationId?.let { onConversationId?.invoke(it) }
 
                 // Fallback: extract reply text from the create response if progress
                 // events didn't deliver any (can happen with invalid/unsupported models).
