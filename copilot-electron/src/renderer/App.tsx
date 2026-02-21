@@ -30,7 +30,7 @@ function MainApp() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [selectedNode, setSelectedNode] = useState<Node | null>(null)
   const [dividerPosition, setDividerPosition] = useState(50)
-  const [sidebarWidth, setSidebarWidth] = useState(224) // px (w-56 = 14rem = 224px)
+  const [sidebarWidth, setSidebarWidth] = useState(300)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [changesOpen, setChangesOpen] = useState(false)

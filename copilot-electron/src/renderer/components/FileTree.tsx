@@ -83,17 +83,31 @@ function TreeNode({ entry, depth }: { entry: FileEntry; depth: number }) {
           className="flex items-center gap-1 py-[2px] pr-2 hover:bg-[#2b2d30] cursor-pointer transition-colors"
           style={{ paddingLeft: `${paddingLeft}px` }}
         >
-          <span className="text-[9px] text-gray-500 w-3 text-center shrink-0">
-            {expanded ? '▾' : '▸'}
-          </span>
+          <svg
+            width={10}
+            height={10}
+            viewBox="0 0 10 10"
+            className="shrink-0 text-gray-500"
+            style={{ transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s' }}
+          >
+            <path d="M3 1.5L7 5L3 8.5" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          </svg>
           <span className="shrink-0">
             {expanded ? <FolderOpenIcon color={color} /> : <FolderIcon color={color} />}
           </span>
           <span className="text-[13px] text-gray-300 truncate">{entry.name}</span>
         </div>
-        {expanded && children.map((child) => (
-          <TreeNode key={child.path} entry={child} depth={depth + 1} />
-        ))}
+        {expanded && (
+          <div className="relative">
+            <div
+              className="absolute top-0 bottom-0 border-l border-[#3c3f41]"
+              style={{ left: `${paddingLeft + 5}px` }}
+            />
+            {children.map((child) => (
+              <TreeNode key={child.path} entry={child} depth={depth + 1} />
+            ))}
+          </div>
+        )}
       </>
     )
   }
