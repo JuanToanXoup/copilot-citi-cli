@@ -13,13 +13,16 @@ import java.net.http.HttpResponse
 import java.time.Duration
 
 /**
+ * @deprecated Replaced by [VectorStore] — a pure Kotlin in-memory vector store with JSON
+ * file persistence. No external binary, no ports, no process management needed.
+ * Kept for reference only — no active callers.
+ *
  * Manages a bundled Qdrant binary for local vector storage.
  * Follows the PlaywrightManager pattern: download binary, manage process lifecycle, expose REST API.
  *
  * Binary stored at `~/.copilot-chat/qdrant/`.
  * REST API on port 6333, gRPC on port 6334.
  */
-@Service(Service.Level.APP)
 class QdrantManager : Disposable {
 
     private val log = Logger.getInstance(QdrantManager::class.java)

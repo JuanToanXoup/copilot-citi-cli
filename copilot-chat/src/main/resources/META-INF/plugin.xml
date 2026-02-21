@@ -30,8 +30,8 @@
         <!-- Project-level Conversation Manager -->
         <projectService serviceImplementation="com.citigroup.copilotchat.conversation.ConversationManager"/>
 
-        <!-- RAG: Qdrant binary lifecycle manager -->
-        <applicationService serviceImplementation="com.citigroup.copilotchat.rag.QdrantManager"/>
+        <!-- RAG: In-memory vector store with file persistence -->
+        <applicationService serviceImplementation="com.citigroup.copilotchat.rag.VectorStore"/>
 
         <!-- RAG: Background indexing service -->
         <projectService serviceImplementation="com.citigroup.copilotchat.rag.RagIndexer"/>

@@ -1,7 +1,6 @@
 package com.citigroup.copilotchat.ui
 
 import com.citigroup.copilotchat.config.CopilotChatSettings
-import com.citigroup.copilotchat.rag.QdrantManager
 import com.citigroup.copilotchat.rag.RagIndexer
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.Disposable
@@ -110,7 +109,7 @@ class MemoryPanel(private val project: Project) : JPanel(BorderLayout()), Dispos
 
         val infoText = JLabel(
             "<html><div style='width: 320px; color: gray;'>" +
-            "Memory indexes your project's code into a local vector database (Qdrant). " +
+            "Memory indexes your project's code into a local vector store. " +
             "When RAG is enabled, each chat message is augmented with the most relevant " +
             "code snippets from your project — giving the model deeper context without manual file references." +
             "<br/><br/>" +

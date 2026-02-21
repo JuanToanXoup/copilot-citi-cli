@@ -5,11 +5,11 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 
 /**
- * Query pipeline for RAG: embeds user query, searches Qdrant, formats results as XML context.
+ * Query pipeline for RAG: embeds user query, searches vector store, formats results as XML context.
  *
  * Flow:
  *   1. Embed user query via [LocalEmbeddings]
- *   2. Search Qdrant collection for similar code chunks
+ *   2. Search vector store for similar code chunks
  *   3. Deduplicate overlapping chunks
  *   4. Format as `<rag_context>` XML block
  *   5. Return formatted context string to prepend to user message
@@ -42,15 +42,7 @@ class RagQueryService(private val project: Project) : com.intellij.openapi.Dispo
     }
 
     private fun doRetrieve(query: String, topK: Int): String {
-        val qdrant = QdrantManager.getInstance()
-        if (!qdrant.isRunning) {
-            log.info("RAG: Qdrant is not running, attempting to start...")
-            if (!qdrant.ensureRunning()) {
-                log.warn("RAG: Failed to start Qdrant, skipping retrieval")
-                return ""
-            }
-        }
-
+        val store = VectorStore.getInstance()
         val indexer = RagIndexer.getInstance(project)
         val collection = indexer.collectionName()
 
@@ -58,8 +50,8 @@ class RagQueryService(private val project: Project) : com.intellij.openapi.Dispo
         val queryVector = LocalEmbeddings.embed(query)
         log.info("RAG: embedded query (${query.take(50)}...), searching collection '$collection'")
 
-        // Search Qdrant
-        val results = qdrant.search(collection, queryVector, topK, SCORE_THRESHOLD)
+        // Search vector store
+        val results = store.search(collection, queryVector, topK, SCORE_THRESHOLD)
         if (results.isEmpty()) {
             log.info("RAG: no results above score threshold $SCORE_THRESHOLD")
             return ""
@@ -74,7 +66,7 @@ class RagQueryService(private val project: Project) : com.intellij.openapi.Dispo
         return formatContext(deduplicated)
     }
 
-    private fun deduplicateResults(results: List<QdrantSearchResult>): List<QdrantSearchResult> {
+    private fun deduplicateResults(results: List<VectorSearchResult>): List<VectorSearchResult> {
         val seen = mutableSetOf<String>()
         return results.filter { result ->
             val key = "${result.payload["filePath"]}:${result.payload["startLine"]}-${result.payload["endLine"]}"
@@ -82,7 +74,7 @@ class RagQueryService(private val project: Project) : com.intellij.openapi.Dispo
         }
     }
 
-    private fun formatContext(results: List<QdrantSearchResult>): String {
+    private fun formatContext(results: List<VectorSearchResult>): String {
         val sb = StringBuilder()
         sb.appendLine("<rag_context>")
 

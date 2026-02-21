@@ -11,20 +11,19 @@ import com.intellij.openapi.vcs.changes.ChangeListManager
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiManager
 import kotlinx.coroutines.*
-import kotlinx.serialization.json.*
 import java.security.MessageDigest
 import java.util.UUID
 
 /**
- * Background indexing service that ties together [PsiChunker], [LocalEmbeddings], and [QdrantManager].
+ * Background indexing service that ties together [PsiChunker], [LocalEmbeddings], and [VectorStore].
  *
  * On `indexProject()`:
  *   1. Scans all project source files (respects excludes)
  *   2. Chunks each file via PSI
  *   3. Embeds chunks via local ONNX model (bge-small-en-v1.5)
- *   4. Upserts vectors into Qdrant
+ *   4. Upserts vectors into the in-memory vector store
  *
- * Incremental: stores content MD5 hash in Qdrant payload, skips unchanged files.
+ * Incremental: stores content MD5 hash in payload, skips unchanged files.
  */
 @Service(Service.Level.PROJECT)
 class RagIndexer(private val project: Project) : Disposable {
@@ -94,20 +93,13 @@ class RagIndexer(private val project: Project) : Disposable {
                 lastError = null
                 log.info("Starting RAG indexing for project: ${project.name}")
 
-                // Ensure Qdrant is running
-                val qdrant = QdrantManager.getInstance()
-                if (!qdrant.ensureRunning()) {
-                    log.warn("Failed to start Qdrant, aborting indexing")
-                    lastError = "Failed to start Qdrant. Check that the binary can be downloaded and ports 6333/6334 are available."
-                    return@launch
-                }
-
+                val store = VectorStore.getInstance()
                 val collection = collectionName()
-                qdrant.ensureCollection(collection, LocalEmbeddings.vectorDimension())
+                store.ensureCollection(collection, LocalEmbeddings.vectorDimension())
 
-                // Gather existing file hashes from Qdrant for incremental indexing
+                // Gather existing file hashes for incremental indexing
                 val existingPoints = try {
-                    qdrant.scrollAll(collection)
+                    store.scrollAll(collection)
                 } catch (e: Exception) {
                     log.warn("Could not scroll existing points: ${e.message}", e)
                     emptyList()
@@ -153,14 +145,16 @@ class RagIndexer(private val project: Project) : Disposable {
                 // Cleanup: remove points for deleted files
                 val deletedFilePaths = existingPointsByFile.keys - currentFilePaths
                 for (deletedPath in deletedFilePaths) {
-                    val pointIds = existingPointsByFile[deletedPath]?.map { it.id } ?: continue
                     try {
-                        qdrant.deletePoints(collection, pointIds)
-                        log.debug("Removed ${pointIds.size} points for deleted file: $deletedPath")
+                        store.deleteByPayload(collection, "filePath", deletedPath)
+                        log.debug("Removed points for deleted file: $deletedPath")
                     } catch (e: Exception) {
                         log.debug("Failed to clean up points for $deletedPath: ${e.message}")
                     }
                 }
+
+                // Persist to disk
+                store.save(collection)
 
                 val actuallyIndexed = indexedFiles - skippedFiles - failedFiles
                 log.info("RAG indexing complete: $indexedFiles checked, $actuallyIndexed indexed, $skippedFiles unchanged, $failedFiles failed")
@@ -218,9 +212,9 @@ class RagIndexer(private val project: Project) : Disposable {
 
         val vectors = LocalEmbeddings.embedBatch(texts)
 
-        // Build Qdrant points
+        // Build points
         val points = chunks.zip(vectors).map { (chunk, vector) ->
-            QdrantPoint(
+            VectorPoint(
                 id = UUID.randomUUID().toString(),
                 vector = vector,
                 payload = mapOf(
@@ -234,16 +228,12 @@ class RagIndexer(private val project: Project) : Disposable {
             )
         }
 
-        // Delete old points for this file first
-        val qdrant = QdrantManager.getInstance()
-        try {
-            // Search for existing points with this filePath via scroll + filter
-            deletePointsByFilePath(qdrant, collection, filePath)
-        } catch (_: Exception) {}
+        // Delete old points for this file, then upsert new ones
+        val store = VectorStore.getInstance()
+        store.deleteByPayload(collection, "filePath", filePath)
 
-        // Upsert new points in batches
         for (batch in points.chunked(UPSERT_BATCH_SIZE)) {
-            qdrant.upsertPoints(collection, batch)
+            store.upsertPoints(collection, batch)
         }
 
         log.debug("Indexed $filePath: ${chunks.size} chunks")
@@ -256,10 +246,9 @@ class RagIndexer(private val project: Project) : Disposable {
     fun reindexFile(virtualFile: VirtualFile) {
         scope.launch {
             try {
-                val qdrant = QdrantManager.getInstance()
-                if (!qdrant.isRunning) return@launch
-
-                indexFile(virtualFile, collectionName(), emptyMap())
+                val collection = collectionName()
+                indexFile(virtualFile, collection, emptyMap())
+                VectorStore.getInstance().save(collection)
             } catch (e: Exception) {
                 log.debug("Failed to reindex ${virtualFile.path}: ${e.message}")
             }
@@ -307,35 +296,6 @@ class RagIndexer(private val project: Project) : Disposable {
         if (ChangeListManager.getInstance(project).isIgnoredFile(file)) return false
 
         return true
-    }
-
-    private fun deletePointsByFilePath(qdrant: QdrantManager, collection: String, filePath: String) {
-        // Use Qdrant's filter-based delete via REST API
-        val client = java.net.http.HttpClient.newBuilder()
-            .connectTimeout(java.time.Duration.ofSeconds(5))
-            .build()
-
-        val body = buildJsonObject {
-            putJsonObject("filter") {
-                putJsonArray("must") {
-                    addJsonObject {
-                        put("key", "filePath")
-                        putJsonObject("match") {
-                            put("value", filePath)
-                        }
-                    }
-                }
-            }
-        }
-
-        val request = java.net.http.HttpRequest.newBuilder()
-            .uri(java.net.URI("http://localhost:6333/collections/$collection/points/delete?wait=true"))
-            .header("Content-Type", "application/json")
-            .timeout(java.time.Duration.ofSeconds(10))
-            .POST(java.net.http.HttpRequest.BodyPublishers.ofString(body.toString()))
-            .build()
-
-        client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString())
     }
 
     private fun md5(input: String): String {

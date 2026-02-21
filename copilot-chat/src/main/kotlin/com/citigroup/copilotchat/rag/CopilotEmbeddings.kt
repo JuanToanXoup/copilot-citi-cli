@@ -21,7 +21,6 @@ import java.time.Instant
  *
  * Session tokens expire ~30 min; cached and auto-refreshed.
  *
- * Uses [HttpConfigurable.openHttpConnection] for HTTP calls with IDE proxy settings.
  * If the proxy blocks HTTPS tunneling (403/407 response or IOException), automatically
  * falls back to direct connections (bypassing the proxy) for all subsequent calls.
  */

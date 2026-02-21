@@ -1,9 +1,14 @@
 package com.citigroup.copilotchat.tools
 
+import com.citigroup.copilotchat.rag.LocalEmbeddings
+import com.citigroup.copilotchat.rag.VectorPoint
+import com.citigroup.copilotchat.rag.VectorStore
 import com.citigroup.copilotchat.ui.PlaywrightManager
 import com.intellij.openapi.diagnostic.Logger
 import kotlinx.serialization.json.*
 import java.io.File
+import java.security.MessageDigest
+import java.util.UUID
 
 /**
  * All client-side tools ported from cli/src/copilot_cli/tools/.
@@ -37,7 +42,9 @@ object BuiltInTools {
         "search_workspace_symbols" to ::executeSearchWorkspaceSymbols,
         "get_doc_info" to ::executeGetDocInfo,
         "get_project_setup_info" to ::executeGetProjectSetupInfo,
-        "memory" to ::executeMemory,
+        "semantic_search" to ::executeSemanticSearch,
+        "remember" to ::executeRemember,
+        "recall" to ::executeRecall,
         "github_repo" to ::executeGithubRepo,
         "get_library_docs" to ::executeGetLibraryDocs,
         "resolve_library_id" to ::executeResolveLibraryId,
@@ -74,8 +81,10 @@ object BuiltInTools {
         // ── Web & External ──
         """{"name":"fetch_web_page","description":"Fetch content from one or more URLs.","inputSchema":{"type":"object","properties":{"urls":{"type":"array","items":{"type":"string"},"description":"URLs to fetch content from."},"query":{"type":"string","description":"What to look for in the page content."}},"required":["urls","query"]}}""",
         """{"name":"github_repo","description":"Search code in a GitHub repository using the GitHub CLI (gh).","inputSchema":{"type":"object","properties":{"repo":{"type":"string","description":"The GitHub repository in 'owner/repo' format."},"query":{"type":"string","description":"The search query for code search."}},"required":["repo","query"]}}""",
-        // ── Utilities ──
-        """{"name":"memory","description":"Persistent memory store. Save, read, list, or delete named memory files for cross-session recall.","inputSchema":{"type":"object","properties":{"command":{"type":"string","description":"The operation: 'save', 'read', 'list', or 'delete'.","enum":["save","read","list","delete"]},"path":{"type":"string","description":"Memory file name. Required for save/read/delete."},"content":{"type":"string","description":"Content to save. Required for 'save' command."}},"required":["command"]}}""",
+        // ── Memory & Knowledge ──
+        """{"name":"semantic_search","description":"Search the project's code index for relevant code snippets using semantic similarity. Returns matching code chunks ranked by relevance. The project must be indexed first (via Memory tab).","inputSchema":{"type":"object","properties":{"query":{"type":"string","description":"Natural language query describing what code you're looking for."},"topK":{"type":"number","description":"Maximum number of results to return. Default: 5."}},"required":["query"]}}""",
+        """{"name":"remember","description":"Store a fact or piece of knowledge for persistent cross-session recall. Facts are embedded into the vector store and can be retrieved later with the recall tool.","inputSchema":{"type":"object","properties":{"fact":{"type":"string","description":"The fact, procedure, or insight to remember."},"category":{"type":"string","description":"Category: 'semantic' (facts about code/architecture), 'procedural' (how-to steps), 'failure' (mistakes/anti-patterns), 'general' (default).","enum":["semantic","procedural","failure","general"]}},"required":["fact"]}}""",
+        """{"name":"recall","description":"Retrieve stored knowledge by topic. Uses both semantic similarity and keyword matching to find relevant memories saved with the remember tool.","inputSchema":{"type":"object","properties":{"topic":{"type":"string","description":"The topic or question to search memories for."},"category":{"type":"string","description":"Optional: filter results to a specific category.","enum":["semantic","procedural","failure","general"]}},"required":["topic"]}}""",
         // ── Browser Recording ──
         """{"name":"browser_record","description":"Record user interactions in a browser and generate Playwright test code. ONLY use when the user explicitly asks to record a test, generate test code, or use codegen. Do NOT use for general web browsing, navigation, or automation — use Playwright MCP tools for those instead. Opens a codegen browser, records interactions until closed, then returns executable test code.","inputSchema":{"type":"object","properties":{"url":{"type":"string","description":"The starting URL to navigate to. Default: https://example.com"},"target":{"type":"string","description":"Target language for generated code. Default: javascript.","enum":["javascript","python","python-async","python-pytest","csharp","java"]},"device":{"type":"string","description":"Device to emulate (e.g. 'Pixel 5', 'iPhone 12'). Optional."},"browser":{"type":"string","description":"Browser to use. Default: chromium.","enum":["chromium","firefox","webkit"]}},"required":[]}}""",
     )
@@ -347,32 +356,172 @@ object BuiltInTools {
 
     // ── Utilities ────────────────────────────────────────────────
 
-    private fun executeMemory(input: JsonObject, ws: String): String {
-        val command = input.str("command") ?: return "Error: command is required"
-        val memDir = File(System.getProperty("user.home"), ".copilot-cli/memories")
-        memDir.mkdirs()
-        return when (command) {
-            "save" -> {
-                val path = input.str("path") ?: return "Error: path is required for save"
-                val content = input.str("content") ?: return "Error: content is required for save"
-                File(memDir, path).writeText(content)
-                "Saved: $path"
-            }
-            "read" -> {
-                val path = input.str("path") ?: return "Error: path is required for read"
-                val file = File(memDir, path)
-                if (file.exists()) file.readText() else "Memory not found: $path"
-            }
-            "list" -> {
-                memDir.listFiles()?.joinToString("\n") { it.name } ?: "No memories."
-            }
-            "delete" -> {
-                val path = input.str("path") ?: return "Error: path is required for delete"
-                val file = File(memDir, path)
-                if (file.exists()) { file.delete(); "Deleted: $path" } else "Not found: $path"
-            }
-            else -> "Unknown memory command: $command"
+    // ── Memory & Knowledge ────────────────────────────────────
+
+    private val memoryJson = Json { ignoreUnknownKeys = true }
+
+    /**
+     * Search project code index via vector similarity.
+     */
+    private fun executeSemanticSearch(input: JsonObject, ws: String): String {
+        val query = input.str("query") ?: return "Error: query is required"
+        val topK = input.int("topK") ?: 5
+
+        return try {
+            val store = VectorStore.getInstance()
+            val collection = projectCollectionName(ws)
+            store.ensureCollection(collection, LocalEmbeddings.vectorDimension())
+
+            val queryVector = LocalEmbeddings.embed(query)
+            val results = store.search(collection, queryVector, topK, 0.25f)
+
+            if (results.isEmpty()) return "No relevant code found for: $query"
+
+            buildString {
+                for (result in results) {
+                    val filePath = result.payload["filePath"] ?: continue
+                    val startLine = result.payload["startLine"] ?: ""
+                    val endLine = result.payload["endLine"] ?: ""
+                    val symbolName = result.payload["symbolName"]
+                    val content = result.payload["content"] ?: continue
+
+                    val relativePath = if (filePath.startsWith(ws))
+                        filePath.removePrefix(ws).removePrefix("/") else filePath
+
+                    append("--- $relativePath")
+                    if (startLine.isNotEmpty()) append(":$startLine-$endLine")
+                    if (!symbolName.isNullOrEmpty()) append(" ($symbolName)")
+                    appendLine(" [score: ${"%.2f".format(result.score)}] ---")
+                    appendLine(content)
+                    appendLine()
+                }
+            }.take(OUTPUT_LIMIT)
+        } catch (e: Exception) {
+            "Error: semantic search failed: ${e.message}"
         }
+    }
+
+    /**
+     * Store a fact with category — persisted as JSONL on disk and embedded in vector store.
+     */
+    private fun executeRemember(input: JsonObject, ws: String): String {
+        val fact = input.str("fact") ?: return "Error: fact is required"
+        val category = input.str("category") ?: "general"
+
+        val memDir = File(System.getProperty("user.home"), ".copilot-chat/memories")
+        memDir.mkdirs()
+
+        // Persist as JSONL (one JSON object per line)
+        val entry = buildJsonObject {
+            put("fact", fact)
+            put("category", category)
+            put("timestamp", System.currentTimeMillis().toString())
+        }
+        val file = File(memDir, "$category.jsonl")
+        file.appendText(memoryJson.encodeToString(JsonObject.serializer(), entry) + "\n")
+
+        // Embed into vector store for semantic recall
+        try {
+            val store = VectorStore.getInstance()
+            val collection = MEMORIES_COLLECTION
+            store.ensureCollection(collection, LocalEmbeddings.vectorDimension())
+
+            val vector = LocalEmbeddings.embed(fact)
+            val point = VectorPoint(
+                id = UUID.randomUUID().toString(),
+                vector = vector,
+                payload = mapOf(
+                    "fact" to fact,
+                    "category" to category,
+                    "timestamp" to System.currentTimeMillis().toString(),
+                ),
+            )
+            store.upsertPoints(collection, listOf(point))
+            store.save(collection)
+        } catch (e: Exception) {
+            log.warn("Failed to embed memory (file storage still succeeded): ${e.message}")
+        }
+
+        return "Remembered [$category]: $fact"
+    }
+
+    /**
+     * Retrieve stored knowledge by topic — combines semantic vector search with keyword matching.
+     */
+    private fun executeRecall(input: JsonObject, ws: String): String {
+        val topic = input.str("topic") ?: return "Error: topic is required"
+        val category = input.str("category")
+
+        val sections = mutableListOf<String>()
+
+        // 1. Semantic search via vector store
+        try {
+            val store = VectorStore.getInstance()
+            val collection = MEMORIES_COLLECTION
+            store.ensureCollection(collection, LocalEmbeddings.vectorDimension())
+
+            val queryVector = LocalEmbeddings.embed(topic)
+            val vectorResults = store.search(collection, queryVector, 10, 0.3f)
+                .filter { category == null || it.payload["category"] == category }
+
+            if (vectorResults.isNotEmpty()) {
+                sections.add("=== Semantic matches ===")
+                for (r in vectorResults) {
+                    val cat = r.payload["category"] ?: "general"
+                    sections.add("[$cat] (score: ${"%.2f".format(r.score)}) ${r.payload["fact"]}")
+                }
+            }
+        } catch (e: Exception) {
+            log.warn("Semantic recall failed: ${e.message}")
+        }
+
+        // 2. Keyword search in JSONL files
+        val memDir = File(System.getProperty("user.home"), ".copilot-chat/memories")
+        if (memDir.isDirectory) {
+            val files = if (category != null) {
+                listOfNotNull(File(memDir, "$category.jsonl").takeIf { it.exists() })
+            } else {
+                memDir.listFiles()?.filter { it.extension == "jsonl" }?.toList() ?: emptyList()
+            }
+
+            val keywordMatches = mutableListOf<String>()
+            val topicLower = topic.lowercase()
+            for (f in files) {
+                for (line in f.readLines()) {
+                    if (topicLower in line.lowercase()) {
+                        try {
+                            val obj = memoryJson.decodeFromString<JsonObject>(line)
+                            val fact = obj["fact"]?.jsonPrimitive?.contentOrNull ?: continue
+                            val cat = obj["category"]?.jsonPrimitive?.contentOrNull ?: "general"
+                            keywordMatches.add("[$cat] $fact")
+                        } catch (_: Exception) {}
+                    }
+                }
+            }
+
+            if (keywordMatches.isNotEmpty()) {
+                sections.add("=== Keyword matches ===")
+                sections.addAll(keywordMatches.distinct())
+            }
+        }
+
+        return if (sections.isEmpty()) "No memories found for: $topic"
+        else sections.joinToString("\n").take(OUTPUT_LIMIT)
+    }
+
+    private const val MEMORIES_COLLECTION = "copilot-memories"
+
+    /** Derive the project's vector store collection name from workspace root, matching RagIndexer logic. */
+    private fun projectCollectionName(ws: String): String {
+        val projectName = File(ws).name
+        val hash = md5(projectName).take(8)
+        return "copilot-chat-$hash"
+    }
+
+    private fun md5(input: String): String {
+        val digest = MessageDigest.getInstance("MD5")
+        val bytes = digest.digest(input.toByteArray())
+        return bytes.joinToString("") { "%02x".format(it) }
     }
 
     // ── Browser Recording ────────────────────────────────────────
