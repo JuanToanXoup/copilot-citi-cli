@@ -28,6 +28,8 @@ interface FlowState {
   onSubagentDelta: (agentId: string, text: string) => void
   onLeadToolCall: (name: string) => void
   onLeadToolResult: (name: string, status: 'success' | 'error') => void
+  onTerminalCommand: (command: string) => void
+  onTerminalResult: (command: string, status: 'success' | 'error') => void
   onLeadStatus: (status: 'running' | 'done' | 'error') => void
 
   // Lifecycle
@@ -46,6 +48,7 @@ const NODE_WIDTHS: Record<string, number> = {
   lead: 200,
   subagent: 240,
   tool: 160,
+  terminal: 210,
 }
 
 const NODE_HEIGHTS: Record<string, number> = {
@@ -53,6 +56,7 @@ const NODE_HEIGHTS: Record<string, number> = {
   lead: 56,
   subagent: 80,
   tool: 40,
+  terminal: 56,
 }
 
 const GROUP_PADDING = 40
@@ -320,6 +324,50 @@ export const useFlowStore = create<FlowState>((set, get) => ({
       edges: state.edges.map((e) => {
         const targetNode = state.nodes.find((n) => n.id === e.target)
         if (targetNode?.type === 'tool' && targetNode.data.name === name && targetNode.data.status === 'running') {
+          return { ...e, data: { ...e.data, status: status === 'success' ? 'success' : 'error' } }
+        }
+        return e
+      }),
+    }))
+  },
+
+  onTerminalCommand: (command) => {
+    const state = get()
+    const termId = `terminal-${Date.now()}`
+
+    const newNode: Node = {
+      id: termId,
+      type: 'terminal',
+      position: { x: 0, y: 0 },
+      data: { command, status: 'running', _turn: state.currentTurn },
+    }
+
+    const newEdge: Edge = {
+      id: `e-${state.currentLeadId}-${termId}`,
+      source: state.currentLeadId,
+      target: termId,
+      type: 'particle',
+      data: { status: 'active', color: '#a855f7' },
+    }
+
+    set({
+      nodes: [...state.nodes, newNode],
+      edges: [...state.edges, newEdge],
+    })
+
+    get().recomputeLayout()
+  },
+
+  onTerminalResult: (command, status) => {
+    set((state) => ({
+      nodes: state.nodes.map((n) =>
+        n.type === 'terminal' && n.data.command === command && n.data.status === 'running'
+          ? { ...n, data: { ...n.data, status } }
+          : n,
+      ),
+      edges: state.edges.map((e) => {
+        const targetNode = state.nodes.find((n) => n.id === e.target)
+        if (targetNode?.type === 'terminal' && targetNode.data.command === command && targetNode.data.status === 'running') {
           return { ...e, data: { ...e.data, status: status === 'success' ? 'success' : 'error' } }
         }
         return e

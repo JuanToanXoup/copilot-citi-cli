@@ -2,11 +2,19 @@ import { useState, useCallback, type KeyboardEvent } from 'react'
 
 interface ChatInputProps {
   onSend: (text: string) => void
+  onCancel: () => void
   disabled?: boolean
+  isProcessing?: boolean
   placeholder?: string
 }
 
-export function ChatInput({ onSend, disabled = false, placeholder = 'Send a message...' }: ChatInputProps) {
+export function ChatInput({
+  onSend,
+  onCancel,
+  disabled = false,
+  isProcessing = false,
+  placeholder = 'Send a message...',
+}: ChatInputProps) {
   const [text, setText] = useState('')
 
   const handleSubmit = useCallback(() => {
@@ -27,7 +35,7 @@ export function ChatInput({ onSend, disabled = false, placeholder = 'Send a mess
   )
 
   return (
-    <div className="flex items-end gap-2 p-4 border-t border-gray-800 bg-gray-900">
+    <div className="flex items-end gap-2 p-4 border-t border-gray-800 bg-gray-900 shrink-0">
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
@@ -39,14 +47,24 @@ export function ChatInput({ onSend, disabled = false, placeholder = 'Send a mess
                    placeholder-gray-500 border border-gray-700 focus:border-blue-500 focus:outline-none
                    disabled:opacity-50"
       />
-      <button
-        onClick={handleSubmit}
-        disabled={disabled || !text.trim()}
-        className="px-4 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-lg
-                   hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        Send
-      </button>
+      {isProcessing ? (
+        <button
+          onClick={onCancel}
+          className="px-4 py-2.5 text-sm font-medium bg-red-600 text-white rounded-lg
+                     hover:bg-red-500 transition-colors"
+        >
+          Stop
+        </button>
+      ) : (
+        <button
+          onClick={handleSubmit}
+          disabled={!text.trim()}
+          className="px-4 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-lg
+                     hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          Send
+        </button>
+      )}
     </div>
   )
 }

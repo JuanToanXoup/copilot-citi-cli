@@ -13,6 +13,7 @@ import { UserNode } from './nodes/UserNode'
 import { LeadNode } from './nodes/LeadNode'
 import { SubagentNode } from './nodes/SubagentNode'
 import { ToolNode } from './nodes/ToolNode'
+import { TerminalNode } from './nodes/TerminalNode'
 import { TurnGroupNode } from './nodes/TurnGroupNode'
 import { ParticleEdge } from './edges/ParticleEdge'
 import { FlowControls } from './panels/FlowControls'
@@ -23,6 +24,7 @@ const nodeTypes = {
   lead: LeadNode,
   subagent: SubagentNode,
   tool: ToolNode,
+  terminal: TerminalNode,
   turnGroup: TurnGroupNode,
 }
 
@@ -74,6 +76,7 @@ export function AgentFlow({ selectedNode, onNodeSelect }: AgentFlowProps) {
               case 'lead': return '#eab308'
               case 'subagent': return '#3b82f6'
               case 'tool': return '#8b5cf6'
+              case 'terminal': return '#a855f7'
               case 'turnGroup': return 'rgba(107,114,128,0.1)'
               default: return '#6b7280'
             }
