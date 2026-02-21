@@ -235,26 +235,22 @@ function MainApp() {
   return (
     <div className="flex flex-col h-screen bg-gray-950 text-gray-100">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 bg-gray-900 border-b border-gray-800 shrink-0">
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-medium text-gray-300">Copilot Desktop</span>
+      <div className="flex items-center justify-end gap-3 px-4 py-2 bg-gray-900 border-b border-gray-800 shrink-0">
+        {/* View mode toggle */}
+        <div className="flex items-center bg-gray-800 rounded-lg border border-gray-700 p-0.5">
+          <ViewModeButton label="Chat" active={viewMode === 'chat'} onClick={() => setViewMode('chat')} />
+          <ViewModeButton label="Split" active={viewMode === 'split'} onClick={() => setViewMode('split')} />
+          <ViewModeButton label="Graph" active={viewMode === 'graph'} onClick={() => setViewMode('graph')} />
         </div>
-        <div className="flex items-center gap-2">
-          {/* View mode toggle */}
-          <div className="flex items-center bg-gray-800 rounded-lg border border-gray-700 p-0.5">
-            <ViewModeButton label="Chat" active={viewMode === 'chat'} onClick={() => setViewMode('chat')} />
-            <ViewModeButton label="Split" active={viewMode === 'split'} onClick={() => setViewMode('split')} />
-            <ViewModeButton label="Graph" active={viewMode === 'graph'} onClick={() => setViewMode('graph')} />
-          </div>
-          <button
-            onClick={handleNewConversation}
-            className="text-xs px-3 py-1.5 bg-gray-800 border border-gray-700 rounded
-                       text-gray-400 hover:text-white hover:border-gray-600 transition-colors"
-            title="New conversation (Cmd+N)"
-          >
-            + New
-          </button>
-        </div>
+        <button
+          onClick={handleNewConversation}
+          className="text-xs px-3 py-1.5 bg-gray-800 border border-gray-700 rounded
+                     text-gray-400 hover:text-white hover:border-gray-600 transition-colors"
+          title="New conversation (Cmd+N)"
+        >
+          + New
+        </button>
+        <span className="text-sm font-medium text-gray-300">Copilot Desktop</span>
       </div>
 
       {/* Main content area */}

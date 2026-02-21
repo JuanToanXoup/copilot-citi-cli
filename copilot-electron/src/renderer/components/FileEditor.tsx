@@ -221,7 +221,25 @@ export function FileEditor({ openFiles, activeFile, onSelectFile, onCloseFile }:
   )
 }
 
+const BINARY_EXTENSIONS = new Set([
+  '.zip', '.gz', '.tar', '.rar', '.7z', '.bz2', '.xz',
+  '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.ico', '.webp', '.svg',
+  '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+  '.exe', '.dll', '.so', '.dylib', '.bin', '.dat',
+  '.class', '.jar', '.war', '.ear',
+  '.woff', '.woff2', '.ttf', '.otf', '.eot',
+  '.mp3', '.mp4', '.wav', '.avi', '.mov', '.mkv', '.flac',
+  '.DS_Store',
+])
+
+function isBinaryFile(filePath: string): boolean {
+  const dot = filePath.lastIndexOf('.')
+  if (dot === -1) return false
+  return BINARY_EXTENSIONS.has(filePath.slice(dot).toLowerCase())
+}
+
 async function loadFile(filePath: string): Promise<string | null> {
+  if (isBinaryFile(filePath)) return null
   if (window.api?.fs?.readFile) {
     return window.api.fs.readFile(filePath)
   }
