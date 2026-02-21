@@ -216,6 +216,16 @@ class AgentPanel(private val project: Project) : JPanel(BorderLayout()), Disposa
             }
 
             is AgentEvent.LeadDone -> {
+                // Safety net: if we have full text but no assistant message was displayed,
+                // show it now. This handles cases where LeadDelta events were not emitted
+                // (e.g., reply text only arrived in editAgentRounds or final progress event).
+                if (event.fullText.isNotBlank() && currentAssistantMessage == null) {
+                    addItemSpacing()
+                    val pane = messageRenderer.createMessagePane()
+                    val component = AssistantMessageComponent(pane)
+                    addMessageComponent(component)
+                    component.appendText(event.fullText)
+                }
                 currentAssistantMessage = null
                 lastToolCallPanel = null
                 inputPanel.isStreaming = false

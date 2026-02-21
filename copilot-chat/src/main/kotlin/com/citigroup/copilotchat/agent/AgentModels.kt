@@ -86,7 +86,7 @@ sealed class AgentEvent {
     data class LeadDelta(val text: String) : AgentEvent()
     data class LeadToolCall(val name: String, val input: JsonObject) : AgentEvent()
     data class LeadToolResult(val name: String, val output: String) : AgentEvent()
-    data object LeadDone : AgentEvent()
+    data class LeadDone(val fullText: String = "") : AgentEvent()
     data class LeadError(val message: String) : AgentEvent()
 
     // Subagent events

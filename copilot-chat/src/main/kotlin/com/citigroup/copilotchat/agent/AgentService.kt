@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.serialization.json.*
 import java.util.*
+import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -76,7 +77,7 @@ class AgentService(private val project: Project) : Disposable {
                 val useModel = model ?: "gpt-4.1"
                 val workDoneToken = "agent-lead-${UUID.randomUUID().toString().take(8)}"
                 currentWorkDoneToken = workDoneToken
-                val replyParts = mutableListOf<String>()
+                val replyParts = Collections.synchronizedList(mutableListOf<String>())
 
                 lspClient.registerProgressListener(workDoneToken) { value ->
                     scope.launch { handleLeadProgress(value, replyParts) }
@@ -149,7 +150,8 @@ class AgentService(private val project: Project) : Disposable {
 
                 currentWorkDoneToken = null
                 isStreaming = false
-                _events.emit(AgentEvent.LeadDone)
+                val fullReply = synchronized(replyParts) { replyParts.joinToString("") }
+                _events.emit(AgentEvent.LeadDone(fullReply))
 
             } catch (e: CancellationException) {
                 isStreaming = false
@@ -395,7 +397,7 @@ class AgentService(private val project: Project) : Disposable {
         activeSubagents.clear()
         isStreaming = false
 
-        scope.launch { _events.emit(AgentEvent.LeadDone) }
+        scope.launch { _events.emit(AgentEvent.LeadDone()) }
     }
 
     /** Start a fresh conversation. */
