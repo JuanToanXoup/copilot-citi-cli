@@ -14,8 +14,10 @@ interface FlowState {
   currentTurn: number
   /** ID of the lead node for the current turn */
   currentLeadId: string
-  /** ID of the previous turn's lead node (for chaining) */
-  previousLeadId: string | null
+  /** ID of the current turn's group node */
+  currentGroupId: string
+  /** ID of the previous turn's group node (for spine chaining) */
+  previousGroupId: string | null
 
   // Turn lifecycle
   onNewTurn: (userMessage: string) => void
@@ -36,42 +38,59 @@ interface FlowState {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Initial state for turn 1 (no user node — used only on reset)      */
+/*  Constants                                                          */
 /* ------------------------------------------------------------------ */
 
-function makeInitialLeadNode(): Node {
-  return {
-    id: 'lead-1',
-    type: 'lead',
-    position: { x: 0, y: 0 },
-    data: { label: 'Lead Agent', status: 'idle', round: 1 },
-  }
+const NODE_WIDTHS: Record<string, number> = {
+  user: 260,
+  lead: 200,
+  subagent: 240,
+  tool: 160,
 }
 
+const NODE_HEIGHTS: Record<string, number> = {
+  user: 60,
+  lead: 56,
+  subagent: 80,
+  tool: 40,
+}
+
+const GROUP_PADDING = 40
+
 /* ------------------------------------------------------------------ */
-/*  Layout helper                                                      */
+/*  Layout: Dagre for internal nodes, then wrap with group bounds      */
 /* ------------------------------------------------------------------ */
 
-function applyDagreLayout(nodes: Node[], edges: Edge[]): Node[] {
-  if (nodes.length === 0) return nodes
+function applyLayout(nodes: Node[], edges: Edge[]): Node[] {
+  const childNodes = nodes.filter((n) => n.type !== 'turnGroup')
+  const groupNodes = nodes.filter((n) => n.type === 'turnGroup')
 
+  if (childNodes.length === 0) return nodes
+
+  // Layout only child nodes with Dagre
   const g = new dagre.graphlib.Graph()
   g.setDefaultEdgeLabel(() => ({}))
   g.setGraph({ rankdir: 'TB', nodesep: 60, ranksep: 80, marginx: 40, marginy: 40 })
 
-  for (const node of nodes) {
-    const width = node.type === 'user' ? 260 : node.type === 'lead' ? 200 : 240
-    const height = node.type === 'user' ? 60 : node.type === 'lead' ? 56 : 80
+  for (const node of childNodes) {
+    const width = NODE_WIDTHS[node.type ?? 'subagent'] ?? 200
+    const height = NODE_HEIGHTS[node.type ?? 'subagent'] ?? 60
     g.setNode(node.id, { width, height })
   }
 
+  // Only add edges between child nodes (not spine edges between groups)
   for (const edge of edges) {
-    g.setEdge(edge.source, edge.target)
+    const sourceIsChild = childNodes.some((n) => n.id === edge.source)
+    const targetIsChild = childNodes.some((n) => n.id === edge.target)
+    if (sourceIsChild && targetIsChild) {
+      g.setEdge(edge.source, edge.target)
+    }
   }
 
   dagre.layout(g)
 
-  return nodes.map((node) => {
+  // Position child nodes from dagre results
+  const positioned = childNodes.map((node) => {
     const pos = g.node(node.id)
     return {
       ...node,
@@ -81,6 +100,42 @@ function applyDagreLayout(nodes: Node[], edges: Edge[]): Node[] {
       },
     }
   })
+
+  // Compute group bounding boxes from their children
+  const updatedGroups = groupNodes.map((group) => {
+    const turnId = group.data.turn as number
+    const children = positioned.filter((n) => n.data._turn === turnId)
+
+    if (children.length === 0) return group
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+
+    for (const child of children) {
+      const w = NODE_WIDTHS[child.type ?? 'subagent'] ?? 200
+      const h = NODE_HEIGHTS[child.type ?? 'subagent'] ?? 60
+      minX = Math.min(minX, child.position.x)
+      minY = Math.min(minY, child.position.y)
+      maxX = Math.max(maxX, child.position.x + w)
+      maxY = Math.max(maxY, child.position.y + h)
+    }
+
+    const groupWidth = maxX - minX + GROUP_PADDING * 2
+    const groupHeight = maxY - minY + GROUP_PADDING * 2
+
+    return {
+      ...group,
+      position: {
+        x: minX - GROUP_PADDING,
+        y: minY - GROUP_PADDING,
+      },
+      style: {
+        width: groupWidth,
+        height: groupHeight,
+      },
+    }
+  })
+
+  return [...positioned, ...updatedGroups]
 }
 
 /* ------------------------------------------------------------------ */
@@ -88,55 +143,66 @@ function applyDagreLayout(nodes: Node[], edges: Edge[]): Node[] {
 /* ------------------------------------------------------------------ */
 
 export const useFlowStore = create<FlowState>((set, get) => ({
-  nodes: [makeInitialLeadNode()],
+  nodes: [],
   edges: [],
-  currentTurn: 1,
-  currentLeadId: 'lead-1',
-  previousLeadId: null,
+  currentTurn: 0,
+  currentLeadId: '',
+  currentGroupId: '',
+  previousGroupId: null,
 
   /* ---- Turn lifecycle ------------------------------------------- */
 
   onNewTurn: (userMessage: string) => {
     const state = get()
     const turn = state.currentTurn + 1
+    const groupId = `group-${turn}`
     const userId = `user-${turn}`
     const leadId = `lead-${turn}`
 
     const newNodes: Node[] = [
+      // Turn group container
+      {
+        id: groupId,
+        type: 'turnGroup',
+        position: { x: 0, y: 0 },
+        data: { turn },
+        style: { width: 400, height: 300 },
+      },
       // User message node
       {
         id: userId,
         type: 'user',
         position: { x: 0, y: 0 },
-        data: { message: userMessage },
+        data: { message: userMessage, _turn: turn },
       },
       // Lead node for this turn
       {
         id: leadId,
         type: 'lead',
         position: { x: 0, y: 0 },
-        data: { label: 'Lead Agent', status: 'idle', round: turn },
+        data: { label: 'Lead Agent', status: 'idle', round: turn, _turn: turn },
       },
     ]
 
     const newEdges: Edge[] = [
-      // User → Lead (within this turn)
+      // User → Lead (within this turn) — particle edge
       {
         id: `e-${userId}-${leadId}`,
         source: userId,
         target: leadId,
-        style: { stroke: '#6b7280' },
+        type: 'particle',
+        data: { status: 'active', color: '#6b7280' },
       },
     ]
 
-    // Chain from previous turn's lead → this turn's user
-    if (state.previousLeadId) {
+    // Spine: chain previous turn's group → this turn's group (dashed)
+    if (state.previousGroupId) {
       newEdges.push({
-        id: `e-${state.previousLeadId}-${userId}`,
-        source: state.previousLeadId,
-        target: userId,
-        style: { stroke: '#6b7280', strokeDasharray: '6 3' },
-        animated: false,
+        id: `e-spine-${state.previousGroupId}-${groupId}`,
+        source: state.previousGroupId,
+        target: groupId,
+        type: 'particle',
+        data: { status: 'dashed', color: '#6b7280' },
       })
     }
 
@@ -145,7 +211,8 @@ export const useFlowStore = create<FlowState>((set, get) => ({
       edges: [...state.edges, ...newEdges],
       currentTurn: turn,
       currentLeadId: leadId,
-      previousLeadId: leadId,
+      currentGroupId: groupId,
+      previousGroupId: groupId,
     })
 
     get().recomputeLayout()
@@ -157,22 +224,25 @@ export const useFlowStore = create<FlowState>((set, get) => ({
     const state = get()
     const nodeId = `subagent-${agentId}`
 
-    // Skip if already exists
     if (state.nodes.some((n) => n.id === nodeId)) return
 
     const newNode: Node = {
       id: nodeId,
       type: 'subagent',
       position: { x: 0, y: 0 },
-      data: { agentId, agentType, description, status: 'running', textPreview: '' },
+      data: {
+        agentId, agentType, description,
+        status: 'running', textPreview: '',
+        _turn: state.currentTurn,
+      },
     }
 
     const newEdge: Edge = {
       id: `e-${state.currentLeadId}-${nodeId}`,
       source: state.currentLeadId,
       target: nodeId,
-      animated: true,
-      style: { stroke: '#3b82f6' },
+      type: 'particle',
+      data: { status: 'active', color: '#3b82f6' },
     }
 
     set({
@@ -184,13 +254,15 @@ export const useFlowStore = create<FlowState>((set, get) => ({
   },
 
   onSubagentCompleted: (agentId, status) => {
+    const targetId = `subagent-${agentId}`
     set((state) => ({
       nodes: state.nodes.map((n) =>
-        n.id === `subagent-${agentId}` ? { ...n, data: { ...n.data, status } } : n,
+        n.id === targetId ? { ...n, data: { ...n.data, status } } : n,
       ),
-      // Stop edge animation
       edges: state.edges.map((e) =>
-        e.target === `subagent-${agentId}` ? { ...e, animated: false } : e,
+        e.target === targetId
+          ? { ...e, data: { ...e.data, status: status === 'success' ? 'success' : 'error' } }
+          : e,
       ),
     }))
   },
@@ -219,15 +291,15 @@ export const useFlowStore = create<FlowState>((set, get) => ({
       id: toolId,
       type: 'tool',
       position: { x: 0, y: 0 },
-      data: { name, status: 'running' },
+      data: { name, status: 'running', _turn: state.currentTurn },
     }
 
     const newEdge: Edge = {
       id: `e-${state.currentLeadId}-${toolId}`,
       source: state.currentLeadId,
       target: toolId,
-      animated: true,
-      style: { stroke: '#8b5cf6' },
+      type: 'particle',
+      data: { status: 'active', color: '#8b5cf6' },
     }
 
     set({
@@ -247,8 +319,8 @@ export const useFlowStore = create<FlowState>((set, get) => ({
       ),
       edges: state.edges.map((e) => {
         const targetNode = state.nodes.find((n) => n.id === e.target)
-        if (targetNode?.type === 'tool' && targetNode.data.name === name) {
-          return { ...e, animated: false }
+        if (targetNode?.type === 'tool' && targetNode.data.name === name && targetNode.data.status === 'running') {
+          return { ...e, data: { ...e.data, status: status === 'success' ? 'success' : 'error' } }
         }
         return e
       }),
@@ -261,6 +333,12 @@ export const useFlowStore = create<FlowState>((set, get) => ({
       nodes: state.nodes.map((n) =>
         n.id === state.currentLeadId ? { ...n, data: { ...n.data, status } } : n,
       ),
+      // Update user→lead edge status when lead completes
+      edges: state.edges.map((e) =>
+        e.target === state.currentLeadId
+          ? { ...e, data: { ...e.data, status: status === 'done' ? 'success' : status === 'error' ? 'error' : 'active' } }
+          : e,
+      ),
     })
   },
 
@@ -268,11 +346,12 @@ export const useFlowStore = create<FlowState>((set, get) => ({
 
   onReset: () => {
     set({
-      nodes: applyDagreLayout([makeInitialLeadNode()], []),
+      nodes: [],
       edges: [],
-      currentTurn: 1,
-      currentLeadId: 'lead-1',
-      previousLeadId: null,
+      currentTurn: 0,
+      currentLeadId: '',
+      currentGroupId: '',
+      previousGroupId: null,
     })
   },
 
@@ -280,7 +359,7 @@ export const useFlowStore = create<FlowState>((set, get) => ({
 
   recomputeLayout: () => {
     const state = get()
-    const laid = applyDagreLayout(state.nodes, state.edges)
+    const laid = applyLayout(state.nodes, state.edges)
     set({ nodes: laid })
   },
 }))

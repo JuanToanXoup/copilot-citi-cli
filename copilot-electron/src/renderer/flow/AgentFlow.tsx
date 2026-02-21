@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback } from 'react'
 import {
   ReactFlow,
   Background,
@@ -13,7 +13,8 @@ import { UserNode } from './nodes/UserNode'
 import { LeadNode } from './nodes/LeadNode'
 import { SubagentNode } from './nodes/SubagentNode'
 import { ToolNode } from './nodes/ToolNode'
-import { AnimatedEdge } from './edges/AnimatedEdge'
+import { TurnGroupNode } from './nodes/TurnGroupNode'
+import { ParticleEdge } from './edges/ParticleEdge'
 import { FlowControls } from './panels/FlowControls'
 import { NodeDetail } from './panels/NodeDetail'
 
@@ -22,10 +23,11 @@ const nodeTypes = {
   lead: LeadNode,
   subagent: SubagentNode,
   tool: ToolNode,
+  turnGroup: TurnGroupNode,
 }
 
 const edgeTypes = {
-  animated: AnimatedEdge,
+  particle: ParticleEdge,
 }
 
 interface AgentFlowProps {
@@ -39,6 +41,8 @@ export function AgentFlow({ selectedNode, onNodeSelect }: AgentFlowProps) {
 
   const onNodeClick: NodeMouseHandler = useCallback(
     (_event, node) => {
+      // Don't select group nodes
+      if (node.type === 'turnGroup') return
       onNodeSelect(node)
     },
     [onNodeSelect],
@@ -70,6 +74,7 @@ export function AgentFlow({ selectedNode, onNodeSelect }: AgentFlowProps) {
               case 'lead': return '#eab308'
               case 'subagent': return '#3b82f6'
               case 'tool': return '#8b5cf6'
+              case 'turnGroup': return 'rgba(107,114,128,0.1)'
               default: return '#6b7280'
             }
           }}

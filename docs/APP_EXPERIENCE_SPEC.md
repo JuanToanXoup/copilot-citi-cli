@@ -94,6 +94,63 @@ Each user message starts a new vertical section:
 - Within a turn, edges from lead to children are **solid and animated** while active.
 - Dagre handles layout automatically.
 
+### Visual Rendering
+
+The flow graph combines three visual layers for a rich, readable visualization:
+
+#### 1. Turn Group Containers
+
+Each turn (UserNode → LeadNode → children) is wrapped in a **group node** — a subtle container with:
+
+- Rounded border with faint background tint
+- Turn label in the top-left corner ("Turn 1", "Turn 2", ...)
+- Enough padding to enclose all child nodes with breathing room
+- Groups are connected vertically by the timeline spine
+
+```
+┌─ Turn 1 ─────────────────────────────┐
+│                                       │
+│  ┌──────────────────────────┐         │
+│  │  You: Explore auth       │         │
+│  └──────────────────────────┘         │
+│              │                        │
+│  ┌──────────────────────────┐         │
+│  │  Lead Agent              │         │
+│  └──────────────────────────┘         │
+│        │            │                 │
+│  ┌───────────┐ ┌───────────┐         │
+│  │  Explore  │ │   Plan    │         │
+│  │  ✓ done   │ │  running  │         │
+│  └───────────┘ └───────────┘         │
+└───────────────────────────────────────┘
+              │ (spine)
+┌─ Turn 2 ─────────────────────────────┐
+│  ...                                  │
+└───────────────────────────────────────┘
+```
+
+#### 2. Timeline Spine
+
+A **vertical line** runs through the center of the graph, connecting turn groups chronologically:
+
+- Solid thin line (`1px`, border color) connecting the bottom of one turn group to the top of the next
+- Anchors the user's sense of chronological flow
+- Turn group containers are centered on the spine
+- The spine extends as new turns are added, auto-scrolling the graph downward
+
+#### 3. Animated Particle Edges
+
+Edges between nodes use **animated particles** to show real-time data flow:
+
+| Edge state | Visual |
+|------------|--------|
+| **Active (in-progress)** | Particles (small dots) flow along the edge from source to target. Edge has a subtle glow. Color matches the target node type (blue for subagent, purple for tool). |
+| **Completed (success)** | Particles stop. Edge settles to a solid line in the success color (green). |
+| **Completed (error)** | Particles stop. Edge becomes a solid red line. |
+| **Turn chain (dashed)** | No particles. Dashed gray line connecting turns along the spine. Static. |
+
+Particle animation uses CSS `stroke-dashoffset` animation on SVG paths for performance. No canvas/WebGL needed.
+
 ### Interaction
 
 - **Click node**: Scrolls chat to corresponding output, shows highlight.

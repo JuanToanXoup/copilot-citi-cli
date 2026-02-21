@@ -4,5 +4,85 @@
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+code, pre, .font-mono {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Turn Group Container                                               */
+/* ------------------------------------------------------------------ */
+
+.turn-group-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border: 1px solid rgba(107, 114, 128, 0.3);
+  border-radius: 12px;
+  background: rgba(107, 114, 128, 0.04);
+  pointer-events: none;
+}
+
+.turn-group-label {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(156, 163, 175, 0.6);
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Timeline Spine                                                     */
+/* ------------------------------------------------------------------ */
+
+.timeline-spine {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(107, 114, 128, 0.2);
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Particle Edge Animations                                           */
+/* ------------------------------------------------------------------ */
+
+.particle-edge-flow {
+  animation: particle-flow 1.5s linear infinite;
+}
+
+@keyframes particle-flow {
+  from {
+    stroke-dashoffset: 24;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.particle-edge-glow {
+  animation: edge-glow-pulse 2s ease-in-out infinite;
+}
+
+@keyframes edge-glow-pulse {
+  0%, 100% {
+    stroke-opacity: 0.1;
+  }
+  50% {
+    stroke-opacity: 0.25;
+  }
+}
+
+/* Particle dots fade slightly as they travel */
+.particle-dot {
+  filter: blur(0.5px);
 }
