@@ -363,7 +363,13 @@ class AgentService(private val project: Project) : Disposable {
         // Launch subagent in background — don't block the tool call response
         val deferred = scope.async {
             try {
-                session.executeTask(prompt)
+                val result = session.executeTask(prompt)
+                if (result.isBlank()) {
+                    log.info("AgentService: subagent $agentId returned empty — sending follow-up turn")
+                    session.executeTask("Please provide a text summary of your findings and results.")
+                } else {
+                    result
+                }
             } catch (e: Exception) {
                 log.error("AgentService: subagent $agentId failed", e)
                 throw e
@@ -402,9 +408,16 @@ class AgentService(private val project: Project) : Disposable {
             try {
                 log.info("AgentService: awaiting subagent $agentId (${pending.agentType})")
                 val result = pending.deferred.await()
-                results.add(Triple(agentId, pending.agentType, result))
-                _events.emit(AgentEvent.SubagentCompleted(agentId, result, "success"))
-                log.info("AgentService: subagent $agentId completed (${result.length} chars)")
+                if (result.isBlank()) {
+                    val emptyMsg = "Error: subagent produced no output"
+                    results.add(Triple(agentId, pending.agentType, emptyMsg))
+                    _events.emit(AgentEvent.SubagentCompleted(agentId, emptyMsg, "error"))
+                    log.warn("AgentService: subagent $agentId completed with EMPTY result")
+                } else {
+                    results.add(Triple(agentId, pending.agentType, result))
+                    _events.emit(AgentEvent.SubagentCompleted(agentId, result, "success"))
+                    log.info("AgentService: subagent $agentId completed (${result.length} chars)")
+                }
             } catch (e: Exception) {
                 val errorMsg = "Error: ${e.message}"
                 results.add(Triple(agentId, pending.agentType, errorMsg))
