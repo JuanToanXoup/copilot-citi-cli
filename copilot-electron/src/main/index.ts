@@ -1,7 +1,7 @@
 import { app, BrowserWindow } from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { registerIpc } from './ipc'
+import { registerIpc, ensureServices } from './ipc'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -42,6 +42,9 @@ function createWindow(): BrowserWindow {
 app.whenReady().then(() => {
   createWindow()
   registerIpc()
+
+  // Connect to the Copilot LSP immediately at startup
+  ensureServices()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

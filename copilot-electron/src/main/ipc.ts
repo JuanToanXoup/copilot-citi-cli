@@ -42,7 +42,7 @@ let agentService: AgentService | null = null
 const pendingConfirms = new Map<string, (approved: boolean) => void>()
 let confirmCounter = 0
 
-function ensureServices() {
+export function ensureServices() {
   if (conversationManager) return
 
   conversationManager = new ConversationManager()
@@ -104,6 +104,11 @@ function ensureServices() {
     }
 
     await agentService!.handleToolCall(id, name, input, conversationId)
+  })
+
+  // Eagerly initialize the LSP connection so status is available immediately
+  conversationManager.ensureInitialized().catch((err) => {
+    console.error('[ipc] Eager LSP initialization failed:', err.message)
   })
 }
 
