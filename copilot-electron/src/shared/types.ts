@@ -1,12 +1,21 @@
 /** Shared type definitions */
 
+export type AgentModel = 'inherit' | 'haiku' | 'sonnet' | 'opus'
+
 export interface AgentDefinition {
-  id: string
-  name: string
-  description: string
+  agentType: string
+  whenToUse: string
+  tools: string[] | null         // null = all tools allowed
+  disallowedTools: string[]
+  model: AgentModel
   systemPrompt: string
-  allowedTools?: string[]
-  blockedTools?: string[]
+  maxTurns: number
+  source: 'built-in' | 'custom-project' | 'custom-user'
+}
+
+export interface SubagentToolFilter {
+  allowedTools: Set<string> | null  // null = all allowed
+  disallowedTools: Set<string>
 }
 
 export interface ToolSchema {

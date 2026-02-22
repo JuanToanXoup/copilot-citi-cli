@@ -11,7 +11,7 @@ export default defineConfig({
     outDir: 'dist/main',
     emptyOutDir: true,
     rollupOptions: {
-      external: ['electron', 'path', 'fs', 'child_process', 'os', 'url'],
+      external: ['electron', 'path', 'fs', 'child_process', 'os', 'url', 'events', 'crypto'],
     },
   },
   resolve: {

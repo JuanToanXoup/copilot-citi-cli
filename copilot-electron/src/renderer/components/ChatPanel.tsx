@@ -134,13 +134,31 @@ const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(
               <div className="flex items-center gap-2 px-3 py-1.5">
                 <StatusDot status={message.status} />
                 <span className="font-mono">{message.meta?.toolName}</span>
-                <span className="text-gray-600 ml-auto">{toolExpanded ? '▾' : '▸'}</span>
+                <span className="text-gray-600 ml-auto">{toolExpanded ? '\u25BE' : '\u25B8'}</span>
               </div>
               {toolExpanded && (
-                <div className="px-3 py-2 border-t border-gray-800 text-gray-500 font-mono text-[11px]">
-                  <p>Input: (tool parameters)</p>
-                  <p>Output: (tool result)</p>
-                  <p>Status: {message.status}</p>
+                <div className="px-3 py-2 border-t border-gray-800 text-gray-500 font-mono text-[11px] space-y-1.5">
+                  {message.meta?.input && Object.keys(message.meta.input).length > 0 ? (
+                    <div>
+                      <span className="text-gray-600">Input:</span>
+                      <pre className="mt-0.5 text-gray-400 whitespace-pre-wrap max-h-32 overflow-y-auto bg-gray-900/50 rounded p-1.5">
+                        {JSON.stringify(message.meta.input, null, 2)}
+                      </pre>
+                    </div>
+                  ) : (
+                    <p className="text-gray-600">Input: (none)</p>
+                  )}
+                  {message.meta?.output ? (
+                    <div>
+                      <span className="text-gray-600">Output:</span>
+                      <pre className="mt-0.5 text-gray-400 whitespace-pre-wrap max-h-40 overflow-y-auto bg-gray-900/50 rounded p-1.5">
+                        {message.meta.output}
+                      </pre>
+                    </div>
+                  ) : (
+                    <p className="text-gray-600">Output: {message.status === 'running' ? '(pending)' : '(none)'}</p>
+                  )}
+                  <p>Status: <span className={message.status === 'success' ? 'text-green-400' : message.status === 'error' ? 'text-red-400' : 'text-blue-400'}>{message.status}</span></p>
                 </div>
               )}
             </div>
@@ -156,13 +174,32 @@ const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(
           </div>
         )
 
+      case 'terminal':
+        return (
+          <div ref={ref} className={`rounded border border-gray-800 bg-gray-950 text-xs ${highlightClass}`}>
+            <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-800">
+              <span className="text-purple-400 font-mono text-[10px]">$</span>
+              <StatusDot status={message.status} />
+              <span className="text-gray-400 font-medium">Terminal</span>
+            </div>
+            <div className="px-3 py-2">
+              <pre className="text-gray-300 font-mono text-[11px] whitespace-pre-wrap">{message.meta?.command ?? message.text}</pre>
+              {message.meta?.output && (
+                <pre className="mt-1.5 text-gray-500 font-mono text-[11px] whitespace-pre-wrap max-h-32 overflow-y-auto border-t border-gray-800 pt-1.5">
+                  {message.meta.output}
+                </pre>
+              )}
+            </div>
+          </div>
+        )
+
       case 'error':
         return (
           <div ref={ref} className="rounded-lg border border-red-800 bg-red-950/30 px-4 py-2.5 text-sm text-red-300">
             <p>{message.text}</p>
             <button
               onClick={() => {
-                useAgentStore.getState().addStatusMessage('Retrying...')
+                useAgentStore.getState().retryLast()
               }}
               className="mt-2 text-xs px-3 py-1 rounded bg-red-900/50 border border-red-700
                          text-red-300 hover:bg-red-800/50 transition-colors"

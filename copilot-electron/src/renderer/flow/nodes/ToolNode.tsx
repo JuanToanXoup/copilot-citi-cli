@@ -22,7 +22,8 @@ export function ToolNode({ data }: NodeProps) {
           : 'bg-gray-800'
 
   return (
-    <div className={`rounded-lg border ${borderColor} ${bgColor} px-3 py-2 shadow-sm`}>
+    <div className={`relative rounded-lg border ${borderColor} ${bgColor} px-3 py-2 shadow-sm`}>
+      {status === 'running' && <PulseRing color="rgba(192, 132, 252, 0.4)" />}
       <Handle type="target" position={Position.Top} className="!bg-purple-400" />
       <div className="flex items-center gap-2">
         {status === 'running' && (
@@ -31,5 +32,17 @@ export function ToolNode({ data }: NodeProps) {
         <span className="text-xs font-medium text-gray-300">{name}</span>
       </div>
     </div>
+  )
+}
+
+function PulseRing({ color }: { color: string }) {
+  return (
+    <div
+      className="absolute inset-0 rounded-lg pointer-events-none"
+      style={{
+        boxShadow: `0 0 0 0 ${color}`,
+        animation: 'pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+      }}
+    />
   )
 }

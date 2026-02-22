@@ -9,8 +9,9 @@ import { ChangesPanel } from './components/ChangesPanel'
 import { ProjectPicker } from './components/ProjectPicker'
 import { ActivityBar, type SidePanel } from './components/ActivityBar'
 import { FileEditor, type OpenFile, prefetchFile } from './components/FileEditor'
+import { AuthDialog } from './components/AuthDialog'
 import { useFlowStore } from './stores/flow-store'
-import { useAgentStore } from './stores/agent-store'
+import { useAgentStore, type ChatMessage } from './stores/agent-store'
 import { useSettingsStore, type ThemeTokens, type ToolDisplayMode, type ColorMode } from './stores/settings-store'
 import { startDemo } from './demo'
 
@@ -18,6 +19,11 @@ type ViewMode = 'split' | 'chat' | 'graph'
 
 export function App() {
   const projectPath = useSettingsStore((s) => s.projectPath)
+
+  // Hydrate settings from disk on first load
+  useEffect(() => {
+    useSettingsStore.getState().hydrateFromDisk()
+  }, [])
 
   // Show project picker if no project is loaded
   if (!projectPath) {
@@ -39,7 +45,16 @@ function MainApp() {
   const [openFiles, setOpenFiles] = useState<OpenFile[]>([])
   const [activeFile, setActiveFile] = useState<string | null>(null)
   const [editorWidth, setEditorWidth] = useState(500)
+  const [lspConnected, setLspConnected] = useState(false)
+  const [authDialogOpen, setAuthDialogOpen] = useState(false)
+  const [toolConfirmReq, setToolConfirmReq] = useState<{ id: string; name: string; input: Record<string, unknown> } | null>(null)
+  const [gitBranch, setGitBranch] = useState('')
+  const [gitChangesCount, setGitChangesCount] = useState(0)
+  const [gitStatus, setGitStatus] = useState<Map<string, string>>(new Map())
+  const [conversations, setConversations] = useState<Array<{ id: string; date: string; summary: string; path: string }>>([])
+  const [fileTreeRefreshKey, setFileTreeRefreshKey] = useState(0)
   const isProcessing = useAgentStore((s) => s.isProcessing)
+  const changedFiles = useAgentStore((s) => s.changedFiles)
   const dividerRef = useRef<HTMLDivElement>(null)
   const sidebarDividerRef = useRef<HTMLDivElement>(null)
   const editorDividerRef = useRef<HTMLDivElement>(null)
@@ -74,6 +89,7 @@ function MainApp() {
   }, [])
 
   const handleNewConversation = useCallback(() => {
+    window.api.agent.newConversation()
     useFlowStore.getState().onReset()
     useAgentStore.getState().reset()
     setSelectedNode(null)
@@ -99,16 +115,20 @@ function MainApp() {
       } else if (meta && e.key === 'k') {
         e.preventDefault()
         setPaletteOpen((s) => !s)
+      } else if (meta && e.key === 'w') {
+        e.preventDefault()
+        if (activeFile) handleCloseFile(activeFile)
       } else if (e.key === 'Escape') {
         setSettingsOpen(false)
         setPaletteOpen(false)
         setChangesOpen(false)
         setSelectedNode(null)
+        setToolConfirmReq(null)
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [cycleViewMode, handleNewConversation])
+  }, [cycleViewMode, handleNewConversation, activeFile, handleCloseFile])
 
   // Resizable divider drag
   const handleDividerMouseDown = useCallback(
@@ -185,6 +205,143 @@ function MainApp() {
     [editorWidth],
   )
 
+  // Subscribe to LSP status from main process
+  useEffect(() => {
+    const unsub = window.api.agent.onLspStatus((status) => {
+      setLspConnected(status.connected)
+    })
+    return unsub
+  }, [])
+
+  // Subscribe to agent events from main process — Phase 1: Graph↔Chat sync with nodeIds
+  useEffect(() => {
+    const unsub = window.api.agent.onEvent((event) => {
+      const flow = useFlowStore.getState()
+      const agent = useAgentStore.getState()
+
+      switch (event.type) {
+        case 'lead:started':
+          flow.onLeadStatus('running')
+          agent.handleEvent(event)
+          break
+        case 'lead:delta':
+          agent.handleEvent(event)
+          break
+        case 'lead:done':
+          flow.onLeadStatus('done')
+          agent.handleEvent(event)
+          break
+        case 'lead:error':
+          flow.onLeadStatus('error')
+          agent.handleEvent(event)
+          // Show auth dialog if auth error
+          if (event.message?.includes('Authentication') || event.message?.includes('auth')) {
+            setAuthDialogOpen(true)
+          }
+          break
+        case 'lead:toolcall': {
+          // Phase 1: Capture nodeId from flow store and pass to agent store
+          if (event.name === 'run_in_terminal') {
+            const nodeId = flow.onTerminalCommand(event.input?.command as string ?? event.name)
+            agent.addTerminalMessage(event.input?.command as string ?? event.name, nodeId)
+          } else {
+            const nodeId = flow.onLeadToolCall(event.name)
+            agent.addToolMessage(event.name, nodeId, event.input)
+          }
+          break
+        }
+        case 'lead:toolresult': {
+          if (event.name === 'run_in_terminal') {
+            // Find the running terminal message to get its nodeId + command
+            const termMsg = agent.messages.findLast(
+              (m) => m.type === 'terminal' && m.status === 'running',
+            )
+            if (termMsg?.nodeId) {
+              const cmd = termMsg.meta?.command ?? ''
+              flow.onTerminalResult(cmd, event.status)
+              agent.updateTerminalStatus(termMsg.nodeId, event.status)
+            }
+          } else {
+            const nodeId = flow.onLeadToolResult(event.name, event.status)
+            agent.updateToolStatus(event.name, event.status, nodeId, event.output)
+          }
+          break
+        }
+        case 'subagent:spawned':
+          flow.onSubagentSpawned(event.agentId, event.agentType, event.description)
+          agent.handleEvent(event)
+          break
+        case 'subagent:delta':
+          flow.onSubagentDelta(event.agentId, event.text)
+          agent.handleEvent(event)
+          break
+        case 'subagent:completed':
+          flow.onSubagentCompleted(event.agentId, event.status)
+          agent.handleEvent(event)
+          break
+        case 'file:changed':
+          agent.handleEvent(event)
+          // Refresh file tree
+          setFileTreeRefreshKey(k => k + 1)
+          // Reload file if open in editor
+          if (openFiles.some(f => f.path === event.filePath)) {
+            // Trigger re-read by forcing a state update
+            setOpenFiles(prev => [...prev])
+          }
+          break
+        default:
+          agent.handleEvent(event)
+      }
+    })
+    return unsub
+  }, [openFiles])
+
+  // Phase 3: Subscribe to file changed events from main process
+  useEffect(() => {
+    if (!window.api?.agent?.onFileChanged) return
+    const unsub = window.api.agent.onFileChanged((data) => {
+      useAgentStore.getState().addFileChange(data.filePath, data.action as 'created' | 'modified' | 'deleted')
+      setFileTreeRefreshKey(k => k + 1)
+    })
+    return unsub
+  }, [])
+
+  // Phase 7: Subscribe to tool confirm requests
+  useEffect(() => {
+    if (!window.api?.tools?.onConfirmRequest) return
+    const unsub = window.api.tools.onConfirmRequest((req) => {
+      setToolConfirmReq(req)
+    })
+    return unsub
+  }, [])
+
+  // Phase 9: Poll git status
+  useEffect(() => {
+    if (!window.api?.git) return
+
+    const poll = async () => {
+      try {
+        const [branch, status] = await Promise.all([
+          window.api.git.branch(),
+          window.api.git.status(),
+        ])
+        setGitBranch(branch)
+        setGitChangesCount(status.length)
+        const statusMap = new Map<string, string>()
+        for (const s of status) {
+          statusMap.set(s.file, s.status)
+        }
+        setGitStatus(statusMap)
+      } catch {
+        // Git not available
+      }
+    }
+
+    poll()
+    const interval = setInterval(poll, 5000)
+    return () => clearInterval(interval)
+  }, [])
+
   const handleSend = useCallback((text: string) => {
     // Slash commands
     if (text === '/new' || text === '/clear') {
@@ -205,9 +362,38 @@ function MainApp() {
       setActivePanel('vcs')
       return
     }
-    // Git slash commands — stubs until IPC is wired
-    if (['/commit', '/push', '/pull', '/branch'].includes(text)) {
-      useAgentStore.getState().addStatusMessage(`${text} — git integration coming soon`)
+
+    // Phase 9: Git slash commands
+    if (text.startsWith('/commit')) {
+      const msg = text.slice(7).trim().replace(/^["']|["']$/g, '') || 'Auto-commit'
+      window.api?.git?.commit(msg).then((result) => {
+        useAgentStore.getState().addStatusMessage(result)
+      })
+      return
+    }
+    if (text === '/push') {
+      window.api?.git?.push().then((result) => {
+        useAgentStore.getState().addStatusMessage(result || 'Pushed successfully')
+      })
+      return
+    }
+    if (text === '/pull') {
+      window.api?.git?.pull().then((result) => {
+        useAgentStore.getState().addStatusMessage(result || 'Pulled successfully')
+      })
+      return
+    }
+    if (text.startsWith('/branch')) {
+      const name = text.slice(7).trim()
+      if (name) {
+        window.api?.git?.checkout(name, true).then((result) => {
+          useAgentStore.getState().addStatusMessage(result || `Switched to branch ${name}`)
+        })
+      } else {
+        window.api?.git?.branches().then((branches) => {
+          useAgentStore.getState().addStatusMessage(`Branches: ${branches.join(', ')}`)
+        })
+      }
       return
     }
 
@@ -219,13 +405,28 @@ function MainApp() {
     useFlowStore.getState().onNewTurn(text)
     useAgentStore.getState().addUserMessage(text)
     setSelectedNode(null)
-    // In full app: window.api.agent.sendMessage(text)
+    window.api.agent.sendMessage(text)
   }, [])
 
   const handleCancel = useCallback(() => {
-    // In full app: window.api.agent.cancel()
+    window.api.agent.cancel()
     useAgentStore.getState().setProcessing(false)
   }, [])
+
+  // Phase 7: Tool confirmation handlers
+  const handleToolConfirmApprove = useCallback(() => {
+    if (toolConfirmReq) {
+      window.api?.tools?.respondConfirm(toolConfirmReq.id, true)
+      setToolConfirmReq(null)
+    }
+  }, [toolConfirmReq])
+
+  const handleToolConfirmDeny = useCallback(() => {
+    if (toolConfirmReq) {
+      window.api?.tools?.respondConfirm(toolConfirmReq.id, false)
+      setToolConfirmReq(null)
+    }
+  }, [toolConfirmReq])
 
   const showChat = viewMode === 'split' || viewMode === 'chat'
   const showGraph = viewMode === 'split' || viewMode === 'graph'
@@ -270,13 +471,13 @@ function MainApp() {
               style={{ width: `${sidebarWidth}px` }}
             >
               {activePanel === 'explorer' && (
-                <FileTree onFileSelect={handleFileSelect} />
+                <FileTree onFileSelect={handleFileSelect} gitStatus={gitStatus} refreshKey={fileTreeRefreshKey} />
               )}
               {activePanel === 'search' && (
                 <SearchPanel />
               )}
               {activePanel === 'vcs' && (
-                <VcsPanel />
+                <VcsPanel changedFiles={changedFiles} />
               )}
             </div>
             <div
@@ -350,11 +551,31 @@ function MainApp() {
       />
 
       {/* Status bar */}
-      <StatusBar connected={false} viewMode={viewMode} />
+      <StatusBar
+        connected={lspConnected}
+        viewMode={viewMode}
+        branch={gitBranch || undefined}
+        changesCount={gitChangesCount || undefined}
+      />
 
       {/* Command Palette (Cmd+K) */}
       {paletteOpen && (
-        <CommandPalette onClose={() => setPaletteOpen(false)} />
+        <CommandPalette
+          onClose={() => setPaletteOpen(false)}
+          conversations={conversations}
+          onLoadConversations={() => {
+            window.api?.conversations?.list().then(setConversations).catch(() => {})
+          }}
+          onSelectConversation={(id) => {
+            window.api?.conversations?.load(id).then((data) => {
+              if (data) {
+                useAgentStore.getState().loadConversation(data.messages as ChatMessage[])
+                useFlowStore.getState().loadFromMessages(data.messages as ChatMessage[])
+              }
+            }).catch(() => {})
+            setPaletteOpen(false)
+          }}
+        />
       )}
 
       {/* Settings modal (Cmd+Shift+P) */}
@@ -365,6 +586,21 @@ function MainApp() {
       {/* Changes panel */}
       {changesOpen && (
         <ChangesPanel onClose={() => setChangesOpen(false)} />
+      )}
+
+      {/* Auth dialog (Phase 4) */}
+      {authDialogOpen && (
+        <AuthDialog onClose={() => setAuthDialogOpen(false)} />
+      )}
+
+      {/* Tool confirmation dialog (Phase 7) */}
+      {toolConfirmReq && (
+        <ToolConfirmDialog
+          name={toolConfirmReq.name}
+          input={toolConfirmReq.input}
+          onApprove={handleToolConfirmApprove}
+          onDeny={handleToolConfirmDeny}
+        />
       )}
     </div>
   )
@@ -383,8 +619,78 @@ function ViewModeButton({ label, active, onClick }: { label: string; active: boo
   )
 }
 
-function CommandPalette({ onClose }: { onClose: () => void }) {
+/* ------------------------------------------------------------------ */
+/*  Tool Confirmation Dialog (Phase 7)                                 */
+/* ------------------------------------------------------------------ */
+
+function ToolConfirmDialog({ name, input, onApprove, onDeny }: {
+  name: string
+  input: Record<string, unknown>
+  onApprove: () => void
+  onDeny: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="w-[440px] bg-gray-900 border border-gray-700 rounded-xl shadow-2xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-800">
+          <h3 className="text-sm font-semibold text-gray-100">Tool Confirmation Required</h3>
+          <p className="text-xs text-gray-400 mt-1">
+            The agent wants to execute <span className="font-mono text-yellow-400">{name}</span>
+          </p>
+        </div>
+        <div className="px-4 py-3 max-h-48 overflow-y-auto">
+          <pre className="text-xs text-gray-400 font-mono whitespace-pre-wrap bg-gray-950 rounded p-2">
+            {JSON.stringify(input, null, 2)}
+          </pre>
+        </div>
+        <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-gray-800">
+          <button
+            onClick={onDeny}
+            className="text-xs px-3 py-1.5 bg-gray-800 border border-gray-700 rounded
+                       text-gray-400 hover:text-white transition-colors"
+          >
+            Deny
+          </button>
+          <button
+            onClick={onApprove}
+            className="text-xs px-3 py-1.5 bg-green-600 border border-green-500 rounded
+                       text-white hover:bg-green-500 transition-colors"
+          >
+            Approve
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  Command Palette with conversation history (Phase 6)                */
+/* ------------------------------------------------------------------ */
+
+function CommandPalette({ onClose, conversations, onLoadConversations, onSelectConversation }: {
+  onClose: () => void
+  conversations: Array<{ id: string; date: string; summary: string }>
+  onLoadConversations: () => void
+  onSelectConversation: (id: string) => void
+}) {
   const [query, setQuery] = useState('')
+
+  useEffect(() => {
+    onLoadConversations()
+  }, [])
+
+  const filtered = conversations.filter(c =>
+    !query || c.summary.toLowerCase().includes(query.toLowerCase())
+  )
+
+  // Group by date
+  const grouped = filtered.reduce<Record<string, typeof filtered>>((acc, c) => {
+    const key = c.date
+    if (!acc[key]) acc[key] = []
+    acc[key].push(c)
+    return acc
+  }, {})
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]" onClick={onClose}>
@@ -402,12 +708,34 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
           onKeyDown={(e) => e.key === 'Escape' && onClose()}
         />
         <div className="max-h-64 overflow-y-auto p-2">
-          <div className="text-xs text-gray-500 px-2 py-1.5 uppercase tracking-wide">
-            Conversations
-          </div>
-          <div className="text-sm text-gray-400 px-2 py-6 text-center">
-            No conversations yet
-          </div>
+          {Object.keys(grouped).length === 0 ? (
+            <>
+              <div className="text-xs text-gray-500 px-2 py-1.5 uppercase tracking-wide">
+                Conversations
+              </div>
+              <div className="text-sm text-gray-400 px-2 py-6 text-center">
+                No conversations yet
+              </div>
+            </>
+          ) : (
+            Object.entries(grouped).map(([date, convs]) => (
+              <div key={date}>
+                <div className="text-xs text-gray-500 px-2 py-1.5 uppercase tracking-wide">
+                  {date}
+                </div>
+                {convs.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => onSelectConversation(c.id)}
+                    className="w-full text-left px-2 py-1.5 text-sm text-gray-300 rounded
+                               hover:bg-gray-800 transition-colors truncate"
+                  >
+                    {c.summary}
+                  </button>
+                ))}
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>
@@ -591,6 +919,7 @@ function KeybindingsSettings() {
     { keys: 'Cmd+/', action: 'Toggle sidebar' },
     { keys: 'Cmd+\\', action: 'Cycle view modes' },
     { keys: 'Cmd+Shift+P', action: 'Open settings' },
+    { keys: 'Cmd+W', action: 'Close active file tab' },
     { keys: 'Escape', action: 'Close panels / deselect' },
   ]
 
@@ -631,17 +960,37 @@ function SearchPanel() {
   )
 }
 
-function VcsPanel() {
+function VcsPanel({ changedFiles }: { changedFiles: Array<{ path: string; action: string }> }) {
   return (
     <div className="p-3 h-full flex flex-col">
       <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">
         Source Control
       </div>
-      <div className="flex-1 flex items-center justify-center">
-        <p className="text-xs text-gray-600 text-center px-4">
-          Git integration coming soon
-        </p>
-      </div>
+      {changedFiles.length === 0 ? (
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-xs text-gray-600 text-center px-4">
+            No changes detected
+          </p>
+        </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto space-y-0.5">
+          {changedFiles.map((f) => {
+            const color = f.action === 'created' ? 'text-green-400'
+              : f.action === 'deleted' ? 'text-red-400'
+              : 'text-yellow-400'
+            const label = f.action === 'created' ? 'A'
+              : f.action === 'deleted' ? 'D'
+              : 'M'
+            const filename = f.path.split('/').pop() || f.path
+            return (
+              <div key={f.path} className="flex items-center gap-2 text-xs px-1 py-0.5 rounded hover:bg-gray-800">
+                <span className={`font-mono font-bold ${color} w-3`}>{label}</span>
+                <span className="text-gray-400 truncate font-mono">{filename}</span>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

@@ -17,22 +17,30 @@ declare global {
         readFile: (path: string) => Promise<string | null>
         writeFile: (path: string, content: string) => Promise<boolean>
       }
+      agent: any
+      auth: any
+      settings: any
+      conversations: any
+      tools: any
+      git: any
     }
   }
 }
 
 interface FileTreeProps {
   onFileSelect?: (path: string, name: string) => void
+  gitStatus?: Map<string, string>
+  refreshKey?: number
 }
 
-export function FileTree({ onFileSelect }: FileTreeProps) {
+export function FileTree({ onFileSelect, gitStatus, refreshKey }: FileTreeProps) {
   const projectPath = useSettingsStore((s) => s.projectPath)
   const [entries, setEntries] = useState<FileEntry[]>([])
 
   useEffect(() => {
     if (!projectPath) return
     loadDirectory(projectPath).then(setEntries)
-  }, [projectPath])
+  }, [projectPath, refreshKey])
 
   if (!projectPath) {
     return (
@@ -58,14 +66,19 @@ export function FileTree({ onFileSelect }: FileTreeProps) {
       </div>
       <div className="flex-1 overflow-y-auto">
         {entries.map((entry) => (
-          <TreeNode key={entry.path} entry={entry} depth={0} onFileSelect={onFileSelect} />
+          <TreeNode key={entry.path} entry={entry} depth={0} onFileSelect={onFileSelect} gitStatus={gitStatus} />
         ))}
       </div>
     </div>
   )
 }
 
-function TreeNode({ entry, depth, onFileSelect }: { entry: FileEntry; depth: number; onFileSelect?: (path: string, name: string) => void }) {
+function TreeNode({ entry, depth, onFileSelect, gitStatus }: {
+  entry: FileEntry
+  depth: number
+  onFileSelect?: (path: string, name: string) => void
+  gitStatus?: Map<string, string>
+}) {
   const [expanded, setExpanded] = useState(false)
   const [children, setChildren] = useState<FileEntry[]>([])
   const [loaded, setLoaded] = useState(false)
@@ -81,6 +94,10 @@ function TreeNode({ entry, depth, onFileSelect }: { entry: FileEntry; depth: num
   }, [entry, loaded])
 
   const paddingLeft = depth * 16 + 8
+
+  // Phase 9: Get git status for this file
+  const fileGitStatus = gitStatus?.get(entry.name) ?? gitStatus?.get(entry.path)
+  const gitDot = getGitStatusDot(fileGitStatus)
 
   if (entry.isDirectory) {
     const color = getFolderColor(entry.name)
@@ -112,7 +129,7 @@ function TreeNode({ entry, depth, onFileSelect }: { entry: FileEntry; depth: num
               style={{ left: `${paddingLeft + 5}px` }}
             />
             {children.map((child) => (
-              <TreeNode key={child.path} entry={child} depth={depth + 1} onFileSelect={onFileSelect} />
+              <TreeNode key={child.path} entry={child} depth={depth + 1} onFileSelect={onFileSelect} gitStatus={gitStatus} />
             ))}
           </div>
         )}
@@ -131,9 +148,24 @@ function TreeNode({ entry, depth, onFileSelect }: { entry: FileEntry; depth: num
       <span className="shrink-0">
         <FileIconComponent />
       </span>
-      <span className="text-[13px] text-gray-400 truncate">{entry.name}</span>
+      <span className="text-[13px] text-gray-400 truncate flex-1">{entry.name}</span>
+      {gitDot}
     </div>
   )
+}
+
+function getGitStatusDot(status: string | undefined): JSX.Element | null {
+  if (!status) return null
+  if (status === 'M' || status === 'MM' || status === 'AM') {
+    return <span className="inline-block w-1.5 h-1.5 rounded-full bg-yellow-400 shrink-0" title="Modified" />
+  }
+  if (status === '??' || status === 'A') {
+    return <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" title="New" />
+  }
+  if (status === 'D') {
+    return <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" title="Deleted" />
+  }
+  return <span className="inline-block w-1.5 h-1.5 rounded-full bg-gray-500 shrink-0" title={status} />
 }
 
 async function loadDirectory(dirPath: string): Promise<FileEntry[]> {

@@ -6,10 +6,10 @@ import { registerIpc } from './ipc'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-let mainWindow: BrowserWindow | null = null
+const windows = new Map<number, BrowserWindow>()
 
-function createWindow() {
-  mainWindow = new BrowserWindow({
+function createWindow(): BrowserWindow {
+  const win = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 800,
@@ -23,16 +23,20 @@ function createWindow() {
     title: 'Copilot Desktop',
   })
 
+  windows.set(win.id, win)
+
   if (process.env.NODE_ENV === 'development') {
-    mainWindow.loadURL('http://localhost:5173')
-    mainWindow.webContents.openDevTools()
+    win.loadURL('http://localhost:5173')
+    win.webContents.openDevTools()
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
+    win.loadFile(path.join(__dirname, '../renderer/index.html'))
   }
 
-  mainWindow.on('closed', () => {
-    mainWindow = null
+  win.on('closed', () => {
+    windows.delete(win.id)
   })
+
+  return win
 }
 
 app.whenReady().then(() => {
@@ -52,6 +56,16 @@ app.on('window-all-closed', () => {
   }
 })
 
+/** Create a new window for multi-window support (Phase 12) */
+export function createNewWindow(): BrowserWindow {
+  return createWindow()
+}
+
 export function getMainWindow(): BrowserWindow | null {
-  return mainWindow
+  const wins = BrowserWindow.getAllWindows()
+  return wins.length > 0 ? wins[0] : null
+}
+
+export function getAllWindows(): BrowserWindow[] {
+  return Array.from(windows.values())
 }

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { Node, Edge } from '@xyflow/react'
 import dagre from 'dagre'
+import type { ChatMessage } from './agent-store'
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -22,18 +23,19 @@ interface FlowState {
   // Turn lifecycle
   onNewTurn: (userMessage: string) => void
 
-  // Agent events
+  // Agent events — return nodeId for cross-store sync
   onSubagentSpawned: (agentId: string, agentType: string, description: string) => void
   onSubagentCompleted: (agentId: string, status: 'success' | 'error') => void
   onSubagentDelta: (agentId: string, text: string) => void
-  onLeadToolCall: (name: string) => void
-  onLeadToolResult: (name: string, status: 'success' | 'error') => void
-  onTerminalCommand: (command: string) => void
-  onTerminalResult: (command: string, status: 'success' | 'error') => void
+  onLeadToolCall: (name: string) => string
+  onLeadToolResult: (name: string, status: 'success' | 'error') => string | undefined
+  onTerminalCommand: (command: string) => string
+  onTerminalResult: (command: string, status: 'success' | 'error') => string | undefined
   onLeadStatus: (status: 'running' | 'done' | 'error') => void
 
   // Lifecycle
   onReset: () => void
+  loadFromMessages: (messages: ChatMessage[]) => void
 
   // Layout
   recomputeLayout: () => void
@@ -312,23 +314,29 @@ export const useFlowStore = create<FlowState>((set, get) => ({
     })
 
     get().recomputeLayout()
+    return toolId
   },
 
   onLeadToolResult: (name, status) => {
-    set((state) => ({
-      nodes: state.nodes.map((n) =>
-        n.type === 'tool' && n.data.name === name && n.data.status === 'running'
-          ? { ...n, data: { ...n.data, status } }
-          : n,
-      ),
-      edges: state.edges.map((e) => {
+    let matchedNodeId: string | undefined
+    set((state) => {
+      const nodes = state.nodes.map((n) => {
+        if (n.type === 'tool' && n.data.name === name && n.data.status === 'running') {
+          matchedNodeId = n.id
+          return { ...n, data: { ...n.data, status } }
+        }
+        return n
+      })
+      const edges = state.edges.map((e) => {
         const targetNode = state.nodes.find((n) => n.id === e.target)
         if (targetNode?.type === 'tool' && targetNode.data.name === name && targetNode.data.status === 'running') {
           return { ...e, data: { ...e.data, status: status === 'success' ? 'success' : 'error' } }
         }
         return e
-      }),
-    }))
+      })
+      return { nodes, edges }
+    })
+    return matchedNodeId
   },
 
   onTerminalCommand: (command) => {
@@ -356,23 +364,29 @@ export const useFlowStore = create<FlowState>((set, get) => ({
     })
 
     get().recomputeLayout()
+    return termId
   },
 
   onTerminalResult: (command, status) => {
-    set((state) => ({
-      nodes: state.nodes.map((n) =>
-        n.type === 'terminal' && n.data.command === command && n.data.status === 'running'
-          ? { ...n, data: { ...n.data, status } }
-          : n,
-      ),
-      edges: state.edges.map((e) => {
+    let matchedNodeId: string | undefined
+    set((state) => {
+      const nodes = state.nodes.map((n) => {
+        if (n.type === 'terminal' && n.data.command === command && n.data.status === 'running') {
+          matchedNodeId = n.id
+          return { ...n, data: { ...n.data, status } }
+        }
+        return n
+      })
+      const edges = state.edges.map((e) => {
         const targetNode = state.nodes.find((n) => n.id === e.target)
         if (targetNode?.type === 'terminal' && targetNode.data.command === command && targetNode.data.status === 'running') {
           return { ...e, data: { ...e.data, status: status === 'success' ? 'success' : 'error' } }
         }
         return e
-      }),
-    }))
+      })
+      return { nodes, edges }
+    })
+    return matchedNodeId
   },
 
   onLeadStatus: (status) => {
@@ -401,6 +415,48 @@ export const useFlowStore = create<FlowState>((set, get) => ({
       currentGroupId: '',
       previousGroupId: null,
     })
+  },
+
+  /** Reconstruct graph from saved conversation messages (Phase 6) */
+  loadFromMessages: (messages) => {
+    get().onReset()
+    let lastUserText = ''
+    for (const msg of messages) {
+      switch (msg.type) {
+        case 'user':
+          lastUserText = msg.text
+          get().onNewTurn(msg.text)
+          break
+        case 'tool':
+          if (msg.meta?.toolName) {
+            get().onLeadToolCall(msg.meta.toolName)
+            if (msg.status && msg.status !== 'running') {
+              get().onLeadToolResult(msg.meta.toolName, msg.status as 'success' | 'error')
+            }
+          }
+          break
+        case 'terminal':
+          if (msg.meta?.command) {
+            get().onTerminalCommand(msg.meta.command)
+            if (msg.status && msg.status !== 'running') {
+              get().onTerminalResult(msg.meta.command, msg.status as 'success' | 'error')
+            }
+          }
+          break
+        case 'subagent':
+          if (msg.nodeId) {
+            const agentId = msg.nodeId.replace('subagent-', '')
+            get().onSubagentSpawned(agentId, msg.meta?.agentType ?? 'agent', msg.text)
+            if (msg.status && msg.status !== 'running') {
+              get().onSubagentCompleted(agentId, msg.status as 'success' | 'error')
+            }
+          }
+          break
+      }
+    }
+    if (lastUserText) {
+      get().onLeadStatus('done')
+    }
   },
 
   /* ---- Layout --------------------------------------------------- */

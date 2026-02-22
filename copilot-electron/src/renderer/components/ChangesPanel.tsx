@@ -1,36 +1,11 @@
-import { useState } from 'react'
-
-interface FileChange {
-  path: string
-  status: 'modified' | 'added' | 'deleted'
-  additions: number
-  deletions: number
-}
+import { useAgentStore, type FileChange } from '../stores/agent-store'
 
 interface ChangesPanelProps {
   onClose: () => void
 }
 
-// Placeholder data — will be populated from git/agent file changes via IPC
-const PLACEHOLDER_CHANGES: FileChange[] = []
-
 export function ChangesPanel({ onClose }: ChangesPanelProps) {
-  const [changes] = useState<FileChange[]>(PLACEHOLDER_CHANGES)
-  const [selected, setSelected] = useState<Set<string>>(new Set())
-
-  const toggleSelect = (path: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev)
-      if (next.has(path)) next.delete(path)
-      else next.add(path)
-      return next
-    })
-  }
-
-  const selectAll = () => {
-    if (selected.size === changes.length) setSelected(new Set())
-    else setSelected(new Set(changes.map((c) => c.path)))
-  }
+  const changedFiles = useAgentStore((s) => s.changedFiles)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
@@ -41,32 +16,16 @@ export function ChangesPanel({ onClose }: ChangesPanelProps) {
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-semibold text-gray-100">Changes</h2>
-            <span className="text-xs text-gray-500">{changes.length} files</span>
+            <span className="text-xs text-gray-500">{changedFiles.length} files</span>
           </div>
           <div className="flex items-center gap-2">
-            {changes.length > 0 && (
-              <>
-                <button
-                  onClick={selectAll}
-                  className="text-xs px-2 py-1 text-gray-400 hover:text-white transition-colors"
-                >
-                  {selected.size === changes.length ? 'Deselect all' : 'Select all'}
-                </button>
-                <button
-                  disabled={selected.size === 0}
-                  className="text-xs px-3 py-1 bg-green-600 text-white rounded
-                             hover:bg-green-500 disabled:opacity-50 transition-colors"
-                >
-                  Accept ({selected.size})
-                </button>
-                <button
-                  disabled={selected.size === 0}
-                  className="text-xs px-3 py-1 bg-red-600 text-white rounded
-                             hover:bg-red-500 disabled:opacity-50 transition-colors"
-                >
-                  Reject ({selected.size})
-                </button>
-              </>
+            {changedFiles.length > 0 && (
+              <button
+                onClick={() => useAgentStore.getState().clearChanges()}
+                className="text-xs px-2 py-1 text-gray-400 hover:text-white transition-colors"
+              >
+                Clear all
+              </button>
             )}
             <button onClick={onClose} className="text-gray-500 hover:text-white text-sm ml-2">
               Esc
@@ -74,18 +33,18 @@ export function ChangesPanel({ onClose }: ChangesPanelProps) {
           </div>
         </div>
         <div className="flex-1 overflow-y-auto">
-          {changes.length === 0 ? (
+          {changedFiles.length === 0 ? (
             <div className="flex items-center justify-center h-32 text-sm text-gray-500">
               No file changes to review
             </div>
           ) : (
             <div className="divide-y divide-gray-800">
-              {changes.map((change) => (
+              {changedFiles.map((change) => (
                 <FileChangeRow
                   key={change.path}
                   change={change}
-                  isSelected={selected.has(change.path)}
-                  onToggle={() => toggleSelect(change.path)}
+                  onAccept={() => useAgentStore.getState().acceptChange(change.path)}
+                  onReject={() => useAgentStore.getState().rejectChange(change.path)}
                 />
               ))}
             </div>
@@ -98,41 +57,41 @@ export function ChangesPanel({ onClose }: ChangesPanelProps) {
 
 function FileChangeRow({
   change,
-  isSelected,
-  onToggle,
+  onAccept,
+  onReject,
 }: {
   change: FileChange
-  isSelected: boolean
-  onToggle: () => void
+  onAccept: () => void
+  onReject: () => void
 }) {
   const statusColor =
-    change.status === 'added' ? 'text-green-400' :
-    change.status === 'deleted' ? 'text-red-400' :
+    change.action === 'created' ? 'text-green-400' :
+    change.action === 'deleted' ? 'text-red-400' :
     'text-yellow-400'
 
   const statusLabel =
-    change.status === 'added' ? 'A' :
-    change.status === 'deleted' ? 'D' :
+    change.action === 'created' ? 'A' :
+    change.action === 'deleted' ? 'D' :
     'M'
 
   return (
-    <div
-      className={`flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-gray-800/50 transition-colors ${
-        isSelected ? 'bg-gray-800/30' : ''
-      }`}
-      onClick={onToggle}
-    >
-      <input
-        type="checkbox"
-        checked={isSelected}
-        onChange={onToggle}
-        className="accent-blue-500"
-        onClick={(e) => e.stopPropagation()}
-      />
+    <div className="flex items-center gap-3 px-4 py-2 hover:bg-gray-800/50 transition-colors">
       <span className={`text-xs font-mono font-bold ${statusColor} w-4`}>{statusLabel}</span>
       <span className="text-sm text-gray-300 font-mono flex-1 truncate">{change.path}</span>
-      <span className="text-xs text-green-400">+{change.additions}</span>
-      <span className="text-xs text-red-400">-{change.deletions}</span>
+      <button
+        onClick={onAccept}
+        className="text-xs text-green-400 hover:text-green-300 transition-colors"
+        title="Accept change"
+      >
+        &#10003;
+      </button>
+      <button
+        onClick={onReject}
+        className="text-xs text-red-400 hover:text-red-300 transition-colors"
+        title="Reject change"
+      >
+        &#10007;
+      </button>
     </div>
   )
 }

@@ -24,7 +24,8 @@ export function LeadNode({ data }: NodeProps) {
   const displayLabel = round > 1 ? `${label} · Turn ${round}` : label
 
   return (
-    <div className={`rounded-lg border ${borderColor} ${bgColor} px-4 py-3 shadow-sm w-48`}>
+    <div className={`relative rounded-lg border ${borderColor} ${bgColor} px-4 py-3 shadow-sm w-48`}>
+      {status === 'running' && <PulseRing color="rgba(250, 204, 21, 0.4)" />}
       <Handle type="target" position={Position.Top} className="!bg-gray-500" />
       <div className="flex items-center gap-2">
         {status === 'running' && (
@@ -34,5 +35,17 @@ export function LeadNode({ data }: NodeProps) {
       </div>
       <Handle type="source" position={Position.Bottom} className="!bg-gray-500" />
     </div>
+  )
+}
+
+function PulseRing({ color }: { color: string }) {
+  return (
+    <div
+      className="absolute inset-0 rounded-lg animate-pulse-ring pointer-events-none"
+      style={{
+        boxShadow: `0 0 0 0 ${color}`,
+        animation: 'pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+      }}
+    />
   )
 }

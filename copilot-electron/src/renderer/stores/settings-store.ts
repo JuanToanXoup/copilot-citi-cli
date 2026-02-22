@@ -75,6 +75,21 @@ const BUILTIN_TOOLS: ToolDef[] = [
 ]
 
 /* ------------------------------------------------------------------ */
+/*  Tool permission defaults (Phase 7)                                 */
+/* ------------------------------------------------------------------ */
+
+const DEFAULT_TOOL_PERMISSIONS: Record<string, 'auto' | 'confirm' | 'always-ask'> = {
+  read_file: 'auto',
+  list_dir: 'auto',
+  grep_search: 'auto',
+  file_search: 'auto',
+  create_file: 'confirm',
+  insert_edit_into_file: 'confirm',
+  create_directory: 'confirm',
+  run_in_terminal: 'confirm',
+}
+
+/* ------------------------------------------------------------------ */
 /*  Color mode                                                         */
 /* ------------------------------------------------------------------ */
 
@@ -106,9 +121,23 @@ interface SettingsState {
   // Tools
   tools: ToolDef[]
 
+  // Tool permissions (Phase 7)
+  toolPermissions: Record<string, 'auto' | 'confirm' | 'always-ask'>
+  setToolPermission: (name: string, perm: 'auto' | 'confirm' | 'always-ask') => void
+  getToolPermission: (name: string) => 'auto' | 'confirm' | 'always-ask'
+
+  // Debug logging (Phase 7)
+  debugLogging: boolean
+  setDebugLogging: (v: boolean) => void
+
   // Project
   projectPath: string | null
   setProjectPath: (path: string) => void
+
+  // Persistence (Phase 5)
+  hydrated: boolean
+  hydrateFromDisk: () => Promise<void>
+  persistToDisk: () => void
 }
 
 function resolveIsDark(mode: ColorMode): boolean {
@@ -117,11 +146,18 @@ function resolveIsDark(mode: ColorMode): boolean {
   return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? true
 }
 
+let persistTimer: ReturnType<typeof setTimeout> | null = null
+
+function debouncePersist(state: SettingsState) {
+  if (persistTimer) clearTimeout(persistTimer)
+  persistTimer = setTimeout(() => state.persistToDisk(), 500)
+}
+
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   model: 'gpt-4.1',
   proxyUrl: null,
-  setModel: (model) => set({ model }),
-  setProxyUrl: (proxyUrl) => set({ proxyUrl }),
+  setModel: (model) => { set({ model }); debouncePersist(get()) },
+  setProxyUrl: (proxyUrl) => { set({ proxyUrl }); debouncePersist(get()) },
 
   colorMode: 'system',
   resolvedDark: resolveIsDark('system'),
@@ -132,27 +168,91 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const baseTokens = isDark ? darkTokens : lightTokens
     set({ colorMode: mode, resolvedDark: isDark, tokens: { ...baseTokens } })
     applyTokens(baseTokens)
+    debouncePersist(get())
   },
 
   setToken: (key, value) => {
     const tokens = { ...get().tokens, [key]: value }
     set({ tokens })
     applyTokens(tokens)
+    debouncePersist(get())
   },
 
   resetTokens: () => {
     const baseTokens = get().resolvedDark ? darkTokens : lightTokens
     set({ tokens: { ...baseTokens } })
     applyTokens(baseTokens)
+    debouncePersist(get())
   },
 
   toolDisplayMode: 'collapsible',
-  setToolDisplayMode: (mode) => set({ toolDisplayMode: mode }),
+  setToolDisplayMode: (mode) => { set({ toolDisplayMode: mode }); debouncePersist(get()) },
 
   tools: [...BUILTIN_TOOLS],
 
+  toolPermissions: { ...DEFAULT_TOOL_PERMISSIONS },
+  setToolPermission: (name, perm) => {
+    set((s) => ({ toolPermissions: { ...s.toolPermissions, [name]: perm } }))
+    debouncePersist(get())
+  },
+  getToolPermission: (name) => get().toolPermissions[name] ?? 'auto',
+
+  debugLogging: false,
+  setDebugLogging: (v) => { set({ debugLogging: v }); debouncePersist(get()) },
+
   projectPath: null,
-  setProjectPath: (path) => set({ projectPath: path }),
+  setProjectPath: (path) => { set({ projectPath: path }); debouncePersist(get()) },
+
+  hydrated: false,
+
+  hydrateFromDisk: async () => {
+    if (get().hydrated) return
+    try {
+      const data = await window.api?.settings?.read()
+      if (!data) { set({ hydrated: true }); return }
+
+      const { config, theme } = data
+      const updates: Partial<SettingsState> = { hydrated: true }
+
+      if (config.model) updates.model = config.model as string
+      if (config.proxyUrl !== undefined) updates.proxyUrl = config.proxyUrl as string | null
+      if (config.colorMode) updates.colorMode = config.colorMode as ColorMode
+      if (config.toolDisplayMode) updates.toolDisplayMode = config.toolDisplayMode as ToolDisplayMode
+      if (config.projectPath) updates.projectPath = config.projectPath as string
+      if (config.debugLogging !== undefined) updates.debugLogging = config.debugLogging as boolean
+      if (config.toolPermissions) updates.toolPermissions = config.toolPermissions as Record<string, 'auto' | 'confirm' | 'always-ask'>
+
+      if (theme && Object.keys(theme).length > 0) {
+        updates.tokens = { ...darkTokens, ...theme } as ThemeTokens
+      }
+
+      set(updates as any)
+
+      // Resolve dark mode and apply tokens
+      if (updates.colorMode) {
+        const isDark = resolveIsDark(updates.colorMode)
+        set({ resolvedDark: isDark })
+      }
+      applyTokens(get().tokens)
+    } catch {
+      set({ hydrated: true })
+    }
+  },
+
+  persistToDisk: () => {
+    const s = get()
+    const config = {
+      model: s.model,
+      proxyUrl: s.proxyUrl,
+      colorMode: s.colorMode,
+      toolDisplayMode: s.toolDisplayMode,
+      projectPath: s.projectPath,
+      debugLogging: s.debugLogging,
+      toolPermissions: s.toolPermissions,
+    }
+    const theme = s.tokens
+    window.api?.settings?.write({ config, theme }).catch(() => {})
+  },
 }))
 
 /* ------------------------------------------------------------------ */

@@ -18,7 +18,18 @@ export interface ChatMessage {
     agentType?: string
     toolName?: string
     command?: string
+    input?: Record<string, unknown>
+    output?: string
   }
+}
+
+/* ------------------------------------------------------------------ */
+/*  File change tracking (Phase 3)                                     */
+/* ------------------------------------------------------------------ */
+
+export interface FileChange {
+  path: string
+  action: 'created' | 'modified' | 'deleted'
 }
 
 /* ------------------------------------------------------------------ */
@@ -29,6 +40,8 @@ interface AgentState {
   messages: ChatMessage[]
   isProcessing: boolean
   error: string | null
+  lastUserMessage: string | null
+  changedFiles: FileChange[]
 
   // Actions
   addUserMessage: (text: string) => void
@@ -36,12 +49,21 @@ interface AgentState {
   addSubagentMessage: (agentId: string, agentType: string, description: string) => void
   updateSubagentStatus: (agentId: string, status: 'success' | 'error') => void
   addSubagentDelta: (agentId: string, text: string) => void
-  addToolMessage: (name: string) => void
-  updateToolStatus: (name: string, status: 'success' | 'error') => void
+  addToolMessage: (name: string, nodeId?: string, input?: Record<string, unknown>) => void
+  updateToolStatus: (name: string, status: 'success' | 'error', nodeId?: string, output?: string) => void
+  addTerminalMessage: (command: string, nodeId?: string) => void
+  updateTerminalStatus: (nodeId: string, status: 'success' | 'error') => void
   addStatusMessage: (text: string) => void
   addErrorMessage: (text: string) => void
   setProcessing: (v: boolean) => void
   handleEvent: (event: AgentEvent) => void
+  retryLast: () => void
+  addFileChange: (filePath: string, action: 'created' | 'modified' | 'deleted') => void
+  clearChanges: () => void
+  acceptChange: (filePath: string) => void
+  rejectChange: (filePath: string) => void
+  loadConversation: (messages: ChatMessage[]) => void
+  getSerializableMessages: () => ChatMessage[]
   reset: () => void
 }
 
@@ -54,6 +76,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   messages: [],
   isProcessing: false,
   error: null,
+  lastUserMessage: null,
+  changedFiles: [],
 
   addUserMessage: (text) => {
     const turn = (get().messages.filter((m) => m.type === 'user').length + 1) + 1 // +1 for next turn
@@ -68,6 +92,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
           timestamp: Date.now(),
         },
       ],
+      lastUserMessage: text,
     }))
   },
 
@@ -128,29 +153,61 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     }))
   },
 
-  addToolMessage: (name) => {
+  addToolMessage: (name, nodeId?, input?) => {
     set((s) => ({
       messages: [
         ...s.messages,
         {
           id: nextId(),
           type: 'tool',
+          nodeId,
           text: name,
           timestamp: Date.now(),
           status: 'running',
-          meta: { toolName: name },
+          meta: { toolName: name, input },
         },
       ],
     }))
   },
 
-  updateToolStatus: (name, status) => {
+  updateToolStatus: (name, status, nodeId?, output?) => {
     set((s) => {
       const msgs = [...s.messages]
-      const tool = msgs.findLast((m) => m.type === 'tool' && m.meta?.toolName === name && m.status === 'running')
-      if (tool) tool.status = status
+      // Match by nodeId first (more reliable), fall back to name
+      const tool = nodeId
+        ? msgs.find((m) => m.nodeId === nodeId && m.status === 'running')
+        : msgs.findLast((m) => m.type === 'tool' && m.meta?.toolName === name && m.status === 'running')
+      if (tool) {
+        tool.status = status
+        if (output && tool.meta) tool.meta.output = output
+      }
       return { messages: msgs }
     })
+  },
+
+  addTerminalMessage: (command, nodeId?) => {
+    set((s) => ({
+      messages: [
+        ...s.messages,
+        {
+          id: nextId(),
+          type: 'terminal',
+          nodeId,
+          text: command,
+          timestamp: Date.now(),
+          status: 'running',
+          meta: { command },
+        },
+      ],
+    }))
+  },
+
+  updateTerminalStatus: (nodeId, status) => {
+    set((s) => ({
+      messages: s.messages.map((m) =>
+        m.nodeId === nodeId && m.type === 'terminal' ? { ...m, status } : m,
+      ),
+    }))
   },
 
   addStatusMessage: (text) => {
@@ -204,14 +261,71 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       case 'subagent:completed':
         state.updateSubagentStatus(event.agentId, event.status)
         break
-      case 'conversation:done':
+      case 'subagent:retrying':
+        state.addStatusMessage(`Retrying subagent ${event.agentId}...`)
+        break
+      case 'conversation:done': {
         set({ isProcessing: false })
+        // Auto-save conversation (Phase 6)
+        const msgs = get().messages
+        if (msgs.length > 0 && window.api?.conversations) {
+          const firstUser = msgs.find(m => m.type === 'user')
+          const summary = firstUser?.text.slice(0, 80) ?? 'Conversation'
+          const convId = `conv-${Date.now()}`
+          window.api.conversations.save({ id: convId, messages: msgs, summary }).catch(() => {})
+        }
+        break
+      }
+      case 'file:changed':
+        state.addFileChange(event.filePath, event.action)
         break
     }
   },
 
+  retryLast: () => {
+    const msg = get().lastUserMessage
+    if (msg) {
+      window.api?.agent.sendMessage(msg)
+      set({ isProcessing: true, error: null })
+    }
+  },
+
+  addFileChange: (filePath, action) => {
+    set((s) => {
+      const existing = s.changedFiles.findIndex(f => f.path === filePath)
+      if (existing >= 0) {
+        const next = [...s.changedFiles]
+        next[existing] = { path: filePath, action }
+        return { changedFiles: next }
+      }
+      return { changedFiles: [...s.changedFiles, { path: filePath, action }] }
+    })
+  },
+
+  clearChanges: () => set({ changedFiles: [] }),
+
+  acceptChange: (filePath) => {
+    set((s) => ({
+      changedFiles: s.changedFiles.filter(f => f.path !== filePath),
+    }))
+  },
+
+  rejectChange: (filePath) => {
+    // TODO: revert file using git checkout
+    set((s) => ({
+      changedFiles: s.changedFiles.filter(f => f.path !== filePath),
+    }))
+  },
+
+  loadConversation: (messages) => {
+    msgCounter = messages.length
+    set({ messages, isProcessing: false, error: null })
+  },
+
+  getSerializableMessages: () => get().messages,
+
   reset: () => {
     msgCounter = 0
-    set({ messages: [], isProcessing: false, error: null })
+    set({ messages: [], isProcessing: false, error: null, lastUserMessage: null, changedFiles: [] })
   },
 }))
