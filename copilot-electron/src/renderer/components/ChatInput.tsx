@@ -102,20 +102,20 @@ export function ChatInput({
   )
 
   return (
-    <div className="relative border-t border-gray-800 bg-gray-900 shrink-0">
+    <div className="relative border-t border-token-border bg-token-surface shrink-0">
       {/* Slash command autocomplete */}
       {showSlashMenu && filteredCommands.length > 0 && (
-        <div className="absolute bottom-full left-4 right-4 mb-1 bg-gray-800 border border-gray-700 rounded-lg overflow-hidden shadow-xl">
+        <div className="absolute bottom-full left-4 right-4 mb-1 bg-token-surface border border-token-border rounded-lg overflow-hidden shadow-xl">
           {filteredCommands.map((cmd, i) => (
             <button
               key={cmd.command}
               onClick={() => selectCommand(cmd.command)}
               className={`w-full flex items-center gap-3 px-3 py-2 text-left text-sm transition-colors ${
-                i === slashIndex ? 'bg-gray-700 text-white' : 'text-gray-300 hover:bg-gray-700/50'
+                i === slashIndex ? 'bg-token-bg text-token-text' : 'text-token-text-secondary hover:bg-token-bg/50'
               }`}
             >
-              <span className="font-mono text-blue-400">{cmd.command}</span>
-              <span className="text-gray-500">{cmd.description}</span>
+              <span className="font-mono text-token-accent">{cmd.command}</span>
+              <span className="text-token-text-secondary">{cmd.description}</span>
             </button>
           ))}
         </div>
@@ -129,7 +129,7 @@ export function ChatInput({
       <div className="flex items-end gap-2 p-4">
         <button
           onClick={() => setShowToolPopover((s) => !s)}
-          className="px-2 py-2.5 text-gray-500 hover:text-white transition-colors"
+          className="px-2 py-2.5 text-token-text-secondary hover:text-token-text transition-colors"
           title="Available tools"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
@@ -144,15 +144,15 @@ export function ChatInput({
           placeholder={placeholder}
           disabled={disabled}
           rows={1}
-          className="flex-1 resize-none bg-gray-800 text-gray-100 rounded-lg px-4 py-2.5 text-sm
-                     placeholder-gray-500 border border-gray-700 focus:border-blue-500 focus:outline-none
+          className="flex-1 resize-none bg-token-bg text-token-text rounded-lg px-4 py-2.5 text-sm
+                     placeholder-token-text-secondary/50 border border-token-border focus:border-token-primary focus:outline-none
                      disabled:opacity-50"
         />
         {isProcessing ? (
           <button
             onClick={onCancel}
-            className="px-4 py-2.5 text-sm font-medium bg-red-600 text-white rounded-lg
-                       hover:bg-red-500 transition-colors"
+            className="px-4 py-2.5 text-sm font-medium bg-token-error text-white rounded-lg
+                       hover:opacity-90 transition-colors"
           >
             Stop
           </button>
@@ -160,8 +160,8 @@ export function ChatInput({
           <button
             onClick={handleSubmit}
             disabled={!text.trim()}
-            className="px-4 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-lg
-                       hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-4 py-2.5 text-sm font-medium bg-token-primary text-white rounded-lg
+                       hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             Send
           </button>

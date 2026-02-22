@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events'
+import { dialog } from 'electron'
 import { LspClient } from '../lsp/client'
 import { findCopilotBinary } from '../lsp/binary'
 import { readCopilotAuth } from '../lsp/auth'
@@ -30,9 +31,12 @@ export class ConversationManager extends EventEmitter {
   }
 
   private async initialize() {
-    // Step 1: Find binary
-    const binaryPath = findCopilotBinary()
-    if (!binaryPath) throw new Error('copilot-language-server binary not found')
+    // Step 1: Find binary (with fallback dialog)
+    let binaryPath = findCopilotBinary()
+    if (!binaryPath) {
+      binaryPath = await this.promptForBinary()
+      if (!binaryPath) throw new Error('copilot-language-server binary not found')
+    }
 
     // Step 2: Read auth
     const auth = readCopilotAuth()
@@ -147,6 +151,28 @@ export class ConversationManager extends EventEmitter {
 
     this.initialized = true
     this.emit('status', { connected: true, user: statusResp.result?.user })
+  }
+
+  /**
+   * Phase 6 Task 3: When findCopilotBinary() returns null, prompt the user
+   * to manually select the copilot-language-server binary via a file dialog.
+   */
+  private async promptForBinary(): Promise<string | null> {
+    try {
+      const result = await dialog.showOpenDialog({
+        title: 'Select copilot-language-server binary',
+        message: 'Could not auto-detect the Copilot language server. Please locate it manually.',
+        properties: ['openFile'],
+        filters: [
+          { name: 'Executables', extensions: ['', 'exe'] },
+          { name: 'All Files', extensions: ['*'] },
+        ],
+      })
+      if (result.canceled || result.filePaths.length === 0) return null
+      return result.filePaths[0]
+    } catch {
+      return null
+    }
   }
 
   /** Handle server-to-client requests (tool calls, confirmations, etc.) */

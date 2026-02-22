@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { AgentEvent } from '@shared/events'
+import { useSettingsStore } from './settings-store'
 
 /* ------------------------------------------------------------------ */
 /*  Message types for the chat panel                                   */
@@ -20,6 +21,8 @@ export interface ChatMessage {
     command?: string
     input?: Record<string, unknown>
     output?: string
+    startTime?: number
+    duration?: number
   }
 }
 
@@ -164,7 +167,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
           text: name,
           timestamp: Date.now(),
           status: 'running',
-          meta: { toolName: name, input },
+          meta: { toolName: name, input, startTime: Date.now() },
         },
       ],
     }))
@@ -180,7 +183,16 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       if (tool) {
         tool.status = status
         if (output && tool.meta) tool.meta.output = output
+        if (tool.meta?.startTime) {
+          tool.meta.duration = Date.now() - tool.meta.startTime
+        }
       }
+
+      // Phase 5, Task 7: Increment tool usage count on success
+      if (status === 'success') {
+        useSettingsStore.getState().incrementToolUsage(name)
+      }
+
       return { messages: msgs }
     })
   },
@@ -196,7 +208,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
           text: command,
           timestamp: Date.now(),
           status: 'running',
-          meta: { command },
+          meta: { command, startTime: Date.now() },
         },
       ],
     }))
@@ -278,6 +290,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       }
       case 'file:changed':
         state.addFileChange(event.filePath, event.action)
+        break
+      case 'status':
+        state.addStatusMessage(event.text)
         break
     }
   },

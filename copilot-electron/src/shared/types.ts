@@ -33,3 +33,13 @@ export interface PsiStatus {
   connected: boolean
   tools: string[]
 }
+
+/** Serialisable agent card sent to the renderer */
+export interface AgentCard {
+  agentType: string
+  whenToUse: string
+  model: AgentModel
+  source: 'built-in' | 'custom-project' | 'custom-user'
+  toolCount: number | null  // null = all tools
+  maxTurns: number
+}

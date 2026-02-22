@@ -30,10 +30,22 @@ import {
   GIT_COMMIT,
   GIT_PUSH,
   GIT_PULL,
+  GIT_DIFF,
+  GIT_CHECKOUT_FILE,
+  AGENTS_LIST,
+  SETTINGS_CHANGED,
+  MCP_ADD_SERVER,
+  MCP_REMOVE_SERVER,
+  MCP_DISCONNECT,
+  MCP_RECONNECT,
+  MCP_LIST_SERVERS,
+  WINDOW_SET_TITLE,
 } from '@shared/ipc-channels'
 import type { AgentEvent } from '@shared/events'
+import type { AgentCard } from '@shared/types'
 import { ConversationManager } from './conversation/conversation-manager'
 import { AgentService } from './agent/agent-service'
+import { loadAgents } from './agent/agent-registry'
 
 let conversationManager: ConversationManager | null = null
 let agentService: AgentService | null = null
@@ -42,10 +54,56 @@ let agentService: AgentService | null = null
 const pendingConfirms = new Map<string, (approved: boolean) => void>()
 let confirmCounter = 0
 
+/** Active fs.watch watchers for settings files */
+const settingsWatchers: fs.FSWatcher[] = []
+let suppressSettingsWatch = false
+
+function startSettingsWatchers(): void {
+  stopSettingsWatchers()
+  const copilotDir = getCopilotDir()
+  const configPath = path.join(copilotDir, 'config.json')
+  const themePath = path.join(copilotDir, 'theme.json')
+
+  for (const filePath of [configPath, themePath]) {
+    if (!fs.existsSync(filePath)) continue
+    try {
+      const watcher = fs.watch(filePath, { persistent: false }, (eventType) => {
+        if (suppressSettingsWatch || eventType !== 'change') return
+        setTimeout(() => {
+          try {
+            const dir2 = getCopilotDir()
+            let config: Record<string, unknown> = {}
+            let theme: Record<string, unknown> = {}
+            const cp = path.join(dir2, 'config.json')
+            const tp = path.join(dir2, 'theme.json')
+            if (fs.existsSync(cp)) config = JSON.parse(fs.readFileSync(cp, 'utf-8'))
+            if (fs.existsSync(tp)) theme = JSON.parse(fs.readFileSync(tp, 'utf-8'))
+            const windows = BrowserWindow.getAllWindows()
+            for (const win of windows) win.webContents.send(SETTINGS_CHANGED, { config, theme })
+          } catch { /* file may be mid-write */ }
+        }, 100)
+      })
+      settingsWatchers.push(watcher)
+    } catch { /* fs.watch not available */ }
+  }
+}
+
+function stopSettingsWatchers(): void {
+  for (const w of settingsWatchers) { try { w.close() } catch {} }
+  settingsWatchers.length = 0
+}
+
 export function ensureServices() {
   if (conversationManager) return
 
   conversationManager = new ConversationManager()
+
+  // Proxy auto-detection from environment
+  const envProxy = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || process.env.https_proxy || process.env.http_proxy || null
+  if (envProxy) {
+    conversationManager.proxyUrl = envProxy
+  }
+
   agentService = new AgentService(conversationManager)
 
   // Forward agent events → renderer
@@ -243,6 +301,9 @@ export function registerIpc(): void {
         theme = JSON.parse(fs.readFileSync(themePath, 'utf-8'))
       }
 
+      // Start settings watchers after first read
+      startSettingsWatchers()
+
       return { config, theme }
     } catch {
       return null
@@ -251,15 +312,96 @@ export function registerIpc(): void {
 
   ipcMain.handle(SETTINGS_WRITE, async (_event, data: { config?: Record<string, unknown>; theme?: Record<string, unknown> }) => {
     try {
+      suppressSettingsWatch = true
       const copilotDir = getCopilotDir()
       if (data.config) {
         fs.writeFileSync(path.join(copilotDir, 'config.json'), JSON.stringify(data.config, null, 2), 'utf-8')
+        // Apply proxy/caCert from settings to conversationManager
+        if (conversationManager) {
+          if (data.config.proxyUrl !== undefined) conversationManager.proxyUrl = (data.config.proxyUrl as string) || null
+          if (data.config.caCertPath !== undefined) conversationManager.caCertPath = (data.config.caCertPath as string) || null
+        }
       }
       if (data.theme) {
         fs.writeFileSync(path.join(copilotDir, 'theme.json'), JSON.stringify(data.theme, null, 2), 'utf-8')
       }
+      setTimeout(() => { suppressSettingsWatch = false }, 200)
     } catch {
-      // Silently fail
+      suppressSettingsWatch = false
+    }
+  })
+
+  /* ------------------------------------------------------------------ */
+  /*  Phase 5: MCP management IPC handlers                               */
+  /* ------------------------------------------------------------------ */
+
+  ipcMain.handle(MCP_ADD_SERVER, async (_event, config: { name: string; type: 'stdio' | 'sse'; command?: string; args?: string[]; env?: Record<string, string>; url?: string }) => {
+    try {
+      ensureServices()
+      const mcpManager = conversationManager?.mcpManager
+      if (!mcpManager) return { success: false, error: 'MCP manager not initialized' }
+      await mcpManager.addServer(config)
+      return { success: true }
+    } catch (e: any) {
+      return { success: false, error: e.message }
+    }
+  })
+
+  ipcMain.handle(MCP_REMOVE_SERVER, async (_event, name: string) => {
+    try {
+      ensureServices()
+      const mcpManager = conversationManager?.mcpManager
+      if (!mcpManager) return { success: false, error: 'MCP manager not initialized' }
+      await mcpManager.removeServer(name)
+      return { success: true }
+    } catch (e: any) {
+      return { success: false, error: e.message }
+    }
+  })
+
+  ipcMain.handle(MCP_DISCONNECT, async (_event, name: string) => {
+    try {
+      ensureServices()
+      const mcpManager = conversationManager?.mcpManager
+      if (!mcpManager) return { success: false, error: 'MCP manager not initialized' }
+      await mcpManager.disconnectServer(name)
+      return { success: true }
+    } catch (e: any) {
+      return { success: false, error: e.message }
+    }
+  })
+
+  ipcMain.handle(MCP_RECONNECT, async (_event, name: string) => {
+    try {
+      ensureServices()
+      const mcpManager = conversationManager?.mcpManager
+      if (!mcpManager) return { success: false, error: 'MCP manager not initialized' }
+      await mcpManager.reconnectServer(name)
+      return { success: true }
+    } catch (e: any) {
+      return { success: false, error: e.message }
+    }
+  })
+
+  ipcMain.handle(MCP_LIST_SERVERS, async () => {
+    try {
+      ensureServices()
+      const mcpManager = conversationManager?.mcpManager
+      if (!mcpManager) return []
+      return mcpManager.getServerList()
+    } catch {
+      return []
+    }
+  })
+
+  /* ------------------------------------------------------------------ */
+  /*  Phase 6: Window title                                              */
+  /* ------------------------------------------------------------------ */
+
+  ipcMain.on(WINDOW_SET_TITLE, (_event, title: string) => {
+    const windows = BrowserWindow.getAllWindows()
+    for (const win of windows) {
+      win.setTitle(title)
     }
   })
 
@@ -421,6 +563,48 @@ export function registerIpc(): void {
       return execSync('git pull', { cwd, encoding: 'utf-8' }).trim()
     } catch (e: any) {
       return `Error: ${e.stderr ?? e.message}`
+    }
+  })
+
+  ipcMain.handle(GIT_DIFF, async (_event, filePath?: string) => {
+    try {
+      const cwd = getWorkspaceRoot()
+      const cmd = filePath ? `git diff -- "${filePath}"` : 'git diff'
+      return execSync(cmd, { cwd, encoding: 'utf-8' })
+    } catch (e: any) {
+      return `Error: ${e.stderr ?? e.message}`
+    }
+  })
+
+  ipcMain.handle(GIT_CHECKOUT_FILE, async (_event, filePath: string) => {
+    try {
+      const cwd = getWorkspaceRoot()
+      execSync(`git checkout -- "${filePath}"`, { cwd, encoding: 'utf-8' })
+      return true
+    } catch {
+      return false
+    }
+  })
+
+  /* ------------------------------------------------------------------ */
+  /*  Phase 3: Agents listing                                            */
+  /* ------------------------------------------------------------------ */
+
+  ipcMain.handle(AGENTS_LIST, async () => {
+    try {
+      const root = getWorkspaceRoot()
+      const agents = loadAgents(root)
+      const cards: AgentCard[] = agents.map(a => ({
+        agentType: a.agentType,
+        whenToUse: a.whenToUse,
+        model: a.model,
+        source: a.source,
+        toolCount: a.tools ? a.tools.length : null,
+        maxTurns: a.maxTurns,
+      }))
+      return cards
+    } catch {
+      return []
     }
   })
 }

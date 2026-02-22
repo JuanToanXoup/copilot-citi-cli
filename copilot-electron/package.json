@@ -14,8 +14,10 @@
     "package": "electron-builder"
   },
   "dependencies": {
+    "@types/prismjs": "^1.26.6",
     "@xyflow/react": "^12.4.0",
     "dagre": "^0.8.5",
+    "prismjs": "^1.30.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "zustand": "^5.0.0"

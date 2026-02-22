@@ -103,8 +103,10 @@ interface SettingsState {
   // Connection
   model: string
   proxyUrl: string | null
+  caCertPath: string | null
   setModel: (model: string) => void
   setProxyUrl: (url: string | null) => void
+  setCaCertPath: (path: string | null) => void
 
   // Theme
   colorMode: ColorMode
@@ -120,6 +122,7 @@ interface SettingsState {
 
   // Tools
   tools: ToolDef[]
+  incrementToolUsage: (toolName: string) => void
 
   // Tool permissions (Phase 7)
   toolPermissions: Record<string, 'auto' | 'confirm' | 'always-ask'>
@@ -138,6 +141,9 @@ interface SettingsState {
   hydrated: boolean
   hydrateFromDisk: () => Promise<void>
   persistToDisk: () => void
+
+  // Bidirectional sync (Phase 3)
+  applyExternalSettings: (data: { config: Record<string, unknown>; theme: Record<string, unknown> }) => void
 }
 
 function resolveIsDark(mode: ColorMode): boolean {
@@ -156,8 +162,10 @@ function debouncePersist(state: SettingsState) {
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   model: 'gpt-4.1',
   proxyUrl: null,
+  caCertPath: null,
   setModel: (model) => { set({ model }); debouncePersist(get()) },
   setProxyUrl: (proxyUrl) => { set({ proxyUrl }); debouncePersist(get()) },
+  setCaCertPath: (caCertPath) => { set({ caCertPath }); debouncePersist(get()) },
 
   colorMode: 'system',
   resolvedDark: resolveIsDark('system'),
@@ -190,6 +198,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   tools: [...BUILTIN_TOOLS],
 
+  /** Increment usage counter for a tool by name (Phase 5, Task 7) */
+  incrementToolUsage: (toolName) => {
+    set((s) => ({
+      tools: s.tools.map((t) =>
+        t.name === toolName ? { ...t, usageCount: t.usageCount + 1 } : t,
+      ),
+    }))
+  },
+
   toolPermissions: { ...DEFAULT_TOOL_PERMISSIONS },
   setToolPermission: (name, perm) => {
     set((s) => ({ toolPermissions: { ...s.toolPermissions, [name]: perm } }))
@@ -216,6 +233,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
       if (config.model) updates.model = config.model as string
       if (config.proxyUrl !== undefined) updates.proxyUrl = config.proxyUrl as string | null
+      if (config.caCertPath !== undefined) updates.caCertPath = config.caCertPath as string | null
       if (config.colorMode) updates.colorMode = config.colorMode as ColorMode
       if (config.toolDisplayMode) updates.toolDisplayMode = config.toolDisplayMode as ToolDisplayMode
       if (config.projectPath) updates.projectPath = config.projectPath as string
@@ -244,14 +262,42 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const config = {
       model: s.model,
       proxyUrl: s.proxyUrl,
+      caCertPath: s.caCertPath,
       colorMode: s.colorMode,
       toolDisplayMode: s.toolDisplayMode,
       projectPath: s.projectPath,
       debugLogging: s.debugLogging,
       toolPermissions: s.toolPermissions,
     }
-    const theme = s.tokens
+    const theme = { ...s.tokens } as Record<string, unknown>
     window.api?.settings?.write({ config, theme }).catch(() => {})
+  },
+
+  /* ---------------------------------------------------------------- */
+  /*  Phase 3: Apply settings pushed from main process (fs.watch)      */
+  /* ---------------------------------------------------------------- */
+
+  applyExternalSettings: (data) => {
+    const { config, theme } = data
+    const updates: Partial<SettingsState> = {}
+
+    if (config.model) updates.model = config.model as string
+    if (config.proxyUrl !== undefined) updates.proxyUrl = config.proxyUrl as string | null
+    if (config.caCertPath !== undefined) updates.caCertPath = config.caCertPath as string | null
+    if (config.colorMode) {
+      updates.colorMode = config.colorMode as ColorMode
+      updates.resolvedDark = resolveIsDark(config.colorMode as ColorMode)
+    }
+    if (config.toolDisplayMode) updates.toolDisplayMode = config.toolDisplayMode as ToolDisplayMode
+    if (config.debugLogging !== undefined) updates.debugLogging = config.debugLogging as boolean
+    if (config.toolPermissions) updates.toolPermissions = config.toolPermissions as Record<string, 'auto' | 'confirm' | 'always-ask'>
+
+    if (theme && Object.keys(theme).length > 0) {
+      updates.tokens = { ...darkTokens, ...theme } as ThemeTokens
+    }
+
+    set(updates as any)
+    applyTokens(get().tokens)
   },
 }))
 

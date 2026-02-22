@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useSettingsStore, type ToolDef } from '../stores/settings-store'
 
 interface ToolPopoverProps {
@@ -36,7 +37,10 @@ export function ToolPopover({ onClose }: ToolPopoverProps) {
             <div className="flex items-center gap-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide px-2 py-1">
               <span>{source === 'built-in' ? 'Built-in' : source}</span>
               {source !== 'built-in' && (
-                <ServerStatusDot tools={grouped[source]} />
+                <>
+                  <ServerStatusDot tools={grouped[source]} />
+                  <ServerActions serverName={source} tools={grouped[source]} />
+                </>
               )}
             </div>
             <div className="space-y-0.5">
@@ -58,6 +62,56 @@ function ServerStatusDot({ tools }: { tools: ToolDef[] }) {
   if (hasError) return <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-400" title="Error" />
   if (allDisabled) return <span className="inline-block w-1.5 h-1.5 rounded-full bg-gray-500" title="Disconnected" />
   return <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-400" title="Connected" />
+}
+
+/** Disconnect / Reconnect action buttons for MCP server groups */
+function ServerActions({ serverName, tools }: { serverName: string; tools: ToolDef[] }) {
+  const [busy, setBusy] = useState(false)
+  const allDisabled = tools.every(t => t.status === 'disabled')
+  const hasError = tools.some(t => t.status === 'error')
+  const isDisconnected = allDisabled || hasError
+
+  const handleDisconnect = async () => {
+    if (!window.api?.mcp?.disconnect) return
+    setBusy(true)
+    try {
+      await window.api.mcp.disconnect(serverName)
+    } catch { /* ignore */ }
+    setBusy(false)
+  }
+
+  const handleReconnect = async () => {
+    if (!window.api?.mcp?.reconnect) return
+    setBusy(true)
+    try {
+      await window.api.mcp.reconnect(serverName)
+    } catch { /* ignore */ }
+    setBusy(false)
+  }
+
+  return (
+    <div className="ml-auto flex items-center gap-1">
+      {isDisconnected ? (
+        <button
+          onClick={handleReconnect}
+          disabled={busy}
+          className="text-[9px] px-1.5 py-0.5 rounded bg-gray-800 text-green-400 hover:bg-gray-700 transition-colors disabled:opacity-50"
+          title="Reconnect server"
+        >
+          {busy ? '...' : 'Reconnect'}
+        </button>
+      ) : (
+        <button
+          onClick={handleDisconnect}
+          disabled={busy}
+          className="text-[9px] px-1.5 py-0.5 rounded bg-gray-800 text-red-400 hover:bg-gray-700 transition-colors disabled:opacity-50"
+          title="Disconnect server"
+        >
+          {busy ? '...' : 'Disconnect'}
+        </button>
+      )}
+    </div>
+  )
 }
 
 function ToolRow({ tool }: { tool: ToolDef }) {

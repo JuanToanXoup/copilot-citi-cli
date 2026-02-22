@@ -46,3 +46,21 @@ export const GIT_CHECKOUT = 'git:checkout' as const
 export const GIT_COMMIT = 'git:commit' as const
 export const GIT_PUSH = 'git:push' as const
 export const GIT_PULL = 'git:pull' as const
+export const GIT_DIFF = 'git:diff' as const
+export const GIT_CHECKOUT_FILE = 'git:checkout-file' as const
+
+// Settings sync (bidirectional)
+export const SETTINGS_CHANGED = 'settings:changed' as const
+
+// Agent listing (Phase 3)
+export const AGENTS_LIST = 'agents:list' as const
+
+// MCP management
+export const MCP_ADD_SERVER = 'mcp:add-server' as const
+export const MCP_REMOVE_SERVER = 'mcp:remove-server' as const
+export const MCP_DISCONNECT = 'mcp:disconnect' as const
+export const MCP_RECONNECT = 'mcp:reconnect' as const
+export const MCP_LIST_SERVERS = 'mcp:list-servers' as const
+
+// Window management
+export const WINDOW_SET_TITLE = 'window:set-title' as const

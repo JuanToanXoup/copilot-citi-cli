@@ -1,8 +1,9 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import {
   ReactFlow,
   Background,
   MiniMap,
+  useReactFlow,
   type Node,
   type NodeMouseHandler,
 } from '@xyflow/react'
@@ -35,6 +36,24 @@ const edgeTypes = {
 interface AgentFlowProps {
   selectedNode: Node | null
   onNodeSelect: (node: Node | null) => void
+}
+
+function AutoFitView() {
+  const { fitView } = useReactFlow()
+  const nodeCount = useFlowStore((s) => s.nodes.length)
+  const prevCount = useRef(nodeCount)
+
+  useEffect(() => {
+    if (nodeCount > 0 && nodeCount !== prevCount.current) {
+      prevCount.current = nodeCount
+      const timer = setTimeout(() => {
+        fitView({ padding: 0.15, duration: 400 })
+      }, 100)
+      return () => clearTimeout(timer)
+    }
+  }, [nodeCount, fitView])
+
+  return null
 }
 
 export function AgentFlow({ selectedNode, onNodeSelect }: AgentFlowProps) {
@@ -85,6 +104,7 @@ export function AgentFlow({ selectedNode, onNodeSelect }: AgentFlowProps) {
           className="!bg-gray-900 !border-gray-700"
         />
         <FlowControls />
+        <AutoFitView />
       </ReactFlow>
       <NodeDetail node={selectedNode} onClose={() => onNodeSelect(null)} />
     </div>

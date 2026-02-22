@@ -28,6 +28,16 @@ import {
   GIT_COMMIT,
   GIT_PUSH,
   GIT_PULL,
+  GIT_DIFF,
+  GIT_CHECKOUT_FILE,
+  SETTINGS_CHANGED,
+  AGENTS_LIST,
+  MCP_ADD_SERVER,
+  MCP_REMOVE_SERVER,
+  MCP_DISCONNECT,
+  MCP_RECONNECT,
+  MCP_LIST_SERVERS,
+  WINDOW_SET_TITLE,
 } from '@shared/ipc-channels'
 
 const api = {
@@ -87,6 +97,11 @@ const api = {
       ipcRenderer.invoke(SETTINGS_READ),
     write: (data: { config?: Record<string, unknown>; theme?: Record<string, unknown> }): Promise<void> =>
       ipcRenderer.invoke(SETTINGS_WRITE, data),
+    onChanged: (cb: (data: { config: Record<string, unknown>; theme: Record<string, unknown> }) => void) => {
+      const listener = (_: unknown, data: { config: Record<string, unknown>; theme: Record<string, unknown> }) => cb(data)
+      ipcRenderer.on(SETTINGS_CHANGED, listener)
+      return () => { ipcRenderer.removeListener(SETTINGS_CHANGED, listener) }
+    },
   },
   conversations: {
     save: (data: { id: string; messages: unknown[]; summary: string }): Promise<string> =>
@@ -123,6 +138,44 @@ const api = {
       ipcRenderer.invoke(GIT_PUSH),
     pull: (): Promise<string> =>
       ipcRenderer.invoke(GIT_PULL),
+    diff: (filePath?: string): Promise<string> =>
+      ipcRenderer.invoke(GIT_DIFF, filePath),
+    checkoutFile: (filePath: string): Promise<boolean> =>
+      ipcRenderer.invoke(GIT_CHECKOUT_FILE, filePath),
+  },
+  agents: {
+    list: (): Promise<Array<{ agentType: string; whenToUse: string; model: string; source: string; toolCount: number | null; maxTurns: number }>> =>
+      ipcRenderer.invoke(AGENTS_LIST),
+  },
+  mcp: {
+    addServer: (config: {
+      name: string
+      type: 'stdio' | 'sse'
+      command?: string
+      args?: string[]
+      env?: Record<string, string>
+      url?: string
+    }): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke(MCP_ADD_SERVER, config),
+    removeServer: (name: string): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke(MCP_REMOVE_SERVER, name),
+    disconnect: (name: string): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke(MCP_DISCONNECT, name),
+    reconnect: (name: string): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke(MCP_RECONNECT, name),
+    listServers: (): Promise<Array<{
+      name: string
+      type: 'stdio' | 'sse'
+      status: 'connecting' | 'connected' | 'disconnected' | 'error'
+      toolCount: number
+      error?: string
+    }>> =>
+      ipcRenderer.invoke(MCP_LIST_SERVERS),
+  },
+  window: {
+    setTitle: (title: string): void => {
+      ipcRenderer.send(WINDOW_SET_TITLE, title)
+    },
   },
 }
 

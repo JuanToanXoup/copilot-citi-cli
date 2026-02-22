@@ -15,3 +15,4 @@ export type AgentEvent =
   | { type: 'conversation:id'; conversationId: string }
   | { type: 'conversation:done' }
   | { type: 'file:changed'; filePath: string; action: 'created' | 'modified' | 'deleted' }
+  | { type: 'status'; text: string }

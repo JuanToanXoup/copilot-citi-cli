@@ -184,6 +184,9 @@ export class AgentService extends EventEmitter {
       confirmedThisSession.add(name) // Auto-approve for rest of session
     }
 
+    // Emit status label for the tool call
+    this.emitEvent({ type: 'status', text: `Calling ${name}...` })
+
     // Check if this is an MCP tool — route to MCP manager
     const mcpManager = this.conversationManager.mcpManager
     if (mcpManager) {
@@ -306,7 +309,8 @@ export class AgentService extends EventEmitter {
     const agentId = `subagent-${randomUUID().slice(0, 8)}`
     const resolvedModel = modelOverride ?? resolveModelId(effectiveDef.model, 'gpt-4.1')
 
-    // Emit subagent:spawned
+    // Emit status + subagent:spawned
+    this.emitEvent({ type: 'status', text: `Delegating to ${effectiveDef.agentType}...` })
     this.emitEvent({ type: 'subagent:spawned', agentId, agentType: effectiveDef.agentType, description })
 
     const session = new WorkerSession(
