@@ -1,17 +1,21 @@
 import { app, BrowserWindow } from 'electron'
 import path from 'path'
-import { registerIpc } from './ipc'
+import { fileURLToPath } from 'url'
+import { registerIpc, ensureServices } from './ipc'
 
-let mainWindow: BrowserWindow | null = null
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
-function createWindow() {
-  mainWindow = new BrowserWindow({
+const windows = new Map<number, BrowserWindow>()
+
+function createWindow(): BrowserWindow {
+  const win = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 800,
     minHeight: 600,
     webPreferences: {
-      preload: path.join(__dirname, '../preload/index.js'),
+      preload: path.join(__dirname, '../preload/index.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
     },
@@ -19,21 +23,28 @@ function createWindow() {
     title: 'Copilot Desktop',
   })
 
+  windows.set(win.id, win)
+
   if (process.env.NODE_ENV === 'development') {
-    mainWindow.loadURL('http://localhost:5173')
-    mainWindow.webContents.openDevTools()
+    win.loadURL('http://localhost:5173')
+    win.webContents.openDevTools()
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
+    win.loadFile(path.join(__dirname, '../renderer/index.html'))
   }
 
-  mainWindow.on('closed', () => {
-    mainWindow = null
+  win.on('closed', () => {
+    windows.delete(win.id)
   })
+
+  return win
 }
 
 app.whenReady().then(() => {
   createWindow()
   registerIpc()
+
+  // Connect to the Copilot LSP immediately at startup
+  ensureServices()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -48,6 +59,16 @@ app.on('window-all-closed', () => {
   }
 })
 
+/** Create a new window for multi-window support (Phase 12) */
+export function createNewWindow(): BrowserWindow {
+  return createWindow()
+}
+
 export function getMainWindow(): BrowserWindow | null {
-  return mainWindow
+  const wins = BrowserWindow.getAllWindows()
+  return wins.length > 0 ? wins[0] : null
+}
+
+export function getAllWindows(): BrowserWindow[] {
+  return Array.from(windows.values())
 }

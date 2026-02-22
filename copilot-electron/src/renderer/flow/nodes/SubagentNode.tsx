@@ -27,7 +27,8 @@ export function SubagentNode({ data }: NodeProps) {
           : 'bg-gray-800'
 
   return (
-    <div className={`rounded-lg border ${borderColor} ${bgColor} px-4 py-3 shadow-sm w-60`}>
+    <div className={`relative rounded-lg border ${borderColor} ${bgColor} px-4 py-3 shadow-sm w-60`}>
+      {status === 'running' && <PulseRing color="rgba(96, 165, 250, 0.4)" />}
       <Handle type="target" position={Position.Top} className="!bg-blue-400" />
       <div className="flex items-center gap-2 mb-1">
         <StatusIcon status={status} />
@@ -53,4 +54,16 @@ function StatusIcon({ status }: { status: string }) {
     return <span className="text-red-400 text-xs">&#10007;</span>
   }
   return <span className="inline-block w-2 h-2 rounded-full bg-gray-500" />
+}
+
+function PulseRing({ color }: { color: string }) {
+  return (
+    <div
+      className="absolute inset-0 rounded-lg pointer-events-none"
+      style={{
+        boxShadow: `0 0 0 0 ${color}`,
+        animation: 'pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+      }}
+    />
+  )
 }

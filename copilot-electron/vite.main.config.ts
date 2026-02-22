@@ -5,13 +5,13 @@ export default defineConfig({
   build: {
     lib: {
       entry: path.resolve(__dirname, 'src/main/index.ts'),
-      formats: ['cjs'],
+      formats: ['es'],
       fileName: () => 'index.js',
     },
     outDir: 'dist/main',
     emptyOutDir: true,
     rollupOptions: {
-      external: ['electron', 'path', 'fs', 'child_process', 'os', 'url'],
+      external: ['electron', 'path', 'fs', 'child_process', 'os', 'url', 'events', 'crypto', 'http', 'https'],
     },
   },
   resolve: {

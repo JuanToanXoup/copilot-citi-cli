@@ -1,8 +1,9 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import {
   ReactFlow,
   Background,
   MiniMap,
+  useReactFlow,
   type Node,
   type NodeMouseHandler,
 } from '@xyflow/react'
@@ -13,7 +14,9 @@ import { UserNode } from './nodes/UserNode'
 import { LeadNode } from './nodes/LeadNode'
 import { SubagentNode } from './nodes/SubagentNode'
 import { ToolNode } from './nodes/ToolNode'
-import { AnimatedEdge } from './edges/AnimatedEdge'
+import { TerminalNode } from './nodes/TerminalNode'
+import { TurnGroupNode } from './nodes/TurnGroupNode'
+import { ParticleEdge } from './edges/ParticleEdge'
 import { FlowControls } from './panels/FlowControls'
 import { NodeDetail } from './panels/NodeDetail'
 
@@ -22,15 +25,35 @@ const nodeTypes = {
   lead: LeadNode,
   subagent: SubagentNode,
   tool: ToolNode,
+  terminal: TerminalNode,
+  turnGroup: TurnGroupNode,
 }
 
 const edgeTypes = {
-  animated: AnimatedEdge,
+  particle: ParticleEdge,
 }
 
 interface AgentFlowProps {
   selectedNode: Node | null
   onNodeSelect: (node: Node | null) => void
+}
+
+function AutoFitView() {
+  const { fitView } = useReactFlow()
+  const nodeCount = useFlowStore((s) => s.nodes.length)
+  const prevCount = useRef(nodeCount)
+
+  useEffect(() => {
+    if (nodeCount > 0 && nodeCount !== prevCount.current) {
+      prevCount.current = nodeCount
+      const timer = setTimeout(() => {
+        fitView({ padding: 0.15, duration: 400 })
+      }, 100)
+      return () => clearTimeout(timer)
+    }
+  }, [nodeCount, fitView])
+
+  return null
 }
 
 export function AgentFlow({ selectedNode, onNodeSelect }: AgentFlowProps) {
@@ -39,6 +62,8 @@ export function AgentFlow({ selectedNode, onNodeSelect }: AgentFlowProps) {
 
   const onNodeClick: NodeMouseHandler = useCallback(
     (_event, node) => {
+      // Don't select group nodes
+      if (node.type === 'turnGroup') return
       onNodeSelect(node)
     },
     [onNodeSelect],
@@ -70,6 +95,8 @@ export function AgentFlow({ selectedNode, onNodeSelect }: AgentFlowProps) {
               case 'lead': return '#eab308'
               case 'subagent': return '#3b82f6'
               case 'tool': return '#8b5cf6'
+              case 'terminal': return '#a855f7'
+              case 'turnGroup': return 'rgba(107,114,128,0.1)'
               default: return '#6b7280'
             }
           }}
@@ -77,6 +104,7 @@ export function AgentFlow({ selectedNode, onNodeSelect }: AgentFlowProps) {
           className="!bg-gray-900 !border-gray-700"
         />
         <FlowControls />
+        <AutoFitView />
       </ReactFlow>
       <NodeDetail node={selectedNode} onClose={() => onNodeSelect(null)} />
     </div>
