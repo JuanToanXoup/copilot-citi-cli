@@ -30,9 +30,6 @@
         <!-- Project-level Conversation Manager -->
         <projectService serviceImplementation="com.citigroup.copilotchat.conversation.ConversationManager"/>
 
-        <!-- Project-level Orchestrator -->
-        <projectService serviceImplementation="com.citigroup.copilotchat.orchestrator.OrchestratorService"/>
-
         <!-- Project-level Agent Service (Claude Code architecture) -->
         <projectService serviceImplementation="com.citigroup.copilotchat.agent.AgentService"/>
 
@@ -60,7 +57,7 @@
         <!-- Commit hook: appends Co-authored-by when committing Copilot-changed files -->
         <checkinHandlerFactory implementation="com.citigroup.copilotchat.workingset.CopilotCheckinHandlerFactory"/>
 
-        <!-- Tool Window with content tabs (Chat, Tools, MCP, Workers) -->
+        <!-- Tool Window with content tabs (Agent, Agents, Changes, Tools, MCP, Memory, Recorder) -->
         <toolWindow id="Copilot Chat"
                     anchor="right"
                     icon="com.citigroup.copilotchat.icons.CopilotChatIcons.ToolWindow"

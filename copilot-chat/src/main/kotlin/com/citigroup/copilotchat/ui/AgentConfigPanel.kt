@@ -757,7 +757,37 @@ class AgentConfigPanel(private val project: Project) : JPanel(BorderLayout()), D
         val prompt = systemPromptArea.text
 
         val enabledBuiltIn = builtInToolsModel.getCheckedNames()
-        val tools = if (enabledBuiltIn.size == builtInToolsModel.rowCount) null else enabledBuiltIn
+        val allBuiltInChecked = enabledBuiltIn.size == builtInToolsModel.rowCount
+
+        val enabledIde = ideToolsModel.getCheckedNames() // display names without ide_ prefix
+        val allIdeChecked = enabledIde.size == ideToolsModel.rowCount
+
+        val tools: List<String>? = if (allBuiltInChecked && allIdeChecked) {
+            null // all tools enabled — omit from file
+        } else {
+            val list = mutableListOf<String>()
+            list.addAll(enabledBuiltIn)
+            // Use "ide" shorthand if all IDE tools checked, else add individual ide_<name> entries
+            if (allIdeChecked) {
+                list.add("ide")
+            } else {
+                list.addAll(enabledIde.map { "ide_$it" })
+            }
+            list
+        }
+
+        // Build mcpServers from MCP tool table
+        val enabledMcp = mcpToolsModel.getCheckedNames()
+        val mcpServers = mutableMapOf<String, McpServerConfig>()
+        for (name in enabledMcp) {
+            // Preserve existing config if available, otherwise create a stub
+            val existing = agent.mcpServers[name]
+                ?: CopilotChatSettings.getInstance().mcpServers
+                    .find { it.name == name }
+                    ?.let { McpServerConfig(command = it.command, args = it.args.split(" ").filter(String::isNotBlank)) }
+                ?: McpServerConfig()
+            mcpServers[name] = existing
+        }
 
         val subagents = if (agent.subagents != null) {
             val checked = poolModel.getCheckedNames()
@@ -785,7 +815,7 @@ class AgentConfigPanel(private val project: Project) : JPanel(BorderLayout()), D
             maxTurns = maxTurns,
             disableModelInvocation = disableModelCb.isSelected,
             handoffs = handoffs,
-            mcpServers = agent.mcpServers,
+            mcpServers = mcpServers,
             metadata = agent.metadata,
             filePath = agent.filePath,
             subagents = subagents,

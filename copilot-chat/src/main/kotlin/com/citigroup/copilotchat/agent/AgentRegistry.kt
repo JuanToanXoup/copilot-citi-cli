@@ -412,6 +412,21 @@ Complete the full task without stopping for confirmation."""
         if (agent.handoffs.isNotEmpty()) {
             sb.appendLine("handoffs: [${agent.handoffs.joinToString(", ")}]")
         }
+        if (agent.mcpServers.isNotEmpty()) {
+            sb.appendLine("mcpServers:")
+            for ((name, cfg) in agent.mcpServers) {
+                sb.appendLine("  $name:")
+                if (cfg.type.isNotBlank() && cfg.type != "local") sb.appendLine("    type: ${cfg.type}")
+                if (cfg.command.isNotBlank()) sb.appendLine("    command: ${cfg.command}")
+                if (cfg.args.isNotEmpty()) sb.appendLine("    args: [${cfg.args.joinToString(", ")}]")
+                if (cfg.url.isNotBlank()) sb.appendLine("    url: ${cfg.url}")
+                if (cfg.env.isNotEmpty()) {
+                    sb.appendLine("    env:")
+                    cfg.env.forEach { (k, v) -> sb.appendLine("      $k: $v") }
+                }
+                if (cfg.tools != null) sb.appendLine("    tools: [${cfg.tools.joinToString(", ")}]")
+            }
+        }
         if (agent.metadata.isNotEmpty()) {
             sb.appendLine("metadata:")
             agent.metadata.forEach { (k, v) -> sb.appendLine("  $k: $v") }
