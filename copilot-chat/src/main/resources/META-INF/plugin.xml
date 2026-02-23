@@ -21,8 +21,8 @@
     <depends optional="true" config-file="java-psi-tools.xml">com.intellij.modules.java</depends>
 
     <extensions defaultExtensionNs="com.intellij">
-        <!-- Application-level LSP Client -->
-        <applicationService serviceImplementation="com.citigroup.copilotchat.lsp.LspClient"/>
+        <!-- Project-level LSP Client — one server process per project for full isolation -->
+        <projectService serviceImplementation="com.citigroup.copilotchat.lsp.LspClient"/>
 
         <!-- Application-level Settings -->
         <applicationService serviceImplementation="com.citigroup.copilotchat.config.CopilotChatSettings"/>

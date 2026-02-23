@@ -1,21 +1,21 @@
 package com.citigroup.copilotchat.lsp
 
 import com.intellij.openapi.Disposable
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.project.Project
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Application-level LSP client service.
- * Spawns copilot-language-server, handles JSON-RPC dispatch, request/response matching,
- * and progress routing. Port of client.py's CopilotClient.
+ * Project-level LSP client service.
+ * Each project gets its own copilot-language-server process, providing full
+ * isolation of conversations, progress events, and tool calls between projects.
  */
-@Service(Service.Level.APP)
-class LspClient : Disposable {
+@Service(Service.Level.PROJECT)
+class LspClient(private val project: Project) : Disposable {
 
     private val log = Logger.getInstance(LspClient::class.java)
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
@@ -45,8 +45,8 @@ class LspClient : Disposable {
     val isRunning: Boolean get() = process?.isAlive == true
 
     companion object {
-        fun getInstance(): LspClient =
-            ApplicationManager.getApplication().getService(LspClient::class.java)
+        fun getInstance(project: Project): LspClient =
+            project.getService(LspClient::class.java)
     }
 
     /**

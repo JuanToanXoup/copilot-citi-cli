@@ -43,7 +43,7 @@ class ConversationManager(private val project: Project) : Disposable {
     private var clientMcpManager: ClientMcpManager? = null
     private val initMutex = kotlinx.coroutines.sync.Mutex()
 
-    private val lspClient: LspClient get() = LspClient.getInstance()
+    private val lspClient: LspClient get() = LspClient.getInstance(project)
 
     companion object {
         fun getInstance(project: Project): ConversationManager =

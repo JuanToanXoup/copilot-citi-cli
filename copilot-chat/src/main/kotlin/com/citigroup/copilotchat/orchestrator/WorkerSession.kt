@@ -22,9 +22,9 @@ class WorkerSession(
     private val toolsEnabled: List<String>?,  // null = all tools
     private val projectName: String,
     private val workspaceRoot: String,
+    private val lspClient: LspClient,
 ) {
     private val log = Logger.getInstance(WorkerSession::class.java)
-    private val lspClient: LspClient get() = LspClient.getInstance()
 
     private var conversationId: String? = null
     private var isFirstTurn = true

@@ -2,6 +2,7 @@ package com.citigroup.copilotchat.orchestrator
 
 import com.citigroup.copilotchat.config.CopilotChatSettings
 import com.citigroup.copilotchat.conversation.ConversationManager
+import com.citigroup.copilotchat.lsp.LspClient
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
@@ -290,6 +291,7 @@ IMPORTANT: Respond ONLY with the JSON object. No other text."""
             toolsEnabled = null,
             projectName = project.name,
             workspaceRoot = project.basePath ?: "/tmp",
+            lspClient = LspClient.getInstance(project),
         )
 
         val reply = plannerSession.executeTask(planningPrompt)
@@ -517,6 +519,7 @@ IMPORTANT: Respond ONLY with the JSON object. No other text."""
                 toolsEnabled = config.toolsEnabled,
                 projectName = project.name,
                 workspaceRoot = project.basePath ?: "/tmp",
+                lspClient = LspClient.getInstance(project),
             ).also { session ->
                 session.onEvent = { event ->
                     scope.launch {
@@ -556,6 +559,7 @@ Please provide a concise summary of what was accomplished, any issues encountere
             toolsEnabled = null,
             projectName = project.name,
             workspaceRoot = project.basePath ?: "/tmp",
+            lspClient = LspClient.getInstance(project),
         )
 
         return try {
@@ -577,6 +581,7 @@ Please provide a concise summary of what was accomplished, any issues encountere
             toolsEnabled = null,
             projectName = project.name,
             workspaceRoot = project.basePath ?: "/tmp",
+            lspClient = LspClient.getInstance(project),
         )
     }
 

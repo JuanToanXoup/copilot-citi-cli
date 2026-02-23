@@ -38,7 +38,7 @@ class AgentService(private val project: Project) : Disposable {
     internal val _events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 512)
     val events: SharedFlow<AgentEvent> = _events
 
-    private val lspClient: LspClient get() = LspClient.getInstance()
+    private val lspClient: LspClient get() = LspClient.getInstance(project)
     private val conversationManager: ConversationManager get() = ConversationManager.getInstance(project)
 
     @Volatile
@@ -339,6 +339,7 @@ class AgentService(private val project: Project) : Disposable {
             toolsEnabled = effectiveTools,
             projectName = project.name,
             workspaceRoot = project.basePath ?: "/tmp",
+            lspClient = lspClient,
         )
 
         session.onEvent = { event ->

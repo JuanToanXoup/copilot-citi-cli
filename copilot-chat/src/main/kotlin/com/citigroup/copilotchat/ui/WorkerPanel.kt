@@ -3,6 +3,7 @@ package com.citigroup.copilotchat.ui
 import com.citigroup.copilotchat.config.CopilotChatSettings
 import com.citigroup.copilotchat.config.CopilotChatSettings.WorkerEntry
 import com.citigroup.copilotchat.conversation.ConversationManager
+import com.citigroup.copilotchat.lsp.LspClient
 import com.citigroup.copilotchat.orchestrator.*
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.Disposable
@@ -197,6 +198,7 @@ class WorkerPanel(private val project: Project) : JPanel(BorderLayout()), Dispos
                 toolsEnabled = ws.entry.toolsEnabled,
                 projectName = project.name,
                 workspaceRoot = project.basePath ?: "/tmp",
+                lspClient = LspClient.getInstance(project),
             ).also { session ->
                 session.onEvent = { event ->
                     SwingUtilities.invokeLater {

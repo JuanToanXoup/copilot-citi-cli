@@ -1,5 +1,6 @@
 package com.citigroup.copilotchat.agent
 
+import com.citigroup.copilotchat.lsp.LspClient
 import com.citigroup.copilotchat.orchestrator.WorkerSession
 import com.citigroup.copilotchat.orchestrator.WorkerEvent
 import com.intellij.openapi.Disposable
@@ -125,6 +126,7 @@ class TeamService(private val project: Project) : Disposable {
             toolsEnabled = agentDef.tools,
             projectName = project.name,
             workspaceRoot = project.basePath ?: "/tmp",
+            lspClient = LspClient.getInstance(project),
         )
         teammateSessions[name] = session
 
