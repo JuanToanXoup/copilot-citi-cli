@@ -67,7 +67,6 @@ function detectLanguage(filePath: string): string {
 
 export function FileEditor({ openFiles, activeFile, onSelectFile, onCloseFile }: FileEditorProps) {
   const [buffers, setBuffers] = useState<Record<string, FileBuffer>>({})
-  const [editing, setEditing] = useState(false)
   const [diffMode, setDiffMode] = useState(false)
   const [findOpen, setFindOpen] = useState(false)
   const [findQuery, setFindQuery] = useState('')
@@ -98,16 +97,8 @@ export function FileEditor({ openFiles, activeFile, onSelectFile, onCloseFile }:
     return () => { cancelled = true }
   }, [activeFile, buffers])
 
-  // Auto-focus textarea when entering edit mode
-  useEffect(() => {
-    if (editing && textareaRef.current) {
-      textareaRef.current.focus()
-    }
-  }, [editing])
-
   // Reset modes on tab switch
   useEffect(() => {
-    setEditing(false)
     setDiffMode(false)
     setFindOpen(false)
   }, [activeFile])
@@ -359,25 +350,15 @@ export function FileEditor({ openFiles, activeFile, onSelectFile, onCloseFile }:
           )
         })}
         {/* Editor toolbar buttons */}
-        {activeBuffer && (
+        {activeBuffer && activeBuffer.dirty && (
           <div className="ml-auto flex items-center gap-1 px-2 shrink-0">
-            {activeBuffer.dirty && (
-              <button
-                onClick={() => setDiffMode((s) => !s)}
-                className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
-                  diffMode ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-gray-300 bg-gray-800'
-                }`}
-              >
-                Diff
-              </button>
-            )}
             <button
-              onClick={() => { setEditing((s) => !s); setDiffMode(false) }}
+              onClick={() => setDiffMode((s) => !s)}
               className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
-                editing ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-gray-300 bg-gray-800'
+                diffMode ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-gray-300 bg-gray-800'
               }`}
             >
-              {editing ? 'View' : 'Edit'}
+              Diff
             </button>
           </div>
         )}
@@ -439,10 +420,9 @@ export function FileEditor({ openFiles, activeFile, onSelectFile, onCloseFile }:
                 className="text-gray-300 min-h-full m-0"
                 style={{ tabSize: 2, whiteSpace: 'pre', padding: '0 16px 0 4px', fontFamily: 'inherit', fontSize: 'inherit', lineHeight: 'inherit' }}
                 dangerouslySetInnerHTML={{ __html: highlightedHtml }}
-                onClick={() => !editing && setEditing(true)}
               />
               {/* Transparent textarea overlay for editing */}
-              {editing && activeBuffer && (
+              {activeBuffer && (
                 <textarea
                   ref={textareaRef}
                   value={activeBuffer.content}
