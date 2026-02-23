@@ -13,6 +13,8 @@ export interface FlowState {
   currentTurn: number
   currentAgentId: string
   previousAgentId: string | null
+  /** ID of the last node added — used to chain edges sequentially */
+  lastNodeId: string
 
   onNewTurn: (userMessage: string) => void
   onAgentDelta: (text: string) => void
@@ -32,6 +34,20 @@ export interface FlowState {
 export type FlowStoreApi = ReturnType<typeof createFlowStore>
 
 /* ------------------------------------------------------------------ */
+/*  Helpers                                                            */
+/* ------------------------------------------------------------------ */
+
+function chainEdge(source: string, target: string, color: string, status = 'active'): Edge {
+  return {
+    id: `e-${source}-${target}`,
+    source,
+    target,
+    type: 'particle',
+    data: { status, color },
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /*  Factory                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -42,6 +58,7 @@ export function createFlowStore() {
     currentTurn: 0,
     currentAgentId: '',
     previousAgentId: null,
+    lastNodeId: '',
 
     onNewTurn: (userMessage: string) => {
       const state = get()
@@ -54,20 +71,14 @@ export function createFlowStore() {
         { id: agentId, type: 'agent', position: { x: 0, y: 0 }, data: { status: 'idle', text: '' } },
       ]
 
-      const newEdges: Edge[] = [
-        { id: `e-${userId}-${agentId}`, source: userId, target: agentId, type: 'particle', data: { status: 'active', color: '#6b7280' } },
-      ]
+      const newEdges: Edge[] = []
 
-      // Spine: connect previous agent → this user
-      if (state.previousAgentId) {
-        newEdges.push({
-          id: `e-spine-${state.previousAgentId}-${userId}`,
-          source: state.previousAgentId,
-          target: userId,
-          type: 'particle',
-          data: { status: 'dashed', color: '#6b7280' },
-        })
+      // Connect previous turn's last node → this user (spine)
+      if (state.lastNodeId) {
+        newEdges.push(chainEdge(state.lastNodeId, userId, '#6b7280', 'dashed'))
       }
+      // user → agent
+      newEdges.push(chainEdge(userId, agentId, '#6b7280'))
 
       set({
         nodes: [...state.nodes, ...newNodes],
@@ -75,6 +86,7 @@ export function createFlowStore() {
         currentTurn: turn,
         currentAgentId: agentId,
         previousAgentId: agentId,
+        lastNodeId: agentId,
       })
 
       get().recomputeLayout()
@@ -113,11 +125,8 @@ export function createFlowStore() {
           id: toolId, type: 'tool', position: { x: 0, y: 0 },
           data: { name, status: 'running', input: input ?? {} },
         }],
-        edges: [...state.edges, {
-          id: `e-${state.currentAgentId}-${toolId}`,
-          source: state.currentAgentId, target: toolId,
-          type: 'particle', data: { status: 'active', color: '#8b5cf6' },
-        }],
+        edges: [...state.edges, chainEdge(state.lastNodeId, toolId, '#8b5cf6')],
+        lastNodeId: toolId,
       })
       get().recomputeLayout()
       return toolId
@@ -126,29 +135,22 @@ export function createFlowStore() {
     onLeadToolResult: (toolNodeId, status, output) => {
       const resultId = `result-${toolNodeId}`
       set((state) => {
-        // Update tool node status
         const nodes = state.nodes.map((n) =>
           n.id === toolNodeId ? { ...n, data: { ...n.data, status } } : n,
         )
-        // Update tool edge status
         const edges = state.edges.map((e) =>
           e.target === toolNodeId
             ? { ...e, data: { ...e.data, status: status === 'success' ? 'success' : 'error' } }
             : e,
         )
-        // Create result node + edge
         const toolNode = state.nodes.find((n) => n.id === toolNodeId)
         const toolName = (toolNode?.data?.name as string) ?? ''
         nodes.push({
           id: resultId, type: 'toolResult', position: { x: 0, y: 0 },
           data: { name: toolName, status, output: output ?? '' },
         })
-        edges.push({
-          id: `e-${toolNodeId}-${resultId}`,
-          source: toolNodeId, target: resultId,
-          type: 'particle', data: { status: status === 'success' ? 'success' : 'error', color: status === 'success' ? '#22c55e' : '#ef4444' },
-        })
-        return { nodes, edges }
+        edges.push(chainEdge(toolNodeId, resultId, status === 'success' ? '#22c55e' : '#ef4444', status === 'success' ? 'success' : 'error'))
+        return { nodes, edges, lastNodeId: resultId }
       })
       get().recomputeLayout()
     },
@@ -161,11 +163,8 @@ export function createFlowStore() {
           id: termId, type: 'terminal', position: { x: 0, y: 0 },
           data: { command, status: 'running' },
         }],
-        edges: [...state.edges, {
-          id: `e-${state.currentAgentId}-${termId}`,
-          source: state.currentAgentId, target: termId,
-          type: 'particle', data: { status: 'active', color: '#a855f7' },
-        }],
+        edges: [...state.edges, chainEdge(state.lastNodeId, termId, '#a855f7')],
+        lastNodeId: termId,
       })
       get().recomputeLayout()
       return termId
@@ -188,12 +187,8 @@ export function createFlowStore() {
           id: resultId, type: 'terminalResult', position: { x: 0, y: 0 },
           data: { command: cmd, status, output: output ?? '' },
         })
-        edges.push({
-          id: `e-${termNodeId}-${resultId}`,
-          source: termNodeId, target: resultId,
-          type: 'particle', data: { status: status === 'success' ? 'success' : 'error', color: status === 'success' ? '#22c55e' : '#ef4444' },
-        })
-        return { nodes, edges }
+        edges.push(chainEdge(termNodeId, resultId, status === 'success' ? '#22c55e' : '#ef4444', status === 'success' ? 'success' : 'error'))
+        return { nodes, edges, lastNodeId: resultId }
       })
       get().recomputeLayout()
     },
@@ -208,11 +203,8 @@ export function createFlowStore() {
           id: nodeId, type: 'subagent', position: { x: 0, y: 0 },
           data: { agentId, agentType, description, status: 'running', textPreview: '' },
         }],
-        edges: [...state.edges, {
-          id: `e-${state.currentAgentId}-${nodeId}`,
-          source: state.currentAgentId, target: nodeId,
-          type: 'particle', data: { status: 'active', color: '#3b82f6' },
-        }],
+        edges: [...state.edges, chainEdge(state.lastNodeId, nodeId, '#3b82f6')],
+        lastNodeId: nodeId,
       })
       get().recomputeLayout()
     },
@@ -235,12 +227,8 @@ export function createFlowStore() {
           id: resultId, type: 'subagentResult', position: { x: 0, y: 0 },
           data: { agentId, agentType, status, text: text ?? '' },
         })
-        edges.push({
-          id: `e-${targetId}-${resultId}`,
-          source: targetId, target: resultId,
-          type: 'particle', data: { status: status === 'success' ? 'success' : 'error', color: status === 'success' ? '#22c55e' : '#ef4444' },
-        })
-        return { nodes, edges }
+        edges.push(chainEdge(targetId, resultId, status === 'success' ? '#22c55e' : '#ef4444', status === 'success' ? 'success' : 'error'))
+        return { nodes, edges, lastNodeId: resultId }
       })
       get().recomputeLayout()
     },
@@ -254,21 +242,18 @@ export function createFlowStore() {
     },
 
     onReset: () => {
-      set({ nodes: [], edges: [], currentTurn: 0, currentAgentId: '', previousAgentId: null })
+      set({ nodes: [], edges: [], currentTurn: 0, currentAgentId: '', previousAgentId: null, lastNodeId: '' })
     },
 
     loadFromMessages: (messages) => {
       get().onReset()
-      let lastAgentText = ''
       for (const msg of messages) {
         switch (msg.type) {
           case 'user':
             get().onNewTurn(msg.text)
             get().onAgentStatus('running')
-            lastAgentText = ''
             break
           case 'agent':
-            lastAgentText += msg.text
             get().onAgentDelta(msg.text)
             break
           case 'tool':
@@ -298,13 +283,12 @@ export function createFlowStore() {
             break
         }
       }
-      // Mark last turn as done
       if (get().currentTurn > 0) get().onAgentStatus('done')
     },
 
     recomputeLayout: () => {
       const state = get()
-      set({ nodes: computeLayout(state.nodes, state.edges) })
+      set({ nodes: computeLayout(state.nodes) })
     },
   }))
 }
