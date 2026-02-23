@@ -16,6 +16,8 @@ import { randomUUID } from 'crypto'
 export class WorkerSession extends EventEmitter {
   private conversationId: string | null = null
   private isFirstTurn = true
+  /** Tracks cumulative reply length per round index to emit only incremental deltas. */
+  private roundReplyLengths = new Map<number, number>()
 
   constructor(
     public readonly workerId: string,
@@ -154,13 +156,18 @@ export class WorkerSession extends EventEmitter {
       this.emit('delta', { workerId: this.workerId, text: message })
     }
 
-    // Agent rounds
+    // Agent rounds — reply text is cumulative, so track what we've already seen
     const rounds = value.editAgentRounds
     if (Array.isArray(rounds)) {
-      for (const round of rounds) {
-        if (round.reply) {
-          replyParts.push(round.reply)
-          this.emit('delta', { workerId: this.workerId, text: round.reply })
+      for (let idx = 0; idx < rounds.length; idx++) {
+        const round = rounds[idx]
+        const roundReply = round.reply ?? ''
+        const prevLen = this.roundReplyLengths.get(idx) ?? 0
+        if (roundReply.length > prevLen) {
+          const newText = roundReply.slice(prevLen)
+          this.roundReplyLengths.set(idx, roundReply.length)
+          replyParts.push(newText)
+          this.emit('delta', { workerId: this.workerId, text: newText })
         }
 
         if (Array.isArray(round.toolCalls)) {

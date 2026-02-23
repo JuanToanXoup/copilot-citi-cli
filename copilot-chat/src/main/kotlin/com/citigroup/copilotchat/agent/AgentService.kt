@@ -59,6 +59,9 @@ class AgentService(private val project: Project) : Disposable {
     /** Hard-enforced tool filters keyed by subagent conversationId. */
     private val subagentToolFilters = ConcurrentHashMap<String, SubagentToolFilter>()
 
+    /** Tracks cumulative reply length per round index for lead agent progress (editAgentRounds). */
+    private val leadRoundReplyLengths = mutableMapOf<Int, Int>()
+
     private var currentJob: Job? = null
     private var currentWorkDoneToken: String? = null
     private lateinit var toolRouter: ToolRouter
@@ -92,6 +95,7 @@ class AgentService(private val project: Project) : Disposable {
                 currentWorkDoneToken = workDoneToken
                 val replyParts = Collections.synchronizedList(mutableListOf<String>())
 
+                leadRoundReplyLengths.clear()
                 lspClient.registerProgressListener(workDoneToken) { value ->
                     handleLeadProgress(value, replyParts)
                 }
@@ -175,6 +179,7 @@ class AgentService(private val project: Project) : Disposable {
                                 // Register new progress listener for the follow-up turn
                                 workDoneToken = "agent-lead-${UUID.randomUUID().toString().take(8)}"
                                 currentWorkDoneToken = workDoneToken
+                                leadRoundReplyLengths.clear()
                                 lspClient.registerProgressListener(workDoneToken) { value ->
                                     handleLeadProgress(value, replyParts)
                                 }
@@ -504,14 +509,17 @@ class AgentService(private val project: Project) : Disposable {
             _events.tryEmit(AgentEvent.LeadDelta(message))
         }
 
-        // Agent rounds
+        // Agent rounds — reply text is cumulative, so track what we've already seen
         val rounds = value["editAgentRounds"]?.jsonArray
-        rounds?.forEach { roundEl ->
+        rounds?.forEachIndexed { idx, roundEl ->
             val round = roundEl.jsonObject
             val roundReply = round["reply"]?.jsonPrimitive?.contentOrNull ?: ""
-            if (roundReply.isNotEmpty()) {
-                replyParts.add(roundReply)
-                _events.tryEmit(AgentEvent.LeadDelta(roundReply))
+            val prevLen = leadRoundReplyLengths[idx] ?: 0
+            if (roundReply.length > prevLen) {
+                val newText = roundReply.substring(prevLen)
+                leadRoundReplyLengths[idx] = roundReply.length
+                replyParts.add(newText)
+                _events.tryEmit(AgentEvent.LeadDelta(newText))
             }
 
             val toolCalls = round["toolCalls"]?.jsonArray

@@ -29,6 +29,9 @@ class WorkerSession(
     private var conversationId: String? = null
     private var isFirstTurn = true
 
+    /** Tracks cumulative reply length per round index to emit only incremental deltas. */
+    private val roundReplyLengths = mutableMapOf<Int, Int>()
+
     /** Callback for streaming events during task execution. */
     var onEvent: ((WorkerEvent) -> Unit)? = null
 
@@ -260,14 +263,17 @@ class WorkerSession(
             onEvent?.invoke(WorkerEvent.Delta(workerId, message))
         }
 
-        // Agent rounds
+        // Agent rounds — reply text is cumulative, so track what we've already seen
         val rounds = value["editAgentRounds"]?.jsonArray
-        rounds?.forEach { roundEl ->
+        rounds?.forEachIndexed { idx, roundEl ->
             val round = roundEl.jsonObject
             val roundReply = round["reply"]?.jsonPrimitive?.contentOrNull ?: ""
-            if (roundReply.isNotEmpty()) {
-                replyParts.add(roundReply)
-                onEvent?.invoke(WorkerEvent.Delta(workerId, roundReply))
+            val prevLen = roundReplyLengths[idx] ?: 0
+            if (roundReply.length > prevLen) {
+                val newText = roundReply.substring(prevLen)
+                roundReplyLengths[idx] = roundReply.length
+                replyParts.add(newText)
+                onEvent?.invoke(WorkerEvent.Delta(workerId, newText))
             }
 
             val toolCalls = round["toolCalls"]?.jsonArray
