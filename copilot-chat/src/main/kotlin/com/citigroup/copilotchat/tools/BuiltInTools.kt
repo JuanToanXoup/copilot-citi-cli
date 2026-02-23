@@ -22,7 +22,7 @@ object BuiltInTools {
 
     val toolNames: Set<String> get() = executors.keys
 
-    private val executors: Map<String, (JsonObject, String) -> String> = mapOf(
+    private val executors: Map<String, (JsonObject, String) -> String> by lazy { mapOf(
         "read_file" to ::executeReadFile,
         "list_dir" to ::executeListDir,
         "grep_search" to ::executeGrepSearch,
@@ -56,7 +56,7 @@ object BuiltInTools {
         "create_team" to { _, _ -> "Error: create_team is only available in the Agent tab" },
         "send_message" to { _, _ -> "Error: send_message is only available in the Agent tab" },
         "delete_team" to { _, _ -> "Error: delete_team is only available in the Agent tab" },
-    )
+    ) }
 
     /** Tool schemas in the format expected by conversation/registerTools. */
     val schemas: List<String> = listOf(

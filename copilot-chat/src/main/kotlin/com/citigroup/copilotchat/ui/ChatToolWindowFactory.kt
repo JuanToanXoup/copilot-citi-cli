@@ -7,6 +7,8 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.content.ContentFactory
+import com.intellij.ui.content.ContentManagerEvent
+import com.intellij.ui.content.ContentManagerListener
 
 /**
  * Creates the Copilot Chat tool window with multiple content tabs:
@@ -95,6 +97,20 @@ class ChatToolWindowFactory : ToolWindowFactory, DumbAware {
         recorderContent.isCloseable = false
         contentManager.addContent(recorderContent)
         Disposer.register(toolWindow.disposable, recorderPanel)
+
+        // Warn on unsaved Agents changes when navigating away
+        contentManager.addContentManagerListener(object : ContentManagerListener {
+            override fun selectionChanged(event: ContentManagerEvent) {
+                if (event.content === agentConfigContent && !event.content.isSelected) {
+                    if (!agentConfigPanel.promptUnsavedChanges()) {
+                        // User cancelled — revert to Agents tab
+                        javax.swing.SwingUtilities.invokeLater {
+                            contentManager.setSelectedContent(agentConfigContent)
+                        }
+                    }
+                }
+            }
+        })
 
         // Select Chat tab by default
         contentManager.setSelectedContent(chatContent)
