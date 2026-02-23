@@ -1,4 +1,5 @@
-import type { Node } from '@xyflow/react'
+import dagre from 'dagre'
+import type { Node, Edge } from '@xyflow/react'
 
 export const NODE_WIDTHS: Record<string, number> = {
   user: 260,
@@ -22,24 +23,39 @@ export const NODE_HEIGHTS: Record<string, number> = {
   subagentResult: 56,
 }
 
-const GAP = 24
-const MAX_WIDTH = 320 // widest node
-
 /**
- * Simple chronological vertical layout.
- * Nodes are stacked top-to-bottom in array order (insertion order),
- * centered horizontally.
+ * Dagre hierarchical layout — parallel work (subagents, tools)
+ * fans out horizontally, sequential flow goes top-to-bottom.
  */
-export function computeLayout(nodes: Node[]): Node[] {
+export function computeLayout(nodes: Node[], edges: Edge[]): Node[] {
   if (nodes.length === 0) return nodes
 
-  let y = 0
+  const g = new dagre.graphlib.Graph()
+  g.setDefaultEdgeLabel(() => ({}))
+  g.setGraph({ rankdir: 'TB', nodesep: 40, ranksep: 60, marginx: 40, marginy: 40 })
+
+  for (const node of nodes) {
+    const width = NODE_WIDTHS[node.type ?? 'agent'] ?? 200
+    const height = NODE_HEIGHTS[node.type ?? 'agent'] ?? 60
+    g.setNode(node.id, { width, height })
+  }
+
+  for (const edge of edges) {
+    if (nodes.some((n) => n.id === edge.source) && nodes.some((n) => n.id === edge.target)) {
+      g.setEdge(edge.source, edge.target)
+    }
+  }
+
+  dagre.layout(g)
+
   return nodes.map((node) => {
-    const w = NODE_WIDTHS[node.type ?? 'agent'] ?? 200
-    const h = NODE_HEIGHTS[node.type ?? 'agent'] ?? 60
-    const x = (MAX_WIDTH - w) / 2
-    const positioned = { ...node, position: { x, y } }
-    y += h + GAP
-    return positioned
+    const pos = g.node(node.id)
+    return {
+      ...node,
+      position: {
+        x: pos.x - (pos.width ?? 0) / 2,
+        y: pos.y - (pos.height ?? 0) / 2,
+      },
+    }
   })
 }

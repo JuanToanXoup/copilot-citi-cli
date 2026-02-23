@@ -11,10 +11,18 @@ export interface FlowState {
   nodes: Node[]
   edges: Edge[]
   currentTurn: number
-  currentAgentId: string
-  previousAgentId: string | null
-  /** ID of the last node added — used to chain edges sequentially */
-  lastNodeId: string
+
+  /** The current agent message node receiving streaming deltas */
+  currentAgentMsgId: string
+  /** Monotonic counter for unique agent message node IDs */
+  agentMsgSeq: number
+
+  /** Tracks active branch nodes (tools/subagents) that haven't returned yet */
+  activeBranches: Set<string>
+  /** The last spine node — new branches and agent messages connect from here */
+  spineNodeId: string
+  /** Previous turn's last spine node — for inter-turn spine edges */
+  previousSpineId: string | null
 
   onNewTurn: (userMessage: string) => void
   onAgentDelta: (text: string) => void
@@ -37,7 +45,7 @@ export type FlowStoreApi = ReturnType<typeof createFlowStore>
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
-function chainEdge(source: string, target: string, color: string, status = 'active'): Edge {
+function edge(source: string, target: string, color: string, status = 'active'): Edge {
   return {
     id: `e-${source}-${target}`,
     source,
@@ -56,37 +64,34 @@ export function createFlowStore() {
     nodes: [],
     edges: [],
     currentTurn: 0,
-    currentAgentId: '',
-    previousAgentId: null,
-    lastNodeId: '',
+    currentAgentMsgId: '',
+    agentMsgSeq: 0,
+    activeBranches: new Set<string>(),
+    spineNodeId: '',
+    previousSpineId: null,
 
     onNewTurn: (userMessage: string) => {
       const state = get()
       const turn = state.currentTurn + 1
       const userId = `user-${turn}`
-      const agentId = `agent-${turn}`
 
       const newNodes: Node[] = [
         { id: userId, type: 'user', position: { x: 0, y: 0 }, data: { message: userMessage } },
-        { id: agentId, type: 'agent', position: { x: 0, y: 0 }, data: { status: 'idle', text: '' } },
       ]
-
       const newEdges: Edge[] = []
 
-      // Connect previous turn's last node → this user (spine)
-      if (state.lastNodeId) {
-        newEdges.push(chainEdge(state.lastNodeId, userId, '#6b7280', 'dashed'))
+      // Spine: connect previous turn → this user
+      if (state.previousSpineId) {
+        newEdges.push(edge(state.previousSpineId, userId, '#6b7280', 'dashed'))
       }
-      // user → agent
-      newEdges.push(chainEdge(userId, agentId, '#6b7280'))
 
       set({
         nodes: [...state.nodes, ...newNodes],
         edges: [...state.edges, ...newEdges],
         currentTurn: turn,
-        currentAgentId: agentId,
-        previousAgentId: agentId,
-        lastNodeId: agentId,
+        currentAgentMsgId: '',
+        activeBranches: new Set(),
+        spineNodeId: userId,
       })
 
       get().recomputeLayout()
@@ -94,39 +99,76 @@ export function createFlowStore() {
 
     onAgentDelta: (text: string) => {
       const state = get()
-      set({
-        nodes: state.nodes.map((n) =>
-          n.id === state.currentAgentId
-            ? { ...n, data: { ...n.data, text: ((n.data.text as string) || '') + text } }
-            : n,
-        ),
-      })
+
+      if (state.currentAgentMsgId) {
+        // Append to existing agent message node
+        set({
+          nodes: state.nodes.map((n) =>
+            n.id === state.currentAgentMsgId
+              ? { ...n, data: { ...n.data, text: ((n.data.text as string) || '') + text } }
+              : n,
+          ),
+        })
+      } else {
+        // Create a new agent message node on the spine
+        const seq = state.agentMsgSeq + 1
+        const msgId = `agent-msg-${state.currentTurn}-${seq}`
+        const newNode: Node = {
+          id: msgId, type: 'agent', position: { x: 0, y: 0 },
+          data: { status: 'running', text },
+        }
+        const newEdge = edge(state.spineNodeId, msgId, '#10b981')
+
+        set({
+          nodes: [...state.nodes, newNode],
+          edges: [...state.edges, newEdge],
+          currentAgentMsgId: msgId,
+          agentMsgSeq: seq,
+          spineNodeId: msgId,
+        })
+        get().recomputeLayout()
+      }
     },
 
     onAgentStatus: (status) => {
       const state = get()
+      // Update all agent message nodes in the current turn to this status
       set({
-        nodes: state.nodes.map((n) =>
-          n.id === state.currentAgentId ? { ...n, data: { ...n.data, status } } : n,
-        ),
-        edges: state.edges.map((e) =>
-          e.target === state.currentAgentId
-            ? { ...e, data: { ...e.data, status: status === 'done' ? 'success' : status === 'error' ? 'error' : 'active' } }
-            : e,
-        ),
+        nodes: state.nodes.map((n) => {
+          if (n.type === 'agent' && n.id.startsWith(`agent-msg-${state.currentTurn}-`)) {
+            const nodeStatus = status === 'done' ? 'done' : status === 'error' ? 'error' : n.data.status
+            return { ...n, data: { ...n.data, status: nodeStatus } }
+          }
+          return n
+        }),
+        edges: state.edges.map((e) => {
+          const targetNode = state.nodes.find((n) => n.id === e.target)
+          if (targetNode?.type === 'agent' && targetNode.id.startsWith(`agent-msg-${state.currentTurn}-`)) {
+            return { ...e, data: { ...e.data, status: status === 'done' ? 'success' : status === 'error' ? 'error' : 'active' } }
+          }
+          return e
+        }),
+        // Save spine for next turn
+        previousSpineId: state.spineNodeId,
       })
     },
 
     onLeadToolCall: (name, input) => {
       const state = get()
       const toolId = `tool-${name}-${Date.now()}`
+
+      // Break the current agent message — next delta starts a new node
+      const branches = new Set(state.activeBranches)
+      branches.add(toolId)
+
       set({
         nodes: [...state.nodes, {
           id: toolId, type: 'tool', position: { x: 0, y: 0 },
           data: { name, status: 'running', input: input ?? {} },
         }],
-        edges: [...state.edges, chainEdge(state.lastNodeId, toolId, '#8b5cf6')],
-        lastNodeId: toolId,
+        edges: [...state.edges, edge(state.spineNodeId, toolId, '#8b5cf6')],
+        currentAgentMsgId: '', // break agent text — next delta creates new node
+        activeBranches: branches,
       })
       get().recomputeLayout()
       return toolId
@@ -149,8 +191,11 @@ export function createFlowStore() {
           id: resultId, type: 'toolResult', position: { x: 0, y: 0 },
           data: { name: toolName, status, output: output ?? '' },
         })
-        edges.push(chainEdge(toolNodeId, resultId, status === 'success' ? '#22c55e' : '#ef4444', status === 'success' ? 'success' : 'error'))
-        return { nodes, edges, lastNodeId: resultId }
+        edges.push(edge(toolNodeId, resultId, status === 'success' ? '#22c55e' : '#ef4444', status === 'success' ? 'success' : 'error'))
+
+        const branches = new Set(state.activeBranches)
+        branches.delete(toolNodeId)
+        return { nodes, edges, activeBranches: branches }
       })
       get().recomputeLayout()
     },
@@ -158,13 +203,18 @@ export function createFlowStore() {
     onTerminalCommand: (command) => {
       const state = get()
       const termId = `terminal-${Date.now()}`
+
+      const branches = new Set(state.activeBranches)
+      branches.add(termId)
+
       set({
         nodes: [...state.nodes, {
           id: termId, type: 'terminal', position: { x: 0, y: 0 },
           data: { command, status: 'running' },
         }],
-        edges: [...state.edges, chainEdge(state.lastNodeId, termId, '#a855f7')],
-        lastNodeId: termId,
+        edges: [...state.edges, edge(state.spineNodeId, termId, '#a855f7')],
+        currentAgentMsgId: '',
+        activeBranches: branches,
       })
       get().recomputeLayout()
       return termId
@@ -187,8 +237,11 @@ export function createFlowStore() {
           id: resultId, type: 'terminalResult', position: { x: 0, y: 0 },
           data: { command: cmd, status, output: output ?? '' },
         })
-        edges.push(chainEdge(termNodeId, resultId, status === 'success' ? '#22c55e' : '#ef4444', status === 'success' ? 'success' : 'error'))
-        return { nodes, edges, lastNodeId: resultId }
+        edges.push(edge(termNodeId, resultId, status === 'success' ? '#22c55e' : '#ef4444', status === 'success' ? 'success' : 'error'))
+
+        const branches = new Set(state.activeBranches)
+        branches.delete(termNodeId)
+        return { nodes, edges, activeBranches: branches }
       })
       get().recomputeLayout()
     },
@@ -198,13 +251,17 @@ export function createFlowStore() {
       const nodeId = `subagent-${agentId}`
       if (state.nodes.some((n) => n.id === nodeId)) return
 
+      const branches = new Set(state.activeBranches)
+      branches.add(nodeId)
+
       set({
         nodes: [...state.nodes, {
           id: nodeId, type: 'subagent', position: { x: 0, y: 0 },
           data: { agentId, agentType, description, status: 'running', textPreview: '' },
         }],
-        edges: [...state.edges, chainEdge(state.lastNodeId, nodeId, '#3b82f6')],
-        lastNodeId: nodeId,
+        edges: [...state.edges, edge(state.spineNodeId, nodeId, '#3b82f6')],
+        currentAgentMsgId: '', // break agent text
+        activeBranches: branches,
       })
       get().recomputeLayout()
     },
@@ -227,8 +284,11 @@ export function createFlowStore() {
           id: resultId, type: 'subagentResult', position: { x: 0, y: 0 },
           data: { agentId, agentType, status, text: text ?? '' },
         })
-        edges.push(chainEdge(targetId, resultId, status === 'success' ? '#22c55e' : '#ef4444', status === 'success' ? 'success' : 'error'))
-        return { nodes, edges, lastNodeId: resultId }
+        edges.push(edge(targetId, resultId, status === 'success' ? '#22c55e' : '#ef4444', status === 'success' ? 'success' : 'error'))
+
+        const branches = new Set(state.activeBranches)
+        branches.delete(targetId)
+        return { nodes, edges, activeBranches: branches }
       })
       get().recomputeLayout()
     },
@@ -242,7 +302,11 @@ export function createFlowStore() {
     },
 
     onReset: () => {
-      set({ nodes: [], edges: [], currentTurn: 0, currentAgentId: '', previousAgentId: null, lastNodeId: '' })
+      set({
+        nodes: [], edges: [], currentTurn: 0,
+        currentAgentMsgId: '', agentMsgSeq: 0,
+        activeBranches: new Set(), spineNodeId: '', previousSpineId: null,
+      })
     },
 
     loadFromMessages: (messages) => {
@@ -251,7 +315,6 @@ export function createFlowStore() {
         switch (msg.type) {
           case 'user':
             get().onNewTurn(msg.text)
-            get().onAgentStatus('running')
             break
           case 'agent':
             get().onAgentDelta(msg.text)
@@ -288,7 +351,7 @@ export function createFlowStore() {
 
     recomputeLayout: () => {
       const state = get()
-      set({ nodes: computeLayout(state.nodes) })
+      set({ nodes: computeLayout(state.nodes, state.edges) })
     },
   }))
 }
