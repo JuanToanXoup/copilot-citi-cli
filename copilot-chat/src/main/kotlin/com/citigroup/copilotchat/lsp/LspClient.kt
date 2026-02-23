@@ -31,8 +31,8 @@ class LspClient : Disposable {
     /** Progress listeners keyed by workDoneToken. */
     private val progressListeners = ConcurrentHashMap<String, (JsonObject) -> Unit>()
 
-    /** Per-project handlers for server→client requests. Returns true if handled. */
-    private val serverRequestHandlers = ConcurrentHashMap<String, (method: String, id: Int, params: JsonObject) -> Boolean>()
+    /** Handler for server→client requests (e.g., invokeClientTool). */
+    var serverRequestHandler: ((method: String, id: Int, params: JsonObject) -> Unit)? = null
 
     /** Feature flags received from the server via featureFlagsNotification. */
     @Volatile
@@ -103,20 +103,8 @@ class LspClient : Disposable {
             // Server→client request (has both id and method)
             id != null && method != null -> {
                 val params = obj["params"]?.jsonObject ?: JsonObject(emptyMap())
-                val handlers = serverRequestHandlers.values.toList()
-                if (handlers.isEmpty()) {
-                    sendResponse(id, JsonNull)
-                } else {
-                    // Try each project handler; the one that owns the
-                    // conversationId returns true and handles the request.
-                    val handled = handlers.any { it.invoke(method, id, params) }
-                    if (!handled) {
-                        // No project claimed it — respond with null to avoid
-                        // blocking the server (e.g. unknown conversationId).
-                        log.debug("No project handler claimed server request: $method")
-                        sendResponse(id, JsonNull)
-                    }
-                }
+                serverRequestHandler?.invoke(method, id, params)
+                    ?: sendResponse(id, JsonNull) // auto-respond if no handler
             }
             // $/progress notification
             method == "\$/progress" -> {
@@ -199,16 +187,6 @@ class LspClient : Disposable {
         transport?.sendMessage(msg.toString())
     }
 
-    /** Register a per-project handler for server→client requests. Handler returns true if it claimed the request. */
-    fun registerServerRequestHandler(projectKey: String, handler: (method: String, id: Int, params: JsonObject) -> Boolean) {
-        serverRequestHandlers[projectKey] = handler
-    }
-
-    /** Remove a project's server request handler. */
-    fun removeServerRequestHandler(projectKey: String) {
-        serverRequestHandlers.remove(projectKey)
-    }
-
     /** Register a progress listener for a workDoneToken. */
     fun registerProgressListener(token: String, listener: (JsonObject) -> Unit) {
         progressListeners[token] = listener
@@ -231,7 +209,6 @@ class LspClient : Disposable {
         pendingRequests.values.forEach { it.cancel() }
         pendingRequests.clear()
         progressListeners.clear()
-        serverRequestHandlers.clear()
     }
 
     override fun dispose() {

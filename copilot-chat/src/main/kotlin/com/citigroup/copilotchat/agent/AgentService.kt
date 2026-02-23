@@ -566,14 +566,6 @@ class AgentService(private val project: Project) : Disposable {
     }
 
     /**
-     * Check if a conversationId belongs to one of this service's subagent workers.
-     */
-    fun ownsWorkerConversation(conversationId: String?): Boolean {
-        if (conversationId == null) return false
-        return subagentToolFilters.containsKey(conversationId)
-    }
-
-    /**
      * Check if a tool is allowed for the given conversation based on registered filters.
      * Returns true if no filter is registered (e.g. lead conversation or unknown conversation).
      */

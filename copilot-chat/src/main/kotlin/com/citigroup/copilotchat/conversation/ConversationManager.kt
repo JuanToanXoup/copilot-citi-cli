@@ -78,17 +78,10 @@ class ConversationManager(private val project: Project) : Disposable {
         }
         lspClient.start(binary, lspEnv)
 
-        // Set up tool router and per-project server request handler
+        // Set up tool router and server request handler
         toolRouter = ToolRouter(project)
-        val projectKey = project.locationHash
-        lspClient.registerServerRequestHandler(projectKey) { method, id, params ->
-            val convId = params["conversationId"]?.jsonPrimitive?.contentOrNull
-            if (ownsConversation(convId)) {
-                scope.launch { handleServerRequest(method, id, params) }
-                true
-            } else {
-                false
-            }
+        lspClient.serverRequestHandler = { method, id, params ->
+            scope.launch { handleServerRequest(method, id, params) }
         }
 
         // Read auth
@@ -821,28 +814,8 @@ class ConversationManager(private val project: Project) : Disposable {
         log.info("Sent MCP config with ${mcpConfig.size} server(s): ${mcpConfig.keys.joinToString()}")
     }
 
-    /**
-     * Check if a conversationId belongs to this project — either the Chat tab's
-     * conversation or any conversation owned by the project's AgentService.
-     * Returns true for null convId (non-conversation requests like watchedFiles).
-     */
-    fun ownsConversation(conversationId: String?): Boolean {
-        // Non-conversation requests (e.g. copilot/watchedFiles) have no convId —
-        // allow any project to handle them (first handler wins)
-        if (conversationId == null) return true
-        // Chat tab conversation
-        if (conversationId == state.conversationId) return true
-        // Agent tab conversations (lead + subagents)
-        val agentService = try { AgentService.getInstance(project) } catch (_: Exception) { null }
-        if (agentService != null && agentService.ownsConversation(conversationId)) return true
-        // Subagent worker conversations
-        if (agentService != null && agentService.ownsWorkerConversation(conversationId)) return true
-        return false
-    }
-
     override fun dispose() {
         cancel()
-        lspClient.removeServerRequestHandler(project.locationHash)
         clientMcpManager?.stopAll()
         clientMcpManager = null
         scope.cancel()
