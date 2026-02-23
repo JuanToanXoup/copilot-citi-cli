@@ -74,6 +74,7 @@ export function FileEditor({ openFiles, activeFile, onSelectFile, onCloseFile }:
   const [replaceQuery, setReplaceQuery] = useState('')
   const [matchIndex, setMatchIndex] = useState(0)
   const editorRef = useRef<HTMLPreElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const gutterRef = useRef<HTMLDivElement>(null)
   const findInputRef = useRef<HTMLInputElement>(null)
@@ -97,13 +98,12 @@ export function FileEditor({ openFiles, activeFile, onSelectFile, onCloseFile }:
     return () => { cancelled = true }
   }, [activeFile, buffers])
 
-  // Sync contentEditable text when switching to edit mode or switching tabs
+  // Auto-focus textarea when entering edit mode
   useEffect(() => {
-    if (!editorRef.current || !activeBuffer || !editing) return
-    if (editorRef.current.textContent !== activeBuffer.content) {
-      editorRef.current.textContent = activeBuffer.content
+    if (editing && textareaRef.current) {
+      textareaRef.current.focus()
     }
-  }, [activeFile, activeBuffer?.content, editing])
+  }, [editing])
 
   // Reset modes on tab switch
   useEffect(() => {
@@ -138,10 +138,9 @@ export function FileEditor({ openFiles, activeFile, onSelectFile, onCloseFile }:
     redoStackRef.current.set(filePath, [])
   }, [])
 
-  const handleInput = useCallback(() => {
-    if (!activeFile || !editorRef.current) return
-    const newContent = editorRef.current.textContent ?? ''
-    // Push previous content onto undo stack before applying change
+  const handleTextareaChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (!activeFile) return
+    const newContent = e.target.value
     const buf = buffers[activeFile]
     if (buf) pushUndo(activeFile, buf.content)
     setBuffers((prev) => {
@@ -153,6 +152,26 @@ export function FileEditor({ openFiles, activeFile, onSelectFile, onCloseFile }:
       }
     })
   }, [activeFile, buffers, pushUndo])
+
+  // Handle Tab key in textarea (insert tab instead of losing focus)
+  const handleTextareaKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Tab') {
+      e.preventDefault()
+      const ta = e.currentTarget
+      const start = ta.selectionStart
+      const end = ta.selectionEnd
+      const value = ta.value
+      const newValue = value.substring(0, start) + '  ' + value.substring(end)
+      // Trigger a synthetic change
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')!.set!
+      nativeInputValueSetter.call(ta, newValue)
+      ta.dispatchEvent(new Event('input', { bubbles: true }))
+      // Restore cursor
+      requestAnimationFrame(() => {
+        ta.selectionStart = ta.selectionEnd = start + 2
+      })
+    }
+  }, [])
 
   const handleSave = useCallback(async () => {
     if (!activeFile || !activeBuffer?.dirty) return
@@ -184,7 +203,6 @@ export function FileEditor({ openFiles, activeFile, onSelectFile, onCloseFile }:
       if (!b) return s
       return { ...s, [activeFile]: { ...b, content: prev, dirty: prev !== b.original } }
     })
-    if (editorRef.current) editorRef.current.textContent = prev
   }, [activeFile, buffers])
 
   const handleRedo = useCallback(() => {
@@ -202,7 +220,6 @@ export function FileEditor({ openFiles, activeFile, onSelectFile, onCloseFile }:
       if (!b) return s
       return { ...s, [activeFile]: { ...b, content: next, dirty: next !== b.original } }
     })
-    if (editorRef.current) editorRef.current.textContent = next
   }, [activeFile, buffers])
 
   // Keyboard shortcuts: Cmd+S, Cmd+F, Cmd+Z, Cmd+Shift+Z
@@ -280,9 +297,9 @@ export function FileEditor({ openFiles, activeFile, onSelectFile, onCloseFile }:
     }))
   }, [activeFile, activeBuffer, findQuery, replaceQuery])
 
-  // Highlighted HTML for view mode
+  // Highlighted HTML (always computed, used in both view and edit modes)
   const highlightedHtml = useMemo(() => {
-    if (!activeBuffer || editing) return ''
+    if (!activeBuffer) return ''
     const grammar = Prism.languages[lang]
     if (!grammar) return escapeHtml(activeBuffer.content)
     try {
@@ -290,7 +307,7 @@ export function FileEditor({ openFiles, activeFile, onSelectFile, onCloseFile }:
     } catch {
       return escapeHtml(activeBuffer.content)
     }
-  }, [activeBuffer?.content, lang, editing])
+  }, [activeBuffer?.content, lang])
 
   if (openFiles.length === 0) {
     return (
@@ -413,25 +430,34 @@ export function FileEditor({ openFiles, activeFile, onSelectFile, onCloseFile }:
             {/* Code area */}
             <div
               ref={scrollRef}
-              className="flex-1 overflow-auto"
+              className="relative flex-1 overflow-auto"
               onScroll={handleScroll}
             >
-              {editing ? (
-                <pre
-                  ref={editorRef}
-                  contentEditable
-                  suppressContentEditableWarning
-                  onInput={handleInput}
+              {/* Highlighted code layer (always visible) */}
+              <pre
+                ref={editorRef}
+                className="text-gray-300 min-h-full pr-4"
+                style={{ tabSize: 2, whiteSpace: 'pre', marginLeft: '0.20px' }}
+                dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+                onClick={() => !editing && setEditing(true)}
+              />
+              {/* Transparent textarea overlay for editing */}
+              {editing && activeBuffer && (
+                <textarea
+                  ref={textareaRef}
+                  value={activeBuffer.content}
+                  onChange={handleTextareaChange}
+                  onKeyDown={handleTextareaKeyDown}
                   spellCheck={false}
-                  className="text-gray-300 outline-none min-h-full pr-4"
-                  style={{ tabSize: 2, whiteSpace: 'pre', marginLeft: '0.20px' }}
-                />
-              ) : (
-                <pre
-                  className="text-gray-300 outline-none min-h-full pr-4 cursor-text"
-                  style={{ tabSize: 2, whiteSpace: 'pre', marginLeft: '0.20px' }}
-                  onClick={() => setEditing(true)}
-                  dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+                  className="absolute inset-0 w-full h-full text-transparent caret-white bg-transparent outline-none resize-none p-0 m-0 border-0"
+                  style={{
+                    tabSize: 2,
+                    whiteSpace: 'pre',
+                    marginLeft: '0.20px',
+                    font: 'inherit',
+                    lineHeight: 'inherit',
+                    overflow: 'hidden',
+                  }}
                 />
               )}
             </div>
