@@ -509,49 +509,51 @@ function MainAppContent({ tabs, setTabs, activeTabId, setActiveTabId }: {
           className="w-1 shrink-0 bg-gray-800 hover:bg-blue-500 cursor-col-resize transition-colors"
         />
 
-        {/* Chat + Graph panes */}
-        <div className="flex flex-1 overflow-hidden relative">
-          {showChat && (
-            <div
-              className="overflow-hidden flex flex-col"
-              style={{ width: viewMode === 'split' ? `${divider.position}%` : '100%' }}
-            >
-              <ChatPanel
-                selectedNodeId={selectedNode?.id ?? null}
-                onNodeSelect={setSelectedNode}
+        {/* Chat + Graph panes with input at bottom */}
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <div className="flex flex-1 overflow-hidden relative">
+            {showChat && (
+              <div
+                className="overflow-hidden flex flex-col"
+                style={{ width: viewMode === 'split' ? `${divider.position}%` : '100%' }}
+              >
+                <ChatPanel
+                  selectedNodeId={selectedNode?.id ?? null}
+                  onNodeSelect={setSelectedNode}
+                />
+              </div>
+            )}
+
+            {viewMode === 'split' && (
+              <div
+                ref={divider.ref}
+                onMouseDown={divider.onMouseDown}
+                className="w-1 shrink-0 bg-gray-800 hover:bg-blue-500 cursor-col-resize transition-colors"
               />
-            </div>
-          )}
+            )}
 
-          {viewMode === 'split' && (
-            <div
-              ref={divider.ref}
-              onMouseDown={divider.onMouseDown}
-              className="w-1 shrink-0 bg-gray-800 hover:bg-blue-500 cursor-col-resize transition-colors"
-            />
-          )}
+            {showGraph && (
+              <div
+                className="overflow-hidden"
+                style={{ width: viewMode === 'split' ? `${100 - divider.position}%` : '100%' }}
+              >
+                <ReactFlowProvider>
+                  <AgentFlow selectedNode={selectedNode} onNodeSelect={setSelectedNode} />
+                </ReactFlowProvider>
+              </div>
+            )}
+          </div>
 
-          {showGraph && (
-            <div
-              className="overflow-hidden"
-              style={{ width: viewMode === 'split' ? `${100 - divider.position}%` : '100%' }}
-            >
-              <ReactFlowProvider>
-                <AgentFlow selectedNode={selectedNode} onNodeSelect={setSelectedNode} />
-              </ReactFlowProvider>
-            </div>
-          )}
+          {/* Chat input — at bottom of chat/graph area */}
+          <ChatInput
+            onSend={handleSend}
+            onCancel={handleCancel}
+            disabled={isProcessing}
+            isProcessing={isProcessing}
+            placeholder="Send a message, type 'demo', or use /commands..."
+          />
         </div>
       </div>
-
-      {/* Chat input */}
-      <ChatInput
-        onSend={handleSend}
-        onCancel={handleCancel}
-        disabled={isProcessing}
-        isProcessing={isProcessing}
-        placeholder="Send a message, type 'demo', or use /commands..."
-      />
 
       <StatusBar
         connected={lspConnected}
