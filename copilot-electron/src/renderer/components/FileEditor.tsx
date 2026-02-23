@@ -436,8 +436,8 @@ export function FileEditor({ openFiles, activeFile, onSelectFile, onCloseFile }:
               {/* Highlighted code layer (always visible) */}
               <pre
                 ref={editorRef}
-                className="text-gray-300 min-h-full pr-4"
-                style={{ tabSize: 2, whiteSpace: 'pre', marginLeft: '0.20px' }}
+                className="text-gray-300 min-h-full m-0"
+                style={{ tabSize: 2, whiteSpace: 'pre', padding: '0 16px 0 4px', fontFamily: 'inherit', fontSize: 'inherit', lineHeight: 'inherit' }}
                 dangerouslySetInnerHTML={{ __html: highlightedHtml }}
                 onClick={() => !editing && setEditing(true)}
               />
@@ -449,14 +449,18 @@ export function FileEditor({ openFiles, activeFile, onSelectFile, onCloseFile }:
                   onChange={handleTextareaChange}
                   onKeyDown={handleTextareaKeyDown}
                   spellCheck={false}
-                  className="absolute inset-0 w-full h-full text-transparent caret-white bg-transparent outline-none resize-none p-0 m-0 border-0"
+                  className="absolute inset-0 w-full h-full text-transparent caret-white bg-transparent outline-none resize-none"
                   style={{
                     tabSize: 2,
                     whiteSpace: 'pre',
-                    marginLeft: '0.20px',
-                    font: 'inherit',
+                    padding: '0 16px 0 4px',
+                    margin: 0,
+                    border: 'none',
+                    fontFamily: 'inherit',
+                    fontSize: 'inherit',
                     lineHeight: 'inherit',
-                    overflow: 'hidden',
+                    letterSpacing: 'inherit',
+                    overflow: 'auto',
                   }}
                 />
               )}
