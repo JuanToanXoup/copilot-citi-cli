@@ -1,6 +1,8 @@
 package com.citigroup.copilotchat.ui
 
+import com.citigroup.copilotchat.agent.AgentDefinition
 import com.citigroup.copilotchat.agent.AgentEvent
+import com.citigroup.copilotchat.agent.AgentRegistry
 import com.citigroup.copilotchat.agent.AgentService
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.Disposable
@@ -60,6 +62,13 @@ class AgentPanel(private val project: Project) : JPanel(BorderLayout()), Disposa
     // Last tool call panel for grouping
     private var lastToolCallPanel: ToolCallPanel? = null
 
+    // Lead agent selector
+    private val leadAgentCombo = JComboBox<String>().apply {
+        preferredSize = Dimension(180, 28)
+        toolTipText = "Select which lead agent coordinates this conversation"
+    }
+    private var leadAgents: List<AgentDefinition> = emptyList()
+
     private val titleLabel = JLabel("Agent").apply {
         foreground = JBColor(0xBBBBBB, 0x999999)
         border = JBUI.Borders.empty(0, 8, 0, 0)
@@ -79,6 +88,9 @@ class AgentPanel(private val project: Project) : JPanel(BorderLayout()), Disposa
             setHonorComponentsMinimumSize(true)
         }
 
+        // Load lead agents for the selector
+        refreshLeadAgents()
+
         // Header bar
         val headerBar = JPanel(BorderLayout()).apply {
             isOpaque = false
@@ -86,7 +98,17 @@ class AgentPanel(private val project: Project) : JPanel(BorderLayout()), Disposa
                 BorderFactory.createMatteBorder(0, 0, 1, 0, JBColor(0xD0D0D0, 0x3C3F41)),
                 JBUI.Borders.empty(6, 8, 6, 4)
             )
-            add(titleLabel, BorderLayout.CENTER)
+
+            val leftPanel = JPanel(FlowLayout(FlowLayout.LEFT, 4, 0)).apply {
+                isOpaque = false
+                add(titleLabel)
+                add(JLabel("Lead:").apply {
+                    foreground = JBColor(0x999999, 0x666666)
+                    border = JBUI.Borders.empty(0, 8, 0, 2)
+                })
+                add(leadAgentCombo)
+            }
+            add(leftPanel, BorderLayout.CENTER)
 
             val actionsPanel = JPanel(FlowLayout(FlowLayout.RIGHT, 0, 0)).apply {
                 isOpaque = false
@@ -132,7 +154,8 @@ class AgentPanel(private val project: Project) : JPanel(BorderLayout()), Disposa
         currentAssistantMessage = null
         lastToolCallPanel = null
 
-        agentService.sendMessage(text)
+        val selectedLead = leadAgentCombo.selectedItem as? String
+        agentService.sendMessage(text, leadAgentType = selectedLead)
         scrollManager.forceSticky()
     }
 
@@ -258,6 +281,19 @@ class AgentPanel(private val project: Project) : JPanel(BorderLayout()), Disposa
                 scrollManager.onContentAdded()
             }
 
+            is AgentEvent.WorktreeChangesReady -> {
+                currentAssistantMessage = null
+                lastToolCallPanel = null
+                addItemSpacing()
+                val reviewPanel = WorktreeReviewPanel(
+                    agentId = event.agentId,
+                    changes = event.changes,
+                    project = project,
+                )
+                addMessageComponent(reviewPanel)
+                scrollManager.onContentAdded()
+            }
+
             is AgentEvent.LeadDone -> {
                 // Safety net: if we have full text but no assistant message was displayed,
                 // show it now. This handles cases where LeadDelta events were not emitted
@@ -380,6 +416,18 @@ class AgentPanel(private val project: Project) : JPanel(BorderLayout()), Disposa
 
     private fun colorToHex(color: java.awt.Color): String =
         String.format("#%02x%02x%02x", color.red, color.green, color.blue)
+
+    private fun refreshLeadAgents() {
+        val allAgents = AgentRegistry.loadAll(project.basePath)
+        leadAgents = allAgents.filter { it.subagents != null }
+        leadAgentCombo.removeAllItems()
+        for (agent in leadAgents) {
+            leadAgentCombo.addItem(agent.agentType)
+        }
+        // Default to "default-lead" if present
+        val defaultIdx = leadAgents.indexOfFirst { it.agentType == "default-lead" }
+        if (defaultIdx >= 0) leadAgentCombo.selectedIndex = defaultIdx
+    }
 
     override fun dispose() {
         scope.cancel()

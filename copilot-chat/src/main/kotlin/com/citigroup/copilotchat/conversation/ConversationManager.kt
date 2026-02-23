@@ -44,6 +44,17 @@ class ConversationManager(private val project: Project) : Disposable {
     private var clientMcpManager: ClientMcpManager? = null
     private val initMutex = kotlinx.coroutines.sync.Mutex()
 
+    /** Per-conversation workspace root overrides (for worktree-isolated subagents). */
+    private val workspaceOverrides = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    fun registerWorkspaceOverride(conversationId: String, workspaceRoot: String) {
+        workspaceOverrides[conversationId] = workspaceRoot
+    }
+
+    fun removeWorkspaceOverride(conversationId: String) {
+        workspaceOverrides.remove(conversationId)
+    }
+
     private val lspClient: LspClient get() = LspClient.getInstance(project)
 
     companion object {
@@ -655,7 +666,8 @@ class ConversationManager(private val project: Project) : Disposable {
                         _events.emit(ChatEvent.ToolResult(toolName, resultText.take(200)))
                     }
                 } else {
-                    val result = toolRouter.executeTool(toolName, toolInput)
+                    val wsOverride = if (callConvId != null) workspaceOverrides[callConvId] else null
+                    val result = toolRouter.executeTool(toolName, toolInput, wsOverride)
                     lspClient.sendResponse(id, result)
 
                     if (isChatConversation) {

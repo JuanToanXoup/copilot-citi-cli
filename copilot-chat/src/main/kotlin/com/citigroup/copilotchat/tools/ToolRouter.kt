@@ -104,8 +104,9 @@ class ToolRouter(private val project: Project) {
      * Execute a tool call and return the result in copilot format:
      * [{"content": [{"value": "..."}], "status": "success"}, null]
      */
-    suspend fun executeTool(name: String, input: JsonObject): JsonElement {
+    suspend fun executeTool(name: String, input: JsonObject, workspaceRootOverride: String? = null): JsonElement {
         log.info("Tool call: $name")
+        val effectiveWs = workspaceRootOverride ?: workspaceRoot
 
         // Check if tool is disabled
         val settings = CopilotChatSettings.getInstance()
@@ -143,9 +144,9 @@ class ToolRouter(private val project: Project) {
         // Fall back to built-in tools
         if (name in BuiltInTools.toolNames) {
             val ws = WorkingSetService.getInstance(project)
-            val paths = extractFilePaths(name, input)
+            val paths = extractFilePaths(name, input, effectiveWs)
             paths.forEach { ws.captureBeforeState(name, it) }
-            val result = BuiltInTools.execute(name, input, workspaceRoot)
+            val result = BuiltInTools.execute(name, input, effectiveWs)
             paths.forEach { ws.captureAfterState(it) }
 
             // Refresh VFS so IntelliJ's file tree and editors see the changes
@@ -201,10 +202,10 @@ class ToolRouter(private val project: Project) {
         }
     }
 
-    private fun tryFallback(name: String, input: JsonObject): JsonElement {
+    private fun tryFallback(name: String, input: JsonObject, effectiveWs: String = workspaceRoot): JsonElement {
         // If the original name (before redirect) is a built-in tool, use it
         if (name in BuiltInTools.toolNames) {
-            val result = BuiltInTools.execute(name, input, workspaceRoot)
+            val result = BuiltInTools.execute(name, input, effectiveWs)
             return wrapResult(result)
         }
         return wrapResult("Error: Tool execution failed: $name", isError = true)
@@ -215,7 +216,7 @@ class ToolRouter(private val project: Project) {
         "multi_replace_string", "apply_patch"
     )
 
-    private fun extractFilePaths(toolName: String, input: JsonObject): List<String> {
+    private fun extractFilePaths(toolName: String, input: JsonObject, effectiveWs: String = workspaceRoot): List<String> {
         if (toolName !in FILE_MODIFYING_TOOLS) return emptyList()
         return when (toolName) {
             "multi_replace_string" -> {
@@ -226,7 +227,7 @@ class ToolRouter(private val project: Project) {
             "apply_patch" -> {
                 val patch = input["input"]?.jsonPrimitive?.contentOrNull ?: return emptyList()
                 Regex("""\+\+\+ b/(.+)""").findAll(patch).map {
-                    File(workspaceRoot, it.groupValues[1]).absolutePath
+                    File(effectiveWs, it.groupValues[1]).absolutePath
                 }.toList()
             }
             else -> {

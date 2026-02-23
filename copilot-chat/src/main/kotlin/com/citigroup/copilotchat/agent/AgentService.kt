@@ -5,6 +5,7 @@ import com.citigroup.copilotchat.lsp.LspClient
 import com.citigroup.copilotchat.tools.ToolRouter
 import com.citigroup.copilotchat.orchestrator.WorkerSession
 import com.citigroup.copilotchat.orchestrator.WorkerEvent
+import com.citigroup.copilotchat.workingset.WorkingSetService
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
@@ -59,6 +60,9 @@ class AgentService(private val project: Project) : Disposable {
     /** Hard-enforced tool filters keyed by subagent conversationId. */
     private val subagentToolFilters = ConcurrentHashMap<String, SubagentToolFilter>()
 
+    /** Worktree metadata for subagents with forkContext=true. Keyed by agentId. */
+    private val subagentWorktrees = ConcurrentHashMap<String, WorktreeInfo>()
+
     private var currentJob: Job? = null
     private var currentWorkDoneToken: String? = null
     private lateinit var toolRouter: ToolRouter
@@ -76,7 +80,7 @@ class AgentService(private val project: Project) : Disposable {
      * pending subagents, it waits for them, collects results, and sends a follow-up
      * turn so the lead can synthesize the final answer.
      */
-    fun sendMessage(text: String, model: String? = null) {
+    fun sendMessage(text: String, model: String? = null, leadAgentType: String? = null) {
         currentJob?.cancel()
         currentJob = scope.launch {
             try {
@@ -86,8 +90,15 @@ class AgentService(private val project: Project) : Disposable {
                 // Load agent definitions
                 agents = AgentRegistry.loadAll(project.basePath)
 
+                // Resolve lead agent definition
+                val leadAgent = if (leadAgentType != null) {
+                    AgentRegistry.findByType(leadAgentType, agents)
+                } else null
+
                 isStreaming = true
-                val useModel = model ?: "gpt-4.1"
+                val useModel = model
+                    ?: leadAgent?.model?.resolveModelId("claude-sonnet-4")
+                    ?: "claude-sonnet-4"
                 var workDoneToken = "agent-lead-${UUID.randomUUID().toString().take(8)}"
                 currentWorkDoneToken = workDoneToken
                 val replyParts = Collections.synchronizedList(mutableListOf<String>())
@@ -99,7 +110,7 @@ class AgentService(private val project: Project) : Disposable {
                 try {
                     val rootUri = project.basePath?.let { "file://$it" } ?: "file:///tmp"
                     val isFirstTurn = leadConversationId == null
-                    val prompt = if (isFirstTurn) buildLeadPrompt(text) else text
+                    val prompt = if (isFirstTurn) buildLeadPrompt(text, leadAgent) else text
 
                     if (isFirstTurn) {
                         val params = buildJsonObject {
@@ -210,37 +221,33 @@ class AgentService(private val project: Project) : Disposable {
      * Build the first-turn prompt with system instructions that tell the lead agent
      * to use delegate_task for subtasks and complete the full task without stopping
      * for confirmation.
+     *
+     * If a [leadAgent] is provided, uses its systemPromptTemplate and scoped subagents.
+     * Otherwise falls back to the default-lead behavior.
      */
-    private fun buildLeadPrompt(userMessage: String): String {
-        val parts = mutableListOf<String>()
+    private fun buildLeadPrompt(userMessage: String, leadAgent: AgentDefinition? = null): String {
+        // Determine which subagents are visible to this lead
+        val visibleAgents = if (leadAgent?.subagents != null && leadAgent.subagents.isNotEmpty()) {
+            // Scoped: only agents in the supervisor's subagents list
+            agents.filter { a -> leadAgent.subagents.any { it.equals(a.agentType, ignoreCase = true) } }
+        } else {
+            // All workers (agents without subagents field, i.e. not supervisors)
+            agents.filter { it.subagents == null }
+        }
 
-        val agentList = agents.joinToString("\n") { "- ${it.agentType}: ${it.whenToUse}" }
-        parts.add(
-            "<system_instructions>\n" +
-            "You are a lead agent that coordinates sub-agents via the delegate_task tool.\n\n" +
-            "CRITICAL: The delegate_task tool IS available to you. You MUST use it.\n" +
-            "Do NOT say delegate_task is unavailable. Do NOT perform subtasks directly.\n" +
-            "Always delegate work to specialized agents using delegate_task.\n\n" +
-            "All delegate_task calls within a single round run IN PARALLEL.\n" +
-            "You can delegate in multiple rounds when tasks have dependencies:\n" +
-            "- Round 1: Fire all independent subtasks at once (they run concurrently)\n" +
-            "- Round 2+: After receiving results, fire dependent subtasks that needed earlier output\n" +
-            "Only use multiple rounds when a subtask genuinely needs the output of another.\n" +
-            "Maximize parallelism — if tasks are independent, fire them all in one round.\n\n" +
-            "Available agent types:\n$agentList\n\n" +
-            "Workflow:\n" +
-            "1. Analyze the user's request and break it into subtasks\n" +
-            "2. Identify dependencies — which subtasks need results from others?\n" +
-            "3. Call delegate_task for all independent subtasks (they run concurrently)\n" +
-            "4. You will receive all results in a follow-up message\n" +
-            "5. If dependent subtasks remain, delegate them in the next round\n" +
-            "6. Synthesize and present the final answer\n\n" +
-            "Complete the full task without stopping for confirmation.\n" +
-            "</system_instructions>"
-        )
+        val agentList = visibleAgents.joinToString("\n") { "- ${it.agentType}: ${it.whenToUse}" }
 
-        parts.add(userMessage)
-        return parts.joinToString("\n\n")
+        // Use the lead agent's template, or the default
+        val template = if (leadAgent != null && leadAgent.systemPromptTemplate.isNotBlank()) {
+            leadAgent.systemPromptTemplate
+        } else {
+            AgentRegistry.DEFAULT_LEAD_TEMPLATE
+        }
+
+        // Replace {{AGENT_LIST}} placeholder
+        val resolvedPrompt = template.replace("{{AGENT_LIST}}", agentList)
+
+        return "<system_instructions>\n$resolvedPrompt\n</system_instructions>\n\n$userMessage"
     }
 
     /**
@@ -327,18 +334,42 @@ class AgentService(private val project: Project) : Disposable {
 
         val effectiveTools = effectiveDef.tools
 
-        log.info("AgentService: spawning subagent [$agentId] type=$subagentType model=$resolvedModel (parallel)")
+        // --- Worktree isolation for forkContext agents ---
+        val useWorktree = effectiveDef.forkContext
+        var worktreeInfo: WorktreeInfo? = null
+        var effectiveWorkspaceRoot = project.basePath ?: "/tmp"
+
+        if (useWorktree) {
+            try {
+                val info = WorktreeManager.createWorktree(project.basePath ?: "/tmp", agentId)
+                subagentWorktrees[agentId] = info
+                worktreeInfo = info
+                effectiveWorkspaceRoot = info.worktreePath
+                log.info("AgentService: created worktree for $agentId at ${info.worktreePath}")
+            } catch (e: Exception) {
+                log.warn("AgentService: worktree creation failed for $agentId, falling back to shared workspace", e)
+            }
+        }
+
+        // Auto-disable PSI tools for worktree agents (IntelliJ won't index the worktree directory)
+        val extraDisallowed = if (worktreeInfo != null) {
+            setOf("ide", "ide_search_text", "ide_find_usages", "ide_find_symbol",
+                "ide_find_class", "ide_find_file", "ide_diagnostics", "ide_quick_doc",
+                "ide_rename_symbol", "ide_safe_delete")
+        } else emptySet()
+
+        log.info("AgentService: spawning subagent [$agentId] type=$subagentType model=$resolvedModel worktree=$useWorktree (parallel)")
         _events.tryEmit(AgentEvent.SubagentSpawned(agentId, effectiveDef.agentType, description, prompt))
 
         val session = WorkerSession(
             workerId = agentId,
             role = effectiveDef.agentType,
-            systemPrompt = effectiveDef.systemPrompt,
+            systemPrompt = effectiveDef.systemPromptTemplate,
             model = resolvedModel,
             agentMode = true,
             toolsEnabled = effectiveTools,
             projectName = project.name,
-            workspaceRoot = project.basePath ?: "/tmp",
+            workspaceRoot = effectiveWorkspaceRoot,
             lspClient = lspClient,
         )
 
@@ -352,11 +383,16 @@ class AgentService(private val project: Project) : Disposable {
         }
 
         session.onConversationId = { convId ->
+            val disallowed = effectiveDef.disallowedTools.toSet() + extraDisallowed
             subagentToolFilters[convId] = SubagentToolFilter(
                 allowedTools = effectiveDef.tools?.toSet(),
-                disallowedTools = effectiveDef.disallowedTools.toSet(),
+                disallowedTools = disallowed,
             )
-            log.info("AgentService: registered tool filter for subagent $agentId (convId=$convId, allowed=${effectiveDef.tools}, disallowed=${effectiveDef.disallowedTools})")
+            // Register workspace override so ConversationManager routes tool calls to the worktree
+            if (worktreeInfo != null) {
+                conversationManager.registerWorkspaceOverride(convId, worktreeInfo.worktreePath)
+            }
+            log.info("AgentService: registered tool filter for subagent $agentId (convId=$convId, allowed=${effectiveDef.tools}, disallowed=$disallowed, worktree=${worktreeInfo != null})")
         }
 
         activeSubagents[agentId] = session
@@ -428,10 +464,75 @@ class AgentService(private val project: Project) : Disposable {
         }
         pendingSubagents.clear()
 
+        // Generate diffs for worktree-isolated subagents and emit review events
+        val mainWorkspace = project.basePath ?: "/tmp"
+        for ((agentId, worktreeInfo) in subagentWorktrees) {
+            try {
+                val changes = WorktreeManager.generateDiff(worktreeInfo, mainWorkspace)
+                if (changes.isNotEmpty()) {
+                    _events.emit(AgentEvent.WorktreeChangesReady(agentId, changes))
+                    log.info("AgentService: worktree $agentId has ${changes.size} changed file(s) pending review")
+                } else {
+                    // No changes — clean up immediately
+                    WorktreeManager.removeWorktree(worktreeInfo, mainWorkspace)
+                    subagentWorktrees.remove(agentId)
+                    log.info("AgentService: worktree $agentId had no changes, cleaned up")
+                }
+            } catch (e: Exception) {
+                log.warn("AgentService: failed to generate diff for worktree $agentId: ${e.message}")
+            }
+        }
+
         // Build formatted results for the follow-up turn
         return results.joinToString("\n\n") { (agentId, agentType, result) ->
             "<subagent_result agent_type=\"$agentType\" agent_id=\"$agentId\">\n$result\n</subagent_result>"
         }
+    }
+
+    /**
+     * Apply worktree changes to the main workspace and clean up the worktree.
+     * Called when the user approves changes from a worktree-isolated subagent.
+     */
+    fun approveWorktreeChanges(agentId: String) {
+        val info = subagentWorktrees.remove(agentId) ?: return
+        val mainWorkspace = project.basePath ?: return
+
+        val changes = WorktreeManager.generateDiff(info, mainWorkspace)
+        val ws = WorkingSetService.getInstance(project)
+
+        // Track changes in WorkingSetService so they appear in the Working Set panel
+        for (change in changes) {
+            val absPath = java.io.File(mainWorkspace, change.relativePath).absolutePath
+            ws.captureBeforeState("worktree-apply", absPath)
+        }
+
+        WorktreeManager.applyChanges(changes, mainWorkspace)
+
+        for (change in changes) {
+            val absPath = java.io.File(mainWorkspace, change.relativePath).absolutePath
+            ws.captureAfterState(absPath)
+        }
+
+        // Refresh VFS so IntelliJ sees the new files
+        val lfs = com.intellij.openapi.vfs.LocalFileSystem.getInstance()
+        for (change in changes) {
+            val absPath = java.io.File(mainWorkspace, change.relativePath).absolutePath
+            lfs.refreshAndFindFileByPath(absPath)
+        }
+
+        WorktreeManager.removeWorktree(info, mainWorkspace)
+        log.info("AgentService: approved and applied ${changes.size} worktree change(s) for $agentId")
+    }
+
+    /**
+     * Discard worktree changes and clean up.
+     * Called when the user rejects changes from a worktree-isolated subagent.
+     */
+    fun rejectWorktreeChanges(agentId: String) {
+        val info = subagentWorktrees.remove(agentId) ?: return
+        val mainWorkspace = project.basePath ?: "/tmp"
+        WorktreeManager.removeWorktree(info, mainWorkspace)
+        log.info("AgentService: rejected and discarded worktree changes for $agentId")
     }
 
     /**
@@ -609,6 +710,18 @@ class AgentService(private val project: Project) : Disposable {
         pendingSubagents.values.forEach { it.deferred.cancel() }
         pendingSubagents.clear()
         subagentToolFilters.clear()
+
+        // Clean up any active worktrees
+        val mainWorkspace = project.basePath ?: "/tmp"
+        for ((_, info) in subagentWorktrees) {
+            try {
+                WorktreeManager.removeWorktree(info, mainWorkspace)
+            } catch (e: Exception) {
+                log.warn("AgentService: failed to clean up worktree ${info.agentId}: ${e.message}")
+            }
+        }
+        subagentWorktrees.clear()
+
         isStreaming = false
 
         scope.launch { _events.emit(AgentEvent.LeadDone()) }
