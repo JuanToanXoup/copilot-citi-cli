@@ -267,6 +267,7 @@ class WorkerSession(
             val roundReply = round["reply"]?.jsonPrimitive?.contentOrNull ?: ""
             if (roundReply.isNotEmpty()) {
                 replyParts.add(roundReply)
+                onEvent?.invoke(WorkerEvent.Delta(workerId, roundReply))
             }
 
             val toolCalls = round["toolCalls"]?.jsonArray

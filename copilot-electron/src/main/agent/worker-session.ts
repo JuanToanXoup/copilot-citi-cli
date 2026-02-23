@@ -158,7 +158,10 @@ export class WorkerSession extends EventEmitter {
     const rounds = value.editAgentRounds
     if (Array.isArray(rounds)) {
       for (const round of rounds) {
-        if (round.reply) replyParts.push(round.reply)
+        if (round.reply) {
+          replyParts.push(round.reply)
+          this.emit('delta', { workerId: this.workerId, text: round.reply })
+        }
 
         if (Array.isArray(round.toolCalls)) {
           for (const tc of round.toolCalls) {
