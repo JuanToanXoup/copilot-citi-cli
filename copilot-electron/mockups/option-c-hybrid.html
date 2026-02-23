@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Option C: Hybrid &mdash; Trace Tree + Timeline</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: #0a0a0f; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; }
+
+  .toolbar { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; background: #111118; border-bottom: 1px solid #1e1e2e; }
+  .toolbar h1 { font-size: 13px; font-weight: 600; color: #94a3b8; }
+  .tabs { display: flex; gap: 2px; background: #0a0a0f; border-radius: 8px; padding: 2px; }
+  .tab { padding: 5px 14px; border-radius: 6px; font-size: 12px; font-weight: 500; color: #64748b; cursor: pointer; transition: all 0.15s; border: none; background: none; }
+  .tab.active { background: #1e1e2e; color: #e2e8f0; }
+  .tab:hover:not(.active) { color: #94a3b8; }
+
+  .main { display: flex; flex: 1; overflow: hidden; }
+
+  /* ---- Left: Trace Tree ---- */
+  .tree-pane { width: 360px; border-right: 1px solid #1e1e2e; display: flex; flex-direction: column; background: #0d0d14; }
+  .tree-header { padding: 10px 16px; border-bottom: 1px solid #1e1e2e; display: flex; align-items: center; justify-content: space-between; }
+  .tree-header .title { font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+  .tree-header .total { font-size: 11px; color: #475569; }
+
+  .tree-body { flex: 1; overflow-y: auto; padding: 8px 0; }
+
+  .tree-node { display: flex; align-items: center; padding: 6px 12px; cursor: pointer; transition: background 0.1s; position: relative; }
+  .tree-node:hover { background: #111118; }
+  .tree-node.selected { background: #1a1a2e; }
+  .tree-node.selected::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: #3b82f6; border-radius: 0 2px 2px 0; }
+
+  .tree-indent { display: flex; align-items: center; }
+  .indent-guide { width: 20px; height: 100%; position: relative; flex-shrink: 0; }
+  .indent-guide::before { content: ''; position: absolute; left: 10px; top: 0; bottom: 0; width: 1px; background: #1e1e2e; }
+
+  .tree-chevron { width: 16px; font-size: 10px; color: #475569; flex-shrink: 0; text-align: center; }
+
+  .tree-icon { width: 22px; height: 22px; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; margin-right: 8px; }
+  .tree-icon.user { background: #1e3a5f; color: #60a5fa; }
+  .tree-icon.agent { background: #0f3326; color: #34d399; }
+  .tree-icon.tool { background: #2e1065; color: #a78bfa; }
+  .tree-icon.term { background: #3b0764; color: #c084fc; }
+  .tree-icon.sub { background: #1e3a5f; color: #60a5fa; }
+  .tree-icon.result { background: #052e16; color: #4ade80; }
+  .tree-icon.error { background: #450a0a; color: #f87171; }
+
+  .tree-label { flex: 1; font-size: 12px; color: #cbd5e1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tree-meta { display: flex; align-items: center; gap: 8px; margin-left: 8px; flex-shrink: 0; }
+  .tree-dur { font-size: 10px; color: #475569; font-family: 'SF Mono', Monaco, monospace; }
+  .tree-tokens { font-size: 10px; color: #475569; }
+  .tree-status { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .tree-status.success { background: #22c55e; }
+  .tree-status.error { background: #ef4444; }
+  .tree-status.running { background: #818cf8; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.4 } }
+
+  /* ---- Right: Detail + Timeline ---- */
+  .detail-pane { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* View toggle: Detail vs Timeline */
+  .view-bar { padding: 8px 16px; border-bottom: 1px solid #1e1e2e; display: flex; align-items: center; gap: 12px; }
+  .view-bar .label { font-size: 12px; font-weight: 600; color: #64748b; }
+
+  /* Detail view */
+  .detail-view { flex: 1; overflow-y: auto; padding: 20px; display: none; }
+  .detail-view.active { display: block; }
+
+  .detail-section { margin-bottom: 20px; }
+  .detail-section h3 { font-size: 11px; text-transform: uppercase; color: #475569; letter-spacing: 0.05em; margin-bottom: 8px; font-weight: 600; }
+
+  .detail-card { background: #111118; border: 1px solid #1e1e2e; border-radius: 10px; padding: 16px; }
+  .detail-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+  .detail-subtitle { font-size: 12px; color: #64748b; margin-bottom: 12px; }
+
+  .detail-metrics { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .dm { padding: 6px 12px; background: #0a0a0f; border-radius: 6px; border: 1px solid #1e1e2e; }
+  .dm-label { font-size: 10px; color: #475569; }
+  .dm-val { font-size: 14px; font-weight: 600; color: #e2e8f0; }
+
+  .detail-code { background: #0a0a0f; border: 1px solid #1e1e2e; border-radius: 8px; padding: 14px; font-family: 'SF Mono', Monaco, monospace; font-size: 12px; line-height: 1.6; color: #94a3b8; overflow-x: auto; white-space: pre-wrap; }
+
+  .detail-text { font-size: 14px; line-height: 1.6; color: #cbd5e1; }
+
+  /* Timeline view */
+  .timeline-view { flex: 1; overflow: auto; padding: 20px; display: none; position: relative; }
+  .timeline-view.active { display: block; }
+
+  .tl-header { display: flex; padding-left: 180px; margin-bottom: 12px; position: sticky; top: 0; background: #0a0a0f; z-index: 2; padding-bottom: 8px; }
+  .tl-tick { font-size: 10px; color: #475569; width: 80px; flex-shrink: 0; }
+
+  .tl-row { display: flex; align-items: center; height: 32px; }
+  .tl-row:hover { background: #0f0f1a; border-radius: 4px; }
+  .tl-label { width: 180px; flex-shrink: 0; font-size: 11px; color: #94a3b8; padding-right: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px; }
+  .tl-label .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .tl-label .dot.blue { background: #3b82f6; }
+  .tl-label .dot.green { background: #22c55e; }
+  .tl-label .dot.purple { background: #a855f7; }
+  .tl-label .dot.pink { background: #c084fc; }
+
+  .tl-track { flex: 1; position: relative; height: 22px; }
+  .tl-bar { position: absolute; height: 18px; border-radius: 4px; top: 2px; display: flex; align-items: center; padding: 0 6px; font-size: 9px; font-weight: 500; color: rgba(255,255,255,0.7); min-width: 18px; }
+  .tl-bar.blue { background: linear-gradient(90deg, #1e40af, #3b82f6); }
+  .tl-bar.green { background: linear-gradient(90deg, #065f46, #10b981); }
+  .tl-bar.purple { background: linear-gradient(90deg, #5b21b6, #7c3aed); }
+  .tl-bar.pink { background: linear-gradient(90deg, #7e22ce, #a855f7); }
+  .tl-bar.teal { background: linear-gradient(90deg, #134e4a, #14b8a6); }
+  .tl-bar.dim { background: linear-gradient(90deg, #1a1a28, #2a2a3e); }
+
+  .tl-section { padding: 6px 0 2px; font-size: 10px; color: #475569; font-weight: 600; border-bottom: 1px solid #111118; margin-bottom: 4px; }
+
+  /* Chat input */
+  .chat-input { padding: 10px 16px; border-top: 1px solid #1e1e2e; }
+  .chat-input input { width: 100%; background: #111118; border: 1px solid #2a2a3e; border-radius: 8px; padding: 10px 14px; color: #e2e8f0; font-size: 13px; outline: none; }
+  .chat-input input:focus { border-color: #3b82f6; }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <h1>Option C: Hybrid &mdash; Trace Tree + Timeline</h1>
+  <div class="tabs">
+    <button class="tab active" onclick="switchView('detail', this)">Detail</button>
+    <button class="tab" onclick="switchView('timeline', this)">Timeline</button>
+  </div>
+</div>
+
+<div class="main">
+  <!-- Trace Tree (left) -->
+  <div class="tree-pane">
+    <div class="tree-header">
+      <span class="title">Trace</span>
+      <span class="total">6.8s &middot; 4,230 tokens &middot; $0.012</span>
+    </div>
+    <div class="tree-body">
+
+      <!-- Turn 1 -->
+      <div class="tree-node" onclick="selectNode(this, 'user1')">
+        <div class="tree-chevron">&#9660;</div>
+        <div class="tree-icon user">U</div>
+        <span class="tree-label">Fix the login bug in auth.ts</span>
+        <div class="tree-meta">
+          <div class="tree-status success"></div>
+        </div>
+      </div>
+
+      <div class="tree-node selected" onclick="selectNode(this, 'agent1')">
+        <div class="indent-guide"></div>
+        <div class="tree-chevron">&#9660;</div>
+        <div class="tree-icon agent">A</div>
+        <span class="tree-label">Agent response</span>
+        <div class="tree-meta">
+          <span class="tree-dur">3.2s</span>
+          <span class="tree-tokens">1.2k</span>
+          <div class="tree-status success"></div>
+        </div>
+      </div>
+
+      <div class="tree-node" onclick="selectNode(this, 'read1')">
+        <div class="indent-guide"></div>
+        <div class="indent-guide"></div>
+        <div class="tree-chevron"></div>
+        <div class="tree-icon tool">T</div>
+        <span class="tree-label">read_file &mdash; src/auth.ts</span>
+        <div class="tree-meta">
+          <span class="tree-dur">0.6s</span>
+          <div class="tree-status success"></div>
+        </div>
+      </div>
+
+      <div class="tree-node" onclick="selectNode(this, 'write1')">
+        <div class="indent-guide"></div>
+        <div class="indent-guide"></div>
+        <div class="tree-chevron"></div>
+        <div class="tree-icon tool">T</div>
+        <span class="tree-label">write_file &mdash; src/auth.ts</span>
+        <div class="tree-meta">
+          <span class="tree-dur">0.7s</span>
+          <div class="tree-status success"></div>
+        </div>
+      </div>
+
+      <!-- Turn 2 -->
+      <div class="tree-node" onclick="selectNode(this, 'user2')">
+        <div class="tree-chevron">&#9660;</div>
+        <div class="tree-icon user">U</div>
+        <span class="tree-label">Add rate limiting to login</span>
+        <div class="tree-meta">
+          <div class="tree-status success"></div>
+        </div>
+      </div>
+
+      <div class="tree-node" onclick="selectNode(this, 'agent2')">
+        <div class="indent-guide"></div>
+        <div class="tree-chevron">&#9660;</div>
+        <div class="tree-icon agent">A</div>
+        <span class="tree-label">Agent response</span>
+        <div class="tree-meta">
+          <span class="tree-dur">3.6s</span>
+          <span class="tree-tokens">3.0k</span>
+          <div class="tree-status success"></div>
+        </div>
+      </div>
+
+      <div class="tree-node" onclick="selectNode(this, 'explore1')">
+        <div class="indent-guide"></div>
+        <div class="indent-guide"></div>
+        <div class="tree-chevron"></div>
+        <div class="tree-icon sub">S</div>
+        <span class="tree-label">Explore: middleware</span>
+        <div class="tree-meta">
+          <span class="tree-dur">1.0s</span>
+          <span class="tree-tokens">620</span>
+          <div class="tree-status success"></div>
+        </div>
+      </div>
+
+      <div class="tree-node" onclick="selectNode(this, 'plan1')">
+        <div class="indent-guide"></div>
+        <div class="indent-guide"></div>
+        <div class="tree-chevron"></div>
+        <div class="tree-icon sub">S</div>
+        <span class="tree-label">Plan: rate limit design</span>
+        <div class="tree-meta">
+          <span class="tree-dur">1.3s</span>
+          <span class="tree-tokens">480</span>
+          <div class="tree-status success"></div>
+        </div>
+      </div>
+
+      <div class="tree-node" onclick="selectNode(this, 'npm1')">
+        <div class="indent-guide"></div>
+        <div class="indent-guide"></div>
+        <div class="tree-chevron"></div>
+        <div class="tree-icon term">$</div>
+        <span class="tree-label">npm install express-rate-limit</span>
+        <div class="tree-meta">
+          <span class="tree-dur">0.8s</span>
+          <div class="tree-status success"></div>
+        </div>
+      </div>
+
+      <div class="tree-node" onclick="selectNode(this, 'write2')">
+        <div class="indent-guide"></div>
+        <div class="indent-guide"></div>
+        <div class="tree-chevron"></div>
+        <div class="tree-icon tool">T</div>
+        <span class="tree-label">write_file &mdash; rate-limit.ts</span>
+        <div class="tree-meta">
+          <span class="tree-dur">0.6s</span>
+          <div class="tree-status success"></div>
+        </div>
+      </div>
+
+      <div class="tree-node" onclick="selectNode(this, 'write3')">
+        <div class="indent-guide"></div>
+        <div class="indent-guide"></div>
+        <div class="tree-chevron"></div>
+        <div class="tree-icon tool">T</div>
+        <span class="tree-label">write_file &mdash; auth.ts</span>
+        <div class="tree-meta">
+          <span class="tree-dur">0.5s</span>
+          <div class="tree-status success"></div>
+        </div>
+      </div>
+
+      <!-- Turn 3 (in progress) -->
+      <div class="tree-node" onclick="selectNode(this, 'user3')">
+        <div class="tree-chevron">&#9660;</div>
+        <div class="tree-icon user">U</div>
+        <span class="tree-label">Add tests for rate limiter</span>
+        <div class="tree-meta">
+          <div class="tree-status running"></div>
+        </div>
+      </div>
+
+      <div class="tree-node" onclick="selectNode(this, 'agent3')">
+        <div class="indent-guide"></div>
+        <div class="tree-chevron">&#9660;</div>
+        <div class="tree-icon agent">A</div>
+        <span class="tree-label">Agent working...</span>
+        <div class="tree-meta">
+          <span class="tree-dur" style="color:#818cf8;">1.2s...</span>
+          <div class="tree-status running"></div>
+        </div>
+      </div>
+
+      <div class="tree-node" onclick="selectNode(this, 'search1')">
+        <div class="indent-guide"></div>
+        <div class="indent-guide"></div>
+        <div class="tree-chevron"></div>
+        <div class="tree-icon tool">T</div>
+        <span class="tree-label" style="color:#818cf8;">search_files &mdash; running...</span>
+        <div class="tree-meta">
+          <div class="tree-status running"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Right pane: Detail or Timeline -->
+  <div class="detail-pane">
+    <div class="view-bar">
+      <span class="label" id="selectedLabel">Agent Response &mdash; Turn 1</span>
+    </div>
+
+    <!-- Detail View (default) -->
+    <div class="detail-view active" id="detailView">
+      <div class="detail-section">
+        <div class="detail-card">
+          <div class="detail-title">Agent Response</div>
+          <div class="detail-subtitle">Turn 1 &mdash; Fix login bug</div>
+
+          <div class="detail-metrics">
+            <div class="dm">
+              <div class="dm-label">Duration</div>
+              <div class="dm-val">3.2s</div>
+            </div>
+            <div class="dm">
+              <div class="dm-label">Tokens</div>
+              <div class="dm-val">1,230</div>
+            </div>
+            <div class="dm">
+              <div class="dm-label">Cost</div>
+              <div class="dm-val">$0.004</div>
+            </div>
+            <div class="dm">
+              <div class="dm-label">Tool Calls</div>
+              <div class="dm-val">2</div>
+            </div>
+            <div class="dm">
+              <div class="dm-label">Status</div>
+              <div class="dm-val" style="color:#4ade80">Success</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <h3>Agent Output</h3>
+        <div class="detail-text">
+          Let me explore the auth module and fix the login bug. I'll read the file first.
+          <br><br>
+          Fixed the login bug in auth.ts. The issue was a plain-text password comparison &mdash; I replaced it with <code style="background:#1e1b4b;padding:1px 5px;border-radius:3px;font-size:12px;">bcrypt.compare()</code>.
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <h3>Tool: read_file</h3>
+        <div class="detail-code">Input: { "path": "src/auth.ts" }
+
+Output (42 lines):
+export async function login(email, password) {
+  const user = await db.findUser(email)
+  if (user.password === password) {  // BUG
+    return createSession(user)
+  }
+  throw new AuthError('Invalid credentials')
+}</div>
+      </div>
+
+      <div class="detail-section">
+        <h3>Tool: write_file</h3>
+        <div class="detail-code"><span style="color:#f87171">- if (user.password === password) {</span>
+<span style="color:#4ade80">+ if (await bcrypt.compare(password, user.hash)) {</span></div>
+      </div>
+    </div>
+
+    <!-- Timeline View -->
+    <div class="timeline-view" id="timelineView">
+      <div class="tl-header">
+        <div class="tl-tick">0s</div>
+        <div class="tl-tick">0.5s</div>
+        <div class="tl-tick">1.0s</div>
+        <div class="tl-tick">1.5s</div>
+        <div class="tl-tick">2.0s</div>
+        <div class="tl-tick">2.5s</div>
+        <div class="tl-tick">3.0s</div>
+        <div class="tl-tick">3.5s</div>
+      </div>
+
+      <div class="tl-section">Turn 1 &mdash; Fix login bug</div>
+
+      <div class="tl-row">
+        <div class="tl-label"><div class="dot blue"></div>User</div>
+        <div class="tl-track"><div class="tl-bar blue" style="left:0;width:40px;"></div></div>
+      </div>
+      <div class="tl-row">
+        <div class="tl-label"><div class="dot green"></div>Agent</div>
+        <div class="tl-track"><div class="tl-bar green" style="left:40px;width:120px;">thinking</div></div>
+      </div>
+      <div class="tl-row">
+        <div class="tl-label"><div class="dot purple"></div>read_file</div>
+        <div class="tl-track">
+          <div class="tl-bar purple" style="left:160px;width:80px;">0.6s</div>
+          <div class="tl-bar teal" style="left:240px;width:20px;"></div>
+        </div>
+      </div>
+      <div class="tl-row">
+        <div class="tl-label"><div class="dot purple"></div>write_file</div>
+        <div class="tl-track">
+          <div class="tl-bar purple" style="left:260px;width:90px;">0.7s</div>
+          <div class="tl-bar teal" style="left:350px;width:20px;"></div>
+        </div>
+      </div>
+      <div class="tl-row">
+        <div class="tl-label"><div class="dot green"></div>Agent</div>
+        <div class="tl-track"><div class="tl-bar green" style="left:370px;width:90px;">response</div></div>
+      </div>
+
+      <div class="tl-section" style="margin-top:12px;">Turn 2 &mdash; Add rate limiting</div>
+
+      <div class="tl-row">
+        <div class="tl-label"><div class="dot blue"></div>User</div>
+        <div class="tl-track"><div class="tl-bar blue" style="left:0;width:40px;"></div></div>
+      </div>
+      <div class="tl-row">
+        <div class="tl-label"><div class="dot green"></div>Agent</div>
+        <div class="tl-track"><div class="tl-bar green" style="left:40px;width:80px;">thinking</div></div>
+      </div>
+      <div class="tl-row">
+        <div class="tl-label"><div class="dot blue"></div>Explore</div>
+        <div class="tl-track">
+          <div class="tl-bar blue" style="left:120px;width:130px;">middleware</div>
+          <div class="tl-bar teal" style="left:250px;width:20px;"></div>
+        </div>
+      </div>
+      <div class="tl-row">
+        <div class="tl-label"><div class="dot blue"></div>Plan</div>
+        <div class="tl-track">
+          <div class="tl-bar blue" style="left:120px;width:170px;">rate limit</div>
+          <div class="tl-bar teal" style="left:290px;width:20px;"></div>
+        </div>
+      </div>
+      <div class="tl-row">
+        <div class="tl-label"><div class="dot pink"></div>npm install</div>
+        <div class="tl-track">
+          <div class="tl-bar pink" style="left:280px;width:100px;">0.8s</div>
+          <div class="tl-bar teal" style="left:380px;width:20px;"></div>
+        </div>
+      </div>
+      <div class="tl-row">
+        <div class="tl-label"><div class="dot purple"></div>write_file</div>
+        <div class="tl-track">
+          <div class="tl-bar purple" style="left:310px;width:80px;">0.6s</div>
+          <div class="tl-bar teal" style="left:390px;width:20px;"></div>
+        </div>
+      </div>
+      <div class="tl-row">
+        <div class="tl-label"><div class="dot purple"></div>write_file</div>
+        <div class="tl-track">
+          <div class="tl-bar purple" style="left:400px;width:70px;">0.5s</div>
+          <div class="tl-bar teal" style="left:470px;width:20px;"></div>
+        </div>
+      </div>
+      <div class="tl-row">
+        <div class="tl-label"><div class="dot green"></div>Agent</div>
+        <div class="tl-track"><div class="tl-bar green" style="left:490px;width:90px;">response</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function switchView(view, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'))
+  btn.classList.add('active')
+  document.getElementById('detailView').classList.toggle('active', view === 'detail')
+  document.getElementById('timelineView').classList.toggle('active', view === 'timeline')
+}
+
+function selectNode(el, key) {
+  document.querySelectorAll('.tree-node').forEach(n => n.classList.remove('selected'))
+  el.classList.add('selected')
+}
+</script>
+</body>
+</html>

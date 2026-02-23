@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Option A: Timeline / Waterfall</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: #0a0a0f; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; }
+
+  .toolbar { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; background: #111118; border-bottom: 1px solid #1e1e2e; }
+  .toolbar h1 { font-size: 13px; font-weight: 600; color: #94a3b8; }
+  .toolbar .badge { font-size: 11px; padding: 2px 8px; border-radius: 9999px; background: #1e293b; color: #64748b; }
+
+  .main { display: flex; flex: 1; overflow: hidden; }
+
+  /* ---- Left: Chat ---- */
+  .chat-pane { width: 380px; border-right: 1px solid #1e1e2e; display: flex; flex-direction: column; background: #0d0d14; }
+  .chat-header { padding: 12px 16px; border-bottom: 1px solid #1e1e2e; font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+  .chat-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .msg { padding: 10px 14px; border-radius: 10px; font-size: 13px; line-height: 1.5; max-width: 90%; }
+  .msg.user { background: #1e3a5f; color: #93c5fd; align-self: flex-end; border-bottom-right-radius: 4px; }
+  .msg.agent { background: #1a1a28; color: #cbd5e1; border: 1px solid #2a2a3e; align-self: flex-start; border-bottom-left-radius: 4px; }
+  .msg .label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; opacity: 0.6; }
+  .chat-input { padding: 12px 16px; border-top: 1px solid #1e1e2e; }
+  .chat-input input { width: 100%; background: #111118; border: 1px solid #2a2a3e; border-radius: 8px; padding: 10px 14px; color: #e2e8f0; font-size: 13px; outline: none; }
+  .chat-input input:focus { border-color: #3b82f6; }
+
+  /* ---- Right: Timeline ---- */
+  .timeline-pane { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .timeline-header { padding: 12px 16px; border-bottom: 1px solid #1e1e2e; display: flex; align-items: center; gap: 16px; }
+  .timeline-header .title { font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+  .stats { display: flex; gap: 16px; margin-left: auto; }
+  .stat { font-size: 11px; color: #64748b; }
+  .stat span { color: #e2e8f0; font-weight: 600; }
+
+  .timeline-body { flex: 1; overflow: auto; padding: 20px; position: relative; }
+
+  /* Time axis */
+  .time-axis { display: flex; padding-left: 200px; margin-bottom: 8px; position: sticky; top: 0; background: #0a0a0f; z-index: 2; padding-bottom: 8px; border-bottom: 1px solid #1a1a28; }
+  .time-tick { font-size: 10px; color: #475569; width: 100px; flex-shrink: 0; }
+
+  /* Rows */
+  .timeline-row { display: flex; align-items: center; height: 40px; position: relative; }
+  .timeline-row:hover { background: #0f0f1a; }
+  .row-label { width: 200px; flex-shrink: 0; padding-right: 12px; display: flex; align-items: center; gap: 8px; }
+  .row-label .icon { width: 20px; height: 20px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 10px; flex-shrink: 0; }
+  .row-label .name { font-size: 12px; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row-track { flex: 1; position: relative; height: 28px; }
+
+  /* Bars */
+  .bar { position: absolute; height: 24px; border-radius: 4px; top: 2px; display: flex; align-items: center; padding: 0 8px; font-size: 10px; font-weight: 500; cursor: pointer; transition: filter 0.15s; min-width: 24px; }
+  .bar:hover { filter: brightness(1.3); z-index: 1; }
+  .bar .dur { margin-left: auto; opacity: 0.7; font-size: 9px; }
+
+  /* Colors */
+  .bar.user { background: linear-gradient(90deg, #1e40af, #2563eb); color: #93c5fd; }
+  .bar.agent { background: linear-gradient(90deg, #065f46, #059669); color: #6ee7b7; }
+  .bar.tool { background: linear-gradient(90deg, #5b21b6, #7c3aed); color: #c4b5fd; }
+  .bar.terminal { background: linear-gradient(90deg, #7e22ce, #a855f7); color: #d8b4fe; }
+  .bar.subagent { background: linear-gradient(90deg, #1e40af, #3b82f6); color: #93c5fd; }
+  .bar.result { background: linear-gradient(90deg, #14532d, #16a34a); color: #86efac; }
+  .bar.error { background: linear-gradient(90deg, #7f1d1d, #dc2626); color: #fca5a5; }
+
+  .icon.user-icon { background: #1e3a5f; color: #60a5fa; }
+  .icon.agent-icon { background: #0f3326; color: #34d399; }
+  .icon.tool-icon { background: #2e1065; color: #a78bfa; }
+  .icon.term-icon { background: #3b0764; color: #c084fc; }
+  .icon.sub-icon { background: #1e3a5f; color: #60a5fa; }
+
+  /* Grid lines */
+  .grid-lines { position: absolute; top: 0; left: 200px; right: 0; bottom: 0; pointer-events: none; }
+  .grid-line { position: absolute; top: 0; bottom: 0; width: 1px; background: #1a1a28; }
+
+  /* Divider between turns */
+  .turn-divider { padding: 8px 0 4px; display: flex; align-items: center; gap: 8px; }
+  .turn-divider .line { flex: 1; height: 1px; background: #1e1e2e; }
+  .turn-divider .label { font-size: 10px; color: #475569; font-weight: 600; white-space: nowrap; }
+
+  /* Detail panel */
+  .detail-panel { position: fixed; right: 20px; top: 80px; width: 320px; background: #111118; border: 1px solid #2a2a3e; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); padding: 0; z-index: 10; display: none; }
+  .detail-panel.show { display: block; animation: slideIn 0.2s ease-out; }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+  .detail-header { padding: 12px 16px; border-bottom: 1px solid #1e1e2e; display: flex; justify-content: space-between; align-items: center; }
+  .detail-header h3 { font-size: 13px; font-weight: 600; }
+  .detail-header .close { background: none; border: none; color: #64748b; cursor: pointer; font-size: 16px; }
+  .detail-body { padding: 12px 16px; font-size: 12px; color: #94a3b8; }
+  .detail-body .field { margin-bottom: 8px; }
+  .detail-body .field-label { font-size: 10px; color: #64748b; text-transform: uppercase; margin-bottom: 2px; }
+  .detail-body pre { background: #0a0a0f; padding: 8px; border-radius: 6px; font-size: 11px; font-family: 'SF Mono', Monaco, monospace; overflow-x: auto; color: #cbd5e1; margin-top: 4px; white-space: pre-wrap; }
+  .detail-body .metric { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; background: #1a1a28; border-radius: 4px; font-size: 11px; margin-right: 6px; margin-top: 4px; }
+  .detail-body .metric .val { color: #e2e8f0; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <h1>Option A: Timeline / Waterfall View</h1>
+  <div style="display:flex;gap:8px;">
+    <span class="badge">Total: 6.8s</span>
+    <span class="badge">Tokens: 4,230</span>
+    <span class="badge">Cost: $0.012</span>
+  </div>
+</div>
+
+<div class="main">
+  <!-- Chat Pane -->
+  <div class="chat-pane">
+    <div class="chat-header">Conversation</div>
+    <div class="chat-messages">
+      <div class="msg user">
+        <div class="label">You</div>
+        Fix the login bug in auth.ts
+      </div>
+      <div class="msg agent">
+        <div class="label">Agent</div>
+        Let me explore the auth module and fix the login bug. I'll read the file first, then identify and patch the issue.
+      </div>
+      <div class="msg user">
+        <div class="label">You</div>
+        Now add rate limiting to the login endpoint
+      </div>
+      <div class="msg agent">
+        <div class="label">Agent</div>
+        I'll implement rate limiting. Let me check the existing middleware and install the needed package, then update the auth endpoint.
+      </div>
+    </div>
+    <div class="chat-input">
+      <input type="text" placeholder="Send a message..." />
+    </div>
+  </div>
+
+  <!-- Timeline Pane -->
+  <div class="timeline-pane">
+    <div class="timeline-header">
+      <span class="title">Execution Timeline</span>
+      <div class="stats">
+        <div class="stat">Turns: <span>2</span></div>
+        <div class="stat">Tool calls: <span>5</span></div>
+        <div class="stat">Parallel: <span>2 groups</span></div>
+      </div>
+    </div>
+    <div class="timeline-body" id="timelineBody">
+
+      <!-- Time axis -->
+      <div class="time-axis">
+        <div class="time-tick">0s</div>
+        <div class="time-tick">0.5s</div>
+        <div class="time-tick">1.0s</div>
+        <div class="time-tick">1.5s</div>
+        <div class="time-tick">2.0s</div>
+        <div class="time-tick">2.5s</div>
+        <div class="time-tick">3.0s</div>
+        <div class="time-tick">3.5s</div>
+      </div>
+
+      <!-- Turn 1 -->
+      <div class="turn-divider">
+        <span class="label">Turn 1 &mdash; "Fix the login bug"</span>
+        <div class="line"></div>
+      </div>
+
+      <div class="timeline-row" onclick="showDetail('user1')">
+        <div class="row-label"><div class="icon user-icon">U</div><div class="name">User message</div></div>
+        <div class="row-track">
+          <div class="bar user" style="left:0;width:60px;">Fix login<span class="dur">instant</span></div>
+        </div>
+      </div>
+
+      <div class="timeline-row" onclick="showDetail('agent1')">
+        <div class="row-label"><div class="icon agent-icon">A</div><div class="name">Agent thinking</div></div>
+        <div class="row-track">
+          <div class="bar agent" style="left:60px;width:180px;">Let me explore...<span class="dur">0.9s</span></div>
+        </div>
+      </div>
+
+      <div class="timeline-row" onclick="showDetail('tool1')">
+        <div class="row-label"><div class="icon tool-icon">T</div><div class="name">read_file</div></div>
+        <div class="row-track">
+          <div class="bar tool" style="left:240px;width:120px;">src/auth.ts<span class="dur">0.6s</span></div>
+          <div class="bar result" style="left:360px;width:40px;">42 lines</div>
+        </div>
+      </div>
+
+      <div class="timeline-row" onclick="showDetail('tool2')">
+        <div class="row-label"><div class="icon tool-icon">T</div><div class="name">write_file</div></div>
+        <div class="row-track">
+          <div class="bar tool" style="left:400px;width:140px;">src/auth.ts<span class="dur">0.7s</span></div>
+          <div class="bar result" style="left:540px;width:30px;font-size:10px">&#10003;</div>
+        </div>
+      </div>
+
+      <div class="timeline-row" onclick="showDetail('agent1done')">
+        <div class="row-label"><div class="icon agent-icon">A</div><div class="name">Agent response</div></div>
+        <div class="row-track">
+          <div class="bar agent" style="left:570px;width:140px;">Fixed the bug in...<span class="dur">0.7s</span></div>
+        </div>
+      </div>
+
+      <!-- Turn 2 -->
+      <div class="turn-divider" style="margin-top:8px;">
+        <span class="label">Turn 2 &mdash; "Add rate limiting"</span>
+        <div class="line"></div>
+      </div>
+
+      <div class="timeline-row">
+        <div class="row-label"><div class="icon user-icon">U</div><div class="name">User message</div></div>
+        <div class="row-track">
+          <div class="bar user" style="left:0;width:80px;">Rate limit<span class="dur">instant</span></div>
+        </div>
+      </div>
+
+      <div class="timeline-row">
+        <div class="row-label"><div class="icon agent-icon">A</div><div class="name">Agent thinking</div></div>
+        <div class="row-track">
+          <div class="bar agent" style="left:80px;width:120px;">I'll implement...<span class="dur">0.6s</span></div>
+        </div>
+      </div>
+
+      <!-- Parallel group -->
+      <div class="timeline-row" onclick="showDetail('sub1')">
+        <div class="row-label"><div class="icon sub-icon">S</div><div class="name">Explore: middleware</div></div>
+        <div class="row-track">
+          <div class="bar subagent" style="left:200px;width:200px;">Check existing middleware<span class="dur">1.0s</span></div>
+          <div class="bar result" style="left:400px;width:40px;">&#10003;</div>
+        </div>
+      </div>
+
+      <div class="timeline-row" onclick="showDetail('sub2')">
+        <div class="row-label"><div class="icon sub-icon">S</div><div class="name">Plan: rate limit</div></div>
+        <div class="row-track">
+          <div class="bar subagent" style="left:200px;width:260px;">Design rate limit approach<span class="dur">1.3s</span></div>
+          <div class="bar result" style="left:460px;width:40px;">&#10003;</div>
+        </div>
+      </div>
+
+      <div class="timeline-row">
+        <div class="row-label"><div class="icon term-icon">$</div><div class="name">npm install</div></div>
+        <div class="row-track">
+          <div class="bar terminal" style="left:440px;width:160px;">express-rate-limit<span class="dur">0.8s</span></div>
+          <div class="bar result" style="left:600px;width:40px;">&#10003;</div>
+        </div>
+      </div>
+
+      <div class="timeline-row">
+        <div class="row-label"><div class="icon tool-icon">T</div><div class="name">write_file</div></div>
+        <div class="row-track">
+          <div class="bar tool" style="left:500px;width:120px;">src/middleware.ts<span class="dur">0.6s</span></div>
+          <div class="bar result" style="left:620px;width:30px;font-size:10px">&#10003;</div>
+        </div>
+      </div>
+
+      <div class="timeline-row">
+        <div class="row-label"><div class="icon agent-icon">A</div><div class="name">Agent response</div></div>
+        <div class="row-track">
+          <div class="bar agent" style="left:650px;width:140px;">Rate limiting added...<span class="dur">0.7s</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Detail panel -->
+<div class="detail-panel" id="detailPanel">
+  <div class="detail-header">
+    <h3 id="detailTitle">read_file</h3>
+    <button class="close" onclick="hideDetail()">&times;</button>
+  </div>
+  <div class="detail-body" id="detailBody"></div>
+</div>
+
+<script>
+const details = {
+  user1: { title: 'User Message', body: '<div class="field"><div class="field-label">Message</div><p>Fix the login bug in auth.ts</p></div><div class="field"><div class="field-label">Timestamp</div><p>2:34:12 PM</p></div>' },
+  agent1: { title: 'Agent Thinking', body: '<div class="field"><div class="field-label">First tokens</div><p>Let me explore the auth module and fix the login bug.</p></div><div class="metric">Tokens: <span class="val">340</span></div><div class="metric">Latency: <span class="val">0.9s</span></div>' },
+  tool1: { title: 'read_file', body: '<div class="field"><div class="field-label">Input</div><pre>{ "path": "src/auth.ts" }</pre></div><div class="field"><div class="field-label">Output</div><pre>export async function login(email, password) {\n  const user = await db.findUser(email)\n  if (user.password === password) { // BUG: plain text compare\n    return createSession(user)\n  }\n}</pre></div><div class="metric">Duration: <span class="val">0.6s</span></div><div class="metric">Status: <span class="val" style="color:#86efac">success</span></div>' },
+  tool2: { title: 'write_file', body: '<div class="field"><div class="field-label">Input</div><pre>{ "path": "src/auth.ts" }</pre></div><div class="field"><div class="field-label">Changes</div><pre>- if (user.password === password)\n+ if (await bcrypt.compare(password, user.hash))</pre></div><div class="metric">Duration: <span class="val">0.7s</span></div><div class="metric">Status: <span class="val" style="color:#86efac">success</span></div>' },
+  agent1done: { title: 'Agent Response', body: '<div class="field"><div class="field-label">Response</div><p>Fixed the login bug in auth.ts. The issue was a plain-text password comparison instead of using bcrypt. I updated the login function to use bcrypt.compare().</p></div><div class="metric">Tokens: <span class="val">890</span></div><div class="metric">Cost: <span class="val">$0.003</span></div>' },
+  sub1: { title: 'Subagent: Explore', body: '<div class="field"><div class="field-label">Task</div><p>Check existing middleware for rate limiting patterns</p></div><div class="field"><div class="field-label">Result</div><pre>Found middleware.ts with CORS and auth middleware.\nNo existing rate limiting.\nExpress app in server.ts uses app.use() pattern.</pre></div><div class="metric">Duration: <span class="val">1.0s</span></div><div class="metric">Tokens: <span class="val">620</span></div>' },
+  sub2: { title: 'Subagent: Plan', body: '<div class="field"><div class="field-label">Task</div><p>Design rate limiting approach</p></div><div class="field"><div class="field-label">Result</div><pre>Plan:\n1. Install express-rate-limit\n2. Add limiter middleware to /auth/login\n3. Config: 5 attempts per 15 min window\n4. Custom error message</pre></div><div class="metric">Duration: <span class="val">1.3s</span></div><div class="metric">Tokens: <span class="val">480</span></div>' },
+}
+
+function showDetail(key) {
+  const d = details[key]
+  if (!d) return
+  document.getElementById('detailTitle').textContent = d.title
+  document.getElementById('detailBody').innerHTML = d.body
+  document.getElementById('detailPanel').classList.add('show')
+}
+function hideDetail() {
+  document.getElementById('detailPanel').classList.remove('show')
+}
+</script>
+</body>
+</html>

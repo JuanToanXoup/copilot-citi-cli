@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rich Chat + Inline Diffs</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/lib/marked.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11/styles/github-dark-dimmed.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/highlight.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg-primary: #0a0a0f;
+    --bg-secondary: #111118;
+    --bg-tertiary: #12121e;
+    --bg-hover: #16162a;
+    --border: #1e1e2e;
+    --border-light: #2a2a3e;
+    --text-primary: #e2e8f0;
+    --text-secondary: #cbd5e1;
+    --text-muted: #94a3b8;
+    --text-dim: #64748b;
+    --text-faint: #475569;
+    --blue: #3b82f6;
+    --blue-dim: #1e3a5f;
+    --green: #22c55e;
+    --green-dim: #052e16;
+    --green-light: #4ade80;
+    --red: #ef4444;
+    --red-dim: #450a0a;
+    --red-light: #fca5a5;
+    --purple: #a78bfa;
+    --purple-dim: #2e1065;
+    --pink: #c084fc;
+    --pink-dim: #3b0764;
+    --amber: #fbbf24;
+    --amber-dim: #713f12;
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg-primary); color: var(--text-primary); height: 100vh; display: flex; flex-direction: column; }
+
+  /* Toolbar */
+  .toolbar { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; background: var(--bg-secondary); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .toolbar h1 { font-size: 13px; font-weight: 600; color: var(--text-muted); }
+  .toolbar-right { display: flex; align-items: center; gap: 8px; }
+  .context-bar { display: flex; align-items: center; gap: 6px; padding: 4px 10px; background: var(--bg-primary); border-radius: 6px; border: 1px solid var(--border); }
+  .context-bar .label { font-size: 10px; color: var(--text-dim); }
+  .context-segments { display: flex; height: 8px; width: 120px; border-radius: 4px; overflow: hidden; gap: 1px; }
+  .context-segments .seg { height: 100%; }
+  .seg-system { background: #6366f1; flex: 0 0 30%; }
+  .seg-history { background: #3b82f6; flex: 0 0 22%; }
+  .seg-files { background: #8b5cf6; flex: 0 0 18%; }
+  .seg-free { background: #1e1e2e; flex: 1; }
+  .context-pct { font-size: 10px; color: var(--text-dim); font-weight: 600; font-family: 'SF Mono', Monaco, monospace; }
+
+  /* Main layout */
+  .main { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+  .chat-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; align-items: center; }
+  .chat-inner { width: 100%; padding: 24px 24px 16px; display: flex; flex-direction: column; gap: 24px; }
+
+  /* Message blocks */
+  .message-block { display: flex; flex-direction: column; gap: 8px; }
+  .message-block.user { align-items: flex-end; }
+  .message-block.agent { align-items: flex-start; }
+
+  .sender-row { display: flex; align-items: center; gap: 8px; }
+  .message-block.user .sender-row { flex-direction: row-reverse; }
+  .avatar { width: 24px; height: 24px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+  .avatar.user { background: var(--blue-dim); color: #60a5fa; }
+  .avatar.agent { background: #0f3326; color: #34d399; }
+  .sender { font-size: 11px; font-weight: 600; color: var(--text-dim); }
+
+  .bubble { padding: 12px 16px; border-radius: 12px; font-size: 14px; line-height: 1.65; max-width: 90%; }
+  .bubble.user { background: var(--blue-dim); color: #bfdbfe; border-bottom-right-radius: 4px; }
+  .bubble.agent { background: var(--bg-tertiary); border: 1px solid var(--border-light); color: var(--text-secondary); border-bottom-left-radius: 4px; }
+  .bubble code { background: #1e1b4b; padding: 1px 6px; border-radius: 4px; font-size: 12px; font-family: 'SF Mono', Monaco, monospace; }
+
+  /* Markdown in agent bubbles */
+  .bubble.agent p { margin: 0 0 8px; }
+  .bubble.agent p:last-child { margin-bottom: 0; }
+  .bubble.agent h1, .bubble.agent h2, .bubble.agent h3, .bubble.agent h4 { color: var(--text-primary); margin: 12px 0 6px; }
+  .bubble.agent h1:first-child, .bubble.agent h2:first-child, .bubble.agent h3:first-child { margin-top: 0; }
+  .bubble.agent h1 { font-size: 18px; }
+  .bubble.agent h2 { font-size: 16px; }
+  .bubble.agent h3 { font-size: 14px; }
+  .bubble.agent strong { color: var(--text-primary); }
+  .bubble.agent em { color: var(--text-muted); font-style: italic; }
+  .bubble.agent pre { background: #0a0a0f; border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; margin: 8px 0; overflow-x: auto; }
+  .bubble.agent pre code { background: none; padding: 0; font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
+  .bubble.agent pre code.hljs { background: none; padding: 0; }
+  .bubble.agent ul, .bubble.agent ol { margin: 6px 0; padding-left: 20px; }
+  .bubble.agent li { margin: 3px 0; }
+  .bubble.agent blockquote { border-left: 3px solid var(--border-light); padding-left: 12px; margin: 8px 0; color: var(--text-muted); }
+  .bubble.agent hr { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+  .bubble.agent a { color: var(--blue); text-decoration: none; }
+  .bubble.agent a:hover { text-decoration: underline; }
+  .bubble.agent table { border-collapse: collapse; margin: 8px 0; width: 100%; font-size: 12px; }
+  .bubble.agent th, .bubble.agent td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; }
+  .bubble.agent th { background: var(--bg-secondary); color: var(--text-primary); font-weight: 600; }
+
+  /* Tool cards */
+  .tool-group { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+
+  .tool-card { background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: 10px; overflow: hidden; transition: all 0.2s; }
+  .tool-card:hover { border-color: #3b3b5e; }
+
+  .tool-header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; user-select: none; }
+  .tool-header:hover { background: var(--bg-hover); }
+  .tool-chevron { font-size: 10px; color: var(--text-faint); transition: transform 0.2s; width: 14px; text-align: center; }
+  .tool-card.expanded .tool-chevron { transform: rotate(90deg); }
+  .tool-icon { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+  .tool-icon.read { background: var(--purple-dim); color: var(--purple); }
+  .tool-icon.write { background: var(--green-dim); color: var(--green-light); }
+  .tool-icon.term { background: var(--pink-dim); color: var(--pink); }
+  .tool-icon.search { background: var(--amber-dim); color: var(--amber); }
+  .tool-icon.edit { background: #1a2e05; color: #a3e635; }
+
+  .tool-info { flex: 1; min-width: 0; }
+  .tool-name { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+  .tool-desc { font-size: 11px; color: var(--text-dim); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .tool-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .tool-badge { font-size: 10px; padding: 2px 8px; border-radius: 9999px; font-weight: 600; }
+  .tool-badge.success { background: var(--green-dim); color: var(--green-light); }
+  .tool-badge.error { background: var(--red-dim); color: var(--red-light); }
+  .tool-badge.running { background: #1e1b4b; color: #818cf8; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.4 } }
+  .tool-dur { font-size: 10px; color: var(--text-faint); font-family: 'SF Mono', Monaco, monospace; }
+  .tool-tokens { font-size: 10px; color: var(--text-faint); }
+
+  .tool-detail { border-top: 1px solid var(--border); display: none; }
+  .tool-card.expanded .tool-detail { display: block; }
+
+  /* Diff view */
+  .diff-container { font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; font-size: 12px; line-height: 1.7; }
+  .diff-file-header { display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: #0d0d18; border-bottom: 1px solid var(--border); }
+  .diff-file-icon { font-size: 12px; }
+  .diff-file-path { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+  .diff-stats { margin-left: auto; display: flex; gap: 6px; font-size: 10px; }
+  .diff-stats .add { color: var(--green-light); }
+  .diff-stats .del { color: var(--red-light); }
+
+  .diff-hunk-header { padding: 4px 14px; background: #111128; color: #6366f1; font-size: 11px; border-bottom: 1px solid var(--border); }
+
+  .diff-line { display: flex; border-bottom: 1px solid #0f0f1a; }
+  .diff-line:last-child { border-bottom: none; }
+  .diff-gutter { width: 45px; flex-shrink: 0; text-align: right; padding: 0 8px 0 0; color: var(--text-faint); user-select: none; display: flex; }
+  .diff-gutter .old-ln, .diff-gutter .new-ln { width: 22px; text-align: right; }
+  .diff-content { flex: 1; padding: 0 12px; white-space: pre-wrap; word-break: break-all; }
+
+  .diff-line.addition { background: rgba(34, 197, 94, 0.08); }
+  .diff-line.addition .diff-content { color: #86efac; }
+  .diff-line.addition .diff-gutter { color: #22c55e40; }
+
+  .diff-line.deletion { background: rgba(239, 68, 68, 0.08); }
+  .diff-line.deletion .diff-content { color: #fca5a5; }
+  .diff-line.deletion .diff-gutter { color: #ef444440; }
+
+  .diff-line.context .diff-content { color: var(--text-dim); }
+
+  .diff-inline-add { background: rgba(34, 197, 94, 0.25); border-radius: 2px; padding: 0 1px; }
+  .diff-inline-del { background: rgba(239, 68, 68, 0.25); border-radius: 2px; padding: 0 1px; text-decoration: line-through; }
+
+  /* Terminal output */
+  .term-output { padding: 10px 14px; background: #0a0a0f; font-family: 'SF Mono', Monaco, monospace; font-size: 11px; line-height: 1.6; color: var(--text-muted); max-height: 180px; overflow-y: auto; }
+  .term-prompt { color: var(--pink); }
+  .term-success { color: var(--green-light); }
+
+  /* Read file output */
+  .file-preview { padding: 0; background: #0a0a0f; max-height: 220px; overflow-y: auto; }
+  .file-line { display: flex; font-family: 'SF Mono', Monaco, monospace; font-size: 11px; line-height: 1.7; border-bottom: 1px solid #0f0f1a; }
+  .file-line:last-child { border-bottom: none; }
+  .file-ln { width: 40px; text-align: right; padding-right: 12px; color: var(--text-faint); user-select: none; flex-shrink: 0; }
+  .file-code { flex: 1; padding-right: 12px; color: var(--text-muted); white-space: pre; }
+  .file-highlight { background: rgba(251, 191, 36, 0.08); }
+  .file-highlight .file-code { color: var(--amber); }
+
+  /* Parallel subagent tabs */
+  .parallel-group { width: 100%; background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: 10px; overflow: hidden; margin-top: 4px; }
+
+  .parallel-tabs { display: flex; border-bottom: 1px solid var(--border); overflow: hidden; }
+  .parallel-tab { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; padding: 8px 12px; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; min-width: 0; flex: 1 1 0; }
+  .parallel-tab .tab-row1 { display: flex; align-items: center; gap: 6px; width: 100%; }
+  .parallel-tab .tab-row2 { display: flex; align-items: center; gap: 6px; width: 100%; }
+  .parallel-tab:hover { background: var(--bg-hover); }
+  .parallel-tab.active { border-bottom-color: var(--blue); background: #0c0c18; }
+  .parallel-tab .tab-type { font-size: 9px; font-weight: 700; text-transform: uppercase; padding: 1px 5px; border-radius: 3px; letter-spacing: 0.03em; }
+  .parallel-tab .tab-type.explore { background: var(--blue-dim); color: #60a5fa; }
+  .parallel-tab .tab-type.plan { background: #1a2e05; color: #a3e635; }
+  .parallel-tab .tab-type.code { background: var(--purple-dim); color: var(--purple); }
+  .parallel-tab .tab-label { font-size: 11px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; }
+  .parallel-tab.active .tab-label { color: var(--text-primary); }
+  .parallel-tab .tab-status { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .parallel-tab .tab-status.success { background: var(--green); }
+  .parallel-tab .tab-status.running { background: #818cf8; animation: pulse 1.5s infinite; }
+  .parallel-tab .tab-status.error { background: var(--red); }
+  .parallel-tab .tab-dur { font-size: 9px; color: var(--text-faint); font-family: 'SF Mono', Monaco, monospace; }
+
+  .parallel-panel { display: none; }
+  .parallel-panel.active { display: block; }
+
+  .sub-trace { padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+
+  .sub-trace .sub-thought { font-size: 12px; color: var(--text-secondary); line-height: 1.5; padding: 6px 10px; border-left: 2px solid var(--border-light); background: #0b0b14; border-radius: 0 6px 6px 0; }
+
+  .sub-tool { background: #0e0e1a; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .sub-tool-header { display: flex; align-items: center; gap: 8px; padding: 8px 10px; cursor: pointer; font-size: 11px; }
+  .sub-tool-header:hover { background: var(--bg-hover); }
+  .sub-tool-icon { width: 20px; height: 20px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; flex-shrink: 0; }
+  .sub-tool-name { font-weight: 600; color: var(--text-primary); }
+  .sub-tool-desc { color: var(--text-dim); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sub-tool-badge { font-size: 9px; padding: 1px 6px; border-radius: 9999px; font-weight: 600; }
+  .sub-tool-badge.success { background: var(--green-dim); color: var(--green-light); }
+  .sub-tool-badge.running { background: #1e1b4b; color: #818cf8; animation: pulse 1.5s infinite; }
+  .sub-tool-dur { font-size: 9px; color: var(--text-faint); font-family: 'SF Mono', Monaco, monospace; }
+
+  .sub-tool-detail { display: none; border-top: 1px solid var(--border); }
+  .sub-tool.expanded .sub-tool-detail { display: block; }
+  .sub-tool-chevron { font-size: 8px; color: var(--text-faint); transition: transform 0.2s; width: 10px; text-align: center; }
+  .sub-tool.expanded .sub-tool-chevron { transform: rotate(90deg); }
+
+  .sub-trace .sub-result { font-size: 11px; color: var(--text-muted); padding: 8px 10px; background: var(--green-dim); border: 1px solid #14532d40; border-radius: 6px; line-height: 1.5; }
+
+  .sub-trace .sub-metrics { display: flex; gap: 6px; padding-top: 4px; }
+  .sub-trace .sub-metric { font-size: 10px; color: var(--text-faint); padding: 2px 6px; background: #0a0a0f; border-radius: 4px; }
+
+  /* Metrics row */
+  .metrics-row { display: flex; gap: 6px; padding: 2px 0; flex-wrap: wrap; }
+  .metric { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px; font-size: 11px; color: var(--text-dim); }
+  .metric .val { color: var(--text-muted); font-weight: 600; font-family: 'SF Mono', Monaco, monospace; }
+
+  /* Checkpoint markers */
+  .checkpoint { display: flex; align-items: center; gap: 8px; padding: 4px 0; width: 100%; max-width: 620px; }
+  .checkpoint-line { flex: 1; height: 1px; background: var(--border); }
+  .checkpoint-badge { display: flex; align-items: center; gap: 5px; padding: 3px 10px; background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: 9999px; font-size: 10px; color: var(--text-dim); cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+  .checkpoint-badge:hover { border-color: var(--blue); color: var(--blue); background: #0c1929; }
+  .checkpoint-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); flex-shrink: 0; }
+
+  /* Streaming */
+  .streaming { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+  .streaming-dots { display: flex; gap: 3px; }
+  .streaming-dots span { width: 6px; height: 6px; border-radius: 50%; background: #34d399; animation: bounce 1.2s infinite; }
+  .streaming-dots span:nth-child(2) { animation-delay: 0.15s; }
+  .streaming-dots span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes bounce { 0%,80%,100% { transform:translateY(0) } 40% { transform:translateY(-6px) } }
+  .streaming-text { font-size: 12px; color: var(--text-faint); }
+
+  /* Mermaid diagrams */
+  .mermaid-wrap { background: #0e0e1a; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-top: 4px; }
+  .mermaid-wrap .mermaid { padding: 16px; display: flex; justify-content: center; }
+  .mermaid-wrap .mermaid svg { max-width: 100%; height: auto; }
+  .mermaid-label { display: flex; align-items: center; gap: 6px; padding: 6px 10px; font-size: 10px; color: var(--text-faint); border-bottom: 1px solid var(--border); }
+  .mermaid-label-icon { font-size: 12px; }
+
+  /* Resize handle */
+  .resize-handle { height: 5px; cursor: row-resize; background: var(--bg-primary); border-top: 1px solid var(--border); flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+  .resize-handle:hover, .resize-handle.dragging { background: var(--bg-hover); border-top-color: var(--blue); }
+  .resize-handle .grip { width: 32px; height: 3px; border-radius: 2px; background: var(--text-faint); opacity: 0.4; }
+  .resize-handle:hover .grip, .resize-handle.dragging .grip { opacity: 0.8; background: var(--blue); }
+
+  /* Input */
+  .chat-input-area { padding: 12px 24px 16px; display: flex; flex-direction: column; align-items: center; flex-shrink: 0; background: var(--bg-primary); }
+  .input-wrap { width: 100%; position: relative; height: 100%; }
+  .input-box { width: 100%; height: 100%; background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: 12px; padding: 12px 52px 12px 16px; color: var(--text-primary); font-size: 14px; outline: none; resize: none; font-family: inherit; min-height: 48px; line-height: 1.5; overflow-y: auto; }
+  .input-box:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+  .input-box::placeholder { color: var(--text-faint); }
+  .send-btn { position: absolute; right: 8px; bottom: 8px; background: var(--blue); border: none; border-radius: 8px; width: 34px; height: 34px; color: white; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; transition: background 0.15s; }
+  .send-btn:hover { background: #2563eb; }
+  .input-hints { display: flex; gap: 12px; margin-top: 6px; width: 100%; max-width: 780px; }
+  .input-hint { font-size: 10px; color: var(--text-faint); }
+  .input-hint kbd { background: var(--bg-secondary); border: 1px solid var(--border); padding: 0 4px; border-radius: 3px; font-family: inherit; font-size: 9px; }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <h1>Rich Chat + Inline Diffs</h1>
+  <div class="toolbar-right">
+    <div class="context-bar">
+      <span class="label">Context</span>
+      <div class="context-segments">
+        <div class="seg seg-system" title="System prompt (30%)"></div>
+        <div class="seg seg-history" title="Conversation (22%)"></div>
+        <div class="seg seg-files" title="File content (18%)"></div>
+        <div class="seg seg-free" title="Free (30%)"></div>
+      </div>
+      <span class="context-pct">70%</span>
+    </div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="chat-scroll">
+    <div class="chat-inner">
+
+      <!-- ============== TURN 1 ============== -->
+      <div class="message-block user">
+        <div class="sender-row">
+          <div class="avatar user">J</div>
+          <span class="sender">You</span>
+        </div>
+        <div class="bubble user">Fix the login bug in auth.ts &mdash; users can't sign in with correct passwords</div>
+      </div>
+
+      <div class="message-block agent">
+        <div class="sender-row">
+          <div class="avatar agent">A</div>
+          <span class="sender">Agent</span>
+        </div>
+        <div class="bubble agent md">I'll investigate the login function in `auth.ts`. Let me read the file first.</div>
+
+        <!-- read_file with file preview -->
+        <div class="tool-group">
+          <div class="sub-tool expanded" id="tool1" onclick="toggleSubTool('tool1')">
+            <div class="sub-tool-header">
+              <span class="sub-tool-chevron">&#9654;</span>
+              <div class="sub-tool-icon" style="background:var(--purple-dim);color:var(--purple);">R</div>
+              <span class="sub-tool-name">read_file</span>
+              <span class="sub-tool-desc">src/auth.ts</span>
+              <span class="sub-tool-badge success">success</span>
+              <span class="sub-tool-dur">0.3s</span>
+            </div>
+            <div class="sub-tool-detail">
+              <div class="file-preview">
+                <div class="file-line"><span class="file-ln">1</span><span class="file-code">import { db } from './database'</span></div>
+                <div class="file-line"><span class="file-ln">2</span><span class="file-code">import { createSession } from './session'</span></div>
+                <div class="file-line"><span class="file-ln">3</span><span class="file-code"></span></div>
+                <div class="file-line"><span class="file-ln">4</span><span class="file-code">export async function login(email: string, password: string) {</span></div>
+                <div class="file-line"><span class="file-ln">5</span><span class="file-code">  const user = await db.findUser(email)</span></div>
+                <div class="file-line"><span class="file-ln">6</span><span class="file-code">  if (!user) throw new Error('User not found')</span></div>
+                <div class="file-line file-highlight"><span class="file-ln">7</span><span class="file-code">  if (user.password === password) {</span></div>
+                <div class="file-line"><span class="file-ln">8</span><span class="file-code">    return createSession(user)</span></div>
+                <div class="file-line"><span class="file-ln">9</span><span class="file-code">  }</span></div>
+                <div class="file-line"><span class="file-ln">10</span><span class="file-code">  throw new Error('Invalid credentials')</span></div>
+                <div class="file-line"><span class="file-ln">11</span><span class="file-code">}</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bubble agent md">Found the bug on **line 7** — it's comparing the raw password against `user.password`, which stores a bcrypt hash. Plain text will never equal a hash. I'll fix this to use `bcrypt.compare()`.</div>
+
+        <!-- write_file with DIFF -->
+        <div class="tool-group">
+          <div class="sub-tool expanded" id="tool2" onclick="toggleSubTool('tool2')">
+            <div class="sub-tool-header">
+              <span class="sub-tool-chevron">&#9654;</span>
+              <div class="sub-tool-icon" style="background:#1a2e05;color:#a3e635;">E</div>
+              <span class="sub-tool-name">edit_file</span>
+              <span class="sub-tool-desc">src/auth.ts</span>
+              <span class="sub-tool-badge success">success</span>
+              <span class="sub-tool-dur">0.4s</span>
+            </div>
+            <div class="sub-tool-detail">
+              <div class="diff-container">
+                <div class="diff-file-header">
+                  <span class="diff-file-icon">&#128196;</span>
+                  <span class="diff-file-path">src/auth.ts</span>
+                  <div class="diff-stats">
+                    <span class="add">+2</span>
+                    <span class="del">-1</span>
+                  </div>
+                </div>
+                <div class="diff-hunk-header">@@ -1,11 +1,12 @@</div>
+                <div class="diff-line context"><div class="diff-gutter"><span class="old-ln">1</span><span class="new-ln">1</span></div><div class="diff-content">import { db } from './database'</div></div>
+                <div class="diff-line context"><div class="diff-gutter"><span class="old-ln">2</span><span class="new-ln">2</span></div><div class="diff-content">import { createSession } from './session'</div></div>
+                <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">3</span></div><div class="diff-content"><span class="diff-inline-add">import bcrypt from 'bcrypt'</span></div></div>
+                <div class="diff-line context"><div class="diff-gutter"><span class="old-ln">3</span><span class="new-ln">4</span></div><div class="diff-content"></div></div>
+                <div class="diff-line context"><div class="diff-gutter"><span class="old-ln">4</span><span class="new-ln">5</span></div><div class="diff-content">export async function login(email: string, password: string) {</div></div>
+                <div class="diff-line context"><div class="diff-gutter"><span class="old-ln">5</span><span class="new-ln">6</span></div><div class="diff-content">  const user = await db.findUser(email)</div></div>
+                <div class="diff-line context"><div class="diff-gutter"><span class="old-ln">6</span><span class="new-ln">7</span></div><div class="diff-content">  if (!user) throw new Error('User not found')</div></div>
+                <div class="diff-line deletion"><div class="diff-gutter"><span class="old-ln">7</span><span class="new-ln"></span></div><div class="diff-content">  if (<span class="diff-inline-del">user.password === password</span>) {</div></div>
+                <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">8</span></div><div class="diff-content">  if (<span class="diff-inline-add">await bcrypt.compare(password, user.passwordHash)</span>) {</div></div>
+                <div class="diff-line context"><div class="diff-gutter"><span class="old-ln">8</span><span class="new-ln">9</span></div><div class="diff-content">    return createSession(user)</div></div>
+                <div class="diff-line context"><div class="diff-gutter"><span class="old-ln">9</span><span class="new-ln">10</span></div><div class="diff-content">  }</div></div>
+                <div class="diff-line context"><div class="diff-gutter"><span class="old-ln">10</span><span class="new-ln">11</span></div><div class="diff-content">  throw new Error('Invalid credentials')</div></div>
+                <div class="diff-line context"><div class="diff-gutter"><span class="old-ln">11</span><span class="new-ln">12</span></div><div class="diff-content">}</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Checkpoint -->
+        <div class="checkpoint">
+          <div class="checkpoint-line"></div>
+          <div class="checkpoint-badge" title="Revert to this point"><div class="dot"></div>Checkpoint 1 &mdash; fixed bcrypt compare</div>
+          <div class="checkpoint-line"></div>
+        </div>
+
+        <div class="bubble agent md">Fixed the login bug. The issue was a plain-text password comparison on line 7. Changed it from:
+
+```typescript
+if (user.password === password) {
+```
+
+to:
+
+```typescript
+if (await bcrypt.compare(password, user.passwordHash)) {
+```
+
+This properly checks the raw password against the stored bcrypt hash.</div>
+
+        <div class="mermaid-wrap">
+          <div class="mermaid-label"><span class="mermaid-label-icon">&#9672;</span> Login flow (after fix)</div>
+          <pre class="mermaid">
+sequenceDiagram
+    participant U as User
+    participant S as Server
+    participant DB as Database
+    U->>S: POST /auth/login (email, password)
+    S->>DB: findUser(email)
+    DB-->>S: user { passwordHash }
+    S->>S: bcrypt.compare(password, hash)
+    alt Valid
+        S-->>U: 200 + session token
+    else Invalid
+        S-->>U: 401 Invalid credentials
+    end
+          </pre>
+        </div>
+
+        <div class="metrics-row">
+          <div class="metric">Tokens <span class="val">1,180</span></div>
+          <div class="metric">Duration <span class="val">2.8s</span></div>
+          <div class="metric">Cost <span class="val">$0.004</span></div>
+        </div>
+      </div>
+
+      <!-- ============== TURN 2 ============== -->
+      <div class="message-block user">
+        <div class="sender-row">
+          <div class="avatar user">J</div>
+          <span class="sender">You</span>
+        </div>
+        <div class="bubble user">Now add rate limiting to the login endpoint. Also add tests.</div>
+      </div>
+
+      <div class="message-block agent">
+        <div class="sender-row">
+          <div class="avatar agent">A</div>
+          <span class="sender">Agent</span>
+        </div>
+        <div class="bubble agent md">I'll implement rate limiting and write tests. Let me first check the existing middleware and plan the approach.</div>
+
+        <!-- Parallel subagents — tabbed component -->
+        <div class="parallel-group" id="pg1">
+          <div class="parallel-tabs">
+            <div class="parallel-tab active" onclick="switchTab('pg1','explore')">
+              <div class="tab-row1"><span class="tab-type explore">Explore</span><span class="tab-status success"></span><span class="tab-dur">1.0s</span></div>
+              <div class="tab-row2"><span class="tab-label">Check middleware</span></div>
+            </div>
+            <div class="parallel-tab" onclick="switchTab('pg1','plan')">
+              <div class="tab-row1"><span class="tab-type plan">Plan</span><span class="tab-status success"></span><span class="tab-dur">1.3s</span></div>
+              <div class="tab-row2"><span class="tab-label">Rate limit design</span></div>
+            </div>
+            <div class="parallel-tab" onclick="switchTab('pg1','code')">
+              <div class="tab-row1"><span class="tab-type code">Code</span><span class="tab-status success"></span><span class="tab-dur">2.1s</span></div>
+              <div class="tab-row2"><span class="tab-label">Implement &amp; wire up</span></div>
+            </div>
+          </div>
+
+          <!-- Explore panel -->
+          <div class="parallel-panel active" data-group="pg1" data-tab="explore">
+            <div class="sub-trace">
+              <div class="sub-thought">I need to find existing middleware files and check if rate limiting already exists.</div>
+              <div class="sub-tool" id="subtool1" onclick="toggleSubTool('subtool1')">
+                <div class="sub-tool-header">
+                  <span class="sub-tool-chevron">&#9654;</span>
+                  <div class="sub-tool-icon" style="background:var(--amber-dim);color:var(--amber);">S</div>
+                  <span class="sub-tool-name">search_files</span>
+                  <span class="sub-tool-desc">middleware OR rate.limit</span>
+                  <span class="sub-tool-badge success">success</span>
+                  <span class="sub-tool-dur">0.2s</span>
+                </div>
+                <div class="sub-tool-detail">
+                  <div class="file-preview">
+                    <div class="file-line"><span class="file-ln">-</span><span class="file-code" style="color:var(--blue);">src/middleware.ts</span></div>
+                    <div class="file-line"><span class="file-ln">-</span><span class="file-code" style="color:var(--blue);">src/routes/auth.ts</span></div>
+                    <div class="file-line"><span class="file-ln">-</span><span class="file-code" style="color:var(--blue);">src/server.ts</span></div>
+                  </div>
+                </div>
+              </div>
+              <div class="sub-tool expanded" id="subtool2" onclick="toggleSubTool('subtool2')">
+                <div class="sub-tool-header">
+                  <span class="sub-tool-chevron">&#9654;</span>
+                  <div class="sub-tool-icon" style="background:var(--purple-dim);color:var(--purple);">R</div>
+                  <span class="sub-tool-name">read_file</span>
+                  <span class="sub-tool-desc">src/middleware.ts</span>
+                  <span class="sub-tool-badge success">success</span>
+                  <span class="sub-tool-dur">0.3s</span>
+                </div>
+                <div class="sub-tool-detail">
+                  <div class="file-preview">
+                    <div class="file-line"><span class="file-ln">1</span><span class="file-code">import cors from 'cors'</span></div>
+                    <div class="file-line"><span class="file-ln">2</span><span class="file-code">import { authMiddleware } from './auth'</span></div>
+                    <div class="file-line"><span class="file-ln">3</span><span class="file-code"></span></div>
+                    <div class="file-line"><span class="file-ln">4</span><span class="file-code">export function setupMiddleware(app) {</span></div>
+                    <div class="file-line"><span class="file-ln">5</span><span class="file-code">  app.use(cors())</span></div>
+                    <div class="file-line"><span class="file-ln">6</span><span class="file-code">  app.use(authMiddleware)</span></div>
+                    <div class="file-line"><span class="file-ln">7</span><span class="file-code">}</span></div>
+                  </div>
+                </div>
+              </div>
+              <div class="sub-result">&#10003; Found middleware.ts with CORS and auth. No existing rate limiting.</div>
+              <div class="sub-metrics">
+                <span class="sub-metric">620 tokens</span>
+                <span class="sub-metric">$0.002</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Plan panel -->
+          <div class="parallel-panel" data-group="pg1" data-tab="plan">
+            <div class="sub-trace">
+              <div class="sub-thought">Based on the Express middleware pattern, I'll design a rate limiting strategy for the login endpoint.</div>
+              <div class="sub-tool" id="subtool3" onclick="toggleSubTool('subtool3')">
+                <div class="sub-tool-header">
+                  <span class="sub-tool-chevron">&#9654;</span>
+                  <div class="sub-tool-icon" style="background:var(--amber-dim);color:var(--amber);">S</div>
+                  <span class="sub-tool-name">search_files</span>
+                  <span class="sub-tool-desc">express-rate-limit in package.json</span>
+                  <span class="sub-tool-badge success">success</span>
+                  <span class="sub-tool-dur">0.1s</span>
+                </div>
+                <div class="sub-tool-detail">
+                  <div class="term-output" style="font-size:10px;padding:8px 10px;">No matches found — package not yet installed</div>
+                </div>
+              </div>
+              <div class="sub-result">
+                <strong style="color:var(--text-primary);">Plan:</strong><br>
+                1. Install <code style="background:#0a0a0f;padding:1px 4px;border-radius:3px;font-size:10px;">express-rate-limit</code><br>
+                2. Create <code style="background:#0a0a0f;padding:1px 4px;border-radius:3px;font-size:10px;">src/middleware/rate-limit.ts</code><br>
+                3. Config: 5 attempts per 15 min window<br>
+                4. Apply to POST /auth/login<br>
+                5. Return 429 with retry-after header
+              </div>
+              <div class="sub-metrics">
+                <span class="sub-metric">480 tokens</span>
+                <span class="sub-metric">$0.001</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Code panel -->
+          <div class="parallel-panel" data-group="pg1" data-tab="code">
+            <div class="sub-trace">
+              <div class="sub-thought">I'll create the rate limiter module and apply it to the login route as the plan specified.</div>
+              <div class="sub-tool" id="subtool4" onclick="toggleSubTool('subtool4')">
+                <div class="sub-tool-header">
+                  <span class="sub-tool-chevron">&#9654;</span>
+                  <div class="sub-tool-icon" style="background:var(--pink-dim);color:var(--pink);">$</div>
+                  <span class="sub-tool-name">terminal</span>
+                  <span class="sub-tool-desc">npm install express-rate-limit</span>
+                  <span class="sub-tool-badge success">success</span>
+                  <span class="sub-tool-dur">2.3s</span>
+                </div>
+                <div class="sub-tool-detail">
+                  <div class="term-output" style="font-size:10px;padding:8px 10px;"><span class="term-prompt">$</span> npm install express-rate-limit
+added 1 package in 2.3s</div>
+                </div>
+              </div>
+              <div class="sub-tool expanded" id="subtool5" onclick="toggleSubTool('subtool5')">
+                <div class="sub-tool-header">
+                  <span class="sub-tool-chevron">&#9654;</span>
+                  <div class="sub-tool-icon" style="background:#1a2e05;color:#a3e635;">E</div>
+                  <span class="sub-tool-name">create_file</span>
+                  <span class="sub-tool-desc">src/middleware/rate-limit.ts</span>
+                  <span class="sub-tool-badge success">success</span>
+                  <span class="sub-tool-dur">0.3s</span>
+                </div>
+                <div class="sub-tool-detail">
+                  <div class="diff-container">
+                    <div class="diff-file-header">
+                      <span class="diff-file-icon">&#10010;</span>
+                      <span class="diff-file-path">src/middleware/rate-limit.ts</span>
+                      <div class="diff-stats"><span class="add">+9 (new file)</span></div>
+                    </div>
+                    <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">1</span></div><div class="diff-content">import rateLimit from 'express-rate-limit'</div></div>
+                    <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">2</span></div><div class="diff-content"></div></div>
+                    <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">3</span></div><div class="diff-content">export const loginLimiter = rateLimit({</div></div>
+                    <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">4</span></div><div class="diff-content">  windowMs: 15 * 60 * 1000,</div></div>
+                    <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">5</span></div><div class="diff-content">  max: 5,</div></div>
+                    <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">6</span></div><div class="diff-content">  message: { error: 'Too many login attempts' },</div></div>
+                    <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">7</span></div><div class="diff-content">  standardHeaders: true,</div></div>
+                    <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">8</span></div><div class="diff-content">  legacyHeaders: false,</div></div>
+                    <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">9</span></div><div class="diff-content">})</div></div>
+                  </div>
+                </div>
+              </div>
+              <div class="sub-tool expanded" id="subtool6" onclick="toggleSubTool('subtool6')">
+                <div class="sub-tool-header">
+                  <span class="sub-tool-chevron">&#9654;</span>
+                  <div class="sub-tool-icon" style="background:#1a2e05;color:#a3e635;">E</div>
+                  <span class="sub-tool-name">edit_file</span>
+                  <span class="sub-tool-desc">src/routes/auth.ts</span>
+                  <span class="sub-tool-badge success">success</span>
+                  <span class="sub-tool-dur">0.4s</span>
+                </div>
+                <div class="sub-tool-detail">
+                  <div class="diff-container">
+                    <div class="diff-file-header">
+                      <span class="diff-file-icon">&#128196;</span>
+                      <span class="diff-file-path">src/routes/auth.ts</span>
+                      <div class="diff-stats"><span class="add">+2</span><span class="del">-1</span></div>
+                    </div>
+                    <div class="diff-hunk-header">@@ -1,6 +1,7 @@</div>
+                    <div class="diff-line context"><div class="diff-gutter"><span class="old-ln">1</span><span class="new-ln">1</span></div><div class="diff-content">import { Router } from 'express'</div></div>
+                    <div class="diff-line context"><div class="diff-gutter"><span class="old-ln">2</span><span class="new-ln">2</span></div><div class="diff-content">import { login } from '../auth'</div></div>
+                    <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">3</span></div><div class="diff-content"><span class="diff-inline-add">import { loginLimiter } from '../middleware/rate-limit'</span></div></div>
+                    <div class="diff-line context"><div class="diff-gutter"><span class="old-ln">4</span><span class="new-ln">5</span></div><div class="diff-content">const router = Router()</div></div>
+                    <div class="diff-line deletion"><div class="diff-gutter"><span class="old-ln">6</span><span class="new-ln"></span></div><div class="diff-content">router.post('/login', <span class="diff-inline-del">loginHandler</span>)</div></div>
+                    <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">7</span></div><div class="diff-content">router.post('/login', <span class="diff-inline-add">loginLimiter, loginHandler</span>)</div></div>
+                  </div>
+                </div>
+              </div>
+              <div class="sub-result">&#10003; Created rate-limit.ts. Applied loginLimiter to POST /auth/login.</div>
+              <div class="sub-metrics">
+                <span class="sub-metric">1,840 tokens</span>
+                <span class="sub-metric">$0.006</span>
+                <span class="sub-metric">2 files changed</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+
+        <!-- Checkpoint 2 -->
+        <div class="checkpoint">
+          <div class="checkpoint-line"></div>
+          <div class="checkpoint-badge" title="Revert to this point"><div class="dot"></div>Checkpoint 2 &mdash; rate limiter added</div>
+          <div class="checkpoint-line"></div>
+        </div>
+
+        <!-- Test file with diff -->
+        <div class="tool-group">
+          <div class="sub-tool" id="tool6" onclick="toggleSubTool('tool6')">
+            <div class="sub-tool-header">
+              <span class="sub-tool-chevron">&#9654;</span>
+              <div class="sub-tool-icon" style="background:#1a2e05;color:#a3e635;">E</div>
+              <span class="sub-tool-name">create_file</span>
+              <span class="sub-tool-desc">src/__tests__/rate-limit.test.ts</span>
+              <span class="sub-tool-badge success">success</span>
+              <span class="sub-tool-dur">0.5s</span>
+            </div>
+            <div class="sub-tool-detail">
+              <div class="diff-container">
+                <div class="diff-file-header">
+                  <span class="diff-file-icon">&#10010;</span>
+                  <span class="diff-file-path">src/__tests__/rate-limit.test.ts</span>
+                  <div class="diff-stats"><span class="add">+28 (new file)</span></div>
+                </div>
+                <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">1</span></div><div class="diff-content">import request from 'supertest'</div></div>
+                <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">2</span></div><div class="diff-content">import { app } from '../app'</div></div>
+                <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">3</span></div><div class="diff-content"></div></div>
+                <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">4</span></div><div class="diff-content">describe('Login Rate Limiting', () => {</div></div>
+                <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">5</span></div><div class="diff-content">  it('allows 5 login attempts', async () => {</div></div>
+                <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">6</span></div><div class="diff-content">    for (let i = 0; i &lt; 5; i++) {</div></div>
+                <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">7</span></div><div class="diff-content">      const res = await request(app)</div></div>
+                <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">8</span></div><div class="diff-content">        .post('/auth/login')</div></div>
+                <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">9</span></div><div class="diff-content">        .send({ email: 'test@test.com', password: 'wrong' })</div></div>
+                <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">10</span></div><div class="diff-content">      expect(res.status).not.toBe(429)</div></div>
+                <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">11</span></div><div class="diff-content">    }</div></div>
+                <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">12</span></div><div class="diff-content">  })</div></div>
+                <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">13</span></div><div class="diff-content"></div></div>
+                <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">14</span></div><div class="diff-content">  it('blocks the 6th attempt', async () => {</div></div>
+                <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">15</span></div><div class="diff-content">    // After 5 attempts above...</div></div>
+                <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">16</span></div><div class="diff-content">    const res = await request(app)</div></div>
+                <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">17</span></div><div class="diff-content">      .post('/auth/login')</div></div>
+                <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">18</span></div><div class="diff-content">      .send({ email: 'test@test.com', password: 'wrong' })</div></div>
+                <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">19</span></div><div class="diff-content">    expect(res.status).toBe(429)</div></div>
+                <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">20</span></div><div class="diff-content">    expect(res.body.error).toMatch(/too many/i)</div></div>
+                <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">21</span></div><div class="diff-content">  })</div></div>
+                <div class="diff-line addition"><div class="diff-gutter"><span class="old-ln"></span><span class="new-ln">22</span></div><div class="diff-content">})</div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Run tests -->
+          <div class="sub-tool expanded" id="tool7" onclick="toggleSubTool('tool7')">
+            <div class="sub-tool-header">
+              <span class="sub-tool-chevron">&#9654;</span>
+              <div class="sub-tool-icon" style="background:var(--pink-dim);color:var(--pink);">$</div>
+              <span class="sub-tool-name">terminal</span>
+              <span class="sub-tool-desc">npx jest --testPathPattern rate-limit</span>
+              <span class="sub-tool-badge success">success</span>
+              <span class="sub-tool-dur">3.1s</span>
+            </div>
+            <div class="sub-tool-detail">
+              <div class="term-output"><span class="term-prompt">$</span> npx jest --testPathPattern rate-limit
+ <span class="term-success">PASS</span>  src/__tests__/rate-limit.test.ts
+  Login Rate Limiting
+    <span class="term-success">&#10003;</span> allows 5 login attempts (48 ms)
+    <span class="term-success">&#10003;</span> blocks the 6th attempt (12 ms)
+
+Test Suites: <span class="term-success">1 passed</span>, 1 total
+Tests:       <span class="term-success">2 passed</span>, 2 total
+Time:        3.1 s</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Checkpoint 3 -->
+        <div class="checkpoint">
+          <div class="checkpoint-line"></div>
+          <div class="checkpoint-badge" title="Revert to this point"><div class="dot"></div>Checkpoint 3 &mdash; tests passing</div>
+          <div class="checkpoint-line"></div>
+        </div>
+
+        <div class="bubble agent md">Done! Here's what I did:
+
+1. **Rate limiting** — Created `src/middleware/rate-limit.ts` using `express-rate-limit`. Configuration: 5 attempts per 15-minute window with standard headers.
+2. **Applied to login** — Added the limiter middleware to the `POST /auth/login` route.
+3. **Tests** — Created `src/__tests__/rate-limit.test.ts` with 2 tests that verify the limiter allows 5 attempts and blocks the 6th. Both passing.</div>
+
+        <div class="metrics-row">
+          <div class="metric">Tokens <span class="val">3,420</span></div>
+          <div class="metric">Duration <span class="val">8.2s</span></div>
+          <div class="metric">Cost <span class="val">$0.011</span></div>
+          <div class="metric">Files changed <span class="val">3</span></div>
+        </div>
+      </div>
+
+      <!-- ============== TURN 3 (streaming) ============== -->
+      <div class="message-block user">
+        <div class="sender-row">
+          <div class="avatar user">J</div>
+          <span class="sender">You</span>
+        </div>
+        <div class="bubble user">Can you also add a lockout notification email when a user gets rate limited?</div>
+      </div>
+
+      <div class="message-block agent">
+        <div class="sender-row">
+          <div class="avatar agent">A</div>
+          <span class="sender">Agent</span>
+        </div>
+        <div class="bubble agent md">I'll add an email notification when the rate limit is hit. Let me check if there's an existing email utility...</div>
+
+        <div class="tool-group">
+          <div class="sub-tool" id="tool8" onclick="toggleSubTool('tool8')">
+            <div class="sub-tool-header">
+              <span class="sub-tool-chevron">&#9654;</span>
+              <div class="sub-tool-icon" style="background:var(--amber-dim);color:var(--amber);">S</div>
+              <span class="sub-tool-name">search_files</span>
+              <span class="sub-tool-desc">Looking for email/notification utilities...</span>
+              <span class="sub-tool-badge running">running</span>
+            </div>
+            <div class="sub-tool-detail"></div>
+          </div>
+        </div>
+
+        <div class="streaming">
+          <div class="streaming-dots"><span></span><span></span><span></span></div>
+          <span class="streaming-text">Agent is working...</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="resize-handle" id="resizeHandle"><div class="grip"></div></div>
+  <div class="chat-input-area" id="inputArea" style="height: 90px;">
+    <div class="input-wrap">
+      <textarea class="input-box" rows="1" placeholder="Send a message..."></textarea>
+      <button class="send-btn">&#8593;</button>
+    </div>
+    <div class="input-hints">
+      <span class="input-hint"><kbd>Enter</kbd> send</span>
+      <span class="input-hint"><kbd>Shift+Enter</kbd> newline</span>
+      <span class="input-hint"><kbd>Esc</kbd> cancel</span>
+    </div>
+  </div>
+</div>
+
+<script>
+// Render markdown in agent bubbles, then syntax-highlight code blocks
+document.querySelectorAll('.bubble.agent.md').forEach(el => {
+  const raw = el.textContent
+  el.innerHTML = marked.parse(raw)
+  el.querySelectorAll('pre code').forEach(block => hljs.highlightElement(block))
+})
+
+// Init mermaid after DOM is ready (startOnLoad: false so we control timing)
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'dark',
+  themeVariables: {
+    primaryColor: '#1e3a5f',
+    primaryTextColor: '#e2e8f0',
+    primaryBorderColor: '#3b82f6',
+    lineColor: '#64748b',
+    secondaryColor: '#2e1065',
+    tertiaryColor: '#0e0e1a',
+    noteBkgColor: '#111118',
+    noteTextColor: '#cbd5e1',
+    actorBkg: '#111118',
+    actorBorder: '#3b82f6',
+    actorTextColor: '#e2e8f0',
+    signalColor: '#94a3b8',
+    signalTextColor: '#e2e8f0',
+  },
+  sequence: { mirrorActors: false }
+})
+mermaid.run({ querySelector: '.mermaid' })
+
+function toggle(id) {
+  document.getElementById(id).classList.toggle('expanded')
+}
+function toggleSub(id) {
+  const card = document.getElementById(id)
+  card.classList.toggle('expanded')
+}
+function toggleSubTool(id) {
+  document.getElementById(id).classList.toggle('expanded')
+}
+(function() {
+  const handle = document.getElementById('resizeHandle')
+  const inputArea = document.getElementById('inputArea')
+  let dragging = false, startY, startH
+  handle.addEventListener('mousedown', e => {
+    dragging = true; startY = e.clientY; startH = inputArea.offsetHeight
+    handle.classList.add('dragging')
+    document.body.style.cursor = 'row-resize'
+    document.body.style.userSelect = 'none'
+    e.preventDefault()
+  })
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return
+    const h = Math.max(60, Math.min(500, startH - (e.clientY - startY)))
+    inputArea.style.height = h + 'px'
+  })
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return
+    dragging = false
+    handle.classList.remove('dragging')
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+  })
+})()
+
+function switchTab(groupId, tabName) {
+  const group = document.getElementById(groupId)
+  group.querySelectorAll('.parallel-tab').forEach(t => t.classList.remove('active'))
+  group.querySelectorAll('.parallel-panel').forEach(p => p.classList.remove('active'))
+  event.currentTarget.classList.add('active')
+  group.querySelector('.parallel-panel[data-tab="' + tabName + '"]').classList.add('active')
+}
+</script>
+</body>
+</html>
