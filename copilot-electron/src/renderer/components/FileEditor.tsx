@@ -408,42 +408,44 @@ export function FileEditor({ openFiles, activeFile, onSelectFile, onCloseFile }:
                 </div>
               ))}
             </div>
-            {/* Code area */}
+            {/* Code area — single scroll container */}
             <div
               ref={scrollRef}
-              className="relative flex-1 overflow-auto"
+              className="flex-1 overflow-auto"
               onScroll={handleScroll}
             >
-              {/* Highlighted code layer (always visible) */}
-              <pre
-                ref={editorRef}
-                className="text-gray-300 min-h-full m-0"
-                style={{ tabSize: 2, whiteSpace: 'pre', padding: '0 16px 0 4px', fontFamily: 'inherit', fontSize: 'inherit', lineHeight: 'inherit' }}
-                dangerouslySetInnerHTML={{ __html: highlightedHtml }}
-              />
-              {/* Transparent textarea overlay for editing */}
-              {activeBuffer && (
-                <textarea
-                  ref={textareaRef}
-                  value={activeBuffer.content}
-                  onChange={handleTextareaChange}
-                  onKeyDown={handleTextareaKeyDown}
-                  spellCheck={false}
-                  className="absolute inset-0 w-full h-full text-transparent caret-white bg-transparent outline-none resize-none"
-                  style={{
-                    tabSize: 2,
-                    whiteSpace: 'pre',
-                    padding: '0 16px 0 4px',
-                    margin: 0,
-                    border: 'none',
-                    fontFamily: 'inherit',
-                    fontSize: 'inherit',
-                    lineHeight: 'inherit',
-                    letterSpacing: 'inherit',
-                    overflow: 'auto',
-                  }}
+              <div className="relative" style={{ minHeight: '100%' }}>
+                {/* Highlighted code layer */}
+                <pre
+                  ref={editorRef}
+                  className="text-gray-300 min-h-full m-0"
+                  style={{ tabSize: 2, whiteSpace: 'pre', padding: '0 16px 0 4px', fontFamily: 'inherit', fontSize: 'inherit', lineHeight: 'inherit' }}
+                  dangerouslySetInnerHTML={{ __html: highlightedHtml }}
                 />
-              )}
+                {/* Transparent textarea overlay — sized to content, no own scroll */}
+                {activeBuffer && (
+                  <textarea
+                    ref={textareaRef}
+                    value={activeBuffer.content}
+                    onChange={handleTextareaChange}
+                    onKeyDown={handleTextareaKeyDown}
+                    spellCheck={false}
+                    className="absolute top-0 left-0 w-full h-full text-transparent caret-white bg-transparent outline-none resize-none"
+                    style={{
+                      tabSize: 2,
+                      whiteSpace: 'pre',
+                      padding: '0 16px 0 4px',
+                      margin: 0,
+                      border: 'none',
+                      fontFamily: 'inherit',
+                      fontSize: 'inherit',
+                      lineHeight: 'inherit',
+                      letterSpacing: 'inherit',
+                      overflow: 'hidden',
+                    }}
+                  />
+                )}
+              </div>
             </div>
           </div>
         )}
