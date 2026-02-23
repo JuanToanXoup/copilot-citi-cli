@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, forwardRef } from 'react'
-import { useAgentStore, type ChatMessage } from '../stores/agent-store'
+import type { ChatMessage } from '../stores/agent-store'
+import { useTabAgentStore, useTabStores } from '../contexts/TabStoreContext'
 import { useSettingsStore } from '../stores/settings-store'
 
 interface ChatPanelProps {
@@ -8,7 +9,8 @@ interface ChatPanelProps {
 }
 
 export function ChatPanel({ selectedNodeId }: ChatPanelProps) {
-  const messages = useAgentStore((s) => s.messages)
+  const { agentStore } = useTabStores()
+  const messages = useTabAgentStore((s) => s.messages)
   const toolDisplayMode = useSettingsStore((s) => s.toolDisplayMode)
   const scrollRef = useRef<HTMLDivElement>(null)
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map())
@@ -82,6 +84,7 @@ interface MessageBubbleProps {
 
 const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(
   ({ message, isHighlighted, toolDisplayMode }, ref) => {
+    const { agentStore } = useTabStores()
     const [toolExpanded, setToolExpanded] = useState(false)
     const highlightClass = isHighlighted
       ? 'border-l-2 border-l-token-accent bg-token-primary/10 transition-all duration-300'
@@ -202,7 +205,7 @@ const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(
             <p>{message.text}</p>
             <button
               onClick={() => {
-                useAgentStore.getState().retryLast()
+                agentStore.getState().retryLast()
               }}
               className="mt-2 text-xs px-3 py-1 rounded bg-token-error/20 border border-token-error/40
                          text-token-error hover:bg-token-error/30 transition-colors"

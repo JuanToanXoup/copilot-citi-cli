@@ -1,23 +1,24 @@
 import { useState } from 'react'
-import { useAgentStore, type FileChange } from '../stores/agent-store'
+import type { FileChange } from '../stores/agent-store'
+import { useTabAgentStore, useTabStores } from '../contexts/TabStoreContext'
 
 interface ChangesPanelProps {
   onClose: () => void
 }
 
 export function ChangesPanel({ onClose }: ChangesPanelProps) {
-  const changedFiles = useAgentStore((s) => s.changedFiles)
+  const { agentStore } = useTabStores()
+  const changedFiles = useTabAgentStore((s) => s.changedFiles)
 
   const handleAcceptAll = () => {
-    const store = useAgentStore.getState()
+    const store = agentStore.getState()
     for (const f of changedFiles) {
       store.acceptChange(f.path)
     }
   }
 
   const handleRejectAll = () => {
-    const store = useAgentStore.getState()
-    // Reject in reverse to avoid index issues with state updates
+    const store = agentStore.getState()
     for (const f of [...changedFiles].reverse()) {
       store.rejectChange(f.path)
     }
@@ -55,7 +56,7 @@ export function ChangesPanel({ onClose }: ChangesPanelProps) {
             )}
             {changedFiles.length > 0 && (
               <button
-                onClick={() => useAgentStore.getState().clearChanges()}
+                onClick={() => agentStore.getState().clearChanges()}
                 className="text-xs px-2 py-1 text-gray-400 hover:text-white transition-colors"
               >
                 Clear all
@@ -77,8 +78,8 @@ export function ChangesPanel({ onClose }: ChangesPanelProps) {
                 <FileChangeRow
                   key={change.path}
                   change={change}
-                  onAccept={() => useAgentStore.getState().acceptChange(change.path)}
-                  onReject={() => useAgentStore.getState().rejectChange(change.path)}
+                  onAccept={() => agentStore.getState().acceptChange(change.path)}
+                  onReject={() => agentStore.getState().rejectChange(change.path)}
                 />
               ))}
             </div>

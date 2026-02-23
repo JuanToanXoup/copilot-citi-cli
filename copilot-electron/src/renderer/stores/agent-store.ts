@@ -300,7 +300,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   retryLast: () => {
     const msg = get().lastUserMessage
     if (msg) {
-      window.api?.agent.sendMessage(msg)
+      window.api?.agent.sendMessage(msg, 'default')
       set({ isProcessing: true, error: null })
     }
   },

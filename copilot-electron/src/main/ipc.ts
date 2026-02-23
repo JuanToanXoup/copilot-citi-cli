@@ -40,15 +40,17 @@ import {
   MCP_RECONNECT,
   MCP_LIST_SERVERS,
   WINDOW_SET_TITLE,
+  LSP_CONNECTION_STATE,
 } from '@shared/ipc-channels'
 import type { AgentEvent } from '@shared/events'
 import type { AgentCard } from '@shared/types'
+import { atomicWriteSync } from './utils/fs-utils'
 import { ConversationManager } from './conversation/conversation-manager'
 import { AgentService } from './agent/agent-service'
 import { loadAgents } from './agent/agent-registry'
 
 let conversationManager: ConversationManager | null = null
-let agentService: AgentService | null = null
+const agentServices = new Map<string, AgentService>()
 
 /** Pending tool confirmations: confirmId → resolve(approved) */
 const pendingConfirms = new Map<string, (approved: boolean) => void>()
@@ -57,6 +59,8 @@ let confirmCounter = 0
 /** Active fs.watch watchers for settings files */
 const settingsWatchers: fs.FSWatcher[] = []
 let suppressSettingsWatch = false
+let lastConfigContent = ''
+let lastThemeContent = ''
 
 function startSettingsWatchers(): void {
   stopSettingsWatchers()
@@ -67,24 +71,34 @@ function startSettingsWatchers(): void {
   for (const filePath of [configPath, themePath]) {
     if (!fs.existsSync(filePath)) continue
     try {
-      const watcher = fs.watch(filePath, { persistent: false }, (eventType) => {
+      const watcher = fs.watch(filePath, { persistent: true }, (eventType) => {
         if (suppressSettingsWatch || eventType !== 'change') return
         setTimeout(() => {
           try {
             const dir2 = getCopilotDir()
-            let config: Record<string, unknown> = {}
-            let theme: Record<string, unknown> = {}
             const cp = path.join(dir2, 'config.json')
             const tp = path.join(dir2, 'theme.json')
-            if (fs.existsSync(cp)) config = JSON.parse(fs.readFileSync(cp, 'utf-8'))
-            if (fs.existsSync(tp)) theme = JSON.parse(fs.readFileSync(tp, 'utf-8'))
+            const configContent = fs.existsSync(cp) ? fs.readFileSync(cp, 'utf-8') : ''
+            const themeContent = fs.existsSync(tp) ? fs.readFileSync(tp, 'utf-8') : ''
+
+            // Skip broadcast if content hasn't actually changed
+            if (configContent === lastConfigContent && themeContent === lastThemeContent) return
+            lastConfigContent = configContent
+            lastThemeContent = themeContent
+
+            const config = configContent ? JSON.parse(configContent) : {}
+            const theme = themeContent ? JSON.parse(themeContent) : {}
             const windows = BrowserWindow.getAllWindows()
             for (const win of windows) win.webContents.send(SETTINGS_CHANGED, { config, theme })
-          } catch { /* file may be mid-write */ }
+          } catch (e: any) {
+            console.warn('[settings-watcher] Failed to read settings after change:', e.message)
+          }
         }, 100)
       })
       settingsWatchers.push(watcher)
-    } catch { /* fs.watch not available */ }
+    } catch (e: any) {
+      console.warn('[settings-watcher] Failed to watch settings file:', e.message)
+    }
   }
 }
 
@@ -104,26 +118,19 @@ export function ensureServices() {
     conversationManager.proxyUrl = envProxy
   }
 
-  agentService = new AgentService(conversationManager)
-
-  // Forward agent events → renderer
-  agentService.on('event', (event: AgentEvent) => {
-    sendAgentEvent(event)
-
-    // Phase 11: Dock badge on conversation:done when unfocused
-    if (event.type === 'conversation:done') {
-      const win = BrowserWindow.getFocusedWindow()
-      if (!win && app.dock) {
-        app.dock.setBadge('1')
-      }
-    }
-  })
-
   // Forward LSP status → renderer
   conversationManager.on('status', (status: { connected: boolean; user?: string }) => {
     const windows = BrowserWindow.getAllWindows()
     for (const win of windows) {
       win.webContents.send(LSP_STATUS, status)
+    }
+  })
+
+  // Forward LSP connection state → renderer (for reconnection UI)
+  conversationManager.on('connectionStateChanged', (state: string) => {
+    const windows = BrowserWindow.getAllWindows()
+    for (const win of windows) {
+      win.webContents.send(LSP_CONNECTION_STATE, state)
     }
   })
 
@@ -136,15 +143,23 @@ export function ensureServices() {
   })
 
   // Forward MCP tool discovery → renderer (Phase 10)
-  conversationManager.on('mcpToolsDiscovered', (tools: Array<{ name: string; description: string; serverName: string }>) => {
+  conversationManager.on('mcpToolsDiscovered', (_tools: Array<{ name: string; description: string; serverName: string }>) => {
     // Broadcast discovered tools to renderer for settings-store update
     sendAgentEvent({ type: 'lead:delta', text: '' } as any) // noop, tools go through settings IPC
   })
 
-  // Route tool calls from conversationManager → agentService with filter check
+  // Route tool calls from conversationManager → correct per-tab agentService
   conversationManager.on('toolCall', async ({ id, name, input, conversationId }) => {
-    if (!agentService!.ownsConversation(conversationId)) {
-      // Not owned by agent service — execute directly via tool router
+    // Find the AgentService that owns this conversationId
+    let targetService: AgentService | null = null
+    for (const service of agentServices.values()) {
+      if (service.ownsConversation(conversationId)) {
+        targetService = service
+        break
+      }
+    }
+
+    if (!targetService) {
       conversationManager!.lspClient.sendResponse(id, [
         { content: [{ value: `Tool ${name} not routed` }], status: 'error' },
         null,
@@ -153,7 +168,7 @@ export function ensureServices() {
     }
 
     // Check tool filter
-    if (!agentService!.isToolAllowedForConversation(conversationId, name)) {
+    if (!targetService.isToolAllowedForConversation(conversationId, name)) {
       conversationManager!.lspClient.sendResponse(id, [
         { content: [{ value: `Tool ${name} is not allowed for this agent` }], status: 'error' },
         null,
@@ -161,13 +176,38 @@ export function ensureServices() {
       return
     }
 
-    await agentService!.handleToolCall(id, name, input, conversationId)
+    await targetService.handleToolCall(id, name, input, conversationId)
   })
 
   // Eagerly initialize the LSP connection so status is available immediately
   conversationManager.ensureInitialized().catch((err) => {
     console.error('[ipc] Eager LSP initialization failed:', err.message)
   })
+}
+
+/** Get or create an AgentService for a given tab. */
+function getOrCreateAgentService(tabId: string): AgentService {
+  let service = agentServices.get(tabId)
+  if (service) return service
+
+  ensureServices()
+  service = new AgentService(conversationManager!)
+
+  // Forward agent events → renderer, tagged with tabId
+  service.on('event', (event: AgentEvent) => {
+    sendAgentEvent({ ...event, tabId } as AgentEvent & { tabId: string })
+
+    // Phase 11: Dock badge on conversation:done when unfocused
+    if (event.type === 'conversation:done') {
+      const win = BrowserWindow.getFocusedWindow()
+      if (!win && app.dock) {
+        app.dock.setBadge('1')
+      }
+    }
+  })
+
+  agentServices.set(tabId, service)
+  return service
 }
 
 /** Get the workspace root from conversationManager or fallback to cwd */
@@ -195,17 +235,19 @@ export function registerIpc(): void {
     if (app.dock) app.dock.setBadge('')
   })
 
-  ipcMain.on(AGENT_MESSAGE, (_event, payload: { text: string; model?: string }) => {
-    ensureServices()
-    agentService!.sendMessage(payload.text, payload.model)
+  ipcMain.on(AGENT_MESSAGE, (_event, payload: { text: string; tabId: string; model?: string }) => {
+    const service = getOrCreateAgentService(payload.tabId)
+    service.sendMessage(payload.text, payload.model)
   })
 
-  ipcMain.on(AGENT_CANCEL, () => {
-    if (agentService) agentService.cancel()
+  ipcMain.on(AGENT_CANCEL, (_event, payload: { tabId: string }) => {
+    const service = agentServices.get(payload.tabId)
+    if (service) service.cancel()
   })
 
-  ipcMain.on(AGENT_NEW_CONVERSATION, () => {
-    if (agentService) agentService.newConversation()
+  ipcMain.on(AGENT_NEW_CONVERSATION, (_event, payload: { tabId: string }) => {
+    const service = agentServices.get(payload.tabId)
+    if (service) service.newConversation()
   })
 
   ipcMain.handle(DIALOG_OPEN_DIRECTORY, async () => {
@@ -277,7 +319,7 @@ export function registerIpc(): void {
     if (conversationManager) {
       conversationManager.shutdown()
       conversationManager = null
-      agentService = null
+      agentServices.clear()
     }
   })
 
@@ -315,7 +357,9 @@ export function registerIpc(): void {
       suppressSettingsWatch = true
       const copilotDir = getCopilotDir()
       if (data.config) {
-        fs.writeFileSync(path.join(copilotDir, 'config.json'), JSON.stringify(data.config, null, 2), 'utf-8')
+        const configContent = JSON.stringify(data.config, null, 2)
+        atomicWriteSync(path.join(copilotDir, 'config.json'), configContent)
+        lastConfigContent = configContent
         // Apply proxy/caCert from settings to conversationManager
         if (conversationManager) {
           if (data.config.proxyUrl !== undefined) conversationManager.proxyUrl = (data.config.proxyUrl as string) || null
@@ -323,10 +367,13 @@ export function registerIpc(): void {
         }
       }
       if (data.theme) {
-        fs.writeFileSync(path.join(copilotDir, 'theme.json'), JSON.stringify(data.theme, null, 2), 'utf-8')
+        const themeContent = JSON.stringify(data.theme, null, 2)
+        atomicWriteSync(path.join(copilotDir, 'theme.json'), themeContent)
+        lastThemeContent = themeContent
       }
-      setTimeout(() => { suppressSettingsWatch = false }, 200)
-    } catch {
+      setTimeout(() => { suppressSettingsWatch = false }, 300)
+    } catch (e: any) {
+      console.warn('[settings-write] Failed to write settings:', e.message)
       suppressSettingsWatch = false
     }
   })
@@ -610,7 +657,7 @@ export function registerIpc(): void {
 }
 
 /** Send an agent event to the renderer process */
-export function sendAgentEvent(event: AgentEvent): void {
+export function sendAgentEvent(event: AgentEvent & { tabId?: string }): void {
   const windows = BrowserWindow.getAllWindows()
   for (const win of windows) {
     win.webContents.send(AGENT_EVENT, event)

@@ -62,5 +62,8 @@ export const MCP_DISCONNECT = 'mcp:disconnect' as const
 export const MCP_RECONNECT = 'mcp:reconnect' as const
 export const MCP_LIST_SERVERS = 'mcp:list-servers' as const
 
+// LSP connection state
+export const LSP_CONNECTION_STATE = 'lsp:connection-state' as const
+
 // Window management
 export const WINDOW_SET_TITLE = 'window:set-title' as const

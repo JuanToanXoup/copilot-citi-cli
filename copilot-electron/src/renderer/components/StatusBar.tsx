@@ -2,13 +2,14 @@ import { useState, useEffect, useRef } from 'react'
 
 interface StatusBarProps {
   connected: boolean
+  connectionState?: string
   viewMode: string
   model?: string
   branch?: string
   changesCount?: number
 }
 
-export function StatusBar({ connected, viewMode, model, branch, changesCount }: StatusBarProps) {
+export function StatusBar({ connected, connectionState, viewMode, model, branch, changesCount }: StatusBarProps) {
   const [switcherOpen, setSwitcherOpen] = useState(false)
   const [branches, setBranches] = useState<string[]>([])
   const [creating, setCreating] = useState(false)
@@ -55,10 +56,14 @@ export function StatusBar({ connected, viewMode, model, branch, changesCount }: 
         <span className="flex items-center gap-1.5">
           <span
             className={`inline-block w-2 h-2 rounded-full ${
+              connectionState === 'reconnecting' ? 'bg-token-warning animate-pulse' :
+              connectionState === 'failed' ? 'bg-token-error' :
               connected ? 'bg-token-success' : 'bg-token-error'
             }`}
           />
-          {connected ? 'Connected' : 'Disconnected'}
+          {connectionState === 'reconnecting' ? 'Reconnecting...' :
+           connectionState === 'failed' ? 'Connection Lost' :
+           connected ? 'Connected' : 'Disconnected'}
         </span>
         <span className="text-token-border">|</span>
         <span className="capitalize">{viewMode} view</span>
