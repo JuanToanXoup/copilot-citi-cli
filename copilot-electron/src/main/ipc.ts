@@ -159,6 +159,18 @@ export function ensureServices() {
       }
     }
 
+    // If no service claimed this conversation but an active service exists,
+    // re-route agent-only tools that slipped past ownsConversation() (race condition).
+    const agentOnlyTools = new Set(['delegate_task', 'create_team', 'send_message', 'delete_team'])
+    if (!targetService && agentOnlyTools.has(name)) {
+      for (const service of agentServices.values()) {
+        if (service.isActive()) {
+          targetService = service
+          break
+        }
+      }
+    }
+
     if (!targetService) {
       conversationManager!.lspClient.sendResponse(id, [
         { content: [{ value: `Tool ${name} not routed` }], status: 'error' },

@@ -231,6 +231,11 @@ export class AgentService extends EventEmitter {
     this.lspClient.sendResponse(id, result)
   }
 
+  /** Whether this service has an active lead conversation. */
+  isActive(): boolean {
+    return this.leadConversationId !== null || this.pendingLeadCreate
+  }
+
   /** Check if this service owns the given conversationId (lead or subagent). */
   ownsConversation(conversationId: string | null): boolean {
     if (!conversationId) return false
@@ -431,9 +436,11 @@ export class AgentService extends EventEmitter {
 
   private async sendFollowUpTurn(workDoneToken: string, resultContext: string, model: string, rootUri: string) {
     const message =
-      `All subagent tasks have completed. Here are their results:\n\n` +
+      `Subagent results from the previous round:\n\n` +
       `${resultContext}\n\n` +
-      `Please synthesize these results into a comprehensive final answer for the user.`
+      `Review these results. If the task requires additional work — follow-up research, ` +
+      `dependent subtasks, or verification — delegate those now using delegate_task. ` +
+      `If all work is complete, synthesize the results into a final answer for the user.`
 
     await this.lspClient.sendRequest('conversation/turn', {
       workDoneToken,

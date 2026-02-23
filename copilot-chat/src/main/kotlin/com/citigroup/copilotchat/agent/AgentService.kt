@@ -442,9 +442,11 @@ class AgentService(private val project: Project) : Disposable {
         model: String,
         rootUri: String,
     ) {
-        val message = "All subagent tasks have completed. Here are their results:\n\n" +
+        val message = "Subagent results from the previous round:\n\n" +
             "$resultContext\n\n" +
-            "Please synthesize these results into a comprehensive final answer for the user."
+            "Review these results. If the task requires additional work — follow-up research, " +
+            "dependent subtasks, or verification — delegate those now using delegate_task. " +
+            "If all work is complete, synthesize the results into a final answer for the user."
 
         val params = buildJsonObject {
             put("workDoneToken", workDoneToken)
