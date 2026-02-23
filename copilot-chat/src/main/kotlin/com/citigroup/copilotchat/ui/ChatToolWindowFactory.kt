@@ -45,6 +45,13 @@ class ChatToolWindowFactory : ToolWindowFactory, DumbAware {
         contentManager.addContent(agentContent)
         Disposer.register(toolWindow.disposable, agentPanel)
 
+        // Agents tab — agent config (leads + subagents)
+        val agentConfigPanel = AgentConfigPanel(project)
+        val agentConfigContent = contentFactory.createContent(agentConfigPanel, "Agents", false)
+        agentConfigContent.isCloseable = false
+        contentManager.addContent(agentConfigContent)
+        Disposer.register(toolWindow.disposable, agentConfigPanel)
+
         // Changes tab — working set file changes
         val workingSetPanel = WorkingSetPanel(project)
         val changesContent = contentFactory.createContent(workingSetPanel, "Changes", false)

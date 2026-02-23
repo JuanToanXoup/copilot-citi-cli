@@ -1,6 +1,5 @@
 package com.citigroup.copilotchat.workingset
 
-import com.citigroup.copilotchat.config.CopilotChatSettings
 import com.intellij.diff.DiffContentFactory
 import com.intellij.diff.DiffManager
 import com.intellij.diff.requests.SimpleDiffRequest
@@ -134,15 +133,23 @@ class WorkingSetPanel(private val project: Project) : JPanel(BorderLayout()), Di
         val commitMsg = msgField.text.trim().ifEmpty { defaultMsg }
         scope.launch(Dispatchers.IO) {
             try {
-                val ok = runGitCommit(changes, commitMsg)
+                val commitService = CopilotCommitService.getInstance(project)
+                val commitResult = commitService.commitCopilotChanges(changes, commitMsg)
                 withContext(Dispatchers.Main) {
-                    if (ok) {
+                    if (commitResult.success) {
                         service.acceptAll()
                         JOptionPane.showMessageDialog(
                             this@WorkingSetPanel,
-                            "Committed ${changes.size} file(s) as GitHub Copilot.",
+                            commitResult.message,
                             "Commit Successful",
                             JOptionPane.INFORMATION_MESSAGE
+                        )
+                    } else {
+                        JOptionPane.showMessageDialog(
+                            this@WorkingSetPanel,
+                            "Commit failed: ${commitResult.message}",
+                            "Error",
+                            JOptionPane.ERROR_MESSAGE
                         )
                     }
                 }
@@ -158,54 +165,6 @@ class WorkingSetPanel(private val project: Project) : JPanel(BorderLayout()), Di
                 }
             }
         }
-    }
-
-    private fun runGitCommit(changes: List<FileChange>, message: String): Boolean {
-        val workDir = project.basePath ?: return false
-        val model = CopilotChatSettings.getInstance().defaultModel.ifBlank { "unknown" }
-        val author = "GitHub Copilot ($model) <copilot@copilot.example>"
-
-        // Build commit message with trailer
-        val fullMessage = buildString {
-            append(message)
-            append("\n\n")
-            append("Generated-by: github-copilot")
-        }
-
-        // Stage only the Copilot-changed files
-        val addCmd = mutableListOf("git", "add", "--")
-        addCmd.addAll(changes.map { it.absolutePath })
-
-        val addProcess = ProcessBuilder(addCmd)
-            .directory(java.io.File(workDir))
-            .redirectErrorStream(true)
-            .start()
-        val addExit = addProcess.waitFor()
-        if (addExit != 0) {
-            val err = addProcess.inputStream.bufferedReader().readText()
-            throw RuntimeException("git add failed (exit $addExit): $err")
-        }
-
-        // Commit with Copilot as the author and trailers
-        val commitProcess = ProcessBuilder(
-            "git", "commit",
-            "--author", author,
-            "-m", fullMessage
-        )
-            .directory(java.io.File(workDir))
-            .redirectErrorStream(true)
-            .start()
-        val commitExit = commitProcess.waitFor()
-        val commitOutput = commitProcess.inputStream.bufferedReader().readText()
-        if (commitExit != 0) {
-            throw RuntimeException("git commit failed (exit $commitExit): $commitOutput")
-        }
-
-        log.info("Copilot commit created: $commitOutput")
-
-        // Refresh VFS so IntelliJ sees the new commit state
-        LocalFileSystem.getInstance().refresh(true)
-        return true
     }
 
     private fun collectEvents() {

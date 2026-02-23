@@ -112,6 +112,16 @@ class WorkingSetService(private val project: Project) {
         }
     }
 
+    fun accept(absolutePath: String) {
+        val removed = changes.remove(absolutePath)
+        if (removed != null) {
+            log.info("Working set: accepted ${removed.relativePath}")
+            if (changes.isEmpty()) {
+                _events.tryEmit(WorkingSetEvent.Cleared)
+            }
+        }
+    }
+
     fun acceptAll() {
         changes.clear()
         _events.tryEmit(WorkingSetEvent.Cleared)

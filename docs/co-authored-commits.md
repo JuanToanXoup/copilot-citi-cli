@@ -2,51 +2,47 @@
 
 ## Problem
 
-When the Copilot agent edits files via tools (`create_file`, `insert_edit_into_file`, `replace_string_in_file`, `multi_replace_string`, `apply_patch`), those changes are written directly to disk with no distinction from developer-made edits. This creates several issues:
+When the Copilot agent edits files via tools (`create_file`, `replace_string_in_file`, `apply_patch`, etc.), those changes are written directly to disk with no distinction from developer-made edits. This creates several issues:
 
 - **No attribution** — `git log` shows the developer as the author of AI-generated code
 - **No auditability** — impossible to tell which changes were human vs. machine after the fact
 - **No traceability** — no record of which model or tools produced the code
 - **Compliance risk** — organizations increasingly require disclosure of AI-generated code in version control
 
-GitHub Copilot's own coding agent solves this by authoring commits itself, but that relies on a GitHub-hosted bot account (`copilot[bot]`) that isn't available for third-party integrations.
+GitHub Copilot's own coding agent solves this by committing as `copilot[bot]`, but that's a server-side bot account unavailable to third-party integrations.
 
 ## Constraints
 
-- **There is no official GitHub Copilot email address.** GitHub's coding agent (`copilot[bot]`) is a server-side bot with its own account, but no public email is available for third-party use in local `git commit --author`.
+- **No official Copilot email** — GitHub's `copilot[bot]` is server-side only; no public email exists for use in local `git commit --author`
 - Creating a dedicated GitHub machine user costs a seat and requires org admin setup
 - GitHub Apps can author commits via API but not through local `git commit`
-- Git's `--author` flag requires the `Name <email>` format — we use `copilot@copilot.example`, an RFC 6761 reserved domain guaranteed to never be a real address
+- Git's `--author` flag requires `Name <email>` format
+- IntelliJ's `CheckinHandler.beforeCheckin()` can only return COMMIT or CANCEL — it cannot modify the commit author or message
 
 ## Solution
 
-Combine two mechanisms that work together at the git level, require no GitHub account setup, and are parseable by CI/tooling:
+Two git-native mechanisms that require no GitHub account setup and are parseable by CI/tooling:
 
-### 1. `--author` flag for git log attribution
+### 1. `--author` flag — separates who wrote vs. who approved
 
-Use git's built-in author/committer separation. The **author** is Copilot (who wrote the code), the **committer** is the developer (who approved it).
+Git natively separates **author** (who wrote the code) from **committer** (who approved it). We set the author to Copilot, leaving the committer as the developer.
 
-There is no official GitHub Copilot email address. Git requires the `Name <email>` format for `--author`, so we use `copilot@copilot.example` — a reserved domain under RFC 6761 that is guaranteed to never be a real address.
+For the email, we use `copilot@copilot.example` — a reserved domain under RFC 6761 guaranteed to never be a real address.
 
 ```bash
 git commit --author="GitHub Copilot (gpt-4.1) <copilot@copilot.example>" -m "Add auth endpoint"
 ```
 
-Result in `git log`:
-
 ```
-commit a1b2c3d
 Author:    GitHub Copilot (gpt-4.1) <copilot@copilot.example>
 Commit:    John Doan <john.doan@citi.com>
-
-    Add auth endpoint
 ```
 
-This gives immediate visual separation — `git log --author="GitHub Copilot"` returns only AI-generated commits. The committer field preserves accountability (who approved the change).
+This gives immediate separation — `git log --author="GitHub Copilot"` returns only AI-generated commits, while the committer field preserves accountability.
 
-### 2. `Generated-by` trailer for tooling and search
+### 2. `Generated-by` trailer — structured metadata for tooling
 
-Git trailers are structured key-value metadata at the end of a commit message. GitHub renders them in the commit detail view. CI pipelines and scripts can parse them.
+Git trailers are key-value metadata at the end of a commit message. GitHub renders them in the commit detail view, and CI pipelines can parse them.
 
 ```
 Add auth endpoint
@@ -54,61 +50,120 @@ Add auth endpoint
 Generated-by: github-copilot
 ```
 
-Search across the repo:
+## End-to-end flow
 
-```bash
-git log --grep="Generated-by: github-copilot"
-```
-
-## Full commit example
+There are three commit paths. All agent paths produce the same attributed commit format.
 
 ```
-Add authentication endpoint
-
-Generated-by: github-copilot
+                        ┌─────────────────────────┐
+                        │  Agent edits files via   │
+                        │  create_file, apply_patch│
+                        │  replace_string, etc.    │
+                        └────────────┬────────────┘
+                                     │
+                    ┌────────────────┴────────────────┐
+                    │                                  │
+             Direct (default)              Worktree (forkContext: true)
+                    │                                  │
+                    │                     Subagent works in isolated
+                    │                     .copilot-chat/worktrees/<id>/
+                    │                                  │
+                    │                     WorktreeReviewPanel shown
+                    │                     in Agent chat with diff viewer
+                    │                                  │
+                    │                        ┌────────┴────────┐
+                    │                     Apply            Discard
+                    │                   (copies to          (deletes
+                    │                    workspace)         worktree)
+                    │                        │                 │
+                    │                        │              [done]
+                    │                        │
+                    └────────────┬───────────┘
+                                 │
+                    WorkingSetService captures
+                    before/after snapshots
+                                 │
+                    File moved to "Copilot Changes"
+                    changelist in IntelliJ
+                                 │
+              ┌─────────────────┴──────────────────┐
+              │                                      │
+     Changes tab "Commit" button           IntelliJ Commit panel
+     (explicit Copilot commit)             (standard commit flow)
+              │                                      │
+              │                         CopilotCheckinHandler detects
+              │                         AI-tracked files, auto-injects
+              │                         Copilot attribution before
+              │                         IntelliJ's commit executes
+              │                                      │
+              └─────────────────┬────────────────────┘
+                                │
+                   git commit --author="GitHub Copilot (model)
+                   <copilot@copilot.example>"
+                   with Generated-by trailer
+                                │
+                   ┌─────────────────────────┐
+                   │  Attributed commit in    │
+                   │  git log / GitHub UI     │
+                   └─────────────────────────┘
 ```
 
-```
-Author:    GitHub Copilot (gpt-4.1) <copilot@copilot.example>
-Commit:    John Doan <john.doan@citi.com>
-Date:      Mon Feb 23 11:42:03 2026 -0500
-```
+## Auto-inject attribution
 
-## Implementation
+The plugin enforces correct attribution regardless of which commit path the developer uses. There is no "commit anyway under your name" escape hatch.
 
-The Working Set feature in the Copilot Chat plugin handles this end-to-end:
+### How it works
 
-1. **Tracking** — `WorkingSetService` (`workingset/WorkingSetService.kt`) captures before/after snapshots around every file-modifying tool call via interception in `ToolRouter.executeTool()`. After each tool, it refreshes the VFS and moves the file into a **"Copilot Changes"** changelist so agent-modified files are visually grouped in IntelliJ's Commit panel, separate from the developer's own edits.
+`CopilotCheckinHandlerFactory` hooks into IntelliJ's standard commit flow via the `CheckinHandler` API. When the developer clicks Commit in any commit panel:
 
-2. **Review** — `WorkingSetPanel` (`workingset/WorkingSetPanel.kt`) renders the "Changes" tab with a file list showing A (added) / M (modified) badges. Double-click opens IntelliJ's built-in diff viewer. Right-click offers "Show Diff", "Open in Editor", and "Revert File".
+1. **Detect** — `beforeCheckin()` checks if any files in the commit are tracked by `WorkingSetService`
+2. **Separate** — AI-tracked files are extracted from the commit set
+3. **Commit** — `CopilotCommitService` writes the agent's known content to disk, runs `git commit --author="GitHub Copilot (model) <copilot@copilot.example>" -- <paths>` with the `Generated-by` trailer, then restores the original disk content
+4. **Notify** — A balloon notification reports the result: "Committed N file(s) as GitHub Copilot"
+5. **Continue** — If non-AI files remain, IntelliJ's normal commit proceeds for those files under the developer's name
 
-3. **Commit** — The "Commit" button in the Changes tab opens a dialog with a pre-filled message and file list. On confirm, it stages only the Copilot-changed files via `git add`, then runs `git commit --author="GitHub Copilot (model) <copilot@copilot.example>"` with a `Generated-by` trailer appended to the message. The working set clears after a successful commit.
+This write-stage-restore approach works around the `CheckinHandler` API limitation (can only return COMMIT/CANCEL, cannot modify author or message) by executing a separate `git commit` for the AI files before IntelliJ's commit runs.
 
-4. **Guard** — `CopilotCheckinHandlerFactory` (`workingset/CopilotCheckinHandler.kt`) hooks into IntelliJ's normal commit flow. If any files being committed are tracked by the working set, it shows a warning listing those files and offering two choices: "Commit Anyway" (proceeds under the developer's name) or "Cancel" (so the developer can use the Changes tab's Commit button instead).
+### Return value logic
 
-### Copilot Changes changelist
-
-Agent-modified files are automatically moved to a dedicated **"Copilot Changes"** changelist in IntelliJ's Commit panel. This provides at-a-glance separation before any commit is made:
-
-```
-▼ Copilot Changes (2 files)
-    A  src/auth/AuthEndpoint.kt
-    M  src/config/SecurityConfig.kt
-▼ Default Changelist (1 file)
-    M  README.md
-```
-
-The developer can commit the "Copilot Changes" group via the Changes tab (creating a Copilot-authored commit) and their own edits separately via the normal Commit panel.
-
-### What gets committed where
-
-| Change source | Commit author | Trailers |
+| Scenario | Handler returns | Effect |
 |---|---|---|
-| Developer edits | Developer (normal commit) | None |
-| Copilot agent tools | `GitHub Copilot (model)` | `Generated-by` |
-| Mixed (both) | Developer should split into two commits | — |
+| No AI files in commit | `COMMIT` | Normal IntelliJ commit |
+| AI files committed, non-AI files remain | `COMMIT` | AI files committed as Copilot; IntelliJ commits the rest under developer's name |
+| AI files committed, no remaining files | `CANCEL` | AI files committed as Copilot; commit dialog closes |
+| Attribution commit fails | `COMMIT` | Graceful fallback — all files commit under developer's name with warning |
 
-### Querying AI-generated commits
+### Hunk-level diff tracking
+
+`HunkDiffEngine` uses IntelliJ's `ComparisonManager.compareLines()` API to compute which line ranges were modified by the agent. This enables:
+
+- Logging which specific hunks are agent-authored in each commit
+- Future per-line attribution for mixed files (files with both AI and developer edits)
+
+For new files, the entire file is treated as a single agent hunk. For modified files, only the changed line ranges are attributed to the agent.
+
+## Worktree isolation for subagents
+
+When a subagent has `forkContext: true` in its `.agent.md` definition, it operates in a git worktree rather than the main workspace. This is primarily a **parallel agent safety** mechanism — multiple subagents can't overwrite each other's changes — but it also adds an approval gate before changes enter the attribution pipeline.
+
+The subagent works in `.copilot-chat/worktrees/<agentId>/` on branch `copilot-worktree-<agentId>`. Its tool calls are routed to the worktree via a per-conversation workspace override in `ToolRouter`. When the subagent completes, a diff is generated against the main workspace and a review panel appears inline in the Agent chat. The user can:
+
+- **Apply** — files are copied to the main workspace and registered with WorkingSetService, entering the normal attribution pipeline (Copilot Changes changelist → auto-attributed commit)
+- **Discard** — the worktree is deleted with no effect on the main workspace
+
+If no files changed, the worktree is cleaned up automatically. Stale worktrees from crashes are pruned on startup.
+
+## Change source summary
+
+| Change source | Approval gate | Commit author | Trailer |
+|---|---|---|---|
+| Developer edits | None (normal flow) | Developer | None |
+| Agent tools (direct) | Changes tab review | `GitHub Copilot (model)` | `Generated-by` |
+| Agent tools (worktree) | Worktree review → Changes tab | `GitHub Copilot (model)` | `Generated-by` |
+
+Both agent paths produce identical commits. The worktree path adds a pre-review step before changes reach the Working Set. Attribution is enforced automatically on all commit paths — the developer does not need to use a specific button or workflow.
+
+## Querying AI-generated commits
 
 ```bash
 # All Copilot commits
@@ -122,15 +177,17 @@ echo "Copilot: $(git log --author='GitHub Copilot' --oneline | wc -l)"
 echo "Developer: $(git log --author='GitHub Copilot' --invert-grep --oneline | wc -l)"
 ```
 
+On GitHub, the `--author` field shows in the commit detail view and PR commit list. The `Generated-by` trailer renders as structured metadata below the commit message. PR reviewers can see at a glance which commits were AI-authored.
+
 ## Comparison with alternatives
 
 | Approach | Attribution in git log | GitHub UI | Requires account | Parseable by CI |
 |---|---|---|---|---|
-| **`--author` + trailer** (this solution) | Author field + trailer | Trailer visible in commit view | No | Yes |
-| `Co-authored-by` trailer | Trailer only | GitHub shows co-author avatar | No | Yes |
+| **`--author` + trailer** (ours) | Author field + trailer | Trailer in commit view | No | Yes |
+| `Co-authored-by` trailer | Trailer only | Co-author avatar | No | Yes |
 | GitHub machine user | Real author with avatar | Full profile link | Yes (1 seat) | Yes |
 | GitHub App | `app[bot]` author | Bot badge | Yes (app setup) | Yes |
-| Commit message prefix `[copilot]` | Message only | Visible but not structured | No | Fragile regex |
+| Commit message prefix `[copilot]` | Message only | Visible but unstructured | No | Fragile regex |
 
 ## Industry precedent
 

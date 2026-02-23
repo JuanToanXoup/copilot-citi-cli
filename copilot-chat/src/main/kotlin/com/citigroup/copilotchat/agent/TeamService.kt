@@ -119,7 +119,7 @@ class TeamService(private val project: Project) : Disposable {
         val session = WorkerSession(
             workerId = "teammate-$name",
             role = name,
-            systemPrompt = agentDef.systemPrompt + "\n\nYou are a teammate named '$name' in team '$teamName'. " +
+            systemPrompt = agentDef.systemPromptTemplate + "\n\nYou are a teammate named '$name' in team '$teamName'. " +
                 "After completing your task, you will go idle and wait for new messages in your mailbox.",
             model = model,
             agentMode = true,
