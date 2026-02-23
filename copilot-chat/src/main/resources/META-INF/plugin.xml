@@ -51,6 +51,9 @@
         <!-- Working Set: tracks agent file changes for accept/revert -->
         <projectService serviceImplementation="com.citigroup.copilotchat.workingset.WorkingSetService"/>
 
+        <!-- Commit hook: appends Co-authored-by when committing Copilot-changed files -->
+        <checkinHandlerFactory implementation="com.citigroup.copilotchat.workingset.CopilotCheckinHandlerFactory"/>
+
         <!-- Tool Window with content tabs (Chat, Tools, MCP, Workers) -->
         <toolWindow id="Copilot Chat"
                     anchor="right"
