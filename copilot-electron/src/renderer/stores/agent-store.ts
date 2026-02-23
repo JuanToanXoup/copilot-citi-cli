@@ -21,6 +21,7 @@ export interface ChatMessage {
     command?: string
     input?: Record<string, unknown>
     output?: string
+    prompt?: string
     startTime?: number
     duration?: number
   }
@@ -49,7 +50,7 @@ interface AgentState {
   // Actions
   addUserMessage: (text: string) => void
   addAgentDelta: (text: string) => void
-  addSubagentMessage: (agentId: string, agentType: string, description: string) => void
+  addSubagentMessage: (agentId: string, agentType: string, description: string, prompt?: string) => void
   updateSubagentStatus: (agentId: string, status: 'success' | 'error') => void
   addSubagentDelta: (agentId: string, text: string) => void
   addToolMessage: (name: string, nodeId?: string, input?: Record<string, unknown>) => void
@@ -123,7 +124,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     })
   },
 
-  addSubagentMessage: (agentId, agentType, description) => {
+  addSubagentMessage: (agentId, agentType, description, prompt?) => {
     set((s) => ({
       messages: [
         ...s.messages,
@@ -134,7 +135,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
           text: description,
           timestamp: Date.now(),
           status: 'running',
-          meta: { agentType },
+          meta: { agentType, prompt, output: '' },
         },
       ],
     }))
@@ -151,7 +152,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   addSubagentDelta: (agentId, text) => {
     set((s) => ({
       messages: s.messages.map((m) =>
-        m.nodeId === `subagent-${agentId}` ? { ...m, text: m.text + '\n' + text } : m,
+        m.nodeId === `subagent-${agentId}`
+          ? { ...m, meta: { ...m.meta, output: (m.meta?.output ?? '') + text } }
+          : m,
       ),
     }))
   },
@@ -265,7 +268,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         set({ isProcessing: false })
         break
       case 'subagent:spawned':
-        state.addSubagentMessage(event.agentId, event.agentType, event.description)
+        state.addSubagentMessage(event.agentId, event.agentType, event.description, event.prompt)
         break
       case 'subagent:delta':
         state.addSubagentDelta(event.agentId, event.text)

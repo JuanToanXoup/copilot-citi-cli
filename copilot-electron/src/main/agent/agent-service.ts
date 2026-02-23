@@ -316,7 +316,7 @@ export class AgentService extends EventEmitter {
 
     // Emit status + subagent:spawned
     this.emitEvent({ type: 'status', text: `Delegating to ${effectiveDef.agentType}...` })
-    this.emitEvent({ type: 'subagent:spawned', agentId, agentType: effectiveDef.agentType, description })
+    this.emitEvent({ type: 'subagent:spawned', agentId, agentType: effectiveDef.agentType, description, prompt })
 
     const session = new WorkerSession(
       agentId,

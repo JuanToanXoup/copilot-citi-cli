@@ -12,7 +12,7 @@ export interface AgentState {
 
   addUserMessage: (text: string) => void
   addAgentDelta: (text: string) => void
-  addSubagentMessage: (agentId: string, agentType: string, description: string) => void
+  addSubagentMessage: (agentId: string, agentType: string, description: string, prompt?: string) => void
   updateSubagentStatus: (agentId: string, status: 'success' | 'error') => void
   addSubagentDelta: (agentId: string, text: string) => void
   addToolMessage: (name: string, nodeId?: string, input?: Record<string, unknown>) => void
@@ -71,11 +71,11 @@ export function createAgentStore(tabId?: string) {
       })
     },
 
-    addSubagentMessage: (agentId, agentType, description) => {
+    addSubagentMessage: (agentId, agentType, description, prompt?) => {
       set((s) => ({
         messages: [
           ...s.messages,
-          { id: nextId(), type: 'subagent', nodeId: `subagent-${agentId}`, text: description, timestamp: Date.now(), status: 'running', meta: { agentType } },
+          { id: nextId(), type: 'subagent', nodeId: `subagent-${agentId}`, text: description, timestamp: Date.now(), status: 'running', meta: { agentType, prompt, output: '' } },
         ],
       }))
     },
@@ -91,7 +91,9 @@ export function createAgentStore(tabId?: string) {
     addSubagentDelta: (agentId, text) => {
       set((s) => ({
         messages: s.messages.map((m) =>
-          m.nodeId === `subagent-${agentId}` ? { ...m, text: m.text + '\n' + text } : m,
+          m.nodeId === `subagent-${agentId}`
+            ? { ...m, meta: { ...m.meta, output: (m.meta?.output ?? '') + text } }
+            : m,
         ),
       }))
     },
@@ -177,7 +179,7 @@ export function createAgentStore(tabId?: string) {
           set({ isProcessing: false })
           break
         case 'subagent:spawned':
-          state.addSubagentMessage(event.agentId, event.agentType, event.description)
+          state.addSubagentMessage(event.agentId, event.agentType, event.description, event.prompt)
           break
         case 'subagent:delta':
           state.addSubagentDelta(event.agentId, event.text)

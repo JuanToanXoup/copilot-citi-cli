@@ -7,7 +7,7 @@ export type AgentEvent =
   | { type: 'lead:toolresult'; name: string; status: 'success' | 'error'; output?: string }
   | { type: 'lead:done'; text: string }
   | { type: 'lead:error'; message: string }
-  | { type: 'subagent:spawned'; agentId: string; agentType: string; description: string }
+  | { type: 'subagent:spawned'; agentId: string; agentType: string; description: string; prompt?: string }
   | { type: 'subagent:delta'; agentId: string; text: string }
   | { type: 'subagent:toolcall'; agentId: string; name: string }
   | { type: 'subagent:completed'; agentId: string; status: 'success' | 'error'; result: string }

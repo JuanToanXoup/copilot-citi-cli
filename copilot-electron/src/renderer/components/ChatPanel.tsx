@@ -111,19 +111,7 @@ const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(
         )
 
       case 'subagent':
-        return (
-          <div ref={ref} className={`rounded-lg border px-3 py-2 text-xs ${highlightClass} ${
-            message.status === 'running' ? 'border-token-accent/40 bg-token-primary/10' :
-            message.status === 'success' ? 'border-token-success/40 bg-token-success/10' :
-            'border-token-error/40 bg-token-error/10'
-          }`}>
-            <div className="flex items-center gap-2 text-token-text-secondary">
-              <StatusDot status={message.status} />
-              <span className="font-medium">{message.meta?.agentType}</span>
-            </div>
-            <p className="text-token-text mt-1 line-clamp-3">{message.text}</p>
-          </div>
-        )
+        return <SubagentBubble ref={ref} message={message} highlightClass={highlightClass} />
 
       case 'tool':
         // Collapsible blocks mode (default)
@@ -229,6 +217,65 @@ const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(
 )
 
 MessageBubble.displayName = 'MessageBubble'
+
+/** Expandable subagent card — extracted to its own component for hooks compliance. */
+const SubagentBubble = forwardRef<HTMLDivElement, { message: ChatMessage; highlightClass: string }>(
+  ({ message, highlightClass }, ref) => {
+    const [expanded, setExpanded] = useState(false)
+    const outputRef = useRef<HTMLPreElement>(null)
+
+    // Auto-scroll streaming output while running
+    useEffect(() => {
+      if (message.status === 'running' && expanded && outputRef.current) {
+        outputRef.current.scrollTop = outputRef.current.scrollHeight
+      }
+    }, [message.meta?.output, message.status, expanded])
+
+    return (
+      <div
+        ref={ref}
+        className={`rounded-lg border text-xs cursor-pointer transition-colors ${highlightClass} ${
+          message.status === 'running' ? 'border-token-accent/40 bg-token-primary/10 hover:border-token-accent/60' :
+          message.status === 'success' ? 'border-token-success/40 bg-token-success/10 hover:border-token-success/60' :
+          'border-token-error/40 bg-token-error/10 hover:border-token-error/60'
+        }`}
+        onClick={() => setExpanded((s) => !s)}
+      >
+        <div className="flex items-center gap-2 text-token-text-secondary px-3 py-2">
+          <StatusDot status={message.status} />
+          <span className="font-medium">{message.meta?.agentType}</span>
+          <span className="text-token-text truncate flex-1">{message.text}</span>
+          <span className="text-token-text-secondary/50 ml-auto">{expanded ? '\u25BE' : '\u25B8'}</span>
+        </div>
+        {expanded && (
+          <div className="px-3 py-2 border-t border-token-border space-y-2" onClick={(e) => e.stopPropagation()}>
+            {message.meta?.prompt && (
+              <div>
+                <span className="text-token-text-secondary/60 text-[10px] uppercase tracking-wide">Prompt</span>
+                <pre className="mt-0.5 text-token-text whitespace-pre-wrap font-mono text-[11px] max-h-40 overflow-y-auto bg-token-bg/50 rounded p-1.5">
+                  {message.meta.prompt}
+                </pre>
+              </div>
+            )}
+            <div>
+              <span className="text-token-text-secondary/60 text-[10px] uppercase tracking-wide">
+                {message.status === 'running' ? 'Reply (streaming)' : 'Reply'}
+              </span>
+              <pre
+                ref={outputRef}
+                className="mt-0.5 text-token-text-secondary whitespace-pre-wrap font-mono text-[11px] max-h-60 overflow-y-auto bg-token-bg/50 rounded p-1.5"
+              >
+                {message.meta?.output || (message.status === 'running' ? '(waiting...)' : '(no output)')}
+              </pre>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  },
+)
+
+SubagentBubble.displayName = 'SubagentBubble'
 
 function StatusDot({ status }: { status?: string }) {
   if (status === 'running') return <span className="inline-block w-1.5 h-1.5 rounded-full bg-token-accent animate-pulse" />

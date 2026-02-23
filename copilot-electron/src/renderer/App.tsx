@@ -339,7 +339,8 @@ function MainAppContent({ tabs, setTabs, activeTabId, setActiveTabId }: {
           const nodeId = `subagent-${event.agentId}`
           flow.addEvent('subagent', nodeId, {
             agentId: event.agentId, agentType: event.agentType,
-            description: event.description, status: 'running', textPreview: '',
+            description: event.description, prompt: event.prompt ?? '',
+            status: 'running', textPreview: '',
           }, parent)
           agent.handleEvent(event)
           break

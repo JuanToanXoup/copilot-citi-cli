@@ -52,10 +52,21 @@ export function NodeDetail({ node, onClose }: NodeDetailProps) {
           <>
             <p><strong className="text-gray-300">Description:</strong> {node.data.description as string}</p>
             <p><strong className="text-gray-300">Status:</strong> {node.data.status as string}</p>
+            {node.data.prompt && (
+              <>
+                <p><strong className="text-gray-300">Prompt:</strong></p>
+                <pre className="text-xs bg-gray-800 rounded p-2 whitespace-pre-wrap max-h-40 overflow-y-auto">
+                  {node.data.prompt as string}
+                </pre>
+              </>
+            )}
             {node.data.textPreview && (
-              <pre className="text-xs bg-gray-800 rounded p-2 whitespace-pre-wrap">
-                {node.data.textPreview as string}
-              </pre>
+              <>
+                <p><strong className="text-gray-300">Reply:</strong></p>
+                <pre className="text-xs bg-gray-800 rounded p-2 whitespace-pre-wrap max-h-60 overflow-y-auto">
+                  {node.data.textPreview as string}
+                </pre>
+              </>
             )}
           </>
         )}
