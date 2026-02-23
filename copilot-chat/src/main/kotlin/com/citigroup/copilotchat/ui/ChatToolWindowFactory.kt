@@ -1,5 +1,6 @@
 package com.citigroup.copilotchat.ui
 
+import com.citigroup.copilotchat.workingset.WorkingSetPanel
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
@@ -43,6 +44,13 @@ class ChatToolWindowFactory : ToolWindowFactory, DumbAware {
         agentContent.isCloseable = false
         contentManager.addContent(agentContent)
         Disposer.register(toolWindow.disposable, agentPanel)
+
+        // Changes tab — working set file changes
+        val workingSetPanel = WorkingSetPanel(project)
+        val changesContent = contentFactory.createContent(workingSetPanel, "Changes", false)
+        changesContent.isCloseable = false
+        contentManager.addContent(changesContent)
+        Disposer.register(toolWindow.disposable, workingSetPanel)
 
         // Tools tab — registered tools viewer (re-registers tools on toggle)
         val toolsPanel = ToolsPanel(onToolToggled = { chatPanel.onToolToggled() })

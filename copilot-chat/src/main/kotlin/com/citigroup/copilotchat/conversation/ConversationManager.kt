@@ -8,6 +8,7 @@ import com.citigroup.copilotchat.lsp.*
 import com.citigroup.copilotchat.mcp.ClientMcpManager
 import com.citigroup.copilotchat.rag.RagQueryService
 import com.citigroup.copilotchat.tools.ToolRouter
+import com.citigroup.copilotchat.workingset.WorkingSetService
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
@@ -725,6 +726,7 @@ class ConversationManager(private val project: Project) : Disposable {
         clientMcpManager = null
         initialized = false
         state = ConversationState(model = state.model, agentMode = state.agentMode)
+        WorkingSetService.getInstance(project).clear()
     }
 
     /** List available models from the server. */

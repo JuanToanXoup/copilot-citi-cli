@@ -48,6 +48,9 @@
         <!-- RAG: Query pipeline -->
         <projectService serviceImplementation="com.citigroup.copilotchat.rag.RagQueryService"/>
 
+        <!-- Working Set: tracks agent file changes for accept/revert -->
+        <projectService serviceImplementation="com.citigroup.copilotchat.workingset.WorkingSetService"/>
+
         <!-- Tool Window with content tabs (Chat, Tools, MCP, Workers) -->
         <toolWindow id="Copilot Chat"
                     anchor="right"

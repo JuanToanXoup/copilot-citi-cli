@@ -3,9 +3,12 @@ package com.citigroup.copilotchat.tools
 import com.citigroup.copilotchat.config.CopilotChatSettings
 import com.citigroup.copilotchat.tools.psi.PsiToolBase
 import com.citigroup.copilotchat.tools.psi.PsiTools
+import com.citigroup.copilotchat.workingset.WorkingSetService
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.LocalFileSystem
 import kotlinx.serialization.json.*
+import java.io.File
 
 /**
  * Routes tool calls to PSI tools, ide-index (via reflection), or built-in tools.
@@ -139,7 +142,20 @@ class ToolRouter(private val project: Project) {
 
         // Fall back to built-in tools
         if (name in BuiltInTools.toolNames) {
+            val ws = WorkingSetService.getInstance(project)
+            val paths = extractFilePaths(name, input)
+            paths.forEach { ws.captureBeforeState(name, it) }
             val result = BuiltInTools.execute(name, input, workspaceRoot)
+            paths.forEach { ws.captureAfterState(it) }
+
+            // Refresh VFS so IntelliJ's file tree and editors see the changes
+            if (paths.isNotEmpty()) {
+                val lfs = LocalFileSystem.getInstance()
+                for (p in paths) {
+                    lfs.refreshAndFindFileByPath(p)
+                }
+            }
+
             return wrapResult(result)
         }
 
@@ -192,6 +208,31 @@ class ToolRouter(private val project: Project) {
             return wrapResult(result)
         }
         return wrapResult("Error: Tool execution failed: $name", isError = true)
+    }
+
+    private val FILE_MODIFYING_TOOLS = setOf(
+        "create_file", "insert_edit_into_file", "replace_string_in_file",
+        "multi_replace_string", "apply_patch"
+    )
+
+    private fun extractFilePaths(toolName: String, input: JsonObject): List<String> {
+        if (toolName !in FILE_MODIFYING_TOOLS) return emptyList()
+        return when (toolName) {
+            "multi_replace_string" -> {
+                input["replacements"]?.jsonArray?.mapNotNull {
+                    it.jsonObject["filePath"]?.jsonPrimitive?.contentOrNull
+                } ?: emptyList()
+            }
+            "apply_patch" -> {
+                val patch = input["input"]?.jsonPrimitive?.contentOrNull ?: return emptyList()
+                Regex("""\+\+\+ b/(.+)""").findAll(patch).map {
+                    File(workspaceRoot, it.groupValues[1]).absolutePath
+                }.toList()
+            }
+            else -> {
+                listOfNotNull(input["filePath"]?.jsonPrimitive?.contentOrNull)
+            }
+        }
     }
 
     private fun wrapResult(text: String, isError: Boolean = false): JsonElement {
