@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { ReactFlowProvider, type Node } from '@xyflow/react'
 import { AgentFlow } from './flow/AgentFlow'
 import { ChatPanel } from './components/ChatPanel'
@@ -99,6 +99,9 @@ function MainAppContent({ tabs, setTabs, activeTabId, setActiveTabId }: {
   const [viewMode, setViewMode] = useState<ViewMode>('split')
   const [activePanel, setActivePanel] = useState<SidePanel | null>('explorer')
   const [selectedNode, setSelectedNode] = useState<Node | null>(null)
+  // Flow graph: track current agent message node for delta appending
+  const currentAgentNodeRef = useRef('')
+  const lastBranchParentRef = useRef('')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [changesOpen, setChangesOpen] = useState(false)
@@ -245,30 +248,56 @@ function MainAppContent({ tabs, setTabs, activeTabId, setActiveTabId }: {
 
       switch (event.type) {
         case 'lead:started':
-          flow.onAgentStatus('running')
           agent.handleEvent(event)
           break
-        case 'lead:delta':
-          flow.onAgentDelta(event.text ?? '')
+        case 'lead:delta': {
+          const text = event.text ?? ''
+          if (currentAgentNodeRef.current) {
+            // Append to existing agent message node
+            const nodeId = currentAgentNodeRef.current
+            const existing = flow.nodes.find(n => n.id === nodeId)
+            flow.updateNode(nodeId, { text: ((existing?.data.text as string) || '') + text })
+          } else {
+            // New agent message node
+            const nodeId = `agent-${Date.now()}`
+            const parent = lastBranchParentRef.current || flow.lastNodeId
+            flow.addEvent('agent', nodeId, { status: 'running', text }, parent)
+            currentAgentNodeRef.current = nodeId
+            lastBranchParentRef.current = nodeId
+          }
           agent.handleEvent(event)
           break
+        }
         case 'lead:done':
-          flow.onAgentStatus('done')
+          if (currentAgentNodeRef.current) {
+            flow.updateNode(currentAgentNodeRef.current, { status: 'done' })
+            flow.updateEdge(currentAgentNodeRef.current, { status: 'success' })
+          }
+          currentAgentNodeRef.current = ''
           agent.handleEvent(event)
           break
         case 'lead:error':
-          flow.onAgentStatus('error')
+          if (currentAgentNodeRef.current) {
+            flow.updateNode(currentAgentNodeRef.current, { status: 'error' })
+            flow.updateEdge(currentAgentNodeRef.current, { status: 'error' })
+          }
+          currentAgentNodeRef.current = ''
           agent.handleEvent(event)
           if (event.message?.includes('Authentication') || event.message?.includes('auth')) {
             setAuthDialogOpen(true)
           }
           break
         case 'lead:toolcall': {
+          // Break current agent text — next delta creates a new node
+          currentAgentNodeRef.current = ''
+          const parent = lastBranchParentRef.current || flow.lastNodeId
           if (event.name === 'run_in_terminal') {
-            const nodeId = flow.onTerminalCommand(event.input?.command as string ?? event.name)
+            const nodeId = `terminal-${Date.now()}`
+            flow.addEvent('terminal', nodeId, { command: event.input?.command ?? event.name, status: 'running' }, parent)
             agent.addTerminalMessage(event.input?.command as string ?? event.name, nodeId)
           } else {
-            const nodeId = flow.onLeadToolCall(event.name, event.input)
+            const nodeId = `tool-${event.name}-${Date.now()}`
+            flow.addEvent('tool', nodeId, { name: event.name, status: 'running', input: event.input ?? {} }, parent)
             agent.addToolMessage(event.name, nodeId, event.input)
           }
           break
@@ -279,34 +308,66 @@ function MainAppContent({ tabs, setTabs, activeTabId, setActiveTabId }: {
               (m) => m.type === 'terminal' && m.status === 'running',
             )
             if (termMsg?.nodeId) {
-              flow.onTerminalResult(termMsg.nodeId, event.status, event.output)
+              flow.updateNode(termMsg.nodeId, { status: event.status })
+              flow.updateEdge(termMsg.nodeId, { status: event.status === 'success' ? 'success' : 'error' })
+              const resultId = `termresult-${termMsg.nodeId}`
+              flow.addEvent('terminalResult', resultId, {
+                command: termMsg.meta?.command ?? '', status: event.status, output: event.output ?? '',
+              }, termMsg.nodeId)
               agent.updateTerminalStatus(termMsg.nodeId, event.status)
             }
           } else {
-            // Find the matching tool node ID from agent messages
             const toolMsg = agent.messages.findLast(
               (m) => m.type === 'tool' && m.meta?.toolName === event.name && m.status === 'running',
             )
             const toolNodeId = toolMsg?.nodeId ?? ''
             if (toolNodeId) {
-              flow.onLeadToolResult(toolNodeId, event.status, event.output)
+              flow.updateNode(toolNodeId, { status: event.status })
+              flow.updateEdge(toolNodeId, { status: event.status === 'success' ? 'success' : 'error' })
+              const resultId = `result-${toolNodeId}`
+              flow.addEvent('toolResult', resultId, {
+                name: event.name, status: event.status, output: event.output ?? '',
+              }, toolNodeId)
             }
             agent.updateToolStatus(event.name, event.status, toolNodeId || undefined, event.output)
           }
           break
         }
-        case 'subagent:spawned':
-          flow.onSubagentSpawned(event.agentId, event.agentType, event.description)
+        case 'subagent:spawned': {
+          currentAgentNodeRef.current = '' // break agent text
+          const parent = lastBranchParentRef.current || flow.lastNodeId
+          const nodeId = `subagent-${event.agentId}`
+          flow.addEvent('subagent', nodeId, {
+            agentId: event.agentId, agentType: event.agentType,
+            description: event.description, status: 'running', textPreview: '',
+          }, parent)
           agent.handleEvent(event)
           break
-        case 'subagent:delta':
-          flow.onSubagentDelta(event.agentId, event.text)
+        }
+        case 'subagent:delta': {
+          const nodeId = `subagent-${event.agentId}`
+          const existing = flow.nodes.find(n => n.id === nodeId)
+          if (existing) {
+            flow.updateNode(nodeId, {
+              textPreview: ((existing.data.textPreview as string) || '') + event.text,
+            })
+          }
           agent.handleEvent(event)
           break
-        case 'subagent:completed':
-          flow.onSubagentCompleted(event.agentId, event.status, event.text)
+        }
+        case 'subagent:completed': {
+          const targetId = `subagent-${event.agentId}`
+          flow.updateNode(targetId, { status: event.status })
+          flow.updateEdge(targetId, { status: event.status === 'success' ? 'success' : 'error' })
+          const resultId = `subresult-${event.agentId}`
+          const sub = flow.nodes.find(n => n.id === targetId)
+          flow.addEvent('subagentResult', resultId, {
+            agentId: event.agentId, agentType: (sub?.data.agentType as string) ?? 'agent',
+            status: event.status, text: event.text ?? '',
+          }, targetId)
           agent.handleEvent(event)
           break
+        }
         case 'status':
           agent.handleEvent(event)
           break
@@ -389,7 +450,7 @@ function MainAppContent({ tabs, setTabs, activeTabId, setActiveTabId }: {
 
     if (text.toLowerCase() === 'demo') { startDemo(agentStore, flowStore); return }
 
-    flowStore.getState().onNewTurn(text)
+    flowStore.getState().addEvent('user', `user-${Date.now()}`, { message: text })
     agentStore.getState().addUserMessage(text)
     setSelectedNode(null)
     window.api.agent.sendMessage(text, activeTabId)
@@ -501,20 +562,24 @@ function MainAppContent({ tabs, setTabs, activeTabId, setActiveTabId }: {
           </>
         )}
 
-        {/* Editor area */}
-        <div className="shrink-0 overflow-hidden" style={{ width: `${editor.position}px` }}>
-          <FileEditor
-            openFiles={openFiles}
-            activeFile={activeFile}
-            onSelectFile={setActiveFile}
-            onCloseFile={handleCloseFile}
-          />
-        </div>
-        <div
-          ref={editor.ref}
-          onMouseDown={editor.onMouseDown}
-          className="w-1 shrink-0 bg-gray-800 hover:bg-blue-500 cursor-col-resize transition-colors"
-        />
+        {/* Editor area — only visible when files are open */}
+        {openFiles.length > 0 && (
+          <>
+            <div className="shrink-0 overflow-hidden" style={{ width: `${editor.position}px` }}>
+              <FileEditor
+                openFiles={openFiles}
+                activeFile={activeFile}
+                onSelectFile={setActiveFile}
+                onCloseFile={handleCloseFile}
+              />
+            </div>
+            <div
+              ref={editor.ref}
+              onMouseDown={editor.onMouseDown}
+              className="w-1 shrink-0 bg-gray-800 hover:bg-blue-500 cursor-col-resize transition-colors"
+            />
+          </>
+        )}
 
         {/* Chat + Graph panes with input at bottom */}
         <div className="flex flex-col flex-1 overflow-hidden">
