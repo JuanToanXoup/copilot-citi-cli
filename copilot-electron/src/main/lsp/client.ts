@@ -8,10 +8,17 @@ interface PendingRequest {
   timer: ReturnType<typeof setTimeout>
 }
 
+export type LspConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'failed'
+
+const RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 16000, 30000]
+const MAX_RECONNECT_ATTEMPTS = 5
+const HEALTH_CHECK_INTERVAL = 30_000
+const HEALTH_CHECK_TIMEOUT = 5_000
+
 /**
  * JSON-RPC client for the copilot-language-server process.
  * Manages request/response matching, progress listener routing,
- * and server-to-client request dispatch.
+ * server-to-client request dispatch, and automatic reconnection.
  */
 export class LspClient extends EventEmitter {
   private process: ChildProcess | null = null
@@ -22,6 +29,15 @@ export class LspClient extends EventEmitter {
   private _featureFlags: Record<string, any> = {}
   private serverRequestHandler: ((method: string, id: number, params: any) => void) | null = null
 
+  // Reconnection state
+  private _connectionState: LspConnectionState = 'disconnected'
+  private _shuttingDown = false
+  private _binaryPath: string | null = null
+  private _env: Record<string, string> = {}
+  private _reconnectAttempt = 0
+  private _reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private _healthCheckInterval: ReturnType<typeof setInterval> | null = null
+
   get isRunning(): boolean {
     return this.process !== null && this.process.exitCode === null
   }
@@ -30,8 +46,29 @@ export class LspClient extends EventEmitter {
     return this._featureFlags
   }
 
+  get connectionState(): LspConnectionState {
+    return this._connectionState
+  }
+
+  private setConnectionState(state: LspConnectionState) {
+    if (this._connectionState === state) return
+    this._connectionState = state
+    this.emit('connectionStateChanged', state)
+  }
+
   /** Spawn the LSP process and start reading messages. */
   start(binaryPath: string, env: Record<string, string> = {}) {
+    // Save for reconnection
+    this._binaryPath = binaryPath
+    this._env = env
+    this._shuttingDown = false
+    this._reconnectAttempt = 0
+
+    this.setConnectionState('connecting')
+    this.spawnProcess(binaryPath, env)
+  }
+
+  private spawnProcess(binaryPath: string, env: Record<string, string>) {
     this.process = spawn(binaryPath, ['--stdio'], {
       env: { ...process.env, ...env },
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -46,7 +83,22 @@ export class LspClient extends EventEmitter {
     this.process.on('exit', (code) => {
       this.emit('exit', code)
       this.rejectAllPending(new Error(`LSP process exited with code ${code}`))
+      this.stopHealthCheck()
+
+      // Auto-reconnect on unexpected exit (non-zero, non-user-initiated)
+      if (!this._shuttingDown && code !== 0) {
+        this.scheduleReconnect()
+      } else if (!this._shuttingDown) {
+        this.setConnectionState('disconnected')
+      }
     })
+  }
+
+  /** Called after successful initialization handshake. */
+  markConnected() {
+    this._reconnectAttempt = 0
+    this.setConnectionState('connected')
+    this.startHealthCheck()
   }
 
   /** Send a request and wait for the response. */
@@ -103,13 +155,69 @@ export class LspClient extends EventEmitter {
     this.progressListeners.delete(token)
   }
 
-  /** Shut down the LSP process. */
+  /** Shut down the LSP process. Prevents reconnection. */
   shutdown() {
+    this._shuttingDown = true
+    this.clearReconnectTimer()
+    this.stopHealthCheck()
     this.rejectAllPending(new Error('LSP client shutting down'))
     this.progressListeners.clear()
     this.process?.kill()
     this.process = null
     this.transport = null
+    this.setConnectionState('disconnected')
+  }
+
+  /** Schedule a reconnection attempt with exponential backoff. */
+  private scheduleReconnect() {
+    if (this._reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
+      console.error(`[lsp] Max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached`)
+      this.setConnectionState('failed')
+      return
+    }
+
+    const delay = RECONNECT_DELAYS[Math.min(this._reconnectAttempt, RECONNECT_DELAYS.length - 1)]
+    this._reconnectAttempt++
+    console.warn(`[lsp] Reconnect attempt ${this._reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms`)
+    this.setConnectionState('reconnecting')
+
+    this._reconnectTimer = setTimeout(() => {
+      this._reconnectTimer = null
+      if (this._shuttingDown || !this._binaryPath) return
+
+      // Clean up old process state
+      this.process = null
+      this.transport = null
+
+      this.spawnProcess(this._binaryPath!, this._env)
+      // ConversationManager listens for 'reconnecting' event to re-initialize
+      this.emit('reconnecting')
+    }, delay)
+  }
+
+  private clearReconnectTimer() {
+    if (this._reconnectTimer) {
+      clearTimeout(this._reconnectTimer)
+      this._reconnectTimer = null
+    }
+  }
+
+  /** Start periodic health check pings. */
+  private startHealthCheck() {
+    this.stopHealthCheck()
+    this._healthCheckInterval = setInterval(() => {
+      if (!this.isRunning) return
+      this.sendRequest('checkStatus', {}, HEALTH_CHECK_TIMEOUT).catch((err) => {
+        console.warn('[lsp] Health check failed:', err.message)
+      })
+    }, HEALTH_CHECK_INTERVAL)
+  }
+
+  private stopHealthCheck() {
+    if (this._healthCheckInterval) {
+      clearInterval(this._healthCheckInterval)
+      this._healthCheckInterval = null
+    }
   }
 
   /** Route an incoming message by its JSON-RPC structure. */

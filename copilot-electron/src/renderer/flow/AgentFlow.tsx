@@ -9,7 +9,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
-import { useFlowStore } from '../stores/flow-store'
+import { useTabFlowStore } from '../contexts/TabStoreContext'
 import { UserNode } from './nodes/UserNode'
 import { LeadNode } from './nodes/LeadNode'
 import { SubagentNode } from './nodes/SubagentNode'
@@ -40,7 +40,7 @@ interface AgentFlowProps {
 
 function AutoFitView() {
   const { fitView } = useReactFlow()
-  const nodeCount = useFlowStore((s) => s.nodes.length)
+  const nodeCount = useTabFlowStore((s) => s.nodes.length)
   const prevCount = useRef(nodeCount)
 
   useEffect(() => {
@@ -57,8 +57,8 @@ function AutoFitView() {
 }
 
 export function AgentFlow({ selectedNode, onNodeSelect }: AgentFlowProps) {
-  const nodes = useFlowStore((s) => s.nodes)
-  const edges = useFlowStore((s) => s.edges)
+  const nodes = useTabFlowStore((s) => s.nodes)
+  const edges = useTabFlowStore((s) => s.edges)
 
   const onNodeClick: NodeMouseHandler = useCallback(
     (_event, node) => {

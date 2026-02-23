@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events'
-import { existsSync, readFileSync, writeFileSync, watch, type FSWatcher } from 'fs'
+import { existsSync, readFileSync, watch, type FSWatcher } from 'fs'
+import { atomicWriteSync } from '../utils/fs-utils'
 import { join } from 'path'
 import { StdioTransport } from './stdio-transport'
 import { SseTransport } from './sse-transport'
@@ -345,7 +346,7 @@ export class McpManager extends EventEmitter {
     const dir = join(this.workspaceRoot, '.copilot')
     const { existsSync: exists, mkdirSync } = require('fs')
     if (!exists(dir)) mkdirSync(dir, { recursive: true })
-    writeFileSync(configPath, JSON.stringify(raw, null, 2), 'utf-8')
+    atomicWriteSync(configPath, JSON.stringify(raw, null, 2))
   }
 
   /** Watch .copilot/tools.json for external changes with debounced reload */

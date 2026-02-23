@@ -1,5 +1,5 @@
-import { useFlowStore } from './stores/flow-store'
-import { useAgentStore } from './stores/agent-store'
+import type { AgentStoreApi } from './stores/create-agent-store'
+import type { FlowStoreApi } from './stores/create-flow-store'
 
 /**
  * Runs a multi-turn demo that showcases the turn-based flow graph
@@ -8,9 +8,9 @@ import { useAgentStore } from './stores/agent-store'
  * Turn 1: "Explore auth modules" → Lead → 2 subagents (Explore, Plan)
  * Turn 2: "Now add JWT" → Lead · Turn 2 → 2 subagents (Code, Explore) + tool + terminal
  */
-export function startDemo(): void {
-  const flow = useFlowStore.getState()
-  const chat = useAgentStore.getState()
+export function startDemo(agentStore: AgentStoreApi, flowStore: FlowStoreApi): void {
+  const flow = flowStore.getState()
+  const chat = agentStore.getState()
   flow.onReset()
   chat.reset()
 

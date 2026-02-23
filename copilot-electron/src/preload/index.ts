@@ -38,14 +38,15 @@ import {
   MCP_RECONNECT,
   MCP_LIST_SERVERS,
   WINDOW_SET_TITLE,
+  LSP_CONNECTION_STATE,
 } from '@shared/ipc-channels'
 
 const api = {
   agent: {
-    sendMessage: (text: string, model?: string) =>
-      ipcRenderer.send(AGENT_MESSAGE, { text, model }),
-    cancel: () => ipcRenderer.send(AGENT_CANCEL),
-    newConversation: () => ipcRenderer.send(AGENT_NEW_CONVERSATION),
+    sendMessage: (text: string, tabId: string, model?: string) =>
+      ipcRenderer.send(AGENT_MESSAGE, { text, tabId, model }),
+    cancel: (tabId: string) => ipcRenderer.send(AGENT_CANCEL, { tabId }),
+    newConversation: (tabId: string) => ipcRenderer.send(AGENT_NEW_CONVERSATION, { tabId }),
     onEvent: (cb: (event: AgentEvent) => void) => {
       const listener = (_: unknown, event: AgentEvent) => cb(event)
       ipcRenderer.on(AGENT_EVENT, listener)
@@ -58,6 +59,13 @@ const api = {
       ipcRenderer.on(LSP_STATUS, listener)
       return () => {
         ipcRenderer.removeListener(LSP_STATUS, listener)
+      }
+    },
+    onConnectionState: (cb: (state: string) => void) => {
+      const listener = (_: unknown, state: string) => cb(state)
+      ipcRenderer.on(LSP_CONNECTION_STATE, listener)
+      return () => {
+        ipcRenderer.removeListener(LSP_CONNECTION_STATE, listener)
       }
     },
     onFileChanged: (cb: (data: { filePath: string; action: string }) => void) => {

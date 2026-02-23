@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events'
 import { dialog } from 'electron'
 import { LspClient } from '../lsp/client'
+import type { LspConnectionState } from '../lsp/client'
 import { findCopilotBinary } from '../lsp/binary'
 import { readCopilotAuth } from '../lsp/auth'
 import { ToolRouter } from '../tools/tool-router'
@@ -9,7 +10,8 @@ import { McpManager } from '../mcp/mcp-manager'
 
 /**
  * Manages LSP initialization and server request dispatch.
- * Handles the 10-step initialization sequence and routes tool calls.
+ * Handles the 10-step initialization sequence, routes tool calls,
+ * and supports auto-reconnection with re-initialization.
  */
 export class ConversationManager extends EventEmitter {
   readonly lspClient = new LspClient()
@@ -18,9 +20,31 @@ export class ConversationManager extends EventEmitter {
   private toolRouter = new ToolRouter()
   mcpManager: McpManager | null = null
 
+  // Cached tool schemas for re-registration after reconnect
+  private cachedToolSchemas: Array<{ name: string; description: string; inputSchema: any }> = []
+
   // Set these before calling ensureInitialized()
   workspaceRoot = process.cwd()
   projectName = 'project'
+
+  constructor() {
+    super()
+
+    // Forward connection state changes
+    this.lspClient.on('connectionStateChanged', (state: LspConnectionState) => {
+      this.emit('connectionStateChanged', state)
+    })
+
+    // Handle reconnection: re-run initialization when LSP reconnects
+    this.lspClient.on('reconnecting', () => {
+      this.initialized = false
+      this.initPromise = null
+      // Re-initialize after reconnect
+      this.reinitialize().catch((err) => {
+        console.error('[conversation-manager] Reconnect re-initialization failed:', err.message)
+      })
+    })
+  }
 
   /** Ensure the LSP client is initialized. Idempotent. */
   async ensureInitialized() {
@@ -50,6 +74,36 @@ export class ConversationManager extends EventEmitter {
       this.handleServerRequest(method, id, params)
     })
 
+    // Run the shared initialization handshake
+    await this.runHandshake(auth)
+  }
+
+  /** Re-initialize after a reconnect (skips binary find + process spawn). */
+  private async reinitialize() {
+    this.emit('status', { connected: false, reconnecting: true })
+
+    // Re-read auth (may have been refreshed on disk)
+    const auth = readCopilotAuth()
+    if (!auth) {
+      console.error('[conversation-manager] Auth not found during reinit')
+      return
+    }
+
+    // Re-register server request handler (new process)
+    this.lspClient.onServerRequest((method, id, params) => {
+      this.handleServerRequest(method, id, params)
+    })
+
+    try {
+      await this.runHandshake(auth)
+      console.log('[conversation-manager] Re-initialization after reconnect succeeded')
+    } catch (err: any) {
+      console.error('[conversation-manager] Re-initialization after reconnect failed:', err.message)
+    }
+  }
+
+  /** Run the initialization handshake (steps 5-10). Shared between initial connect and reconnect. */
+  private async runHandshake(auth: { token: string; appId?: string }) {
     // Step 5: Initialize handshake
     const rootUri = `file://${this.workspaceRoot}`
     await this.lspClient.sendRequest('initialize', {
@@ -115,41 +169,44 @@ export class ConversationManager extends EventEmitter {
       await new Promise(r => setTimeout(r, 100))
     }
 
-    // Step 10: Register built-in tools
-    const allToolSchemas = [...BUILT_IN_TOOL_SCHEMAS]
+    // Step 10: Register tools (use cached schemas on reconnect, or build fresh)
+    if (this.cachedToolSchemas.length === 0) {
+      const allToolSchemas = [...BUILT_IN_TOOL_SCHEMAS]
 
-    // Step 10b: Start MCP servers and discover additional tools
-    try {
-      this.mcpManager = new McpManager(this.workspaceRoot)
+      // Step 10b: Start MCP servers and discover additional tools
+      try {
+        this.mcpManager = new McpManager(this.workspaceRoot)
 
-      this.mcpManager.on('serverStatus', (status) => {
-        this.emit('mcpServerStatus', status)
-      })
-
-      this.mcpManager.on('toolsDiscovered', (tools) => {
-        this.emit('mcpToolsDiscovered', tools)
-      })
-
-      await this.mcpManager.initialize()
-
-      // Add MCP tools to the schema list for LSP registration
-      for (const mcpTool of this.mcpManager.getTools()) {
-        allToolSchemas.push({
-          name: mcpTool.name,
-          description: mcpTool.description,
-          inputSchema: mcpTool.inputSchema,
+        this.mcpManager.on('serverStatus', (status) => {
+          this.emit('mcpServerStatus', status)
         })
+
+        this.mcpManager.on('toolsDiscovered', (tools) => {
+          this.emit('mcpToolsDiscovered', tools)
+        })
+
+        await this.mcpManager.initialize()
+
+        for (const mcpTool of this.mcpManager.getTools()) {
+          allToolSchemas.push({
+            name: mcpTool.name,
+            description: mcpTool.description,
+            inputSchema: mcpTool.inputSchema,
+          })
+        }
+      } catch (e: any) {
+        console.error('[mcp] Failed to initialize MCP servers:', e.message)
       }
-    } catch (e: any) {
-      console.error('[mcp] Failed to initialize MCP servers:', e.message)
-      // Non-fatal — continue without MCP tools
+
+      this.cachedToolSchemas = allToolSchemas
     }
 
     await this.lspClient.sendRequest('conversation/registerTools', {
-      tools: allToolSchemas,
+      tools: this.cachedToolSchemas,
     })
 
     this.initialized = true
+    this.lspClient.markConnected()
     this.emit('status', { connected: true, user: statusResp.result?.user })
   }
 
