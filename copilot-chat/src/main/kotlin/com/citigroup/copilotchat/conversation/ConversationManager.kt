@@ -611,8 +611,17 @@ class ConversationManager(private val project: Project) : Disposable {
                     _events.emit(ChatEvent.ToolCall(toolName, toolInput))
                 }
 
-                // Hard-enforce per-agent tool restrictions for subagent conversations
+                // If AgentService is active, redirect agent-specific tools that
+                // slipped past ownsConversation() (race: conversation ID mismatch).
                 val agentSvc = try { AgentService.getInstance(project) } catch (_: Exception) { null }
+                val agentOnlyTools = setOf("delegate_task", "create_team", "send_message", "delete_team")
+                if (agentSvc != null && agentSvc.isActive() && toolName in agentOnlyTools) {
+                    log.info("Re-routing agent tool '$toolName' (conv=$callConvId) to AgentService")
+                    agentSvc.handleToolCall(id, toolName, toolInput, callConvId)
+                    return
+                }
+
+                // Hard-enforce per-agent tool restrictions for subagent conversations
                 if (agentSvc != null && !agentSvc.isToolAllowedForConversation(callConvId, toolName)) {
                     val errorResult = buildJsonArray {
                         addJsonObject {

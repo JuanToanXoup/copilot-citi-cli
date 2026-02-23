@@ -539,6 +539,9 @@ class AgentService(private val project: Project) : Disposable {
         }
     }
 
+    /** Whether the agent service has an active lead conversation. */
+    fun isActive(): Boolean = leadConversationId != null || pendingLeadCreate
+
     /**
      * Check if this service owns the given conversationId.
      * Only the lead conversation is owned — subagent tool calls fall through
