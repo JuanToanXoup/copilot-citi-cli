@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, type ReactElement } from 'react'
 import { useSettingsStore } from '../stores/settings-store'
 import { FolderIcon, FolderOpenIcon, getFileIcon, getFolderColor } from './FileIcons'
 
@@ -6,25 +6,6 @@ interface FileEntry {
   name: string
   path: string
   isDirectory: boolean
-}
-
-declare global {
-  interface Window {
-    api?: {
-      dialog: { openDirectory: () => Promise<string | null> }
-      fs: {
-        readDirectory: (path: string) => Promise<FileEntry[]>
-        readFile: (path: string) => Promise<string | null>
-        writeFile: (path: string, content: string) => Promise<boolean>
-      }
-      agent: any
-      auth: any
-      settings: any
-      conversations: any
-      tools: any
-      git: any
-    }
-  }
 }
 
 interface FileTreeProps {
@@ -154,7 +135,7 @@ function TreeNode({ entry, depth, onFileSelect, gitStatus }: {
   )
 }
 
-function getGitStatusDot(status: string | undefined): JSX.Element | null {
+function getGitStatusDot(status: string | undefined): ReactElement | null {
   if (!status) return null
   if (status === 'M' || status === 'MM' || status === 'AM') {
     return <span className="inline-block w-1.5 h-1.5 rounded-full bg-yellow-400 shrink-0" title="Modified" />

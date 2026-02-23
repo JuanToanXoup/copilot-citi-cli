@@ -4,17 +4,6 @@ interface ProjectPickerProps {
   onSelect: (path: string) => void
 }
 
-// Type for the Electron API exposed via preload
-declare global {
-  interface Window {
-    api?: {
-      dialog: {
-        openDirectory: () => Promise<string | null>
-      }
-    }
-  }
-}
-
 const RECENT_PROJECTS_KEY = 'copilot-recent-projects'
 const MAX_RECENT = 5
 
@@ -55,7 +44,7 @@ export function ProjectPicker({ onSelect }: ProjectPickerProps) {
     // Browser fallback: File System Access API (Chromium)
     if ('showDirectoryPicker' in window) {
       try {
-        const handle = await window.showDirectoryPicker()
+        const handle = await (window as any).showDirectoryPicker()
         addRecentProject(handle.name)
         onSelect(handle.name)
       } catch {

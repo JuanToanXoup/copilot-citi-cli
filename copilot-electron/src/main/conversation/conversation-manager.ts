@@ -23,6 +23,10 @@ export class ConversationManager extends EventEmitter {
   // Cached tool schemas for re-registration after reconnect
   private cachedToolSchemas: Array<{ name: string; description: string; inputSchema: any }> = []
 
+  // Network settings (set from ipc.ts)
+  proxyUrl: string | null = null
+  caCertPath: string | null = null
+
   // Set these before calling ensureInitialized()
   workspaceRoot = process.cwd()
   projectName = 'project'

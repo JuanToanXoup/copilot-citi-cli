@@ -124,6 +124,20 @@ export function FileEditor({ openFiles, activeFile, onSelectFile, onCloseFile }:
     })
   }, [openFiles])
 
+  // Undo/redo history
+  const undoStackRef = useRef<Map<string, string[]>>(new Map())
+  const redoStackRef = useRef<Map<string, string[]>>(new Map())
+
+  const pushUndo = useCallback((filePath: string, content: string) => {
+    const stack = undoStackRef.current.get(filePath) ?? []
+    if (stack[stack.length - 1] !== content) {
+      stack.push(content)
+      if (stack.length > 100) stack.shift()
+      undoStackRef.current.set(filePath, stack)
+    }
+    redoStackRef.current.set(filePath, [])
+  }, [])
+
   const handleInput = useCallback(() => {
     if (!activeFile || !editorRef.current) return
     const newContent = editorRef.current.textContent ?? ''
@@ -154,20 +168,6 @@ export function FileEditor({ openFiles, activeFile, onSelectFile, onCloseFile }:
       })
     }
   }, [activeFile, activeBuffer])
-
-  // Undo/redo history
-  const undoStackRef = useRef<Map<string, string[]>>(new Map())
-  const redoStackRef = useRef<Map<string, string[]>>(new Map())
-
-  const pushUndo = useCallback((filePath: string, content: string) => {
-    const stack = undoStackRef.current.get(filePath) ?? []
-    if (stack[stack.length - 1] !== content) {
-      stack.push(content)
-      if (stack.length > 100) stack.shift()
-      undoStackRef.current.set(filePath, stack)
-    }
-    redoStackRef.current.set(filePath, [])
-  }, [])
 
   const handleUndo = useCallback(() => {
     if (!activeFile) return
