@@ -183,9 +183,42 @@ class AgentPanel(private val project: Project) : JPanel(BorderLayout()), Disposa
                     border = JBUI.Borders.empty(2, 4)
                 }
                 val collapsible = CollapsiblePanel(headerLabel, initiallyExpanded = true)
-                val contentPane = messageRenderer.createMessagePane()
-                val assistantMsg = AssistantMessageComponent(contentPane)
-                collapsible.getContent().add(assistantMsg)
+                val contentPanel = JPanel().apply {
+                    layout = BoxLayout(this, BoxLayout.Y_AXIS)
+                    isOpaque = false
+                }
+
+                // Show prompt if available
+                if (event.prompt.isNotBlank()) {
+                    val promptLabel = JLabel("PROMPT").apply {
+                        foreground = JBColor(0x999999, 0x666666)
+                        font = font.deriveFont(font.size2D - 2f)
+                        border = JBUI.Borders.empty(2, 4, 2, 4)
+                    }
+                    contentPanel.add(promptLabel)
+                    val promptPane = messageRenderer.createMessagePane()
+                    promptPane.text = event.prompt
+                    promptPane.foreground = JBColor(0x333333, 0xCCCCCC)
+                    val promptWrapper = JPanel(BorderLayout()).apply {
+                        isOpaque = true
+                        background = JBColor(0xF6F8FA, 0x1C1C1E)
+                        border = JBUI.Borders.empty(4, 6)
+                        add(promptPane, BorderLayout.CENTER)
+                    }
+                    contentPanel.add(promptWrapper)
+                    contentPanel.add(Box.createVerticalStrut(6))
+                    val replyLabel = JLabel("REPLY").apply {
+                        foreground = JBColor(0x999999, 0x666666)
+                        font = font.deriveFont(font.size2D - 2f)
+                        border = JBUI.Borders.empty(2, 4, 2, 4)
+                    }
+                    contentPanel.add(replyLabel)
+                }
+
+                val replyPane = messageRenderer.createMessagePane()
+                val assistantMsg = AssistantMessageComponent(replyPane)
+                contentPanel.add(assistantMsg)
+                collapsible.getContent().add(contentPanel)
 
                 subagentPanels[event.agentId] = SubagentPanelState(collapsible, assistantMsg, headerLabel)
                 addMessageComponent(collapsible)

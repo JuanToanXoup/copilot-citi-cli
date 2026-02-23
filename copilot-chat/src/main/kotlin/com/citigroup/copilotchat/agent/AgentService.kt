@@ -328,7 +328,7 @@ class AgentService(private val project: Project) : Disposable {
         val effectiveTools = effectiveDef.tools
 
         log.info("AgentService: spawning subagent [$agentId] type=$subagentType model=$resolvedModel (parallel)")
-        _events.tryEmit(AgentEvent.SubagentSpawned(agentId, effectiveDef.agentType, description))
+        _events.tryEmit(AgentEvent.SubagentSpawned(agentId, effectiveDef.agentType, description, prompt))
 
         val session = WorkerSession(
             workerId = agentId,

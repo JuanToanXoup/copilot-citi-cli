@@ -96,7 +96,7 @@ sealed class AgentEvent {
     data class LeadError(val message: String) : AgentEvent()
 
     // Subagent events
-    data class SubagentSpawned(val agentId: String, val agentType: String, val description: String) : AgentEvent()
+    data class SubagentSpawned(val agentId: String, val agentType: String, val description: String, val prompt: String = "") : AgentEvent()
     data class SubagentDelta(val agentId: String, val text: String) : AgentEvent()
     data class SubagentToolCall(val agentId: String, val toolName: String) : AgentEvent()
     data class SubagentCompleted(val agentId: String, val result: String, val status: String) : AgentEvent()
