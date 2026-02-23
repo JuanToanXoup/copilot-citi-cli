@@ -414,7 +414,7 @@ export function FileEditor({ openFiles, activeFile, onSelectFile, onCloseFile }:
               className="flex-1 overflow-auto"
               onScroll={handleScroll}
             >
-              <div className="relative" style={{ minHeight: '100%' }}>
+              <div className="relative" style={{ minHeight: '100%', minWidth: 'max-content' }}>
                 {/* Highlighted code layer */}
                 <pre
                   ref={editorRef}
