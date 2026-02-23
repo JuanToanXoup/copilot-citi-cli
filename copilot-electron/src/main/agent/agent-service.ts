@@ -45,8 +45,6 @@ export class AgentService extends EventEmitter {
   private subagentConversationIds = new Set<string>()
   private toolFilters = new ToolFilterRegistry()
   private toolRouter: ToolRouter | null = null
-  /** Tracks cumulative reply length per round index for lead agent progress. */
-  private leadRoundReplyLengths = new Map<number, number>()
 
   private lspClient: LspClient
 
@@ -70,7 +68,6 @@ export class AgentService extends EventEmitter {
       // Emit lead:started at start of sendMessage
       this.emitEvent({ type: 'lead:started', model: useModel })
 
-      this.leadRoundReplyLengths.clear()
       this.lspClient.registerProgressListener(workDoneToken, (value) => {
         this.handleLeadProgress(value, replyParts)
       })
@@ -129,7 +126,6 @@ export class AgentService extends EventEmitter {
               const resultContext = await this.awaitPendingSubagents()
 
               workDoneToken = `agent-lead-${randomUUID().slice(0, 8)}`
-              this.leadRoundReplyLengths.clear()
               this.lspClient.registerProgressListener(workDoneToken, (value) => {
                 this.handleLeadProgress(value, replyParts)
               })
@@ -480,17 +476,12 @@ export class AgentService extends EventEmitter {
       this.emitEvent({ type: 'lead:delta', text: value.message })
     }
 
-    // Agent rounds — reply text is cumulative, so track what we've already seen
+    // Agent rounds
     if (Array.isArray(value.editAgentRounds)) {
-      for (let idx = 0; idx < value.editAgentRounds.length; idx++) {
-        const round = value.editAgentRounds[idx]
-        const roundReply = round.reply ?? ''
-        const prevLen = this.leadRoundReplyLengths.get(idx) ?? 0
-        if (roundReply.length > prevLen) {
-          const newText = roundReply.slice(prevLen)
-          this.leadRoundReplyLengths.set(idx, roundReply.length)
-          replyParts.push(newText)
-          this.emitEvent({ type: 'lead:delta', text: newText })
+      for (const round of value.editAgentRounds) {
+        if (round.reply) {
+          replyParts.push(round.reply)
+          this.emitEvent({ type: 'lead:delta', text: round.reply })
         }
 
         if (Array.isArray(round.toolCalls)) {
