@@ -163,18 +163,13 @@ class WorkingSetPanel(private val project: Project) : JPanel(BorderLayout()), Di
     private fun runGitCommit(changes: List<FileChange>, message: String): Boolean {
         val workDir = project.basePath ?: return false
         val model = CopilotChatSettings.getInstance().defaultModel.ifBlank { "unknown" }
-        val author = "GitHub Copilot ($model) <noreply@github.com>"
+        val author = "GitHub Copilot ($model) <copilot@copilot.example>"
 
-        // Collect unique tool names used across all changes
-        val tools = changes.map { it.toolName }.distinct().sorted().joinToString(", ")
-
-        // Build commit message with trailers
+        // Build commit message with trailer
         val fullMessage = buildString {
             append(message)
             append("\n\n")
-            append("Generated-by: github-copilot\n")
-            append("Model: $model\n")
-            append("Tools: $tools")
+            append("Generated-by: github-copilot")
         }
 
         // Stage only the Copilot-changed files
