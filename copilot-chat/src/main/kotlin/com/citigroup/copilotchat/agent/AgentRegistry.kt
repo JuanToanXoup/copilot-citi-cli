@@ -53,14 +53,14 @@ object AgentRegistry {
 
     /**
      * Load all agent definitions: built-ins plus custom .md files
-     * from the project's .claude/agents/ directory and ~/.claude/agents/.
+     * from the project's .copilot-chat/agents/ directory and ~/.copilot-chat/agents/.
      */
     fun loadAll(projectBasePath: String?): List<AgentDefinition> {
         val agents = builtInAgents.toMutableList()
 
         // Project-level custom agents
         if (projectBasePath != null) {
-            val projectAgentDir = File(projectBasePath, ".claude/agents")
+            val projectAgentDir = File(projectBasePath, ".copilot-chat/agents")
             if (projectAgentDir.isDirectory) {
                 projectAgentDir.listFiles { f -> f.extension == "md" }?.forEach { file ->
                     try {
@@ -74,7 +74,7 @@ object AgentRegistry {
         }
 
         // User-level custom agents
-        val userAgentDir = File(System.getProperty("user.home"), ".claude/agents")
+        val userAgentDir = File(System.getProperty("user.home"), ".copilot-chat/agents")
         if (userAgentDir.isDirectory) {
             userAgentDir.listFiles { f -> f.extension == "md" }?.forEach { file ->
                 try {
