@@ -2,11 +2,11 @@ import type { AgentStoreApi } from './stores/create-agent-store'
 import type { FlowStoreApi } from './stores/create-flow-store'
 
 /**
- * Runs a multi-turn demo that showcases the turn-based flow graph
+ * Runs a multi-turn demo that showcases the execution trace flow graph
  * and synchronized chat panel.
  *
- * Turn 1: "Explore auth modules" → Lead → 2 subagents (Explore, Plan)
- * Turn 2: "Now add JWT" → Lead · Turn 2 → 2 subagents (Code, Explore) + tool + terminal
+ * Turn 1: "Explore auth modules" → Agent → 2 subagents (Explore, Plan)
+ * Turn 2: "Now add JWT" → Agent → 2 subagents + tool + terminal
  */
 export function startDemo(agentStore: AgentStoreApi, flowStore: FlowStoreApi): void {
   const flow = flowStore.getState()
@@ -19,11 +19,12 @@ export function startDemo(agentStore: AgentStoreApi, flowStore: FlowStoreApi): v
   schedule(t1Start, () => {
     flow.onNewTurn('Explore auth modules')
     chat.addUserMessage('Explore auth modules')
-    flow.onLeadStatus('running')
+    flow.onAgentStatus('running')
     chat.setProcessing(true)
   })
 
   schedule(t1Start + 400, () => {
+    flow.onAgentDelta('Let me explore your auth modules...')
     chat.addAgentDelta('Let me explore your auth modules...')
   })
 
@@ -43,7 +44,7 @@ export function startDemo(agentStore: AgentStoreApi, flowStore: FlowStoreApi): v
   })
 
   schedule(t1Start + 2200, () => {
-    flow.onSubagentCompleted('explore-1', 'success')
+    flow.onSubagentCompleted('explore-1', 'success', 'Found auth.ts, middleware.ts, session.ts')
     chat.updateSubagentStatus('explore-1', 'success')
   })
 
@@ -53,9 +54,10 @@ export function startDemo(agentStore: AgentStoreApi, flowStore: FlowStoreApi): v
   })
 
   schedule(t1Start + 3400, () => {
-    flow.onSubagentCompleted('plan-1', 'success')
+    flow.onSubagentCompleted('plan-1', 'success', 'Plan: 1) Add JWT 2) Token utils 3) Middleware')
     chat.updateSubagentStatus('plan-1', 'success')
-    flow.onLeadStatus('done')
+    flow.onAgentDelta('\n\nI found the auth modules and created an implementation plan.')
+    flow.onAgentStatus('done')
     chat.addAgentDelta('\n\nI found the auth modules and created an implementation plan.')
   })
 
@@ -65,10 +67,11 @@ export function startDemo(agentStore: AgentStoreApi, flowStore: FlowStoreApi): v
   schedule(t2Start, () => {
     flow.onNewTurn('Now add JWT')
     chat.addUserMessage('Now add JWT')
-    flow.onLeadStatus('running')
+    flow.onAgentStatus('running')
   })
 
   schedule(t2Start + 400, () => {
+    flow.onAgentDelta('I\'ll implement JWT authentication...')
     chat.addAgentDelta('I\'ll implement JWT authentication...')
   })
 
@@ -82,13 +85,14 @@ export function startDemo(agentStore: AgentStoreApi, flowStore: FlowStoreApi): v
     chat.addSubagentMessage('explore-2', 'Explore', 'Find existing session handling')
   })
 
+  let toolNodeId = ''
   schedule(t2Start + 1200, () => {
-    flow.onLeadToolCall('read_file')
+    toolNodeId = flow.onLeadToolCall('read_file', { path: 'src/auth.ts' })
     chat.addToolMessage('read_file')
   })
 
   schedule(t2Start + 1800, () => {
-    flow.onLeadToolResult('read_file', 'success')
+    flow.onLeadToolResult(toolNodeId, 'success', 'export function login() { ... }')
     chat.updateToolStatus('read_file', 'success')
   })
 
@@ -97,24 +101,26 @@ export function startDemo(agentStore: AgentStoreApi, flowStore: FlowStoreApi): v
     chat.addSubagentDelta('code-1', 'import jwt from "jsonwebtoken"\n\nexport function signToken(payload)...')
   })
 
+  let termNodeId = ''
   schedule(t2Start + 2200, () => {
-    flow.onTerminalCommand('npm install jsonwebtoken')
+    termNodeId = flow.onTerminalCommand('npm install jsonwebtoken')
     chat.addStatusMessage('Running: npm install jsonwebtoken')
   })
 
   schedule(t2Start + 2600, () => {
-    flow.onSubagentCompleted('explore-2', 'success')
+    flow.onSubagentCompleted('explore-2', 'success', 'Found session.ts with cookie-based auth')
     chat.updateSubagentStatus('explore-2', 'success')
   })
 
   schedule(t2Start + 2800, () => {
-    flow.onTerminalResult('npm install jsonwebtoken', 'success')
+    flow.onTerminalResult(termNodeId, 'success', 'added 1 package in 2.3s')
   })
 
   schedule(t2Start + 3200, () => {
-    flow.onSubagentCompleted('code-1', 'success')
+    flow.onSubagentCompleted('code-1', 'success', 'Created jwt-utils.ts with signToken/verifyToken')
     chat.updateSubagentStatus('code-1', 'success')
-    flow.onLeadStatus('done')
+    flow.onAgentDelta('\n\nJWT authentication has been implemented successfully.')
+    flow.onAgentStatus('done')
     chat.addAgentDelta('\n\nJWT authentication has been implemented successfully.')
     chat.setProcessing(false)
   })

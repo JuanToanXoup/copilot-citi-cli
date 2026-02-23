@@ -11,22 +11,26 @@ import '@xyflow/react/dist/style.css'
 
 import { useTabFlowStore } from '../contexts/TabStoreContext'
 import { UserNode } from './nodes/UserNode'
-import { LeadNode } from './nodes/LeadNode'
+import { AgentNode } from './nodes/AgentNode'
 import { SubagentNode } from './nodes/SubagentNode'
+import { SubagentResultNode } from './nodes/SubagentResultNode'
 import { ToolNode } from './nodes/ToolNode'
+import { ToolResultNode } from './nodes/ToolResultNode'
 import { TerminalNode } from './nodes/TerminalNode'
-import { TurnGroupNode } from './nodes/TurnGroupNode'
+import { TerminalResultNode } from './nodes/TerminalResultNode'
 import { ParticleEdge } from './edges/ParticleEdge'
 import { FlowControls } from './panels/FlowControls'
 import { NodeDetail } from './panels/NodeDetail'
 
 const nodeTypes = {
   user: UserNode,
-  lead: LeadNode,
+  agent: AgentNode,
   subagent: SubagentNode,
+  subagentResult: SubagentResultNode,
   tool: ToolNode,
+  toolResult: ToolResultNode,
   terminal: TerminalNode,
-  turnGroup: TurnGroupNode,
+  terminalResult: TerminalResultNode,
 }
 
 const edgeTypes = {
@@ -62,8 +66,6 @@ export function AgentFlow({ selectedNode, onNodeSelect }: AgentFlowProps) {
 
   const onNodeClick: NodeMouseHandler = useCallback(
     (_event, node) => {
-      // Don't select group nodes
-      if (node.type === 'turnGroup') return
       onNodeSelect(node)
     },
     [onNodeSelect],
@@ -92,11 +94,13 @@ export function AgentFlow({ selectedNode, onNodeSelect }: AgentFlowProps) {
           nodeColor={(n) => {
             switch (n.type) {
               case 'user': return '#6b7280'
-              case 'lead': return '#eab308'
+              case 'agent': return '#10b981'
               case 'subagent': return '#3b82f6'
+              case 'subagentResult': return '#22c55e'
               case 'tool': return '#8b5cf6'
+              case 'toolResult': return '#22c55e'
               case 'terminal': return '#a855f7'
-              case 'turnGroup': return 'rgba(107,114,128,0.1)'
+              case 'terminalResult': return '#22c55e'
               default: return '#6b7280'
             }
           }}

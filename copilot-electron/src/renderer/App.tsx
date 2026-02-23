@@ -245,18 +245,19 @@ function MainAppContent({ tabs, setTabs, activeTabId, setActiveTabId }: {
 
       switch (event.type) {
         case 'lead:started':
-          flow.onLeadStatus('running')
+          flow.onAgentStatus('running')
           agent.handleEvent(event)
           break
         case 'lead:delta':
+          flow.onAgentDelta(event.text ?? '')
           agent.handleEvent(event)
           break
         case 'lead:done':
-          flow.onLeadStatus('done')
+          flow.onAgentStatus('done')
           agent.handleEvent(event)
           break
         case 'lead:error':
-          flow.onLeadStatus('error')
+          flow.onAgentStatus('error')
           agent.handleEvent(event)
           if (event.message?.includes('Authentication') || event.message?.includes('auth')) {
             setAuthDialogOpen(true)
@@ -267,7 +268,7 @@ function MainAppContent({ tabs, setTabs, activeTabId, setActiveTabId }: {
             const nodeId = flow.onTerminalCommand(event.input?.command as string ?? event.name)
             agent.addTerminalMessage(event.input?.command as string ?? event.name, nodeId)
           } else {
-            const nodeId = flow.onLeadToolCall(event.name)
+            const nodeId = flow.onLeadToolCall(event.name, event.input)
             agent.addToolMessage(event.name, nodeId, event.input)
           }
           break
@@ -278,13 +279,19 @@ function MainAppContent({ tabs, setTabs, activeTabId, setActiveTabId }: {
               (m) => m.type === 'terminal' && m.status === 'running',
             )
             if (termMsg?.nodeId) {
-              const cmd = termMsg.meta?.command ?? ''
-              flow.onTerminalResult(cmd, event.status)
+              flow.onTerminalResult(termMsg.nodeId, event.status, event.output)
               agent.updateTerminalStatus(termMsg.nodeId, event.status)
             }
           } else {
-            const nodeId = flow.onLeadToolResult(event.name, event.status)
-            agent.updateToolStatus(event.name, event.status, nodeId, event.output)
+            // Find the matching tool node ID from agent messages
+            const toolMsg = agent.messages.findLast(
+              (m) => m.type === 'tool' && m.meta?.toolName === event.name && m.status === 'running',
+            )
+            const toolNodeId = toolMsg?.nodeId ?? ''
+            if (toolNodeId) {
+              flow.onLeadToolResult(toolNodeId, event.status, event.output)
+            }
+            agent.updateToolStatus(event.name, event.status, toolNodeId || undefined, event.output)
           }
           break
         }
@@ -297,7 +304,7 @@ function MainAppContent({ tabs, setTabs, activeTabId, setActiveTabId }: {
           agent.handleEvent(event)
           break
         case 'subagent:completed':
-          flow.onSubagentCompleted(event.agentId, event.status)
+          flow.onSubagentCompleted(event.agentId, event.status, event.text)
           agent.handleEvent(event)
           break
         case 'status':

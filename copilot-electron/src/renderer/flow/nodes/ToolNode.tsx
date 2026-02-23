@@ -1,7 +1,8 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 
 export function ToolNode({ data }: NodeProps) {
-  const { name, status } = data as { name: string; status: string }
+  const { name, status, input } = data as { name: string; status: string; input?: Record<string, unknown> }
+  const inputPreview = input ? formatInput(input) : ''
 
   const borderColor =
     status === 'running'
@@ -22,7 +23,7 @@ export function ToolNode({ data }: NodeProps) {
           : 'bg-gray-800'
 
   return (
-    <div className={`relative rounded-lg border ${borderColor} ${bgColor} px-3 py-2 shadow-sm`}>
+    <div className={`relative rounded-lg border ${borderColor} ${bgColor} px-3 py-2 shadow-sm w-60`}>
       {status === 'running' && <PulseRing color="rgba(192, 132, 252, 0.4)" />}
       <Handle type="target" position={Position.Top} className="!bg-purple-400" />
       <div className="flex items-center gap-2">
@@ -31,8 +32,19 @@ export function ToolNode({ data }: NodeProps) {
         )}
         <span className="text-xs font-medium text-gray-300">{name}</span>
       </div>
+      {inputPreview && (
+        <p className="text-[10px] text-gray-500 truncate mt-1 font-mono">{inputPreview}</p>
+      )}
+      <Handle type="source" position={Position.Bottom} className="!bg-purple-400" />
     </div>
   )
+}
+
+function formatInput(input: Record<string, unknown>): string {
+  const entries = Object.entries(input)
+  if (entries.length === 0) return ''
+  if (entries.length === 1) return `${entries[0][0]}: ${JSON.stringify(entries[0][1])}`
+  return entries.map(([k]) => k).join(', ')
 }
 
 function PulseRing({ color }: { color: string }) {
