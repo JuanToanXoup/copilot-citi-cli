@@ -96,7 +96,7 @@ class SubagentManager(
         } else emptySet()
 
         log.info("SubagentManager: spawning subagent [$agentId] type=$subagentType model=$resolvedModel worktree=$useWorktree (parallel)")
-        eventBus.tryEmit(AgentEvent.SubagentSpawned(agentId, effectiveDef.agentType, description, prompt))
+        eventBus.tryEmit(SubagentEvent.Spawned(agentId, effectiveDef.agentType, description, prompt))
 
         val session = WorkerSession(
             workerId = agentId,
@@ -113,10 +113,10 @@ class SubagentManager(
         // Non-suspend callback — must use tryEmit
         session.onEvent = { event ->
             when (event) {
-                is WorkerEvent.Delta -> eventBus.tryEmit(AgentEvent.SubagentDelta(agentId, event.text))
-                is WorkerEvent.ToolCall -> eventBus.tryEmit(AgentEvent.SubagentToolCall(agentId, event.toolName))
+                is WorkerEvent.Delta -> eventBus.tryEmit(SubagentEvent.Delta(agentId, event.text))
+                is WorkerEvent.ToolCall -> eventBus.tryEmit(SubagentEvent.ToolCall(agentId, event.toolName))
                 is WorkerEvent.Done -> {} // handled in awaitAll
-                is WorkerEvent.Error -> eventBus.tryEmit(AgentEvent.SubagentCompleted(agentId, event.message, "error"))
+                is WorkerEvent.Error -> eventBus.tryEmit(SubagentEvent.Completed(agentId, event.message, "error"))
             }
         }
 
@@ -186,17 +186,17 @@ class SubagentManager(
                 if (result.isBlank()) {
                     val emptyMsg = "Error: subagent produced no output"
                     results.add(Triple(agentId, pending.agentType, emptyMsg))
-                    eventBus.emit(AgentEvent.SubagentCompleted(agentId, emptyMsg, "error"))
+                    eventBus.emit(SubagentEvent.Completed(agentId, emptyMsg, "error"))
                     log.warn("SubagentManager: subagent $agentId completed with EMPTY result")
                 } else {
                     results.add(Triple(agentId, pending.agentType, result))
-                    eventBus.emit(AgentEvent.SubagentCompleted(agentId, result, "success"))
+                    eventBus.emit(SubagentEvent.Completed(agentId, result, "success"))
                     log.info("SubagentManager: subagent $agentId completed (${result.length} chars)")
                 }
             } catch (e: Exception) {
                 val errorMsg = "Error: ${e.message}"
                 results.add(Triple(agentId, pending.agentType, errorMsg))
-                eventBus.emit(AgentEvent.SubagentCompleted(agentId, e.message ?: "Error", "error"))
+                eventBus.emit(SubagentEvent.Completed(agentId, e.message ?: "Error", "error"))
                 log.warn("SubagentManager: subagent $agentId failed: ${e.message}")
             }
         }
@@ -210,7 +210,7 @@ class SubagentManager(
                     WorktreeManager.generateDiff(worktreeInfo, mainWorkspace)
                 }
                 if (changes.isNotEmpty()) {
-                    eventBus.emit(AgentEvent.WorktreeChangesReady(agentId, changes))
+                    eventBus.emit(SubagentEvent.WorktreeChangesReady(agentId, changes))
                     log.info("SubagentManager: worktree $agentId has ${changes.size} changed file(s) pending review")
                 } else {
                     // No changes — clean up immediately

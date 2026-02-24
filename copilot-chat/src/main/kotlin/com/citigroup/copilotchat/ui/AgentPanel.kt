@@ -2,6 +2,9 @@ package com.citigroup.copilotchat.ui
 
 import com.citigroup.copilotchat.agent.AgentDefinition
 import com.citigroup.copilotchat.agent.AgentEvent
+import com.citigroup.copilotchat.agent.LeadEvent
+import com.citigroup.copilotchat.agent.SubagentEvent
+import com.citigroup.copilotchat.agent.TeamEvent
 import com.citigroup.copilotchat.agent.AgentRegistry
 import com.citigroup.copilotchat.agent.AgentService
 import com.intellij.icons.AllIcons
@@ -166,13 +169,13 @@ class AgentPanel(private val project: Project) : JPanel(BorderLayout()), Disposa
 
     private fun handleEvent(event: AgentEvent) {
         when (event) {
-            is AgentEvent.LeadDelta -> {
+            is LeadEvent.Delta -> {
                 val msg = getOrCreateLeadMessage()
                 msg.appendText(event.text)
                 scrollManager.onContentAdded()
             }
 
-            is AgentEvent.LeadToolCall -> {
+            is LeadEvent.ToolCall -> {
                 // Group consecutive calls to the same tool
                 val existingPanel = lastToolCallPanel
                 if (existingPanel != null && existingPanel.toolName == event.name) {
@@ -188,12 +191,12 @@ class AgentPanel(private val project: Project) : JPanel(BorderLayout()), Disposa
                 scrollManager.onContentAdded()
             }
 
-            is AgentEvent.LeadToolResult -> {
+            is LeadEvent.ToolResult -> {
                 // Tool result ends a tool call group
                 lastToolCallPanel = null
             }
 
-            is AgentEvent.SubagentSpawned -> {
+            is SubagentEvent.Spawned -> {
                 // Break current assistant message
                 currentAssistantMessage = null
                 lastToolCallPanel = null
@@ -248,17 +251,17 @@ class AgentPanel(private val project: Project) : JPanel(BorderLayout()), Disposa
                 scrollManager.onContentAdded()
             }
 
-            is AgentEvent.SubagentDelta -> {
+            is SubagentEvent.Delta -> {
                 val state = subagentPanels[event.agentId] ?: return
                 state.assistantMessage.appendText(event.text)
                 scrollManager.onContentAdded()
             }
 
-            is AgentEvent.SubagentToolCall -> {
+            is SubagentEvent.ToolCall -> {
                 // Could show tool calls within subagent panel if desired
             }
 
-            is AgentEvent.SubagentCompleted -> {
+            is SubagentEvent.Completed -> {
                 val state = subagentPanels[event.agentId]
                 if (state != null) {
                     // If deltas didn't stream any content, set the full result
@@ -281,7 +284,7 @@ class AgentPanel(private val project: Project) : JPanel(BorderLayout()), Disposa
                 scrollManager.onContentAdded()
             }
 
-            is AgentEvent.WorktreeChangesReady -> {
+            is SubagentEvent.WorktreeChangesReady -> {
                 currentAssistantMessage = null
                 lastToolCallPanel = null
                 addItemSpacing()
@@ -294,7 +297,7 @@ class AgentPanel(private val project: Project) : JPanel(BorderLayout()), Disposa
                 scrollManager.onContentAdded()
             }
 
-            is AgentEvent.LeadDone -> {
+            is LeadEvent.Done -> {
                 // Safety net: if we have full text but no assistant message was displayed,
                 // show it now. This handles cases where LeadDelta events were not emitted
                 // (e.g., reply text only arrived in editAgentRounds or final progress event).
@@ -311,7 +314,7 @@ class AgentPanel(private val project: Project) : JPanel(BorderLayout()), Disposa
                 scrollManager.onContentAdded()
             }
 
-            is AgentEvent.LeadError -> {
+            is LeadEvent.Error -> {
                 currentAssistantMessage = null
                 lastToolCallPanel = null
                 inputPanel.isStreaming = false
@@ -320,29 +323,29 @@ class AgentPanel(private val project: Project) : JPanel(BorderLayout()), Disposa
             }
 
             // Team events
-            is AgentEvent.TeamCreated -> {
+            is TeamEvent.Created -> {
                 addItemSpacing()
                 addStatusLine("Team '${event.teamName}' created")
             }
 
-            is AgentEvent.TeammateJoined -> {
+            is TeamEvent.MemberJoined -> {
                 addItemSpacing()
                 addStatusLine("${event.name} (${event.agentType}) joined the team")
             }
 
-            is AgentEvent.TeammateIdle -> {
+            is TeamEvent.MemberIdle -> {
                 addStatusLine("${event.name} is idle")
             }
 
-            is AgentEvent.TeammateResumed -> {
+            is TeamEvent.MemberResumed -> {
                 addStatusLine("${event.name} resumed")
             }
 
-            is AgentEvent.MailboxMessageEvent -> {
+            is TeamEvent.MailboxMessage -> {
                 addStatusLine("${event.from} -> ${event.to}: ${event.summary}")
             }
 
-            is AgentEvent.TeamDisbanded -> {
+            is TeamEvent.Disbanded -> {
                 addItemSpacing()
                 addStatusLine("Team '${event.teamName}' disbanded")
             }

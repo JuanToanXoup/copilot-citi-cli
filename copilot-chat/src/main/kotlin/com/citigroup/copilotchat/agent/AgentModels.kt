@@ -1,6 +1,5 @@
 package com.citigroup.copilotchat.agent
 
-import kotlinx.serialization.json.JsonObject
 
 /** How the agent definition was sourced. */
 enum class AgentSource { BUILT_IN, CUSTOM_PROJECT, CUSTOM_USER }
@@ -106,28 +105,3 @@ data class MailboxMessage(
     var read: Boolean = false,
 )
 
-/** Events emitted by the Agent tab, consumed by AgentPanel UI. */
-sealed class AgentEvent {
-
-    // Lead agent events
-    data class LeadDelta(val text: String) : AgentEvent()
-    data class LeadToolCall(val name: String, val input: JsonObject) : AgentEvent()
-    data class LeadToolResult(val name: String, val output: String) : AgentEvent()
-    data class LeadDone(val fullText: String = "") : AgentEvent()
-    data class LeadError(val message: String) : AgentEvent()
-
-    // Subagent events
-    data class SubagentSpawned(val agentId: String, val agentType: String, val description: String, val prompt: String = "") : AgentEvent()
-    data class SubagentDelta(val agentId: String, val text: String) : AgentEvent()
-    data class SubagentToolCall(val agentId: String, val toolName: String) : AgentEvent()
-    data class SubagentCompleted(val agentId: String, val result: String, val status: String) : AgentEvent()
-    data class WorktreeChangesReady(val agentId: String, val changes: List<WorktreeFileChange>) : AgentEvent()
-
-    // Team events
-    data class TeamCreated(val teamName: String) : AgentEvent()
-    data class TeammateJoined(val name: String, val agentType: String) : AgentEvent()
-    data class TeammateIdle(val name: String) : AgentEvent()
-    data class TeammateResumed(val name: String) : AgentEvent()
-    data class MailboxMessageEvent(val from: String, val to: String, val summary: String) : AgentEvent()
-    data class TeamDisbanded(val teamName: String) : AgentEvent()
-}

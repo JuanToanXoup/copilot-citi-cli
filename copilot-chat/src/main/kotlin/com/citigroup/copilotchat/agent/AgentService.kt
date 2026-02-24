@@ -196,7 +196,7 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
                 currentWorkDoneToken = null
                 isStreaming = false
                 val fullReply = synchronized(replyParts) { replyParts.joinToString("") }
-                _events.emit(AgentEvent.LeadDone(fullReply))
+                _events.emit(LeadEvent.Done(fullReply))
 
             } catch (e: CancellationException) {
                 isStreaming = false
@@ -204,7 +204,7 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
             } catch (e: Exception) {
                 log.error("Error in AgentService.sendMessage", e)
                 isStreaming = false
-                _events.emit(AgentEvent.LeadError(e.message ?: "Unknown error"))
+                _events.emit(LeadEvent.Error(e.message ?: "Unknown error"))
             }
         }
     }
@@ -359,19 +359,19 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
         val reply = value["reply"]?.jsonPrimitive?.contentOrNull
         if (reply != null) {
             replyParts.add(reply)
-            _events.tryEmit(AgentEvent.LeadDelta(reply))
+            _events.tryEmit(LeadEvent.Delta(reply))
         }
 
         val delta = value["delta"]?.jsonPrimitive?.contentOrNull
         if (delta != null) {
             replyParts.add(delta)
-            _events.tryEmit(AgentEvent.LeadDelta(delta))
+            _events.tryEmit(LeadEvent.Delta(delta))
         }
 
         val message = value["message"]?.jsonPrimitive?.contentOrNull
         if (message != null && kind != "begin") {
             replyParts.add(message)
-            _events.tryEmit(AgentEvent.LeadDelta(message))
+            _events.tryEmit(LeadEvent.Delta(message))
         }
 
         // Agent rounds
@@ -381,7 +381,7 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
             val roundReply = round["reply"]?.jsonPrimitive?.contentOrNull ?: ""
             if (roundReply.isNotEmpty()) {
                 replyParts.add(roundReply)
-                _events.tryEmit(AgentEvent.LeadDelta(roundReply))
+                _events.tryEmit(LeadEvent.Delta(roundReply))
             }
 
             val toolCalls = round["toolCalls"]?.jsonArray
@@ -398,13 +398,13 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
                     tcInput["command"]?.jsonPrimitive?.contentOrNull?.trimStart()?.startsWith("delegate ") == true)
 
                 if (!isDelegation) {
-                    _events.tryEmit(AgentEvent.LeadToolCall(name, tcInput))
+                    _events.tryEmit(LeadEvent.ToolCall(name, tcInput))
                     if (status == "completed" || status == "error") {
                         val resultData = tc["result"]?.jsonArray
                         val resultText = resultData?.firstOrNull()?.jsonObject
                             ?.get("content")?.jsonPrimitive?.contentOrNull
                             ?: status
-                        _events.tryEmit(AgentEvent.LeadToolResult(name, resultText.take(200)))
+                        _events.tryEmit(LeadEvent.ToolResult(name, resultText.take(200)))
                     }
                 }
             }
@@ -463,7 +463,7 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
 
         isStreaming = false
 
-        scope.launch { _events.emit(AgentEvent.LeadDone()) }
+        scope.launch { _events.emit(LeadEvent.Done()) }
     }
 
     /** Start a fresh conversation. */
