@@ -229,12 +229,6 @@ class AgentPanel(private val project: Project) : JPanel(BorderLayout()), Disposa
 
                 // Show prompt if available
                 if (event.prompt.isNotBlank()) {
-                    val promptLabel = JLabel("PROMPT").apply {
-                        foreground = JBColor(0x999999, 0x666666)
-                        font = font.deriveFont(font.size2D - 2f)
-                        border = JBUI.Borders.empty(2, 4, 2, 4)
-                    }
-                    contentPanel.add(promptLabel)
                     val promptPane = messageRenderer.createMessagePane()
                     promptPane.text = event.prompt
                     promptPane.foreground = JBColor(0x333333, 0xCCCCCC)
@@ -246,12 +240,6 @@ class AgentPanel(private val project: Project) : JPanel(BorderLayout()), Disposa
                     }
                     contentPanel.add(promptWrapper)
                     contentPanel.add(Box.createVerticalStrut(6))
-                    val replyLabel = JLabel("REPLY").apply {
-                        foreground = JBColor(0x999999, 0x666666)
-                        font = font.deriveFont(font.size2D - 2f)
-                        border = JBUI.Borders.empty(2, 4, 2, 4)
-                    }
-                    contentPanel.add(replyLabel)
                 }
 
                 val replyPane = messageRenderer.createMessagePane()
