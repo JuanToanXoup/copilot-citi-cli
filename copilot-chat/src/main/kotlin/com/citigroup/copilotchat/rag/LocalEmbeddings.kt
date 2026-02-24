@@ -11,8 +11,7 @@ import kotlin.math.sqrt
 /**
  * Local embedding model using ONNX Runtime with bge-small-en-v1.5 (INT8 quantized).
  *
- * Drop-in replacement for [CopilotEmbeddings]. Runs entirely on-device — no network calls needed.
- *
+ * Runs entirely on-device — no network calls needed.
  * Model (~32MB) is downloaded on first use to `~/.copilot-chat/models/`.
  * [OrtSession] is created once and reused (thread-safe for concurrent `run()` calls).
  */
