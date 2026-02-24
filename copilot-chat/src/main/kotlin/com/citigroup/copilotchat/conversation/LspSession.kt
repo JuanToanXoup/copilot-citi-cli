@@ -302,7 +302,12 @@ class LspSession(
         schemas.addAll(mcpSchemas)
 
         // Suppress browser_record when Playwright MCP tools are available
-        val hasMcpBrowserTools = clientMcpManager?.hasBrowserTools() == true
+        val hasMcpBrowserTools = mcpSchemas.any { schema ->
+            val name = try {
+                json.parseToJsonElement(schema).jsonObject["name"]?.jsonPrimitive?.contentOrNull
+            } catch (_: Exception) { null }
+            name != null && (name.startsWith("browser_") || name.contains("playwright"))
+        }
         if (hasMcpBrowserTools) {
             schemas.removeAll { schema ->
                 try {
