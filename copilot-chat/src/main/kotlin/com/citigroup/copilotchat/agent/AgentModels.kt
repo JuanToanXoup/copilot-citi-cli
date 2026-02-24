@@ -7,7 +7,7 @@ enum class AgentSource { BUILT_IN, CUSTOM_PROJECT, CUSTOM_USER }
 
 /** Model selection for an agent. */
 enum class AgentModel {
-    INHERIT,          // resolved by caller: lead → claude-sonnet-4, subagent → gpt-4.1
+    INHERIT,          // resolved by caller: lead → gpt-4.1, subagent → gpt-4.1
     GPT_4_1,          // "gpt-4.1" (free tier)
     CLAUDE_SONNET_4;  // "claude-sonnet-4" (premium tier)
 
@@ -15,8 +15,8 @@ enum class AgentModel {
      * Resolve to an actual model ID string accepted by the Copilot language server.
      * Falls back to [parentModel] if INHERIT.
      *
-     * Lead callers pass "claude-sonnet-4" so INHERIT resolves to premium.
-     * Subagent callers pass "gpt-4.1" so INHERIT resolves to free tier.
+     * Lead callers pass "gpt-4.1" so INHERIT resolves to gpt-4.1.
+     * Subagent callers pass "gpt-4.1" so INHERIT resolves to gpt-4.1.
      *
      * These IDs must match the server's model catalog (e.g. from copilot/models).
      * Invalid IDs cause the server to create the conversation but produce no output.

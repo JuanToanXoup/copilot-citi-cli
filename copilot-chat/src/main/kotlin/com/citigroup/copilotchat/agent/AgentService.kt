@@ -97,8 +97,8 @@ class AgentService(private val project: Project) : Disposable {
 
                 isStreaming = true
                 val useModel = model
-                    ?: leadAgent?.model?.resolveModelId("claude-sonnet-4")
-                    ?: "claude-sonnet-4"
+                    ?: leadAgent?.model?.resolveModelId("gpt-4.1")
+                    ?: "gpt-4.1"
                 var workDoneToken = "agent-lead-${UUID.randomUUID().toString().take(8)}"
                 currentWorkDoneToken = workDoneToken
                 val replyParts = Collections.synchronizedList(mutableListOf<String>())

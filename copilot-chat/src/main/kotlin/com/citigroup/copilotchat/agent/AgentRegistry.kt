@@ -4,67 +4,24 @@ import com.intellij.openapi.diagnostic.Logger
 import java.io.File
 
 /**
- * Registry of agent definitions (built-in + custom from .md files).
- * Provides agent loading and lookup.
+ * Registry of agent definitions loaded from `.agent.md` files.
+ * Built-in agents are bundled as classpath resources under `/agents/`.
+ * Custom agents are loaded from project and user directories.
  */
 object AgentRegistry {
 
     private val log = Logger.getInstance(AgentRegistry::class.java)
 
-    /** Built-in worker agents matching Claude Code's architecture. */
-    private val builtInWorkers = listOf(
-        AgentDefinition(
-            agentType = "Explore",
-            whenToUse = "Fast agent for exploring codebases. Use for file searches, keyword searches, and codebase questions. Specify thoroughness: quick, medium, or very thorough.",
-            tools = listOf("ide", "read_file", "list_dir", "grep_search", "file_search"),
-            disallowedTools = listOf("delegate_task", "create_team", "send_message", "delete_team"),
-            model = AgentModel.GPT_4_1,
-            systemPromptTemplate = "You are an Explore agent specialized for fast codebase exploration. Search for files, read code, and answer questions about the codebase. Do NOT modify any files.",
-            maxTurns = 15,
-        ),
-        AgentDefinition(
-            agentType = "Plan",
-            whenToUse = "Software architect agent for designing implementation plans. Use for planning strategy, identifying critical files, and considering architectural trade-offs.",
-            tools = listOf("ide", "read_file", "list_dir", "grep_search", "file_search"),
-            disallowedTools = listOf("delegate_task", "create_team", "send_message", "delete_team"),
-            model = AgentModel.INHERIT,
-            systemPromptTemplate = "You are a Plan agent specialized for designing implementation approaches. Explore the codebase, identify patterns, and return a step-by-step plan. Do NOT modify any files.",
-            maxTurns = 20,
-        ),
-        AgentDefinition(
-            agentType = "Bash",
-            whenToUse = "Command execution specialist for running bash commands. Use for git operations, builds, tests, and terminal tasks.",
-            tools = listOf("run_in_terminal"),
-            disallowedTools = listOf("delegate_task", "create_team", "send_message", "delete_team"),
-            model = AgentModel.INHERIT,
-            systemPromptTemplate = "You are a Bash agent specialized for command execution. Run bash commands to accomplish the requested task. Only use the run_in_terminal tool.",
-            maxTurns = 15,
-        ),
-        AgentDefinition(
-            agentType = "general-purpose",
-            whenToUse = "General-purpose agent for complex multi-step tasks. Has access to all tools. Use when no specialized agent fits.",
-            tools = null, // all tools
-            disallowedTools = listOf("delegate_task", "create_team", "send_message", "delete_team"),
-            model = AgentModel.INHERIT,
-            systemPromptTemplate = "You are a general-purpose agent. Complete the requested task using any tools available to you.",
-            maxTurns = 30,
-        ),
+    /** Names of built-in agent resource files (without path prefix). */
+    private val BUILT_IN_RESOURCES = listOf(
+        "explore.agent.md",
+        "plan.agent.md",
+        "bash.agent.md",
+        "general-purpose.agent.md",
+        "default-lead.agent.md",
     )
 
-    /** Built-in default-lead: virtual supervisor preserving current hardcoded behavior. */
-    private val defaultLead = AgentDefinition(
-        agentType = "default-lead",
-        whenToUse = "Default lead agent that coordinates all available subagents.",
-        tools = null,
-        model = AgentModel.CLAUDE_SONNET_4,
-        systemPromptTemplate = DEFAULT_LEAD_TEMPLATE,
-        maxTurns = 30,
-        subagents = emptyList(), // empty = all subagents
-    )
-
-    private val builtInAgents = builtInWorkers + defaultLead
-
-    /** Default system prompt template for the built-in lead agent. */
+    /** Default system prompt template for the built-in lead agent (used as fallback by AgentService). */
     const val DEFAULT_LEAD_TEMPLATE = """You are a lead agent that coordinates sub-agents via the delegate_task tool.
 
 CRITICAL: The delegate_task tool IS available to you. You MUST use it.
@@ -92,11 +49,11 @@ Workflow:
 Complete the full task without stopping for confirmation."""
 
     /**
-     * Load all agent definitions: built-ins plus custom .md files
-     * from the project's .copilot-chat/agents/ directory and ~/.copilot-chat/agents/.
+     * Load all agent definitions: built-ins from classpath resources,
+     * plus custom `.agent.md` files from project and user directories.
      */
     fun loadAll(projectBasePath: String?): List<AgentDefinition> {
-        val agents = builtInAgents.toMutableList()
+        val agents = loadBuiltIn().toMutableList()
 
         // Project-level custom agents
         if (projectBasePath != null) {
@@ -126,7 +83,30 @@ Complete the full task without stopping for confirmation."""
             }
         }
 
-        log.info("Loaded ${agents.size} agents (${builtInAgents.size} built-in, ${agents.size - builtInAgents.size} custom)")
+        val builtInCount = agents.count { it.source == AgentSource.BUILT_IN }
+        log.info("Loaded ${agents.size} agents ($builtInCount built-in, ${agents.size - builtInCount} custom)")
+        return agents
+    }
+
+    /** Load built-in agents from classpath resources under /agents/. */
+    private fun loadBuiltIn(): List<AgentDefinition> {
+        val agents = mutableListOf<AgentDefinition>()
+        for (resourceName in BUILT_IN_RESOURCES) {
+            try {
+                val content = AgentRegistry::class.java.getResourceAsStream("/agents/$resourceName")
+                    ?.bufferedReader()?.readText()
+                if (content == null) {
+                    log.warn("Built-in agent resource not found: /agents/$resourceName")
+                    continue
+                }
+                val name = if (resourceName.endsWith(".agent.md"))
+                    resourceName.removeSuffix(".agent.md") else resourceName.removeSuffix(".md")
+                val agent = parseAgentContent(content, name, AgentSource.BUILT_IN)
+                if (agent != null) agents.add(agent)
+            } catch (e: Exception) {
+                log.warn("Failed to parse built-in agent $resourceName: ${e.message}")
+            }
+        }
         return agents
     }
 
@@ -143,6 +123,16 @@ Complete the full task without stopping for confirmation."""
 
     /**
      * Parse an `.agent.md` (or `.md`) agent file with optional YAML frontmatter.
+     * Delegates to [parseAgentContent] after reading the file.
+     */
+    internal fun parseAgentFile(file: File, source: AgentSource): AgentDefinition? {
+        val content = file.readText()
+        val name = agentNameFromFile(file)
+        return parseAgentContent(content, name, source, filePath = file.absolutePath)
+    }
+
+    /**
+     * Parse agent definition from raw `.agent.md` content string.
      *
      * Supported frontmatter fields (Copilot .agent.md spec):
      * ```yaml
@@ -165,8 +155,12 @@ Complete the full task without stopping for confirmation."""
      * System prompt body here...
      * ```
      */
-    internal fun parseAgentFile(file: File, source: AgentSource): AgentDefinition? {
-        val content = file.readText()
+    internal fun parseAgentContent(
+        content: String,
+        defaultName: String,
+        source: AgentSource,
+        filePath: String? = null,
+    ): AgentDefinition? {
         val frontmatterRegex = Regex("^---\\n(.*?)\\n---\\n", RegexOption.DOT_MATCHES_ALL)
         val match = frontmatterRegex.find(content)
 
@@ -177,7 +171,7 @@ Complete the full task without stopping for confirmation."""
 
         // Truncate overly long prompts
         if (body.length > MAX_PROMPT_CHARS) {
-            log.warn("Agent file ${file.name}: prompt truncated from ${body.length} to $MAX_PROMPT_CHARS chars")
+            log.warn("Agent '$defaultName': prompt truncated from ${body.length} to $MAX_PROMPT_CHARS chars")
             body = body.take(MAX_PROMPT_CHARS)
         }
 
@@ -209,7 +203,7 @@ Complete the full task without stopping for confirmation."""
             }
         }
 
-        val name = props["name"] ?: agentNameFromFile(file)
+        val name = props["name"] ?: defaultName
         val description = props["description"] ?: "Custom agent: $name"
         val toolsRaw = props["tools"]
         val tools = if (toolsRaw != null) {
@@ -250,7 +244,7 @@ Complete the full task without stopping for confirmation."""
             handoffs = handoffs,
             mcpServers = mcpServers,
             metadata = metadata,
-            filePath = file.absolutePath,
+            filePath = filePath,
             subagents = subagents,
             target = target,
         )
@@ -266,7 +260,7 @@ Complete the full task without stopping for confirmation."""
         }
     }
 
-    /** Parse indented YAML lines into a simple String→String map. */
+    /** Parse indented YAML lines into a simple String->String map. */
     private fun parseSimpleMap(lines: List<String>?): Map<String, String> {
         if (lines.isNullOrEmpty()) return emptyMap()
         val map = mutableMapOf<String, String>()
