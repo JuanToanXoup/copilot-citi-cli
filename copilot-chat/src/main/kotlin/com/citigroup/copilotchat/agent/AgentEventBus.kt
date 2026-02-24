@@ -7,6 +7,19 @@ import kotlinx.coroutines.flow.SharedFlow
  *
  * [TeamService] and other components that need to emit [AgentEvent]s
  * depend on this interface instead of reaching into AgentService._events.
+ *
+ * ## emit() vs tryEmit() usage rules
+ *
+ * **Use [emit]** (suspending) when in a coroutine context where suspension is safe:
+ * - Top-level service error handlers (e.g. `AgentService.sendMessage` catch block)
+ * - Final result emission (e.g. `SubagentManager.awaitAll`)
+ * - Team event emission via `scope.launch { emit(...) }`
+ *
+ * **Use [tryEmit]** (non-blocking, drops if buffer full) when suspension would
+ * cause deadlocks or block shared thread pools:
+ * - LSP progress callbacks on `Dispatchers.Default` (e.g. `handleLeadProgress`)
+ * - High-frequency streaming deltas
+ * - `WorkerSession.onEvent` callbacks (non-suspend lambda)
  */
 interface AgentEventBus {
     val events: SharedFlow<AgentEvent>

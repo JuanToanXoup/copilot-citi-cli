@@ -127,7 +127,9 @@ object WorktreeManager {
             File(worktreeInfo.worktreePath).deleteRecursively()
             try {
                 runGit(projectBasePath, "worktree", "prune")
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                log.warn("git worktree prune failed (best-effort): ${e.message}")
+            }
         }
 
         try {
@@ -154,18 +156,22 @@ object WorktreeManager {
         for (dir in dirs) {
             try {
                 runGit(projectBasePath, "worktree", "remove", "--force", dir.absolutePath)
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                log.warn("Failed to remove stale worktree ${dir.name}, deleting manually: ${e.message}")
                 dir.deleteRecursively()
             }
-            // Try to remove the branch too
             try {
                 runGit(projectBasePath, "branch", "-D", "copilot-worktree-${dir.name}")
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                log.warn("Failed to delete stale branch copilot-worktree-${dir.name}: ${e.message}")
+            }
         }
 
         try {
             runGit(projectBasePath, "worktree", "prune")
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            log.warn("git worktree prune failed (best-effort): ${e.message}")
+        }
     }
 
     private fun runGit(workDir: String, vararg args: String): String {

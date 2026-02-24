@@ -187,7 +187,7 @@ class SubagentManager(
                     val emptyMsg = "Error: subagent produced no output"
                     results.add(Triple(agentId, pending.agentType, emptyMsg))
                     eventBus.emit(SubagentEvent.Completed(agentId, emptyMsg, "error"))
-                    log.warn("SubagentManager: subagent $agentId completed with EMPTY result")
+                    log.error("SubagentManager: subagent $agentId completed with EMPTY result")
                 } else {
                     results.add(Triple(agentId, pending.agentType, result))
                     eventBus.emit(SubagentEvent.Completed(agentId, result, "success"))
@@ -197,7 +197,7 @@ class SubagentManager(
                 val errorMsg = "Error: ${e.message}"
                 results.add(Triple(agentId, pending.agentType, errorMsg))
                 eventBus.emit(SubagentEvent.Completed(agentId, e.message ?: "Error", "error"))
-                log.warn("SubagentManager: subagent $agentId failed: ${e.message}")
+                log.error("SubagentManager: subagent $agentId failed: ${e.message}", e)
             }
         }
         pendingSubagents.clear()

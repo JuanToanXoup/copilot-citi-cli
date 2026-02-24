@@ -217,7 +217,7 @@ class TeamService(private val project: Project) : Disposable {
                 currentPrompt = newPrompt ?: break
 
             } catch (e: CancellationException) {
-                break
+                throw e
             } catch (e: Exception) {
                 log.error("TeamService: teammate '$name' error", e)
                 withContext(Dispatchers.IO) {
