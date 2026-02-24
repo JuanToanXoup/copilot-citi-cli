@@ -14,19 +14,19 @@ import java.util.concurrent.atomic.AtomicInteger
  * This is different from LSP which uses Content-Length headers.
  */
 class McpServer(
-    val name: String,
+    override val name: String,
     private val command: String,
     private val args: List<String> = emptyList(),
     private val env: Map<String, String> = emptyMap(),
     private val initTimeout: Long = 60_000,
-) {
+) : McpTransport {
     private val log = Logger.getInstance(McpServer::class.java)
     private val json = Json { ignoreUnknownKeys = true }
     private val requestId = AtomicInteger(0)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private var process: Process? = null
-    var tools: List<JsonObject> = emptyList()
+    override var tools: List<JsonObject> = emptyList()
         private set
 
     /** Pending request completions keyed by message id. */
@@ -35,7 +35,7 @@ class McpServer(
     /**
      * Spawn the MCP server process and start the reader coroutine.
      */
-    suspend fun start() {
+    override suspend fun start() {
         val processEnv = System.getenv().toMutableMap()
         processEnv.putAll(env)
 
@@ -121,7 +121,7 @@ class McpServer(
     /**
      * Perform MCP initialize handshake.
      */
-    suspend fun initialize() {
+    override suspend fun initialize() {
         val resp = sendRequest("initialize", buildJsonObject {
             put("protocolVersion", "2024-11-05")
             putJsonObject("capabilities") {}
@@ -142,7 +142,7 @@ class McpServer(
     /**
      * Discover tools via MCP tools/list.
      */
-    suspend fun listTools(): List<JsonObject> {
+    override suspend fun listTools(): List<JsonObject> {
         val resp = sendRequest("tools/list", buildJsonObject {})
         tools = resp["result"]?.jsonObject
             ?.get("tools")?.jsonArray
@@ -154,7 +154,7 @@ class McpServer(
     /**
      * Call an MCP tool and return the text result.
      */
-    suspend fun callTool(toolName: String, arguments: JsonObject): String {
+    override suspend fun callTool(toolName: String, arguments: JsonObject): String {
         val resp = sendRequest("tools/call", buildJsonObject {
             put("name", toolName)
             put("arguments", arguments)
@@ -176,7 +176,7 @@ class McpServer(
     /**
      * Stop the MCP server process gracefully.
      */
-    fun stop() {
+    override fun stop() {
         scope.coroutineContext.cancelChildren()
         process?.let {
             try {

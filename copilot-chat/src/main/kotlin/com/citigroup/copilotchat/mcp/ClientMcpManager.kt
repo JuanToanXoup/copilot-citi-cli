@@ -22,8 +22,7 @@ class ClientMcpManager(
     private val json = Json { ignoreUnknownKeys = true }
 
     /** Active MCP servers keyed by name. */
-    private val stdioServers = mutableMapOf<String, McpServer>()
-    private val sseServers = mutableMapOf<String, McpSseServer>()
+    private val servers = mutableMapOf<String, McpTransport>()
 
     /** Maps server name -> list of original tool schemas (for compound routing). */
     private val serverToolIndex = mutableMapOf<String, Map<String, JsonObject>>()
@@ -108,7 +107,7 @@ class ClientMcpManager(
 
             if (entry.url.isNotBlank()) {
                 // SSE transport
-                sseServers[entry.name] = McpSseServer(
+                servers[entry.name] = McpSseServer(
                     name = entry.name,
                     url = entry.url,
                     env = envMap,
@@ -120,7 +119,7 @@ class ClientMcpManager(
                 } else {
                     emptyList()
                 }
-                stdioServers[entry.name] = McpServer(
+                servers[entry.name] = McpServer(
                     name = entry.name,
                     command = entry.command,
                     args = args,
@@ -142,8 +141,7 @@ class ClientMcpManager(
     suspend fun startAll(onProgress: ((String) -> Unit)? = null) {
         val errors = mutableListOf<String>()
 
-        // Start stdio servers
-        for ((name, server) in stdioServers) {
+        for ((name, server) in servers) {
             try {
                 onProgress?.invoke("Starting MCP: $name...")
                 server.start()
@@ -159,35 +157,12 @@ class ClientMcpManager(
             }
         }
 
-        // Start SSE servers
-        for ((name, server) in sseServers) {
-            try {
-                onProgress?.invoke("Starting MCP SSE: $name...")
-                server.start()
-                server.initialize()
-                server.listTools()
-                log.info("MCP SSE $name: ${server.tools.size} tools discovered")
-            } catch (e: Exception) {
-                val msg = "MCP SSE $name: ${e.message}"
-                log.warn(msg, e)
-                errors.add(msg)
-            }
-        }
-
         startupErrors = errors
 
         // Build server tool index (for compound tool routing)
         serverToolIndex.clear()
         compoundToolNames.clear()
-        for ((name, server) in stdioServers) {
-            if (server.tools.isNotEmpty()) {
-                serverToolIndex[name] = server.tools.associateBy {
-                    it["name"]?.jsonPrimitive?.contentOrNull ?: ""
-                }
-                compoundToolNames.add(name)
-            }
-        }
-        for ((name, server) in sseServers) {
+        for ((name, server) in servers) {
             if (server.tools.isNotEmpty()) {
                 serverToolIndex[name] = server.tools.associateBy {
                     it["name"]?.jsonPrimitive?.contentOrNull ?: ""
@@ -206,13 +181,7 @@ class ClientMcpManager(
     fun getToolSchemas(isEnabled: ((String) -> Boolean)? = null): List<String> {
         val schemas = mutableListOf<String>()
 
-        for ((name, server) in stdioServers) {
-            val tools = filterTools(server.tools, isEnabled)
-            if (tools.isNotEmpty()) {
-                schemas.add(buildCompoundSchema(name, tools))
-            }
-        }
-        for ((name, server) in sseServers) {
+        for ((name, server) in servers) {
             val tools = filterTools(server.tools, isEnabled)
             if (tools.isNotEmpty()) {
                 schemas.add(buildCompoundSchema(name, tools))
@@ -253,40 +222,24 @@ class ClientMcpManager(
         // Strip "action" from the input, pass the rest to the underlying tool
         val toolInput = JsonObject(input.filterKeys { it != "action" })
 
-        // Try stdio servers first, then SSE
-        val stdioServer = stdioServers[name]
-        if (stdioServer != null) {
-            return try {
-                stdioServer.callTool(action, toolInput)
-            } catch (e: Exception) {
-                "MCP '$name' action '$action' error: ${e.message}"
-            }
-        }
+        val server = servers[name]
+            ?: return "MCP server '$name' not found"
 
-        val sseServer = sseServers[name]
-        if (sseServer != null) {
-            return try {
-                sseServer.callTool(action, toolInput)
-            } catch (e: Exception) {
-                "MCP '$name' action '$action' error: ${e.message}"
-            }
+        return try {
+            server.callTool(action, toolInput)
+        } catch (e: Exception) {
+            "MCP '$name' action '$action' error: ${e.message}"
         }
-
-        return "MCP server '$name' not found"
     }
 
     /**
      * Stop all MCP servers.
      */
     fun stopAll() {
-        for (server in stdioServers.values) {
+        for (server in servers.values) {
             try { server.stop() } catch (_: Exception) {}
         }
-        for (server in sseServers.values) {
-            try { server.stop() } catch (_: Exception) {}
-        }
-        stdioServers.clear()
-        sseServers.clear()
+        servers.clear()
         serverToolIndex.clear()
         compoundToolNames.clear()
     }

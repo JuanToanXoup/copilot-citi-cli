@@ -20,17 +20,17 @@ import java.util.concurrent.atomic.AtomicInteger
  * 3. Server sends responses as SSE 'message' events
  */
 class McpSseServer(
-    val name: String,
+    override val name: String,
     private val url: String,
     private val env: Map<String, String> = emptyMap(),
     private val initTimeout: Long = 60_000,
-) {
+) : McpTransport {
     private val log = Logger.getInstance(McpSseServer::class.java)
     private val json = Json { ignoreUnknownKeys = true }
     private val requestId = AtomicInteger(0)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    var tools: List<JsonObject> = emptyList()
+    override var tools: List<JsonObject> = emptyList()
         private set
 
     /** Pending request completions keyed by message id. */
@@ -46,7 +46,7 @@ class McpSseServer(
     /**
      * Connect to the SSE endpoint and discover the POST URL.
      */
-    suspend fun start() {
+    override suspend fun start() {
         // Start SSE reader in background
         scope.launch { sseLoop() }
 
@@ -61,7 +61,7 @@ class McpSseServer(
     /**
      * Perform MCP initialize handshake.
      */
-    suspend fun initialize() {
+    override suspend fun initialize() {
         val resp = sendRequest("initialize", buildJsonObject {
             put("protocolVersion", "2024-11-05")
             putJsonObject("capabilities") {}
@@ -80,7 +80,7 @@ class McpSseServer(
     /**
      * Discover tools via MCP tools/list.
      */
-    suspend fun listTools(): List<JsonObject> {
+    override suspend fun listTools(): List<JsonObject> {
         val resp = sendRequest("tools/list", buildJsonObject {})
         tools = resp["result"]?.jsonObject
             ?.get("tools")?.jsonArray
@@ -92,7 +92,7 @@ class McpSseServer(
     /**
      * Call an MCP tool and return the text result.
      */
-    suspend fun callTool(toolName: String, arguments: JsonObject): String {
+    override suspend fun callTool(toolName: String, arguments: JsonObject): String {
         val resp = sendRequest("tools/call", buildJsonObject {
             put("name", toolName)
             put("arguments", arguments)
@@ -114,7 +114,7 @@ class McpSseServer(
     /**
      * Stop the SSE connection.
      */
-    fun stop() {
+    override fun stop() {
         scope.coroutineContext.cancelChildren()
         pendingRequests.values.forEach { it.cancel() }
         pendingRequests.clear()
