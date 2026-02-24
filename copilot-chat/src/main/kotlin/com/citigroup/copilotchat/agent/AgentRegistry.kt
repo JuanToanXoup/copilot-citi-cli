@@ -23,6 +23,7 @@ object AgentRegistry : AgentConfigRepository {
         "default-lead.agent.md",
         "strict-lead.agent.md",
         "strict-lead-v2.agent.md",
+        "speckit-lead.agent.md",
     )
 
     /** Default system prompt template for the built-in lead agent (used as fallback by AgentService). */
@@ -68,6 +69,21 @@ Complete the full task without stopping for confirmation."""
                         if (agent != null) agents.add(agent)
                     } catch (e: Exception) {
                         log.warn("Failed to parse agent file ${file.name}: ${e.message}")
+                    }
+                }
+            }
+        }
+
+        // .github/agents/ (SpecKit and other GitHub-convention agents)
+        if (projectBasePath != null) {
+            val githubAgentDir = File(projectBasePath, ".github/agents")
+            if (githubAgentDir.isDirectory) {
+                githubAgentDir.listFiles { f -> isAgentFile(f) }?.forEach { file ->
+                    try {
+                        val agent = parseAgentFile(file, AgentSource.CUSTOM_PROJECT)
+                        if (agent != null) agents.add(agent)
+                    } catch (e: Exception) {
+                        log.warn("Failed to parse .github agent file ${file.name}: ${e.message}")
                     }
                 }
             }
