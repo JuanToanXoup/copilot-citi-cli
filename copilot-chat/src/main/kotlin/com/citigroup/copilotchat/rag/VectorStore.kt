@@ -1,5 +1,6 @@
 package com.citigroup.copilotchat.rag
 
+import com.citigroup.copilotchat.config.StoragePaths
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
@@ -27,7 +28,7 @@ class VectorStore : VectorSearchEngine, Disposable {
     private val log = Logger.getInstance(VectorStore::class.java)
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = false }
 
-    private val storeDir = File(System.getProperty("user.home"), ".copilot-chat/vector-store")
+    private val storeDir = StoragePaths.vectorStore()
     private val collections = ConcurrentHashMap<String, MutableList<StoredPoint>>()
     private val dirty = ConcurrentHashMap<String, Boolean>()
 

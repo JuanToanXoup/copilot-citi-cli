@@ -1,5 +1,6 @@
 package com.citigroup.copilotchat.rag
 
+import com.citigroup.copilotchat.config.StoragePaths
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
@@ -24,7 +25,7 @@ object LocalEmbeddings : EmbeddingsProvider {
     private const val MODEL_URL =
         "https://huggingface.co/Xenova/bge-small-en-v1.5/resolve/main/onnx/model_quantized.onnx"
 
-    private val modelsDir = File(System.getProperty("user.home"), ".copilot-chat/models")
+    private val modelsDir = StoragePaths.models()
     private val modelFile = File(modelsDir, MODEL_NAME)
 
     @Volatile
@@ -156,7 +157,7 @@ object LocalEmbeddings : EmbeddingsProvider {
             else -> return
         }
 
-        val extractDir = File(System.getProperty("user.home"), ".copilot-chat/native/$nativeDir")
+        val extractDir = StoragePaths.nativeLib(nativeDir)
         extractDir.mkdirs()
 
         val classLoader = LocalEmbeddings::class.java.classLoader

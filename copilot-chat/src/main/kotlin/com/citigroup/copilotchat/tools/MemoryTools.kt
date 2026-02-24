@@ -1,5 +1,6 @@
 package com.citigroup.copilotchat.tools
 
+import com.citigroup.copilotchat.config.StoragePaths
 import com.citigroup.copilotchat.rag.LocalEmbeddings
 import com.citigroup.copilotchat.rag.VectorPoint
 import com.citigroup.copilotchat.rag.VectorStore
@@ -72,7 +73,7 @@ object MemoryTools : ToolGroup {
         val fact = input.str("fact") ?: return "Error: fact is required"
         val category = input.str("category") ?: "general"
 
-        val memDir = File(System.getProperty("user.home"), ".copilot-chat/memories")
+        val memDir = StoragePaths.memories()
         memDir.mkdirs()
 
         val entry = buildJsonObject {
@@ -133,7 +134,7 @@ object MemoryTools : ToolGroup {
             log.warn("Semantic recall failed: ${e.message}")
         }
 
-        val memDir = File(System.getProperty("user.home"), ".copilot-chat/memories")
+        val memDir = StoragePaths.memories()
         if (memDir.isDirectory) {
             val files = if (category != null) {
                 listOfNotNull(File(memDir, "$category.jsonl").takeIf { it.exists() })

@@ -1,5 +1,6 @@
 package com.citigroup.copilotchat.agent
 
+import com.citigroup.copilotchat.config.StoragePaths
 import com.intellij.openapi.diagnostic.Logger
 import java.io.File
 
@@ -34,7 +35,7 @@ object WorktreeManager {
      */
     fun createWorktree(projectBasePath: String, agentId: String): WorktreeInfo {
         val branchName = "copilot-worktree-$agentId"
-        val worktreeDir = File(projectBasePath, ".copilot-chat/worktrees/$agentId")
+        val worktreeDir = StoragePaths.projectWorktree(projectBasePath, agentId)
         worktreeDir.parentFile?.mkdirs()
 
         runGit(projectBasePath, "worktree", "add", "-b", branchName, worktreeDir.absolutePath)
@@ -143,7 +144,7 @@ object WorktreeManager {
      * Called at startup.
      */
     fun cleanupStaleWorktrees(projectBasePath: String) {
-        val worktreesDir = File(projectBasePath, ".copilot-chat/worktrees")
+        val worktreesDir = StoragePaths.projectWorktrees(projectBasePath)
         if (!worktreesDir.exists()) return
 
         val dirs = worktreesDir.listFiles()?.filter { it.isDirectory } ?: return

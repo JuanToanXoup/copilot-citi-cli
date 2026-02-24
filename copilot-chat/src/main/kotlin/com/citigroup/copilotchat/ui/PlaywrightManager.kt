@@ -1,6 +1,7 @@
 package com.citigroup.copilotchat.ui
 
 import com.citigroup.copilotchat.config.CopilotChatSettings
+import com.citigroup.copilotchat.config.StoragePaths
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.util.SystemInfo
 import java.io.File
@@ -14,7 +15,7 @@ object PlaywrightManager {
 
     private val log = Logger.getInstance(PlaywrightManager::class.java)
 
-    val home: File = File(System.getProperty("user.home"), ".copilot-chat/playwright")
+    val home: File = StoragePaths.playwright()
     val nodeModules: File get() = File(home, "node_modules")
     val playwrightCli: File get() = File(nodeModules, "playwright/cli.js")
     val mcpCli: File get() = File(nodeModules, "@playwright/mcp/cli.js")

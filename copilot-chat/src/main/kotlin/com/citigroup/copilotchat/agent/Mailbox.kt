@@ -1,5 +1,6 @@
 package com.citigroup.copilotchat.agent
 
+import com.citigroup.copilotchat.config.StoragePaths
 import com.intellij.openapi.diagnostic.Logger
 import kotlinx.serialization.json.*
 import java.io.File
@@ -19,7 +20,7 @@ class Mailbox(
 
     private val baseDir: File
         get() {
-            val dir = File(System.getProperty("user.home"), ".copilot-chat/teams/$teamName/inboxes")
+            val dir = StoragePaths.teamInboxes(teamName)
             dir.mkdirs()
             return dir
         }
@@ -138,7 +139,7 @@ class Mailbox(
     companion object {
         /** Delete all mailbox files for a team. */
         fun deleteTeamMailboxes(teamName: String) {
-            val dir = File(System.getProperty("user.home"), ".copilot-chat/teams/$teamName")
+            val dir = StoragePaths.teams(teamName)
             if (dir.exists()) {
                 dir.deleteRecursively()
             }

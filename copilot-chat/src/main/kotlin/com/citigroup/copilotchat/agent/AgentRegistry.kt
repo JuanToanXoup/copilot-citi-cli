@@ -1,6 +1,8 @@
 package com.citigroup.copilotchat.agent
 
+import com.citigroup.copilotchat.config.StoragePaths
 import com.intellij.openapi.diagnostic.Logger
+import org.yaml.snakeyaml.Yaml
 import java.io.File
 
 /**
@@ -57,7 +59,7 @@ Complete the full task without stopping for confirmation."""
 
         // Project-level custom agents
         if (projectBasePath != null) {
-            val projectAgentDir = File(projectBasePath, ".copilot-chat/agents")
+            val projectAgentDir = StoragePaths.projectAgents(projectBasePath)
             if (projectAgentDir.isDirectory) {
                 projectAgentDir.listFiles { f -> isAgentFile(f) }?.forEach { file ->
                     try {
@@ -71,7 +73,7 @@ Complete the full task without stopping for confirmation."""
         }
 
         // User-level custom agents
-        val userAgentDir = File(System.getProperty("user.home"), ".copilot-chat/agents")
+        val userAgentDir = StoragePaths.agents()
         if (userAgentDir.isDirectory) {
             userAgentDir.listFiles { f -> isAgentFile(f) }?.forEach { file ->
                 try {
@@ -175,58 +177,33 @@ Complete the full task without stopping for confirmation."""
             body = body.take(MAX_PROMPT_CHARS)
         }
 
-        // Parse frontmatter — simple key: value for top-level scalars,
-        // multi-line block parsing for nested structures (mcp-servers, metadata).
-        val props = mutableMapOf<String, String>()
-        val blocks = mutableMapOf<String, MutableList<String>>()
-        var currentBlock: String? = null
-
-        for (line in frontmatter.lines()) {
-            // Detect block start: top-level key with no value, followed by indented lines
-            if (!line.startsWith(" ") && !line.startsWith("\t") && line.endsWith(":") && !line.contains(": ")) {
-                currentBlock = line.removeSuffix(":").trim()
-                blocks[currentBlock] = mutableListOf()
-                continue
+        // Parse frontmatter with SnakeYAML
+        @Suppress("UNCHECKED_CAST")
+        val yaml = if (frontmatter.isNotBlank()) {
+            try {
+                Yaml().load<Any>(frontmatter) as? Map<String, Any> ?: emptyMap()
+            } catch (e: Exception) {
+                log.warn("Failed to parse YAML frontmatter for '$defaultName': ${e.message}")
+                emptyMap()
             }
-            // Indented line belongs to current block
-            if (currentBlock != null && (line.startsWith("  ") || line.startsWith("\t"))) {
-                blocks[currentBlock]!!.add(line)
-                continue
-            }
-            // Top-level scalar key: value
-            currentBlock = null
-            val colonIdx = line.indexOf(':')
-            if (colonIdx > 0) {
-                val key = line.substring(0, colonIdx).trim()
-                val value = line.substring(colonIdx + 1).trim()
-                props[key] = value
-            }
-        }
+        } else emptyMap()
 
-        val name = props["name"] ?: defaultName
-        val description = props["description"] ?: "Custom agent: $name"
-        val toolsRaw = props["tools"]
-        val tools = if (toolsRaw != null) {
-            toolsRaw.removeSurrounding("[", "]").split(",").map { it.trim() }.filter { it.isNotEmpty() }
-        } else null
-        val model = parseModelString(props["model"])
-        val forkContext = props["forkContext"]?.lowercase() == "true"
-        val background = props["background"]?.lowercase() == "true"
-        val maxTurns = props["maxTurns"]?.toIntOrNull() ?: 30
+        val name = yaml["name"]?.toString() ?: defaultName
+        val description = yaml["description"]?.toString() ?: "Custom agent: $name"
+        val tools = yamlStringList(yaml["tools"])
+        val model = parseModelString(yaml["model"]?.toString())
+        val forkContext = yaml["forkContext"]?.toString()?.lowercase() == "true"
+        val background = yaml["background"]?.toString()?.lowercase() == "true"
+        val maxTurns = (yaml["maxTurns"] as? Number)?.toInt() ?: 30
 
-        // New Copilot .agent.md fields
-        val disableModelInvocation = props["disable-model-invocation"]?.lowercase() == "true"
-        val handoffs = props["handoffs"]?.let { raw ->
-            raw.removeSurrounding("[", "]").split(",").map { it.trim() }.filter { it.isNotEmpty() }
-        } ?: emptyList()
-        val metadata = parseSimpleMap(blocks["metadata"])
-        val mcpServers = parseMcpServers(blocks["mcp-servers"])
+        val disableModelInvocation = yaml["disable-model-invocation"]?.toString()?.lowercase() == "true"
+        val handoffs = yamlStringList(yaml["handoffs"]) ?: emptyList()
+        val metadata = yamlStringMap(yaml["metadata"])
+        val mcpServers = yamlMcpServers(yaml["mcp-servers"] ?: yaml["mcpServers"])
 
         // Supervisor fields
-        val subagents = props["subagents"]?.let { raw ->
-            raw.removeSurrounding("[", "]").split(",").map { it.trim() }.filter { it.isNotEmpty() }
-        }
-        val target = props["target"]?.trim()?.ifBlank { null }
+        val subagents = yamlStringList(yaml["subagents"])
+        val target = yaml["target"]?.toString()?.trim()?.ifBlank { null }
 
         return AgentDefinition(
             agentType = name,
@@ -260,102 +237,39 @@ Complete the full task without stopping for confirmation."""
         }
     }
 
-    /** Parse indented YAML lines into a simple String->String map. */
-    private fun parseSimpleMap(lines: List<String>?): Map<String, String> {
-        if (lines.isNullOrEmpty()) return emptyMap()
-        val map = mutableMapOf<String, String>()
-        for (line in lines) {
-            val trimmed = line.trim()
-            val idx = trimmed.indexOf(':')
-            if (idx > 0) {
-                map[trimmed.substring(0, idx).trim()] = trimmed.substring(idx + 1).trim()
-            }
+    /** Extract a list of strings from a YAML value (List or bracket-delimited string). */
+    private fun yamlStringList(value: Any?): List<String>? {
+        if (value == null) return null
+        if (value is List<*>) return value.map { it.toString().trim() }.filter { it.isNotEmpty() }
+        val str = value.toString().trim()
+        if (str.startsWith("[")) {
+            return str.removeSurrounding("[", "]").split(",").map { it.trim() }.filter { it.isNotEmpty() }
         }
-        return map
+        return listOf(str).filter { it.isNotEmpty() }
     }
 
-    /**
-     * Parse indented YAML blocks for `mcp-servers` into a map of server configs.
-     * Expected format:
-     * ```
-     *   server-name:
-     *     type: local
-     *     command: npx
-     *     args: [-y, my-server]
-     *     tools: [tool1, tool2]
-     *     env:
-     *       KEY: value
-     *     url: http://...
-     * ```
-     */
-    private fun parseMcpServers(lines: List<String>?): Map<String, McpServerConfig> {
-        if (lines.isNullOrEmpty()) return emptyMap()
+    /** Extract a String->String map from a YAML value. */
+    @Suppress("UNCHECKED_CAST")
+    private fun yamlStringMap(value: Any?): Map<String, String> {
+        val map = value as? Map<String, Any> ?: return emptyMap()
+        return map.mapValues { it.value.toString() }
+    }
 
-        val servers = mutableMapOf<String, McpServerConfig>()
-        var currentServer: String? = null
-        val serverProps = mutableMapOf<String, String>()
-        var envLines = mutableListOf<String>()
-        var inEnv = false
-
-        fun flushServer() {
-            val sName = currentServer ?: return
-            val env = parseSimpleMap(envLines)
-            val toolsStr = serverProps["tools"]
-            val toolsList = if (toolsStr != null) {
-                toolsStr.removeSurrounding("[", "]").split(",").map { it.trim() }.filter { it.isNotEmpty() }
-            } else null
-            val argsList = serverProps["args"]?.let { raw ->
-                raw.removeSurrounding("[", "]").split(",").map { it.trim() }.filter { it.isNotEmpty() }
-            } ?: emptyList()
-
-            servers[sName] = McpServerConfig(
-                type = serverProps["type"] ?: "local",
-                command = serverProps["command"] ?: "",
-                args = argsList,
-                tools = toolsList,
-                env = env,
-                url = serverProps["url"] ?: "",
+    /** Extract mcp-servers config from a YAML map. */
+    @Suppress("UNCHECKED_CAST")
+    private fun yamlMcpServers(value: Any?): Map<String, McpServerConfig> {
+        val servers = value as? Map<String, Any> ?: return emptyMap()
+        return servers.mapValues { (_, serverValue) ->
+            val cfg = serverValue as? Map<String, Any> ?: return@mapValues McpServerConfig()
+            McpServerConfig(
+                type = cfg["type"]?.toString() ?: "local",
+                command = cfg["command"]?.toString() ?: "",
+                args = yamlStringList(cfg["args"]) ?: emptyList(),
+                tools = yamlStringList(cfg["tools"]),
+                env = yamlStringMap(cfg["env"]),
+                url = cfg["url"]?.toString() ?: "",
             )
-            serverProps.clear()
-            envLines = mutableListOf()
-            inEnv = false
         }
-
-        for (line in lines) {
-            val indent = line.length - line.trimStart().length
-            val trimmed = line.trim()
-
-            // Server name line (2-space indent, ends with colon, no value)
-            if (indent == 2 && trimmed.endsWith(":") && !trimmed.contains(": ")) {
-                flushServer()
-                currentServer = trimmed.removeSuffix(":").trim()
-                continue
-            }
-
-            // env: block start
-            if (indent == 4 && trimmed == "env:") {
-                inEnv = true
-                continue
-            }
-
-            // Lines inside env block (6+ indent)
-            if (inEnv && indent >= 6) {
-                envLines.add(trimmed)
-                continue
-            }
-
-            // Regular property at indent 4
-            if (indent == 4 && currentServer != null) {
-                inEnv = false
-                val idx = trimmed.indexOf(':')
-                if (idx > 0) {
-                    serverProps[trimmed.substring(0, idx).trim()] = trimmed.substring(idx + 1).trim()
-                }
-            }
-        }
-        flushServer()
-
-        return servers
     }
 
     /** Case-insensitive agent lookup by type. */
@@ -383,8 +297,7 @@ Complete the full task without stopping for confirmation."""
      */
     fun saveAgent(agent: AgentDefinition, projectBasePath: String, existingFilePath: String? = null): AgentDefinition {
         val file = if (existingFilePath != null) File(existingFilePath) else {
-            val agentDir = File(projectBasePath, ".copilot-chat/agents")
-            File(agentDir, "${agent.agentType}.agent.md")
+            File(StoragePaths.projectAgents(projectBasePath), "${agent.agentType}.agent.md")
         }
         val saved = agent.copy(filePath = file.absolutePath)
         writeAgentFile(saved, file)

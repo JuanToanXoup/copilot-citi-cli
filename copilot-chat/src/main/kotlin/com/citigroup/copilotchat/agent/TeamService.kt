@@ -1,5 +1,6 @@
 package com.citigroup.copilotchat.agent
 
+import com.citigroup.copilotchat.config.StoragePaths
 import com.citigroup.copilotchat.lsp.LspClient
 import com.citigroup.copilotchat.orchestrator.WorkerSession
 import com.citigroup.copilotchat.orchestrator.WorkerEvent
@@ -61,7 +62,7 @@ class TeamService(private val project: Project) : Disposable {
         activeTeam = config
 
         // Save config.json
-        val teamDir = File(System.getProperty("user.home"), ".copilot-chat/teams/$teamName")
+        val teamDir = StoragePaths.teams(teamName)
         teamDir.mkdirs()
         File(teamDir, "config.json").writeText(json.encodeToString(JsonObject.serializer(), buildJsonObject {
             put("name", teamName)
