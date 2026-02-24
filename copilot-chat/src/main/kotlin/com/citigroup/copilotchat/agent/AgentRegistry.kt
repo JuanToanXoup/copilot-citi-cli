@@ -377,6 +377,40 @@ Complete the full task without stopping for confirmation."""
     }
 
     /**
+     * Save an agent definition to disk.
+     * Resolves the file path from [existingFilePath] or creates a new one under the project's agents dir.
+     * Returns an updated [AgentDefinition] with the resolved [AgentDefinition.filePath].
+     */
+    fun saveAgent(agent: AgentDefinition, projectBasePath: String, existingFilePath: String? = null): AgentDefinition {
+        val file = if (existingFilePath != null) File(existingFilePath) else {
+            val agentDir = File(projectBasePath, ".copilot-chat/agents")
+            File(agentDir, "${agent.agentType}.agent.md")
+        }
+        val saved = agent.copy(filePath = file.absolutePath)
+        writeAgentFile(saved, file)
+        return saved
+    }
+
+    /**
+     * Delete an agent's file from disk.
+     */
+    fun deleteAgentFile(filePath: String) {
+        val file = File(filePath)
+        if (file.exists()) {
+            file.delete()
+            log.info("Deleted agent file: $filePath")
+        }
+    }
+
+    /**
+     * Find an agent by name (across all sources) and delete its file.
+     */
+    fun deleteAgentByName(name: String, projectBasePath: String?) {
+        val agent = loadAll(projectBasePath).find { it.agentType == name }
+        agent?.filePath?.let { deleteAgentFile(it) }
+    }
+
+    /**
      * Serialize an [AgentDefinition] to an `.agent.md` file.
      * Writes YAML frontmatter + body (system prompt template).
      */

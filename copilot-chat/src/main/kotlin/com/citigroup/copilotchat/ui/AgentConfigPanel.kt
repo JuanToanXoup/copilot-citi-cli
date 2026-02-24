@@ -14,7 +14,6 @@ import com.intellij.ui.components.JBTextField
 import com.intellij.ui.table.JBTable
 import com.intellij.util.ui.JBUI
 import java.awt.*
-import java.io.File
 import javax.swing.*
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
@@ -727,8 +726,7 @@ class AgentConfigPanel(private val project: Project) : JPanel(BorderLayout()), D
     private fun flushAllChanges() {
         // 1. Process pending deletions
         for (name in pendingDeletes) {
-            val agent = AgentRegistry.loadAll(project.basePath).find { it.agentType == name }
-            agent?.filePath?.let { File(it).delete() }
+            AgentRegistry.deleteAgentByName(name, project.basePath)
         }
 
         // 2. Save current agent form fields (new agents get written, existing get updated)
@@ -822,18 +820,14 @@ class AgentConfigPanel(private val project: Project) : JPanel(BorderLayout()), D
             target = target,
         )
 
-        val file = if (agent.filePath != null) File(agent.filePath) else {
-            val agentDir = File(project.basePath ?: return, ".copilot-chat/agents")
-            File(agentDir, "${updated.agentType}.agent.md")
-        }
-        AgentRegistry.writeAgentFile(updated.copy(filePath = file.absolutePath), file)
+        val saved = AgentRegistry.saveAgent(updated, project.basePath ?: return, agent.filePath)
 
         // If agent was renamed, delete the old file
         if (agent.agentType != name && agent.filePath != null) {
-            File(agent.filePath).delete()
+            AgentRegistry.deleteAgentFile(agent.filePath)
         }
 
-        currentAgent = updated.copy(filePath = file.absolutePath)
+        currentAgent = saved
     }
 
     // ── Selection helpers ──────────────────────────────────────────
