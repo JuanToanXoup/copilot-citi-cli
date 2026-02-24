@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Manages subagent lifecycle: spawning, awaiting results, worktree isolation,
- * tool filtering, and cancellation.
+ * and cancellation.
  *
  * Extracted from [AgentService] to separate subagent concerns from lead
  * conversation orchestration.
@@ -34,8 +34,8 @@ class SubagentManager(
     /** Background subagent jobs launched by delegate_task. Collected after lead turn ends. */
     private val pendingSubagents = ConcurrentHashMap<String, PendingSubagent>()
 
-    /** Hard-enforced tool filters keyed by subagent conversationId. */
-    private val subagentToolFilters = ConcurrentHashMap<String, SubagentToolFilter>()
+    /** Per-conversation tool filters keyed by conversationId. */
+    private val subagentToolFilters = ConcurrentHashMap<String, Set<String>>()
 
     /** Worktree metadata for subagents with forkContext=true. Keyed by agentId. */
     private val subagentWorktrees = ConcurrentHashMap<String, WorktreeInfo>()
@@ -45,6 +45,16 @@ class SubagentManager(
 
     /** Whether there are subagents still running. */
     fun hasPending(): Boolean = pendingSubagents.isNotEmpty()
+
+    /**
+     * Check whether [toolName] is allowed for the conversation identified by [conversationId].
+     * Called from [AgentService.isToolAllowedForConversation] for subagent conversations.
+     */
+    fun isToolAllowed(conversationId: String, toolName: String): Boolean {
+        val allowed = subagentToolFilters[conversationId] ?: return true
+        if (allowed.isEmpty()) return true  // empty = parse error fallback, allow all
+        return toolName in allowed
+    }
 
     /**
      * Spawn a subagent in the background and respond immediately so the
@@ -71,8 +81,6 @@ class SubagentManager(
 
         val agentId = "subagent-${UUID.randomUUID().toString().take(8)}"
         val resolvedModel = modelOverride ?: effectiveDef.model.resolveModelId("gpt-4.1")
-
-        val effectiveTools = effectiveDef.tools
 
         // --- Worktree isolation for forkContext agents ---
         val useWorktree = effectiveDef.forkContext
@@ -105,13 +113,16 @@ class SubagentManager(
         subagentStartTimes[agentId] = System.currentTimeMillis()
         eventBus.tryEmit(SubagentEvent.Spawned(agentId, effectiveDef.agentType, description, prompt))
 
+        // Compute final allowed tools (removing PSI tools for worktree agents)
+        val allowedTools = effectiveDef.tools.toSet() - extraDisallowed
+
         val session = WorkerSession(
             workerId = agentId,
             role = effectiveDef.agentType,
             systemPrompt = effectiveDef.systemPromptTemplate,
             model = resolvedModel,
             agentMode = true,
-            toolsEnabled = effectiveTools,
+            toolsEnabled = allowedTools.toList(),
             projectName = project.name,
             workspaceRoot = effectiveWorkspaceRoot,
             lspClient = lspClient,
@@ -127,16 +138,18 @@ class SubagentManager(
             }
         }
 
+        // Register tool filter and workspace override when conversationId is captured
         session.onConversationId = { convId ->
-            val allowedTools = effectiveDef.tools.toSet() - extraDisallowed
-            subagentToolFilters[convId] = SubagentToolFilter(
-                allowedTools = allowedTools,
-            )
-            // Register workspace override so ConversationManager routes tool calls to the worktree
+            // Per-agent tool isolation: register allowed tools for this conversation
+            if (allowedTools.isNotEmpty()) {
+                subagentToolFilters[convId] = allowedTools
+                log.info("SubagentManager: registered tool filter for $agentId (convId=$convId, allowed=${allowedTools.size} tools)")
+            }
+            // Worktree workspace override
             if (worktreeInfo != null) {
                 conversationManager.registerWorkspaceOverride(convId, worktreeInfo.worktreePath)
+                log.info("SubagentManager: registered workspace override for $agentId (convId=$convId, worktree=${worktreeInfo.worktreePath})")
             }
-            log.info("SubagentManager: registered tool filter for subagent $agentId (convId=$convId, allowed=$allowedTools, worktree=${worktreeInfo != null})")
         }
 
         activeSubagents[agentId] = session
@@ -340,30 +353,14 @@ class SubagentManager(
         log.info("SubagentManager: rejected and discarded worktree changes for $agentId")
     }
 
-    /**
-     * Check if a tool is allowed for the given conversation based on registered filters.
-     * Returns true if no filter is registered (e.g. lead conversation or unknown conversation).
-     */
-    fun isToolAllowed(conversationId: String?, toolName: String): Boolean {
-        if (conversationId == null) return true
-        val filter = subagentToolFilters[conversationId] ?: return true
-
-        if (toolName !in filter.allowedTools) {
-            log.warn("Tool blocked for conversation $conversationId: '$toolName' not in allowedTools ${filter.allowedTools}")
-            return false
-        }
-
-        return true
-    }
-
-    /** Cancel all active and pending subagents, clean up worktrees. */
+    /** Cancel all active and pending subagents, clean up worktrees and tool filters. */
     fun cancelAll() {
         activeSubagents.values.forEach { it.cancel() }
         activeSubagents.clear()
         pendingSubagents.values.forEach { it.deferred.cancel() }
         pendingSubagents.clear()
-        subagentToolFilters.clear()
         subagentStartTimes.clear()
+        subagentToolFilters.clear()
 
         // Clean up any active worktrees on IO thread
         val mainWorkspace = project.basePath ?: "/tmp"
@@ -388,10 +385,5 @@ class SubagentManager(
         val agentType: String,
         val description: String,
         val deferred: Deferred<String>,
-    )
-
-    /** Hard-enforced tool filter for a subagent conversation (from agent.md tools field). */
-    private data class SubagentToolFilter(
-        val allowedTools: Set<String>,
     )
 }

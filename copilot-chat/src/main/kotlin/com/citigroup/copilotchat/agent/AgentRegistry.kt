@@ -21,6 +21,8 @@ object AgentRegistry : AgentConfigRepository {
         "bash.agent.md",
         "general-purpose.agent.md",
         "default-lead.agent.md",
+        "strict-lead.agent.md",
+        "strict-lead-v2.agent.md",
     )
 
     /** Default system prompt template for the built-in lead agent (used as fallback by AgentService). */

@@ -47,8 +47,13 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
 
     @Volatile
     private var leadConversationId: String? = null
-    /** Tool allowlist for the lead agent (from agent.md tools field). */
+    /** Tool allowlist for the current lead agent (from agent.md tools field). */
+    @Volatile
     private var leadToolFilter: Set<String> = emptySet()
+    /** Tool filter for a direct subagent conversation (no lead agent). */
+    @Volatile
+    private var directSubagentConvId: String? = null
+    private var directSubagentToolFilter: Set<String> = emptySet()
     /** True between conversation/create call and its response — tool calls that arrive
      *  during this window carry the conversationId we need but don't have yet. */
     @Volatile
@@ -112,6 +117,7 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
                     val prompt = if (isFirstTurn) buildLeadPrompt(text, leadAgent) else text
 
                     if (isFirstTurn) {
+
                         val params = buildJsonObject {
                             put("workDoneToken", workDoneToken)
                             putJsonArray("turns") {
@@ -443,18 +449,29 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
     }
 
     /**
-     * Check if a tool is allowed for the given conversation.
-     * Checks lead agent's tool filter first, then delegates to SubagentManager for subagents.
+     * Per-agent tool isolation: check if a tool is allowed for the given conversation.
+     * The Copilot server registers all tools globally (additive API), so per-agent
+     * scoping is enforced here by rejecting disallowed tool calls at execution time.
      */
     fun isToolAllowedForConversation(conversationId: String?, toolName: String): Boolean {
-        // Lead agent conversation — enforce its tools list
-        if (conversationId != null && conversationId == leadConversationId && leadToolFilter.isNotEmpty()) {
+        if (conversationId == null) return true
+        // Lead agent conversation
+        if (conversationId == leadConversationId && leadToolFilter.isNotEmpty()) {
             if (toolName !in leadToolFilter) {
-                log.warn("Tool blocked for lead conversation: '$toolName' not in leadToolFilter $leadToolFilter")
+                log.warn("Tool blocked for lead: '$toolName' not in $leadToolFilter")
                 return false
             }
             return true
         }
+        // Direct subagent conversation
+        if (conversationId == directSubagentConvId && directSubagentToolFilter.isNotEmpty()) {
+            if (toolName !in directSubagentToolFilter) {
+                log.warn("Tool blocked for direct subagent: '$toolName' not in $directSubagentToolFilter")
+                return false
+            }
+            return true
+        }
+        // Delegated subagent conversations
         return subagentManager.isToolAllowed(conversationId, toolName)
     }
 
@@ -485,11 +502,81 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
         scope.launch { _events.emit(LeadEvent.Done()) }
     }
 
+    /**
+     * Run a subagent directly — no lead agent, no delegation.
+     * The subagent gets its own conversation and streams results to the UI.
+     */
+    fun sendDirectSubagent(text: String, subagentType: String) {
+        currentJob?.cancel()
+        currentJob = scope.launch {
+            try {
+                conversationManager.ensureInitialized()
+
+                val allAgents = AgentRegistry.loadAll(project.basePath)
+                val agentDef = AgentRegistry.findByType(subagentType, allAgents)
+                if (agentDef == null) {
+                    _events.emit(LeadEvent.Error("Unknown agent type: $subagentType"))
+                    return@launch
+                }
+
+                isStreaming = true
+                val resolvedModel = agentDef.model.resolveModelId("gpt-4.1")
+                val agentId = "direct-${subagentType}-${java.util.UUID.randomUUID().toString().take(8)}"
+
+                val session = com.citigroup.copilotchat.orchestrator.WorkerSession(
+                    workerId = agentId,
+                    role = agentDef.agentType,
+                    systemPrompt = agentDef.systemPromptTemplate,
+                    model = resolvedModel,
+                    agentMode = true,
+                    toolsEnabled = agentDef.tools,
+                    projectName = project.name,
+                    workspaceRoot = project.basePath ?: "/tmp",
+                    lspClient = lspClient,
+                )
+
+                // Register tool filter when conversationId is captured
+                session.onConversationId = { convId ->
+                    directSubagentConvId = convId
+                    directSubagentToolFilter = agentDef.tools.toSet()
+                    log.info("AgentService: direct subagent tool filter registered (convId=$convId, allowed=${agentDef.tools})")
+                }
+
+                session.onEvent = { event ->
+                    when (event) {
+                        is com.citigroup.copilotchat.orchestrator.WorkerEvent.Delta ->
+                            _events.tryEmit(LeadEvent.Delta(event.text))
+                        is com.citigroup.copilotchat.orchestrator.WorkerEvent.ToolCall ->
+                            _events.tryEmit(LeadEvent.ToolCall(event.toolName, kotlinx.serialization.json.JsonObject(emptyMap())))
+                        is com.citigroup.copilotchat.orchestrator.WorkerEvent.Done -> {}
+                        is com.citigroup.copilotchat.orchestrator.WorkerEvent.Error ->
+                            _events.tryEmit(LeadEvent.Error(event.message))
+                    }
+                }
+
+                val result = session.executeTask(text)
+                isStreaming = false
+                // If deltas already streamed content, Done carries the full text as backup
+                _events.emit(LeadEvent.Done(result))
+
+            } catch (e: CancellationException) {
+                isStreaming = false
+                throw e
+            } catch (e: Exception) {
+                log.error("Error in sendDirectSubagent", e)
+                isStreaming = false
+                _events.emit(LeadEvent.Error(e.message ?: "Unknown error"))
+            }
+        }
+    }
+
     /** Start a fresh conversation. */
     fun newConversation() {
         cancel()
         leadConversationId = null
         leadToolFilter = emptySet()
+        directSubagentConvId = null
+        directSubagentToolFilter = emptySet()
         pendingLeadCreate = false
         agents = emptyList()
     }

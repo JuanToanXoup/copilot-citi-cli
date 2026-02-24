@@ -67,8 +67,8 @@ class ConversationManager(private val project: Project) : Disposable {
     /** Delegate to [LspSession.ensureInitialized]. */
     suspend fun ensureInitialized() = lspSession.ensureInitialized()
 
-    /** Delegate to [LspSession.reregisterTools]. */
-    fun reregisterTools() = lspSession.reregisterTools()
+    /** Delegate to [LspSession.registerTools]. */
+    suspend fun registerTools() = lspSession.registerTools()
 
     /** Delegate to [LspSession.configureMcp]. */
     suspend fun configureMcp(mcpConfig: Map<String, Map<String, Any>>) = lspSession.configureMcp(mcpConfig)
@@ -288,6 +288,11 @@ class ConversationManager(private val project: Project) : Disposable {
     private suspend fun handleServerRequest(method: String, id: Int, params: JsonObject) {
         // Route Agent tab conversations to AgentService
         val callConvId = params["conversationId"]?.jsonPrimitive?.contentOrNull
+        val toolNameForLog = if (method == "conversation/invokeClientTool") {
+            params["name"]?.jsonPrimitive?.contentOrNull ?: params["toolName"]?.jsonPrimitive?.contentOrNull
+        } else null
+        log.info("handleServerRequest: method=$method convId=$callConvId tool=$toolNameForLog")
+
         val agentService = try { AgentService.getInstance(project) } catch (_: Exception) { null }
         if (agentService != null && agentService.ownsConversation(callConvId)) {
             when (method) {
@@ -305,7 +310,24 @@ class ConversationManager(private val project: Project) : Disposable {
                     val toolInput = params["input"]?.jsonObject
                         ?: params["arguments"]?.jsonObject
                         ?: JsonObject(emptyMap())
-                    agentService.handleToolCall(id, toolName, toolInput, callConvId)
+
+                    // Per-agent tool isolation: reject tools not in the agent's allowed set.
+                    val toolAllowed = agentService.isToolAllowedForConversation(callConvId, toolName)
+                    log.info("Tool filter: tool=$toolName convId=$callConvId allowed=$toolAllowed")
+                    if (!toolAllowed) {
+                        val errorResult = buildJsonArray {
+                            addJsonObject {
+                                putJsonArray("content") {
+                                    addJsonObject { put("value", "Tool '$toolName' is not allowed for this agent.") }
+                                }
+                                put("status", "error")
+                            }
+                            add(JsonNull)
+                        }
+                        lspClient.sendResponse(id, errorResult)
+                    } else {
+                        agentService.handleToolCall(id, toolName, toolInput, callConvId)
+                    }
                 }
                 else -> {
                     // Fall through to default handlers below
@@ -349,12 +371,14 @@ class ConversationManager(private val project: Project) : Disposable {
                     return
                 }
 
-                // Hard-enforce per-agent tool restrictions for subagent conversations
+                // Per-agent tool isolation: reject tools not in the agent's allowed set.
+                // The Copilot server registers all tools globally (additive API),
+                // so per-conversation scoping must be enforced here at execution time.
                 if (agentSvc != null && !agentSvc.isToolAllowedForConversation(callConvId, toolName)) {
                     val errorResult = buildJsonArray {
                         addJsonObject {
                             putJsonArray("content") {
-                                addJsonObject { put("value", "Tool '$toolName' is not available for this agent type.") }
+                                addJsonObject { put("value", "Tool '$toolName' is not allowed for this agent.") }
                             }
                             put("status", "error")
                         }

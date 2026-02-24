@@ -240,7 +240,7 @@ class LspSession(
             }
         }
 
-        // Register tools (including client-side MCP tools if any)
+        // Register all tools once globally
         registerTools()
 
         initialized = true
@@ -283,20 +283,13 @@ class LspSession(
     }
 
     /**
-     * Re-register tools with the language server (e.g., after toggling tools on/off).
+     * Register all client-side tools with the language server.
+     * Called once at init and again when MCP config changes.
+     *
+     * Per-agent tool isolation is enforced at the execution level:
+     * ConversationManager rejects tool calls not in the agent's allowed set.
      */
-    fun reregisterTools() {
-        if (!initialized || !lspClient.isRunning) return
-        scope.launch {
-            try {
-                registerTools()
-            } catch (e: Exception) {
-                log.warn("Failed to re-register tools: ${e.message}", e)
-            }
-        }
-    }
-
-    private suspend fun registerTools() {
+    suspend fun registerTools() {
         val schemas = toolRouter.getToolSchemas().toMutableList()
 
         // Append client-side MCP tool schemas (filtering disabled tools)
@@ -336,8 +329,7 @@ class LspSession(
             catch (_: Exception) { null }
         }
         val mcpNote = if (mcpSchemas.isNotEmpty()) " + ${mcpSchemas.size} client-mcp" else ""
-        log.info("Registered ${schemas.size} client tools: ${toolNames.joinToString(", ")}$mcpNote")
-        log.info("registerTools response: $resp")
+        log.info("Registered ${schemas.size} tools: ${toolNames.joinToString(", ")}$mcpNote")
     }
 
     /**

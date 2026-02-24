@@ -10,7 +10,11 @@ import java.awt.event.FocusAdapter
 import java.awt.event.FocusEvent
 import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
 import javax.swing.*
+import javax.swing.event.DocumentEvent
+import javax.swing.event.DocumentListener
 
 /**
  * Input panel matching the official GitHub Copilot Chat layout:
@@ -124,6 +128,17 @@ class ChatInputPanel(
         }
     }
 
+    // ── Slash command popup ────────────────────────────────────────
+
+    /** Items shown in the "/" popup. Each has a name and description. */
+    data class SlashItem(val name: String, val description: String, val tag: String = "Agent")
+
+    /** Current slash command items. Set by the parent panel (e.g. AgentPanel). */
+    var slashItems: List<SlashItem> = emptyList()
+
+    private val slashPopup = JPopupMenu()
+    private var slashPopupVisible = false
+
     /** True while the LSP/MCP backend is starting up. Blocks all input. */
     var isInitializing: Boolean = true
         set(value) {
@@ -144,6 +159,79 @@ class ChatInputPanel(
         sendButton.isEnabled = !isInitializing
         stopButton.isVisible = isStreaming
         agentDropdown.isEnabled = !blocked
+    }
+
+    private fun showSlashPopup(filter: String) {
+        val query = filter.lowercase()
+        val filtered = if (query.isEmpty()) slashItems
+            else slashItems.filter { it.name.lowercase().contains(query) }
+        if (filtered.isEmpty()) {
+            hideSlashPopup()
+            return
+        }
+
+        slashPopup.removeAll()
+        val nameHex = colorToHex(JBColor(0x000000, 0xBCBEC4))
+        val descHex = colorToHex(JBColor(0x999999, 0x666666))
+        val agentTagHex = colorToHex(JBColor(0x3574F0, 0x548AF7))
+        val subagentTagHex = colorToHex(JBColor(0x7C3AED, 0xA78BFA))
+        for (item in filtered) {
+            val desc = item.description.take(60)
+            val tagHex = if (item.tag == "Subagent") subagentTagHex else agentTagHex
+            val menuItem = JMenuItem(
+                "<html><font color='$tagHex'>${item.tag}</font>" +
+                "&nbsp;&nbsp;<b><font color='$nameHex'>/${item.name}</font></b>" +
+                "&nbsp;&nbsp;<font color='$descHex'>$desc</font></html>"
+            )
+            menuItem.addActionListener {
+                applySlashSelection(item.name)
+            }
+            slashPopup.add(menuItem)
+        }
+
+        // Size popup to fit content, at least as wide as the text area
+        val popupWidth = maxOf(textArea.width, 300)
+        slashPopup.preferredSize = Dimension(popupWidth, slashPopup.preferredSize.height)
+
+        // Position popup above the text area, left-aligned
+        slashPopup.show(textArea, 0, -slashPopup.preferredSize.height)
+        slashPopupVisible = true
+
+        // Return focus to text area so the user can keep typing
+        SwingUtilities.invokeLater { textArea.requestFocusInWindow() }
+    }
+
+    private fun hideSlashPopup() {
+        if (slashPopupVisible) {
+            slashPopup.isVisible = false
+            slashPopupVisible = false
+        }
+    }
+
+    private fun applySlashSelection(name: String) {
+        hideSlashPopup()
+        // Replace everything from "/" to current caret with "/<name> "
+        val text = textArea.text
+        val slashStart = text.indexOf('/')
+        if (slashStart >= 0) {
+            textArea.text = "/${name} " + text.substring(textArea.caretPosition).trimStart()
+            textArea.caretPosition = name.length + 2 // after "/<name> "
+        }
+    }
+
+    private fun handleTextChanged() {
+        val text = textArea.text
+        if (text.startsWith("/") && !text.contains('\n')) {
+            val typed = text.substringAfter("/").substringBefore(" ")
+            if (!text.contains(" ")) {
+                // Still typing the command — show/filter popup
+                showSlashPopup(typed)
+            } else {
+                hideSlashPopup()
+            }
+        } else {
+            hideSlashPopup()
+        }
     }
 
     init {
@@ -236,11 +324,35 @@ class ChatInputPanel(
 
         textArea.addKeyListener(object : KeyAdapter() {
             override fun keyPressed(e: KeyEvent) {
+                if (slashPopupVisible) {
+                    when (e.keyCode) {
+                        KeyEvent.VK_ESCAPE -> {
+                            e.consume()
+                            hideSlashPopup()
+                            return
+                        }
+                        KeyEvent.VK_TAB, KeyEvent.VK_ENTER -> {
+                            // Select first item in popup
+                            if (slashPopup.componentCount > 0) {
+                                e.consume()
+                                (slashPopup.getComponent(0) as? JMenuItem)?.doClick()
+                                return
+                            }
+                        }
+                    }
+                }
                 if (e.keyCode == KeyEvent.VK_ENTER && !e.isShiftDown) {
                     e.consume()
                     sendMessage()
                 }
             }
+        })
+
+        // Document listener for slash command detection
+        textArea.document.addDocumentListener(object : DocumentListener {
+            override fun insertUpdate(e: DocumentEvent?) { SwingUtilities.invokeLater { handleTextChanged() } }
+            override fun removeUpdate(e: DocumentEvent?) { SwingUtilities.invokeLater { handleTextChanged() } }
+            override fun changedUpdate(e: DocumentEvent?) {}
         })
     }
 
@@ -266,9 +378,13 @@ class ChatInputPanel(
     }
 
     private fun sendMessage() {
+        hideSlashPopup()
         val text = textArea.text.trim()
         if (text.isEmpty() || isStreaming || isInitializing) return
         textArea.text = ""
         onSend(text)
     }
+
+    private fun colorToHex(color: Color): String =
+        String.format("#%02x%02x%02x", color.red, color.green, color.blue)
 }

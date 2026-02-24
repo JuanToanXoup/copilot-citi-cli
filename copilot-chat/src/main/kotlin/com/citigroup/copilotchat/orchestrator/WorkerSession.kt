@@ -201,8 +201,9 @@ class WorkerSession(
     }
 
     /**
-     * Build the full prompt with system instructions, tool restrictions,
-     * dependency context, and the actual task.
+     * Build the full prompt with system instructions, dependency context, and the actual task.
+     * Tool restrictions are enforced at the execution level — ConversationManager rejects
+     * tool calls not in the agent's allowed set via AgentService.isToolAllowedForConversation().
      */
     private fun buildPrompt(task: String, dependencyContext: Map<String, String>): String {
         val parts = mutableListOf<String>()
@@ -210,17 +211,6 @@ class WorkerSession(
         // System instructions on first turn only
         if (isFirstTurn && systemPrompt.isNotBlank()) {
             parts.add("<system_instructions>\n$systemPrompt\n</system_instructions>")
-        }
-
-        // Tool restrictions if filtered
-        if (toolsEnabled != null) {
-            val toolList = toolsEnabled.joinToString(", ")
-            parts.add(
-                "<tool_restrictions>\n" +
-                "You may ONLY use these tools: $toolList\n" +
-                "Do not attempt to use any other tools.\n" +
-                "</tool_restrictions>"
-            )
         }
 
         // Dependency context from completed tasks
