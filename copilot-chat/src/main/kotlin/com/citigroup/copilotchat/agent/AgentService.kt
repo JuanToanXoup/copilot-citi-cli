@@ -2,6 +2,7 @@ package com.citigroup.copilotchat.agent
 
 import com.citigroup.copilotchat.conversation.ConversationManager
 import com.citigroup.copilotchat.lsp.LspClient
+import com.citigroup.copilotchat.lsp.LspClientPool
 import com.citigroup.copilotchat.tools.ToolRouter
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.Service
@@ -47,23 +48,16 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
     override suspend fun emit(event: AgentEvent) { _events.emit(event) }
     override fun tryEmit(event: AgentEvent): Boolean = _events.tryEmit(event)
 
-    private val lspClient: LspClient get() = LspClient.getInstance(project)
+    private val pool: LspClientPool get() = LspClientPool.getInstance(project)
+    private val lspClient: LspClient get() = pool.default
     private val conversationManager: ConversationManager get() = ConversationManager.getInstance(project)
 
     private val subagentManager by lazy {
-        SubagentManager(project, scope, this, lspClient, conversationManager)
+        SubagentManager(project, scope, this, pool, lspClient, conversationManager, conversationManager.cachedAuth)
     }
 
     @Volatile
     private var leadConversationId: String? = null
-    /** Tool allowlist for the current lead agent (from agent.md tools field). */
-    @Volatile
-    private var leadToolFilter: Set<String> = emptySet()
-    /** Tool filter for a direct subagent conversation (no lead agent). */
-    @Volatile
-    private var directSubagentConvId: String? = null
-    @Volatile
-    private var directSubagentToolFilter: Set<String> = emptySet()
     /** True between conversation/create call and its response — tool calls that arrive
      *  during this window carry the conversationId we need but don't have yet. */
     @Volatile
@@ -104,10 +98,6 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
                 val leadAgent = if (leadAgentType != null) {
                     AgentRegistry.findByType(leadAgentType, agents)
                 } else null
-
-                // Set lead tool filter from agent definition
-                leadToolFilter = (leadAgent?.tools ?: emptyList()).toSet()
-                log.info("AgentService: lead tool filter = $leadToolFilter")
 
                 isStreaming = true
                 val useModel = model
@@ -459,42 +449,20 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
     }
 
     /**
-     * Per-agent tool isolation: check if a tool is allowed for the given conversation.
-     * The Copilot server registers all tools globally (additive API), so per-agent
-     * scoping is enforced here by rejecting disallowed tool calls at execution time.
+     * Per-agent tool isolation — now handled at process level by [LspClientPool].
+     * Each pool client only has its tool set registered, so the model never sees
+     * disallowed tools. Kept as a no-op for backward compatibility during transition.
      */
-    fun isToolAllowedForConversation(conversationId: String?, toolName: String): Boolean {
-        if (conversationId == null) return true
-        // Lead agent conversation
-        if (conversationId == leadConversationId && leadToolFilter.isNotEmpty()) {
-            if (!isToolInFilter(toolName, leadToolFilter)) {
-                log.warn("Tool blocked for lead: '$toolName' not in $leadToolFilter")
-                return false
-            }
-            return true
-        }
-        // Direct subagent conversation
-        if (conversationId == directSubagentConvId && directSubagentToolFilter.isNotEmpty()) {
-            if (!isToolInFilter(toolName, directSubagentToolFilter)) {
-                log.warn("Tool blocked for direct subagent: '$toolName' not in $directSubagentToolFilter")
-                return false
-            }
-            return true
-        }
-        // Delegated subagent conversations (and teammate agents)
-        return subagentManager.isToolAllowed(conversationId, toolName)
-    }
-
-    /** Check if [toolName] is in [filter], expanding the "ide" shorthand for "ide_*" tools. */
-    private fun isToolInFilter(toolName: String, filter: Set<String>): Boolean =
-        toolName in filter || (toolName.startsWith("ide_") && "ide" in filter)
+    @Deprecated("Tool filtering now handled at process level by LspClientPool")
+    fun isToolAllowedForConversation(conversationId: String?, toolName: String): Boolean = true
 
     /**
      * Register a tool filter for a teammate agent conversation.
-     * Called by [TeamService] when a teammate's conversationId is captured.
+     * Now a no-op — tool filtering is handled at the LSP process level.
      */
+    @Deprecated("Tool filtering now handled at process level by LspClientPool")
     fun registerTeammateToolFilter(conversationId: String, allowedTools: Set<String>) {
-        subagentManager.registerToolFilter(conversationId, allowedTools)
+        // no-op: each pool client registers only its own tools
     }
 
     /** Delegate to [SubagentManager.approveWorktreeChanges]. */
@@ -557,13 +525,6 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
                     lspClient = lspClient,
                 )
 
-                // Register tool filter when conversationId is captured
-                session.onConversationId = { convId ->
-                    directSubagentConvId = convId
-                    directSubagentToolFilter = agentDef.tools.toSet()
-                    log.info("AgentService: direct subagent tool filter registered (convId=$convId, allowed=${agentDef.tools})")
-                }
-
                 session.onEvent = { event ->
                     when (event) {
                         is com.citigroup.copilotchat.orchestrator.WorkerEvent.Delta ->
@@ -596,9 +557,6 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
     fun newConversation() {
         cancel()
         leadConversationId = null
-        leadToolFilter = emptySet()
-        directSubagentConvId = null
-        directSubagentToolFilter = emptySet()
         pendingLeadCreate = false
         agents = emptyList()
     }

@@ -1,21 +1,17 @@
 package com.citigroup.copilotchat.lsp
 
 import com.intellij.openapi.Disposable
-import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.project.Project
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Project-level LSP client service.
- * Each project gets its own copilot-language-server process, providing full
- * isolation of conversations, progress events, and tool calls between projects.
+ * LSP client wrapping a single copilot-language-server process.
+ * No longer a @Service — lifecycle is managed by [LspClientPool].
  */
-@Service(Service.Level.PROJECT)
-class LspClient(private val project: Project) : Disposable {
+class LspClient(val clientId: String = "default") : Disposable {
 
     private val log = Logger.getInstance(LspClient::class.java)
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
@@ -35,10 +31,10 @@ class LspClient(private val project: Project) : Disposable {
     /** Handler for server→client requests (e.g., invokeClientTool). */
     var serverRequestHandler: ((method: String, id: Int, params: JsonObject) -> Unit)? = null
 
-    /** Feature flags received from the server via featureFlagsNotification. */
+    /** Feature flags received from the server via featureFlagsNotification.
+     *  Can also be set externally from [CachedAuth] for pool clients. */
     @Volatile
     var featureFlags: Map<String, Any> = emptyMap()
-        private set
 
     /** Check if server-side MCP is allowed (from org feature flags). */
     val isServerMcpEnabled: Boolean get() = featureFlags["mcp"] == true
@@ -46,8 +42,10 @@ class LspClient(private val project: Project) : Disposable {
     val isRunning: Boolean get() = process?.isAlive == true
 
     companion object {
-        fun getInstance(project: Project): LspClient =
-            project.getService(LspClient::class.java)
+        /** @deprecated Use [LspClientPool.getInstance] instead. */
+        @Deprecated("Use LspClientPool.getInstance(project).default", ReplaceWith("LspClientPool.getInstance(project).default"))
+        fun getInstance(project: com.intellij.openapi.project.Project): LspClient =
+            LspClientPool.getInstance(project).default
     }
 
     /**

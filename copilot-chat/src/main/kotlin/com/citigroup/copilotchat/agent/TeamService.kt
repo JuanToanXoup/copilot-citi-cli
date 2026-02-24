@@ -1,7 +1,9 @@
 package com.citigroup.copilotchat.agent
 
 import com.citigroup.copilotchat.config.StoragePaths
-import com.citigroup.copilotchat.lsp.LspClient
+import com.citigroup.copilotchat.conversation.ConversationManager
+import com.citigroup.copilotchat.lsp.LspClientPool
+import com.citigroup.copilotchat.lsp.ToolSetKey
 import com.citigroup.copilotchat.orchestrator.WorkerSession
 import com.citigroup.copilotchat.orchestrator.WorkerEvent
 import com.intellij.openapi.Disposable
@@ -115,6 +117,27 @@ class TeamService(private val project: Project) : Disposable {
         val abortFlag = AtomicBoolean(false)
         teammateAbortFlags[name] = abortFlag
 
+        val pool = LspClientPool.getInstance(project)
+        val allowedTools = if (agentDef.hasUnrestrictedTools) emptySet() else agentDef.tools.toSet()
+        val teammateClient = if (allowedTools.isEmpty()) {
+            pool.default
+        } else {
+            pool.acquireClient(allowedTools)
+        }
+
+        // Initialize pool client for teammate's tool set
+        val toolSetKey = ToolSetKey.of(allowedTools)
+        if (toolSetKey != ToolSetKey.ALL) {
+            val cachedAuth = ConversationManager.getInstance(project).cachedAuth
+            scope.launch {
+                try {
+                    pool.ensureInitialized(toolSetKey, cachedAuth)
+                } catch (e: Exception) {
+                    log.warn("TeamService: pool client init failed for teammate '$name'", e)
+                }
+            }
+        }
+
         val session = WorkerSession(
             workerId = "teammate-$name",
             role = name,
@@ -125,7 +148,7 @@ class TeamService(private val project: Project) : Disposable {
             toolsEnabled = agentDef.tools,
             projectName = project.name,
             workspaceRoot = project.basePath ?: "/tmp",
-            lspClient = LspClient.getInstance(project),
+            lspClient = teammateClient,
         )
 
         // Register tool filter when conversationId is captured (mirrors SubagentManager pattern).
