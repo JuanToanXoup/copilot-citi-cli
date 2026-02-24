@@ -341,7 +341,9 @@ class AgentService(private val project: Project) : Disposable {
 
         if (useWorktree) {
             try {
-                val info = WorktreeManager.createWorktree(project.basePath ?: "/tmp", agentId)
+                val info = withContext(Dispatchers.IO) {
+                    WorktreeManager.createWorktree(project.basePath ?: "/tmp", agentId)
+                }
                 subagentWorktrees[agentId] = info
                 worktreeInfo = info
                 effectiveWorkspaceRoot = info.worktreePath
@@ -468,13 +470,17 @@ class AgentService(private val project: Project) : Disposable {
         val mainWorkspace = project.basePath ?: "/tmp"
         for ((agentId, worktreeInfo) in subagentWorktrees) {
             try {
-                val changes = WorktreeManager.generateDiff(worktreeInfo, mainWorkspace)
+                val changes = withContext(Dispatchers.IO) {
+                    WorktreeManager.generateDiff(worktreeInfo, mainWorkspace)
+                }
                 if (changes.isNotEmpty()) {
                     _events.emit(AgentEvent.WorktreeChangesReady(agentId, changes))
                     log.info("AgentService: worktree $agentId has ${changes.size} changed file(s) pending review")
                 } else {
                     // No changes — clean up immediately
-                    WorktreeManager.removeWorktree(worktreeInfo, mainWorkspace)
+                    withContext(Dispatchers.IO) {
+                        WorktreeManager.removeWorktree(worktreeInfo, mainWorkspace)
+                    }
                     subagentWorktrees.remove(agentId)
                     log.info("AgentService: worktree $agentId had no changes, cleaned up")
                 }
@@ -711,16 +717,21 @@ class AgentService(private val project: Project) : Disposable {
         pendingSubagents.clear()
         subagentToolFilters.clear()
 
-        // Clean up any active worktrees
+        // Clean up any active worktrees on IO thread
         val mainWorkspace = project.basePath ?: "/tmp"
-        for ((_, info) in subagentWorktrees) {
-            try {
-                WorktreeManager.removeWorktree(info, mainWorkspace)
-            } catch (e: Exception) {
-                log.warn("AgentService: failed to clean up worktree ${info.agentId}: ${e.message}")
+        val worktreesToClean = subagentWorktrees.values.toList()
+        subagentWorktrees.clear()
+        if (worktreesToClean.isNotEmpty()) {
+            scope.launch(Dispatchers.IO) {
+                for (info in worktreesToClean) {
+                    try {
+                        WorktreeManager.removeWorktree(info, mainWorkspace)
+                    } catch (e: Exception) {
+                        log.warn("AgentService: failed to clean up worktree ${info.agentId}: ${e.message}")
+                    }
+                }
             }
         }
-        subagentWorktrees.clear()
 
         isStreaming = false
 

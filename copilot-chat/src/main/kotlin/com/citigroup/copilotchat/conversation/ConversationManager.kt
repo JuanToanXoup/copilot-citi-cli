@@ -376,7 +376,9 @@ class ConversationManager(private val project: Project) : Disposable {
                 val lspText = if (settings.ragEnabled) {
                     log.info("RAG is enabled, retrieving context for query")
                     val ragContext = try {
-                        RagQueryService.getInstance(project).retrieve(text, settings.ragTopK)
+                        withContext(Dispatchers.IO) {
+                            RagQueryService.getInstance(project).retrieve(text, settings.ragTopK)
+                        }
                     } catch (e: Exception) {
                         log.warn("RAG retrieval failed, continuing without context: ${e.message}")
                         ""

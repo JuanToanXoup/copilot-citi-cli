@@ -174,11 +174,13 @@ class TeamService(private val project: Project) : Disposable {
                 if (abortFlag.get()) break
 
                 // Phase 2: Go idle, notify lead
-                leadMailbox.write(MailboxMessage(
-                    from = name,
-                    text = "Task completed. Result summary: ${result.take(300)}",
-                    summary = "idle_notification",
-                ))
+                withContext(Dispatchers.IO) {
+                    leadMailbox.write(MailboxMessage(
+                        from = name,
+                        text = "Task completed. Result summary: ${result.take(300)}",
+                        summary = "idle_notification",
+                    ))
+                }
 
                 scope.launch {
                     agentService._events.emit(AgentEvent.TeammateIdle(name))
@@ -189,7 +191,7 @@ class TeamService(private val project: Project) : Disposable {
                 var newPrompt: String? = null
                 while (!abortFlag.get() && newPrompt == null) {
                     delay(500)
-                    val unread = mailbox.readUnread()
+                    val unread = withContext(Dispatchers.IO) { mailbox.readUnread() }
                     if (unread.isNotEmpty()) {
                         // Prioritize team-lead messages
                         val leadMsg = unread.find { it.from == "team-lead" }
@@ -197,7 +199,9 @@ class TeamService(private val project: Project) : Disposable {
                         newPrompt = msg.text
 
                         // Mark all as read
-                        mailbox.markRead(unread.map { it.timestamp }.toSet())
+                        withContext(Dispatchers.IO) {
+                            mailbox.markRead(unread.map { it.timestamp }.toSet())
+                        }
 
                         scope.launch {
                             agentService._events.emit(AgentEvent.TeammateResumed(name))
@@ -215,11 +219,13 @@ class TeamService(private val project: Project) : Disposable {
                 break
             } catch (e: Exception) {
                 log.error("TeamService: teammate '$name' error", e)
-                leadMailbox.write(MailboxMessage(
-                    from = name,
-                    text = "Error: ${e.message}",
-                    summary = "error",
-                ))
+                withContext(Dispatchers.IO) {
+                    leadMailbox.write(MailboxMessage(
+                        from = name,
+                        text = "Error: ${e.message}",
+                        summary = "error",
+                    ))
+                }
                 break
             }
         }
@@ -235,11 +241,13 @@ class TeamService(private val project: Project) : Disposable {
         val team = activeTeam ?: return wrapResult("No active team", isError = true)
 
         val mailbox = Mailbox(team.name, to)
-        mailbox.write(MailboxMessage(
-            from = "team-lead",
-            text = text,
-            summary = summary,
-        ))
+        withContext(Dispatchers.IO) {
+            mailbox.write(MailboxMessage(
+                from = "team-lead",
+                text = text,
+                summary = summary,
+            ))
+        }
 
         val agentService = AgentService.getInstance(project)
         scope.launch {
