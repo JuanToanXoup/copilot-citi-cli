@@ -30,6 +30,9 @@
         <!-- Project-level Conversation Manager -->
         <projectService serviceImplementation="com.citigroup.copilotchat.conversation.ConversationManager"/>
 
+        <!-- Project-level LSP Client Factory — creates initialized clients for agents -->
+        <projectService serviceImplementation="com.citigroup.copilotchat.lsp.LspClientFactory"/>
+
         <!-- Project-level Agent Service (Claude Code architecture) -->
         <projectService serviceImplementation="com.citigroup.copilotchat.agent.AgentService"/>
 

@@ -3,7 +3,9 @@ package com.citigroup.copilotchat.agent
 import com.citigroup.copilotchat.conversation.ConversationManager
 import com.citigroup.copilotchat.lsp.CachedAuth
 import com.citigroup.copilotchat.lsp.LspClient
+import com.citigroup.copilotchat.lsp.LspClientFactory
 import com.citigroup.copilotchat.lsp.LspClientPool
+import com.citigroup.copilotchat.lsp.ManagedClient
 import com.citigroup.copilotchat.lsp.ToolSetKey
 import com.citigroup.copilotchat.orchestrator.WorkerSession
 import com.citigroup.copilotchat.orchestrator.WorkerEvent
@@ -30,6 +32,7 @@ class SubagentManager(
     private val leadClient: LspClient,
     private val conversationManager: ConversationManager,
     private val cachedAuth: CachedAuth,
+    private val clientFactory: LspClientFactory = LspClientFactory.getInstance(project),
 ) {
 
     private val log = Logger.getInstance(SubagentManager::class.java)
@@ -44,6 +47,9 @@ class SubagentManager(
 
     /** Start times for duration tracking. Keyed by agentId. */
     private val subagentStartTimes = ConcurrentHashMap<String, Long>()
+
+    /** Managed client handles for proper release. Keyed by agentId. */
+    private val managedClients = ConcurrentHashMap<String, ManagedClient>()
 
     /** Whether there are subagents still running. */
     fun hasPending(): Boolean = pendingSubagents.isNotEmpty()
@@ -119,22 +125,22 @@ class SubagentManager(
             if (subtracted.isEmpty()) effectiveDef.tools.toSet() else subtracted
         }
 
-        // Acquire a pool client for this subagent's tool set
-        val subagentClient = if (allowedTools.isEmpty()) {
-            pool.default // unrestricted = use default
+        // Build an effective definition with worktree-adjusted tools for the factory
+        val effectiveForFactory = if (allowedTools != effectiveDef.tools.toSet()) {
+            effectiveDef.copy(tools = allowedTools.toList())
         } else {
-            pool.acquireClient(allowedTools)
+            effectiveDef
         }
 
-        // Ensure the pool client is initialized (uses CachedAuth for fast startup)
-        val toolSetKey = ToolSetKey.of(allowedTools)
-        if (toolSetKey != ToolSetKey.ALL) {
-            try {
-                pool.ensureInitialized(toolSetKey, cachedAuth)
-            } catch (e: Exception) {
-                log.warn("SubagentManager: pool client init failed for $agentId, falling back to default client", e)
-            }
+        // Acquire client via factory — handles pool vs standalone (for MCP agents)
+        val managed = try {
+            clientFactory.acquireForAgent(effectiveForFactory)
+        } catch (e: Exception) {
+            log.warn("SubagentManager: client acquisition failed for $agentId, falling back to default client", e)
+            ManagedClient(pool.default, isStandalone = false, clientId = null, tools = emptySet())
         }
+        managedClients[agentId] = managed
+        val subagentClient = managed.client
 
         val session = WorkerSession(
             workerId = agentId,
@@ -240,10 +246,8 @@ class SubagentManager(
                 }
                 leadClient.sendResponse(id, toolResult)
             } finally {
-                // Release pool client for sequential subagent
-                if (allowedTools.isNotEmpty()) {
-                    pool.releaseClient(allowedTools)
-                }
+                // Release client for sequential subagent
+                managedClients.remove(agentId)?.let { clientFactory.release(it) }
             }
         } else {
             // Parallel mode: respond immediately, collect results later
@@ -295,10 +299,8 @@ class SubagentManager(
                 eventBus.emit(SubagentEvent.Completed(agentId, e.message ?: "Error", "error", durationMs))
                 log.error("SubagentManager: subagent $agentId failed: ${e.message} (${durationMs}ms)", e)
             } finally {
-                // Release pool client reference
-                if (pending.allowedTools.isNotEmpty()) {
-                    pool.releaseClient(pending.allowedTools)
-                }
+                // Release client via factory (handles pool vs standalone)
+                managedClients.remove(agentId)?.let { clientFactory.release(it) }
             }
         }
         pendingSubagents.clear()
@@ -378,18 +380,20 @@ class SubagentManager(
         log.info("SubagentManager: rejected and discarded worktree changes for $agentId")
     }
 
-    /** Cancel all active and pending subagents, release pool clients, and clean up worktrees. */
+    /** Cancel all active and pending subagents, release clients, and clean up worktrees. */
     fun cancelAll() {
         activeSubagents.values.forEach { it.cancel() }
         activeSubagents.clear()
-        // Release pool clients before clearing
+        // Release clients before clearing
         for ((_, pending) in pendingSubagents) {
             pending.deferred.cancel()
-            if (pending.allowedTools.isNotEmpty()) {
-                pool.releaseClient(pending.allowedTools)
-            }
         }
         pendingSubagents.clear()
+        // Release all managed clients via factory
+        for ((_, managed) in managedClients) {
+            clientFactory.release(managed)
+        }
+        managedClients.clear()
         subagentStartTimes.clear()
 
         // Clean up any active worktrees on IO thread
