@@ -41,8 +41,7 @@ data class McpServerConfig(
 data class AgentDefinition(
     val agentType: String,
     val whenToUse: String,
-    val tools: List<String>? = null,           // null = all tools
-    val disallowedTools: List<String> = emptyList(),
+    val tools: List<String> = emptyList(),      // explicit tool list from agent.md (empty = no tools)
     val source: AgentSource = AgentSource.BUILT_IN,
     val model: AgentModel = AgentModel.INHERIT,
     val systemPromptTemplate: String = "",     // supports {{AGENT_LIST}} placeholder for supervisors

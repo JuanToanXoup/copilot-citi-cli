@@ -47,6 +47,8 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
 
     @Volatile
     private var leadConversationId: String? = null
+    /** Tool allowlist for the lead agent (from agent.md tools field). */
+    private var leadToolFilter: Set<String> = emptySet()
     /** True between conversation/create call and its response — tool calls that arrive
      *  during this window carry the conversationId we need but don't have yet. */
     @Volatile
@@ -87,6 +89,10 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
                 val leadAgent = if (leadAgentType != null) {
                     AgentRegistry.findByType(leadAgentType, agents)
                 } else null
+
+                // Set lead tool filter from agent definition
+                leadToolFilter = (leadAgent?.tools ?: emptyList()).toSet()
+                log.info("AgentService: lead tool filter = $leadToolFilter")
 
                 isStreaming = true
                 val useModel = model
@@ -436,9 +442,21 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
         return false
     }
 
-    /** Delegate to [SubagentManager.isToolAllowed]. */
-    fun isToolAllowedForConversation(conversationId: String?, toolName: String): Boolean =
-        subagentManager.isToolAllowed(conversationId, toolName)
+    /**
+     * Check if a tool is allowed for the given conversation.
+     * Checks lead agent's tool filter first, then delegates to SubagentManager for subagents.
+     */
+    fun isToolAllowedForConversation(conversationId: String?, toolName: String): Boolean {
+        // Lead agent conversation — enforce its tools list
+        if (conversationId != null && conversationId == leadConversationId && leadToolFilter.isNotEmpty()) {
+            if (toolName !in leadToolFilter) {
+                log.warn("Tool blocked for lead conversation: '$toolName' not in leadToolFilter $leadToolFilter")
+                return false
+            }
+            return true
+        }
+        return subagentManager.isToolAllowed(conversationId, toolName)
+    }
 
     /** Delegate to [SubagentManager.approveWorktreeChanges]. */
     fun approveWorktreeChanges(agentId: String) = subagentManager.approveWorktreeChanges(agentId)
@@ -471,6 +489,7 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
     fun newConversation() {
         cancel()
         leadConversationId = null
+        leadToolFilter = emptySet()
         pendingLeadCreate = false
         agents = emptyList()
     }

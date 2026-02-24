@@ -121,16 +121,15 @@ class SubagentManager(
         }
 
         session.onConversationId = { convId ->
-            val disallowed = effectiveDef.disallowedTools.toSet() + extraDisallowed
+            val allowedTools = effectiveDef.tools.toSet() - extraDisallowed
             subagentToolFilters[convId] = SubagentToolFilter(
-                allowedTools = effectiveDef.tools?.toSet(),
-                disallowedTools = disallowed,
+                allowedTools = allowedTools,
             )
             // Register workspace override so ConversationManager routes tool calls to the worktree
             if (worktreeInfo != null) {
                 conversationManager.registerWorkspaceOverride(convId, worktreeInfo.worktreePath)
             }
-            log.info("SubagentManager: registered tool filter for subagent $agentId (convId=$convId, allowed=${effectiveDef.tools}, disallowed=$disallowed, worktree=${worktreeInfo != null})")
+            log.info("SubagentManager: registered tool filter for subagent $agentId (convId=$convId, allowed=$allowedTools, worktree=${worktreeInfo != null})")
         }
 
         activeSubagents[agentId] = session
@@ -285,16 +284,8 @@ class SubagentManager(
         if (conversationId == null) return true
         val filter = subagentToolFilters[conversationId] ?: return true
 
-        // Blocklist check
-        if (toolName in filter.disallowedTools) {
-            log.warn("Tool blocked for conversation $conversationId: '$toolName' is in disallowedTools")
-            return false
-        }
-
-        // Allowlist check (null = all allowed)
-        val allowed = filter.allowedTools
-        if (allowed != null && toolName !in allowed) {
-            log.warn("Tool blocked for conversation $conversationId: '$toolName' is not in allowedTools $allowed")
+        if (toolName !in filter.allowedTools) {
+            log.warn("Tool blocked for conversation $conversationId: '$toolName' not in allowedTools ${filter.allowedTools}")
             return false
         }
 
@@ -334,9 +325,8 @@ class SubagentManager(
         val deferred: Deferred<String>,
     )
 
-    /** Hard-enforced tool filter for a subagent conversation. */
+    /** Hard-enforced tool filter for a subagent conversation (from agent.md tools field). */
     private data class SubagentToolFilter(
-        val allowedTools: Set<String>?,   // null = all allowed
-        val disallowedTools: Set<String>,
+        val allowedTools: Set<String>,
     )
 }

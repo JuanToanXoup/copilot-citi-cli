@@ -602,7 +602,7 @@ class AgentConfigPanel(
                 val name = obj["name"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
                 if (name in skipNames) return@mapNotNull null
                 val desc = obj["description"]?.jsonPrimitive?.contentOrNull ?: ""
-                val enabled = agent.tools == null || agent.tools.contains(name)
+                val enabled = name in agent.tools
                 CheckRow(name, desc, enabled)
             } catch (_: Throwable) { null }
         }
@@ -614,7 +614,7 @@ class AgentConfigPanel(
         try {
             val rows = PsiTools.allTools.map { tool ->
                 val display = tool.name.removePrefix("ide_")
-                val enabled = agent.tools == null || "ide" in agent.tools || tool.name in (agent.tools ?: emptyList())
+                val enabled = "ide" in agent.tools || tool.name in agent.tools
                 CheckRow(display, tool.description, enabled)
             }
             ideToolsModel.update(rows)
@@ -766,9 +766,7 @@ class AgentConfigPanel(
         val enabledIde = ideToolsModel.getCheckedNames() // display names without ide_ prefix
         val allIdeChecked = enabledIde.size == ideToolsModel.rowCount
 
-        val tools: List<String>? = if (allBuiltInChecked && allIdeChecked) {
-            null // all tools enabled — omit from file
-        } else {
+        val tools: List<String> = run {
             val list = mutableListOf<String>()
             list.addAll(enabledBuiltIn)
             // Use "ide" shorthand if all IDE tools checked, else add individual ide_<name> entries
@@ -810,7 +808,6 @@ class AgentConfigPanel(
             agentType = name,
             whenToUse = descriptionField.text.trim(),
             tools = tools,
-            disallowedTools = agent.disallowedTools,
             source = agent.source,
             model = model,
             systemPromptTemplate = prompt,

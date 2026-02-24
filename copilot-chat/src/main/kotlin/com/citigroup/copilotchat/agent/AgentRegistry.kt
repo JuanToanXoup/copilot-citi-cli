@@ -190,7 +190,7 @@ Complete the full task without stopping for confirmation."""
 
         val name = yaml["name"]?.toString() ?: defaultName
         val description = yaml["description"]?.toString() ?: "Custom agent: $name"
-        val tools = yamlStringList(yaml["tools"])
+        val tools = yamlStringList(yaml["tools"]) ?: emptyList()
         val model = parseModelString(yaml["model"]?.toString())
         val forkContext = yaml["forkContext"]?.toString()?.lowercase() == "true"
         val background = yaml["background"]?.toString()?.lowercase() == "true"
@@ -209,8 +209,6 @@ Complete the full task without stopping for confirmation."""
             agentType = name,
             whenToUse = description,
             tools = tools,
-            disallowedTools = if (subagents != null) emptyList()
-                else listOf("delegate_task", "create_team", "send_message", "delete_team"),
             source = source,
             model = model,
             systemPromptTemplate = body,
@@ -335,7 +333,7 @@ Complete the full task without stopping for confirmation."""
         if (agent.model != AgentModel.INHERIT) {
             sb.appendLine("model: ${modelToString(agent.model)}")
         }
-        if (agent.tools != null) {
+        if (agent.tools.isNotEmpty()) {
             sb.appendLine("tools: [${agent.tools.joinToString(", ")}]")
         }
         if (agent.maxTurns != 30) {

@@ -2,8 +2,9 @@
 name: default-lead
 description: Default lead agent that coordinates all available subagents.
 model: gpt-4.1
+tools: [delegate_task]
 maxTurns: 30
-subagents: []
+subagents: [explore, plan, bash, general-purpose]
 ---
 You are a lead agent that coordinates sub-agents via the delegate_task tool.
 
