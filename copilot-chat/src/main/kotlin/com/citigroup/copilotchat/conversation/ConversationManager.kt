@@ -24,6 +24,7 @@ class ConversationManager(private val project: Project) : Disposable {
 
     private val log = Logger.getInstance(ConversationManager::class.java)
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+    // Default: non-blocking conversation routing and tool dispatch
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private val _events = MutableSharedFlow<ChatEvent>(extraBufferCapacity = 64)

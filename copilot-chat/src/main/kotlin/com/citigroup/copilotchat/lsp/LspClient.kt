@@ -20,6 +20,7 @@ class LspClient(private val project: Project) : Disposable {
     private val log = Logger.getInstance(LspClient::class.java)
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val requestId = AtomicInteger(0)
+    // IO: blocking stdio read loop for LSP JSON-RPC messages
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private var process: Process? = null

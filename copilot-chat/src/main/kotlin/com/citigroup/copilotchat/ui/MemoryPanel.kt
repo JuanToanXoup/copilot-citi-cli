@@ -22,6 +22,7 @@ import javax.swing.*
  */
 class MemoryPanel(private val project: Project) : JPanel(BorderLayout()), Disposable {
 
+    // Main: Swing UI updates for memory list display
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     private val enabledCheckbox = JCheckBox("Enable RAG context injection").apply {

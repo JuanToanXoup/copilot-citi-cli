@@ -1,6 +1,7 @@
 package com.citigroup.copilotchat.tools
 
 import com.citigroup.copilotchat.config.StoragePaths
+import com.citigroup.copilotchat.rag.EmbeddingsProvider
 import com.citigroup.copilotchat.rag.LocalEmbeddings
 import com.citigroup.copilotchat.rag.VectorPoint
 import com.citigroup.copilotchat.rag.VectorStore
@@ -17,6 +18,7 @@ object MemoryTools : ToolGroup {
 
     private val log = Logger.getInstance(MemoryTools::class.java)
     private val memoryJson = Json { ignoreUnknownKeys = true }
+    private val embeddings: EmbeddingsProvider = LocalEmbeddings
     private const val MEMORIES_COLLECTION = "copilot-memories"
 
     override val schemas: List<String> = listOf(
@@ -38,9 +40,9 @@ object MemoryTools : ToolGroup {
         return try {
             val store = VectorStore.getInstance()
             val collection = projectCollectionName(ws)
-            store.ensureCollection(collection, LocalEmbeddings.vectorDimension())
+            store.ensureCollection(collection, embeddings.vectorDimension())
 
-            val queryVector = LocalEmbeddings.embed(query)
+            val queryVector = embeddings.embed(query)
             val results = store.search(collection, queryVector, topK, 0.25f)
 
             if (results.isEmpty()) return "No relevant code found for: $query"
@@ -87,9 +89,9 @@ object MemoryTools : ToolGroup {
         try {
             val store = VectorStore.getInstance()
             val collection = MEMORIES_COLLECTION
-            store.ensureCollection(collection, LocalEmbeddings.vectorDimension())
+            store.ensureCollection(collection, embeddings.vectorDimension())
 
-            val vector = LocalEmbeddings.embed(fact)
+            val vector = embeddings.embed(fact)
             val point = VectorPoint(
                 id = UUID.randomUUID().toString(),
                 vector = vector,
@@ -117,9 +119,9 @@ object MemoryTools : ToolGroup {
         try {
             val store = VectorStore.getInstance()
             val collection = MEMORIES_COLLECTION
-            store.ensureCollection(collection, LocalEmbeddings.vectorDimension())
+            store.ensureCollection(collection, embeddings.vectorDimension())
 
-            val queryVector = LocalEmbeddings.embed(topic)
+            val queryVector = embeddings.embed(topic)
             val vectorResults = store.search(collection, queryVector, 10, 0.3f)
                 .filter { category == null || it.payload["category"] == category }
 

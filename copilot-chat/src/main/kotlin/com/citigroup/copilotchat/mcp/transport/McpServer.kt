@@ -1,4 +1,4 @@
-package com.citigroup.copilotchat.mcp
+package com.citigroup.copilotchat.mcp.transport
 
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.*

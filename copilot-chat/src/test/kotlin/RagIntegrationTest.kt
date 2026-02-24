@@ -36,7 +36,7 @@ private val client = HttpClient.newBuilder()
 
 private const val QDRANT_VERSION = "v1.13.2"
 private const val QDRANT_PORT = 6399 // Use non-default port to avoid conflicts
-private val qdrantHome = File(System.getProperty("user.home"), ".copilot-chat/qdrant-test")
+private val qdrantHome = File(com.citigroup.copilotchat.config.StoragePaths.userRoot, "qdrant-test")
 private val qdrantBinary = File(qdrantHome, if (System.getProperty("os.name").lowercase().contains("win")) "qdrant.exe" else "qdrant")
 private val qdrantStorage = File(qdrantHome, "test-storage")
 

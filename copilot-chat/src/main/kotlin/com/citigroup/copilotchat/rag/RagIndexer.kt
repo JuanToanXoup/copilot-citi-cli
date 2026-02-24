@@ -29,6 +29,8 @@ import java.util.UUID
 class RagIndexer(private val project: Project) : Disposable {
 
     private val log = Logger.getInstance(RagIndexer::class.java)
+    private val embeddings: EmbeddingsProvider = LocalEmbeddings
+    // IO: blocking file reads and vector store persistence
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private var indexingJob: Job? = null
@@ -95,7 +97,7 @@ class RagIndexer(private val project: Project) : Disposable {
 
                 val store = VectorStore.getInstance()
                 val collection = collectionName()
-                store.ensureCollection(collection, LocalEmbeddings.vectorDimension())
+                store.ensureCollection(collection, embeddings.vectorDimension())
 
                 // Gather existing file hashes for incremental indexing
                 val existingPoints = try {
@@ -213,7 +215,7 @@ class RagIndexer(private val project: Project) : Disposable {
             }
         }
 
-        val vectors = LocalEmbeddings.embedBatch(texts)
+        val vectors = embeddings.embedBatch(texts)
 
         // Build points
         val points = chunks.zip(vectors).map { (chunk, vector) ->

@@ -33,7 +33,7 @@ class VectorStore : VectorSearchEngine, Disposable {
     private val dirty = ConcurrentHashMap<String, Boolean>()
 
     companion object {
-        fun getInstance(): VectorStore =
+        fun getInstance(): VectorSearchEngine =
             com.intellij.openapi.application.ApplicationManager.getApplication().getService(VectorStore::class.java)
     }
 

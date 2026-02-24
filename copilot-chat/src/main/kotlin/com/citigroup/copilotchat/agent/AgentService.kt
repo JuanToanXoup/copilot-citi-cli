@@ -29,6 +29,7 @@ import java.util.Collections
 class AgentService(private val project: Project) : AgentEventBus, Disposable {
 
     private val log = Logger.getInstance(AgentService::class.java)
+    // Default: non-blocking lead agent orchestration and tool routing
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     internal val _events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 512)

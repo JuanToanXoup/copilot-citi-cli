@@ -18,6 +18,7 @@ import com.intellij.openapi.project.Project
 class RagQueryService(private val project: Project) : com.intellij.openapi.Disposable {
 
     private val log = Logger.getInstance(RagQueryService::class.java)
+    private val embeddings: EmbeddingsProvider = LocalEmbeddings
 
     companion object {
         private const val MAX_CONTEXT_CHARS = 4000
@@ -47,7 +48,7 @@ class RagQueryService(private val project: Project) : com.intellij.openapi.Dispo
         val collection = indexer.collectionName()
 
         // Embed the query
-        val queryVector = LocalEmbeddings.embed(query)
+        val queryVector = embeddings.embed(query)
         log.info("RAG: embedded query (${query.take(50)}...), searching collection '$collection'")
 
         // Search vector store

@@ -35,6 +35,7 @@ import javax.swing.*
 class RecorderPanel(private val project: Project) : JPanel(BorderLayout()), Disposable {
 
     private val log = Logger.getInstance(RecorderPanel::class.java)
+    // Main: Swing UI updates; switches to IO for Playwright process I/O
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     private enum class State { IDLE, RECORDING, COMPLETED }

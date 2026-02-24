@@ -1,4 +1,4 @@
-package com.citigroup.copilotchat.mcp
+package com.citigroup.copilotchat.mcp.transport
 
 import kotlinx.serialization.json.JsonObject
 
@@ -7,7 +7,7 @@ import kotlinx.serialization.json.JsonObject
  *
  * Both [McpServer] (stdio) and [McpSseServer] (SSE) expose the same
  * lifecycle: start -> initialize -> listTools -> callTool -> stop.
- * [ClientMcpManager] operates on this interface so transport details
+ * [com.citigroup.copilotchat.mcp.ClientMcpManager] operates on this interface so transport details
  * are hidden behind a single collection.
  */
 interface McpTransport {

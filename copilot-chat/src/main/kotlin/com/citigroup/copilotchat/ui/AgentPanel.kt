@@ -29,6 +29,7 @@ import javax.swing.*
  */
 class AgentPanel(private val project: Project) : JPanel(BorderLayout()), Disposable {
 
+    // Main: Swing UI updates from SharedFlow event collection
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val agentService = AgentService.getInstance(project)
     private val messageRenderer = MessageRenderer()

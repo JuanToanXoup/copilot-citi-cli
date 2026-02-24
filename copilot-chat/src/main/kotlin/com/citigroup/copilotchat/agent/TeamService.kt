@@ -23,6 +23,7 @@ class TeamService(private val project: Project) : Disposable {
 
     private val log = Logger.getInstance(TeamService::class.java)
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
+    // Default: non-blocking team coordination; switches to IO for mailbox file I/O
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private var activeTeam: TeamConfig? = null

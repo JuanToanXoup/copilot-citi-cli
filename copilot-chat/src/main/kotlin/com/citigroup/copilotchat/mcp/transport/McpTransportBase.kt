@@ -1,4 +1,4 @@
-package com.citigroup.copilotchat.mcp
+package com.citigroup.copilotchat.mcp.transport
 
 import com.intellij.openapi.diagnostic.Logger
 import kotlinx.coroutines.*
@@ -22,6 +22,7 @@ abstract class McpTransportBase(
     protected val log: Logger = Logger.getInstance(this::class.java)
     protected val json = Json { ignoreUnknownKeys = true }
     protected val requestId = AtomicInteger(0)
+    // IO: blocking network/process I/O for JSON-RPC transport
     protected val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override var tools: List<JsonObject> = emptyList()

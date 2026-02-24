@@ -22,6 +22,7 @@ import javax.swing.*
 class WorkingSetPanel(private val project: Project) : JPanel(BorderLayout()), Disposable {
 
     private val log = Logger.getInstance(WorkingSetPanel::class.java)
+    // Main: Swing UI updates for working set file list
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val service = WorkingSetService.getInstance(project)
     private val listModel = DefaultListModel<FileChange>()
