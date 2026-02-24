@@ -291,32 +291,20 @@ class LspSession(
      * If [toolFilter] is non-empty, only tools whose names match the filter are registered.
      * The "ide" shorthand expands to all "ide_*" tools.
      *
-     * Two-phase registration: built-in tools first, then MCP tools separately.
-     * The server's content policy may reject MCP tools (e.g. Playwright) when
-     * bundled with built-in tools. Registering them in a follow-up call lets
-     * the built-in tools succeed regardless, and the MCP tools get appended.
+     * MCP tools (e.g. Playwright) are NOT registered with the server — they are
+     * handled entirely client-side by [ClientMcpManager]. The model learns about
+     * them through agent system prompts. Registering them with the server would
+     * trigger its content policy and block the conversation.
      */
     suspend fun registerTools() {
-        val settings = CopilotChatSettings.getInstance()
-
-        // Collect MCP schemas (needed early for browser_record suppression)
-        val mcpSchemas = clientMcpManager?.getToolSchemas { name ->
-            settings.isToolEnabled(name)
-        } ?: emptyList()
-
-        val hasMcpBrowserTools = mcpSchemas.any { schema ->
-            val name = try {
-                json.parseToJsonElement(schema).jsonObject["name"]?.jsonPrimitive?.contentOrNull
-            } catch (_: Exception) { null }
-            name != null && (name.startsWith("browser_") || name.contains("playwright"))
-        }
-
-        // ---- Phase 1: register built-in tools (PSI, ide-index, BuiltInTools) ----
-        val builtInSchemas = toolRouter.getToolSchemas().toMutableList()
+        val schemas = toolRouter.getToolSchemas().toMutableList()
 
         // Suppress browser_record when Playwright MCP tools are available
+        val hasMcpBrowserTools = clientMcpManager?.let { mgr ->
+            mgr.isMcpTool("playwright") || mgr.isMcpTool("browser")
+        } == true
         if (hasMcpBrowserTools) {
-            builtInSchemas.removeAll { schema ->
+            schemas.removeAll { schema ->
                 try {
                     json.parseToJsonElement(schema).jsonObject["name"]?.jsonPrimitive?.contentOrNull == "browser_record"
                 } catch (_: Exception) { false }
@@ -325,69 +313,30 @@ class LspSession(
 
         // Apply tool filter
         if (toolFilter.isNotEmpty()) {
-            builtInSchemas.retainAll { schema ->
+            schemas.retainAll { schema ->
                 val name = try {
                     json.parseToJsonElement(schema).jsonObject["name"]?.jsonPrimitive?.contentOrNull
                 } catch (_: Exception) { null }
                 name != null && isToolInFilter(name, toolFilter)
             }
+            log.info("LspSession[${lspClient.clientId}]: tool filter applied — ${schemas.size} tools retained from filter=$toolFilter")
         }
 
-        if (builtInSchemas.isNotEmpty()) {
-            val params = buildJsonObject {
-                putJsonArray("tools") {
-                    for (schema in builtInSchemas) {
-                        add(json.parseToJsonElement(schema))
-                    }
-                }
-            }
-            lspClient.sendRequest("conversation/registerTools", params)
-            val names = builtInSchemas.mapNotNull { schema ->
-                try { json.parseToJsonElement(schema).jsonObject["name"]?.jsonPrimitive?.contentOrNull }
-                catch (_: Exception) { null }
-            }
-            log.info("Registered ${builtInSchemas.size} built-in tools: ${names.joinToString(", ")}")
-        }
+        if (schemas.isEmpty()) return
 
-        // ---- Phase 2: register MCP tools separately ----
-        if (mcpSchemas.isNotEmpty()) {
-            var filteredMcp = mcpSchemas
-            if (toolFilter.isNotEmpty()) {
-                filteredMcp = mcpSchemas.filter { schema ->
-                    val name = try {
-                        json.parseToJsonElement(schema).jsonObject["name"]?.jsonPrimitive?.contentOrNull
-                    } catch (_: Exception) { null }
-                    name != null && isToolInFilter(name, toolFilter)
-                }
-            }
-
-            if (filteredMcp.isNotEmpty()) {
-                val mcpParams = buildJsonObject {
-                    putJsonArray("tools") {
-                        for (schema in filteredMcp) {
-                            add(json.parseToJsonElement(schema))
-                        }
-                    }
-                }
-                val mcpResp = lspClient.sendRequest("conversation/registerTools", mcpParams)
-                val hasError = mcpResp["error"] != null
-                val mcpNames = filteredMcp.mapNotNull { schema ->
-                    try { json.parseToJsonElement(schema).jsonObject["name"]?.jsonPrimitive?.contentOrNull }
-                    catch (_: Exception) { null }
-                }
-                if (hasError) {
-                    log.warn("MCP tool registration rejected by server: ${mcpResp["error"]}. " +
-                        "MCP tools (${mcpNames.joinToString(", ")}) will still work via client-side execution.")
-                } else {
-                    log.info("Registered ${filteredMcp.size} MCP tools: ${mcpNames.joinToString(", ")}")
+        val params = buildJsonObject {
+            putJsonArray("tools") {
+                for (schema in schemas) {
+                    add(json.parseToJsonElement(schema))
                 }
             }
         }
-
-        if (toolFilter.isNotEmpty()) {
-            val total = builtInSchemas.size + mcpSchemas.size
-            log.info("LspSession[${lspClient.clientId}]: tool filter applied — $total tools retained from filter=$toolFilter")
+        lspClient.sendRequest("conversation/registerTools", params)
+        val toolNames = schemas.mapNotNull { schema ->
+            try { json.parseToJsonElement(schema).jsonObject["name"]?.jsonPrimitive?.contentOrNull }
+            catch (_: Exception) { null }
         }
+        log.info("Registered ${schemas.size} tools: ${toolNames.joinToString(", ")}")
     }
 
     /** Check if [toolName] is in [filter], expanding the "ide" shorthand for "ide_*" tools. */
