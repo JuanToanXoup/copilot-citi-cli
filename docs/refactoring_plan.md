@@ -1,14 +1,14 @@
 # Copilot-Chat Plugin — Clean Architecture Refactoring Plan
 
 **Date**: 2026-02-24
-**Status**: **COMPLETE** — All phases shipped as of 2026-02-24
+**Status**: **COMPLETE** — All phases + post-refactoring audit shipped as of 2026-02-24
 **Scope**: `copilot-chat/src/main/kotlin/com/citigroup/copilotchat/`
 
 ---
 
 ## Completion Summary
 
-All 6 phases have been implemented and shipped across the following commits:
+All 6 phases have been implemented and shipped, followed by a post-refactoring audit (7 findings, all resolved):
 
 | Commit | Description |
 |--------|-------------|
@@ -21,6 +21,8 @@ All 6 phases have been implemented and shipped across the following commits:
 | `a632290` | Split AgentEvent into domain-specific LeadEvent, SubagentEvent, TeamEvent |
 | `01f0895` | Unify error handling: log silent catches, fix log levels, document emit rules |
 | `0790197` | Move PlaywrightManager to browser/, add interfaces, unify MCP transports |
+| `5cb0715` | Audit 1+3: Fix silent catch blocks, split LanguageHandlers.kt into per-language files |
+| `1be3a41` | Audit 4-7: Dispatcher docs, interface adoption, test path fix, MCP transport sub-package |
 
 ---
 
@@ -113,6 +115,41 @@ Created `config/StoragePaths.kt` with centralized path resolution. Updated 8 fil
 
 ---
 
+## Post-Refactoring Audit — COMPLETE
+
+7 findings identified, all resolved across commits `5cb0715` and `1be3a41`.
+
+### 1. Silent Catch Blocks (High) — DONE
+Added `log.warn()` to 10 silent catch sites across 6 files (WorkerSession, ToolsPanel, AgentConfigPanel, RecorderPanel, RagIndexer, RefactoringTools). Intentionally silent catches (LanguageHandlers reflection, JSON parsing loops) left as-is.
+
+### 2. Unused Imports in LanguageHandlers.kt (Low) — DONE
+Resolved as part of item 3 (file split removed stale imports).
+
+### 3. LanguageHandlers.kt God-Class (High) — DONE
+Split 2,667 LOC file into 7 files:
+- `LanguageHandlers.kt` (321 LOC) — interfaces, registry, utilities, OptimizedSymbolSearch
+- `JavaKotlinHandlers.kt` (637 LOC)
+- `PythonHandlers.kt` (351 LOC)
+- `JavaScriptHandlers.kt` (384 LOC)
+- `GoHandlers.kt` (252 LOC)
+- `RustHandlers.kt` (401 LOC)
+- `PhpHandlers.kt` (365 LOC)
+
+### 4. Inconsistent Dispatcher Documentation (Medium) — DONE
+All 10 CoroutineScope sites now have inline comments justifying their dispatcher choice (Main for Swing UI, IO for blocking I/O, Default for orchestration).
+
+### 5. Incomplete Interface Adoption (Medium) — DONE
+- `VectorStore.getInstance()` return type changed to `VectorSearchEngine`
+- `MemoryTools`, `RagIndexer`, `RagQueryService` use `EmbeddingsProvider` property instead of direct `LocalEmbeddings` calls
+
+### 6. Test Hardcoded Path (Low) — DONE
+`RagIntegrationTest.kt` now uses `StoragePaths.userRoot` instead of hardcoded `~/.copilot-chat/`.
+
+### 7. MCP Package Sub-Organization (Low) — DONE
+Moved 4 transport files to `mcp/transport/` sub-package: `McpTransport`, `McpTransportBase`, `McpServer`, `McpSseServer`. `ClientMcpManager` and `SchemaSanitizer` remain in root `mcp/`.
+
+---
+
 ## Architecture After Refactoring
 
 ```
@@ -134,7 +171,7 @@ Created `config/StoragePaths.kt` with centralized path resolution. Updated 8 fil
                            │ implementations
 ┌──────────────────────────▼──────────────────────────────────────┐
 │  Infrastructure Layer                                            │
-│  McpTransportBase → McpServer (stdio), McpSseServer (SSE)        │
+│  mcp/transport/: McpTransportBase → McpServer, McpSseServer      │
 │  VectorStore, LocalEmbeddings, LspSession, StoragePaths          │
 │  SchemaSanitizer, PlaywrightManager (browser/)                   │
 └─────────────────────────────────────────────────────────────────┘
