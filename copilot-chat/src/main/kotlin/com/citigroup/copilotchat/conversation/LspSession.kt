@@ -256,27 +256,26 @@ class LspSession(
             log.info("LspSession: cached auth state populated")
         }
 
-        // MCP: route to server-side or client-side based on feature flags
+        // MCP: always use client-side MCP.
+        //
+        // Server-side MCP (when isServerMcpEnabled=true) routes tool calls through
+        // the Copilot language server's content policy, which rejects browser
+        // automation tools like Playwright with "sorry, can't assist with that".
+        // Client-side MCP spawns MCP servers locally and handles tool calls
+        // directly via invokeClientTool — no content policy filtering.
         val mcpSettings = CopilotChatSettings.getInstance().mcpServers
         val enabledMcpServers = mcpSettings.filter { it.enabled }
 
         if (enabledMcpServers.isNotEmpty()) {
-            if (lspClient.isServerMcpEnabled) {
-                // Server-side MCP: send config via workspace/didChangeConfiguration
-                log.info("MCP: using server-side (org allows mcp)")
-                loadMcpConfigFromSettings()
-            } else {
-                // Client-side MCP: spawn processes locally
-                log.info("MCP: using client-side (org blocks server mcp)")
-                val manager = ClientMcpManager(proxyUrl = settings.proxyUrl)
-                manager.addServers(enabledMcpServers)
-                manager.startAll()
-                clientMcpManager = manager
+            log.info("MCP: using client-side (${enabledMcpServers.size} server(s))")
+            val manager = ClientMcpManager(proxyUrl = settings.proxyUrl)
+            manager.addServers(enabledMcpServers)
+            manager.startAll()
+            clientMcpManager = manager
 
-                // Surface MCP startup errors to the chat UI
-                for (err in manager.startupErrors) {
-                    onMcpError("Client MCP: $err")
-                }
+            // Surface MCP startup errors to the chat UI
+            for (err in manager.startupErrors) {
+                onMcpError("Client MCP: $err")
             }
         }
 
@@ -285,41 +284,6 @@ class LspSession(
 
         initialized = true
         } // end initMutex.withLock
-    }
-
-    private suspend fun loadMcpConfigFromSettings() {
-        val settings = CopilotChatSettings.getInstance()
-        val servers = settings.mcpServers
-        if (servers.isEmpty()) return
-
-        val mcpConfig = mutableMapOf<String, Map<String, Any>>()
-        for (entry in servers) {
-            if (!entry.enabled) continue
-            val serverConfig = mutableMapOf<String, Any>()
-            if (entry.url.isNotBlank()) {
-                serverConfig["url"] = entry.url
-            } else {
-                serverConfig["command"] = entry.command
-                if (entry.args.isNotBlank()) {
-                    serverConfig["args"] = entry.args.split(" ").filter { it.isNotBlank() }
-                }
-            }
-            if (entry.env.isNotBlank()) {
-                val envMap = mutableMapOf<String, String>()
-                entry.env.lines().filter { "=" in it }.forEach { line ->
-                    val (k, v) = line.split("=", limit = 2)
-                    envMap[k.trim()] = v.trim()
-                }
-                if (envMap.isNotEmpty()) serverConfig["env"] = envMap
-            }
-            mcpConfig[entry.name] = serverConfig
-        }
-
-        if (mcpConfig.isNotEmpty()) {
-            // Send directly — do NOT call configureMcp() which calls ensureInitialized()
-            // and would deadlock since we're still inside ensureInitialized()
-            sendMcpConfigNotification(mcpConfig)
-        }
     }
 
     /**
@@ -389,71 +353,26 @@ class LspSession(
      * Send MCP server configuration to the language server.
      * Port of client.py configure_mcp().
      *
-     * If client-side MCP is active (org blocks server-side), this restarts
-     * the ClientMcpManager with the updated config and re-registers tools.
+     * Always uses client-side MCP to avoid server content policy blocking.
+     * Restarts the ClientMcpManager with the updated config and re-registers tools.
      */
     suspend fun configureMcp(mcpConfig: Map<String, Map<String, Any>>) {
         ensureInitialized()
 
-        if (lspClient.isServerMcpEnabled) {
-            // Server-side MCP: send config notification
-            if (mcpConfig.isNotEmpty()) {
-                sendMcpConfigNotification(mcpConfig)
-            }
+        // Always use client-side MCP: restart manager with new config
+        clientMcpManager?.stopAll()
+        val settings = CopilotChatSettings.getInstance()
+        val enabledMcpServers = settings.mcpServers.filter { it.enabled }
+        if (enabledMcpServers.isNotEmpty()) {
+            val manager = ClientMcpManager(proxyUrl = settings.proxyUrl)
+            manager.addServers(enabledMcpServers)
+            manager.startAll()
+            clientMcpManager = manager
         } else {
-            // Client-side MCP: restart manager with new config
-            clientMcpManager?.stopAll()
-            val settings = CopilotChatSettings.getInstance()
-            val enabledMcpServers = settings.mcpServers.filter { it.enabled }
-            if (enabledMcpServers.isNotEmpty()) {
-                val manager = ClientMcpManager(proxyUrl = settings.proxyUrl)
-                manager.addServers(enabledMcpServers)
-                manager.startAll()
-                clientMcpManager = manager
-            } else {
-                clientMcpManager = null
-            }
-            // Re-register tools with updated MCP schemas
-            registerTools()
+            clientMcpManager = null
         }
-    }
-
-    /**
-     * Send MCP config notification to the language server.
-     * Separated from configureMcp() so it can be called during initialization
-     * without triggering a recursive ensureInitialized() deadlock.
-     */
-    private suspend fun sendMcpConfigNotification(mcpConfig: Map<String, Map<String, Any>>) {
-        val configObj = buildJsonObject {
-            for ((serverName, serverConfig) in mcpConfig) {
-                putJsonObject(serverName) {
-                    for ((key, value) in serverConfig) {
-                        when (value) {
-                            is String -> put(key, value)
-                            is List<*> -> putJsonArray(key) {
-                                value.filterIsInstance<String>().forEach { add(it) }
-                            }
-                            is Map<*, *> -> putJsonObject(key) {
-                                @Suppress("UNCHECKED_CAST")
-                                (value as Map<String, String>).forEach { (k, v) -> put(k, v) }
-                            }
-                            else -> put(key, value.toString())
-                        }
-                    }
-                }
-            }
-        }
-
-        lspClient.sendNotification("workspace/didChangeConfiguration", buildJsonObject {
-            putJsonObject("settings") {
-                putJsonObject("github") {
-                    putJsonObject("copilot") {
-                        put("mcp", configObj.toString())
-                    }
-                }
-            }
-        })
-        log.info("Sent MCP config with ${mcpConfig.size} server(s): ${mcpConfig.keys.joinToString()}")
+        // Re-register tools with updated MCP schemas
+        registerTools()
     }
 
     /** Reset session state. Called by ConversationManager.newConversation(). */
