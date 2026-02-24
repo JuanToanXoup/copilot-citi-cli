@@ -51,6 +51,7 @@ class TeamService(private val project: Project) : Disposable {
     private suspend fun handleCreateTeam(input: JsonObject): JsonElement {
         val teamName = input["name"]?.jsonPrimitive?.contentOrNull ?: return wrapResult("Missing team name", isError = true)
         val description = input["description"]?.jsonPrimitive?.contentOrNull ?: ""
+        val leadAgentId = input["leadAgentId"]?.jsonPrimitive?.contentOrNull ?: "default-lead"
         val membersArray = input["members"]?.jsonArray ?: return wrapResult("Missing members", isError = true)
 
         val eventBus: AgentEventBus = AgentService.getInstance(project)
@@ -59,17 +60,9 @@ class TeamService(private val project: Project) : Disposable {
         val config = TeamConfig(
             name = teamName,
             description = description,
+            leadAgentId = leadAgentId,
         )
         activeTeam = config
-
-        // Save config.json
-        val teamDir = StoragePaths.teams(teamName)
-        teamDir.mkdirs()
-        File(teamDir, "config.json").writeText(json.encodeToString(JsonObject.serializer(), buildJsonObject {
-            put("name", teamName)
-            put("description", description)
-            put("createdAt", config.createdAt)
-        }))
 
         val spawnedNames = mutableListOf<String>()
 
@@ -100,6 +93,10 @@ class TeamService(private val project: Project) : Disposable {
                 eventBus.emit(TeamEvent.MemberJoined(name, agentDef.agentType))
             }
         }
+
+        // M7: Persist full team config (including members) so it survives plugin restart.
+        // Teammates are NOT auto-respawned on restart — only the config is restored.
+        persistTeamConfig(config)
 
         scope.launch {
             eventBus.emit(TeamEvent.Created(teamName))
@@ -244,6 +241,82 @@ class TeamService(private val project: Project) : Disposable {
         }
 
         log.info("TeamService: teammate '$name' loop ended")
+    }
+
+    /** Persist the full team config (with members) to config.json. */
+    private fun persistTeamConfig(config: TeamConfig) {
+        val teamDir = StoragePaths.teams(config.name)
+        teamDir.mkdirs()
+        val configJson = buildJsonObject {
+            put("name", config.name)
+            put("description", config.description)
+            put("createdAt", config.createdAt)
+            put("leadAgentId", config.leadAgentId)
+            putJsonArray("members") {
+                for (m in config.members) {
+                    addJsonObject {
+                        put("agentId", m.agentId)
+                        put("name", m.name)
+                        put("agentType", m.agentType)
+                        put("model", m.model)
+                        put("joinedAt", m.joinedAt)
+                    }
+                }
+            }
+        }
+        File(teamDir, "config.json").writeText(json.encodeToString(JsonObject.serializer(), configJson))
+        log.info("TeamService: persisted config for team '${config.name}' (${config.members.size} members)")
+    }
+
+    /**
+     * Restore team config from disk on service init.
+     * Scans all team directories for config.json files and loads the most recent one.
+     * Teammates are NOT respawned — only the config is restored so send_message/delete work.
+     */
+    internal fun restoreFromDisk() {
+        try {
+            val teamsRoot = StoragePaths.teams("").parentFile ?: return
+            if (!teamsRoot.isDirectory) return
+            val teamDirs = teamsRoot.listFiles { f -> f.isDirectory } ?: return
+            // Find the most recently created team config
+            var latest: TeamConfig? = null
+            for (dir in teamDirs) {
+                val configFile = File(dir, "config.json")
+                if (!configFile.exists()) continue
+                try {
+                    val obj = json.parseToJsonElement(configFile.readText()).jsonObject
+                    val name = obj["name"]?.jsonPrimitive?.contentOrNull ?: continue
+                    val createdAt = obj["createdAt"]?.jsonPrimitive?.longOrNull ?: 0L
+                    val config = TeamConfig(
+                        name = name,
+                        description = obj["description"]?.jsonPrimitive?.contentOrNull ?: "",
+                        createdAt = createdAt,
+                        leadAgentId = obj["leadAgentId"]?.jsonPrimitive?.contentOrNull ?: "",
+                    )
+                    obj["members"]?.jsonArray?.forEach { el ->
+                        val m = el.jsonObject
+                        config.members.add(TeamMember(
+                            agentId = m["agentId"]?.jsonPrimitive?.contentOrNull ?: "",
+                            name = m["name"]?.jsonPrimitive?.contentOrNull ?: "",
+                            agentType = m["agentType"]?.jsonPrimitive?.contentOrNull ?: "",
+                            model = m["model"]?.jsonPrimitive?.contentOrNull ?: "",
+                            joinedAt = m["joinedAt"]?.jsonPrimitive?.longOrNull ?: 0L,
+                        ))
+                    }
+                    if (latest == null || createdAt > latest.createdAt) {
+                        latest = config
+                    }
+                } catch (e: Exception) {
+                    log.warn("TeamService: failed to read config from ${dir.name}: ${e.message}")
+                }
+            }
+            if (latest != null) {
+                activeTeam = latest
+                log.info("TeamService: restored team '${latest.name}' from disk (${latest.members.size} members, no agents spawned)")
+            }
+        } catch (e: Exception) {
+            log.warn("TeamService: failed to restore from disk: ${e.message}")
+        }
     }
 
     private suspend fun handleSendMessage(input: JsonObject): JsonElement {

@@ -4,7 +4,15 @@ package com.citigroup.copilotchat.agent
 /** How the agent definition was sourced. */
 enum class AgentSource { BUILT_IN, CUSTOM_PROJECT, CUSTOM_USER }
 
-/** Model selection for an agent. */
+/**
+ * Model selection for an agent.
+ *
+ * This is a closed set — each value maps to a specific model ID accepted by
+ * the Copilot language server. To add a new model:
+ * 1. Add an enum value here with the model ID in [resolveModelId]
+ * 2. Wire parsing aliases in [AgentRegistry.parseModelString]
+ * 3. Wire display string in [AgentRegistry.modelToString]
+ */
 enum class AgentModel {
     INHERIT,          // resolved by caller: lead → gpt-4.1, subagent → gpt-4.1
     GPT_4_1,          // "gpt-4.1" (free tier)
@@ -51,10 +59,13 @@ data class AgentDefinition(
     val disableModelInvocation: Boolean = false,   // agent requires manual selection
     val handoffs: List<HandoffDefinition> = emptyList(),  // agent-to-agent transitions
     val mcpServers: Map<String, McpServerConfig> = emptyMap(),
-    val metadata: Map<String, String> = emptyMap(), // arbitrary key-value pairs
+    /** Arbitrary key-value pairs from frontmatter. User-facing extension point for custom tooling. */
+    val metadata: Map<String, String> = emptyMap(),
     val filePath: String? = null,                   // path to .agent.md (null for built-in)
     val subagents: List<String>? = null,            // null = worker. list = supervisor with scoped pool
     val target: String? = null,                     // "vscode", "github-copilot", or null (both)
+    /** Frontmatter keys not recognized by the parser — preserved on roundtrip to avoid data loss. */
+    val extraFrontmatter: Map<String, Any> = emptyMap(),
 ) {
     /** True when no tool restrictions are defined — agent can use all registered tools. */
     val hasUnrestrictedTools: Boolean get() = tools.isEmpty()
@@ -73,28 +84,9 @@ data class AgentDefinition(
 data class HandoffDefinition(
     val label: String,           // display text (e.g., "Build Technical Plan")
     val agent: String,           // target agentType (e.g., "speckit.plan")
-    val prompt: String = "",     // initial prompt for the target agent
+    /** Optional initial prompt injected when the handoff fires. Blank = no prompt injection. */
+    val prompt: String = "",
     val send: Boolean = false,   // true = auto-trigger on completion; false = UI button
-)
-
-/** Parsed input for the delegate_task tool call. */
-data class DelegateTaskInput(
-    val description: String,
-    val prompt: String,
-    val subagentType: String,
-    val model: String? = null,
-    val maxTurns: Int? = null,
-    val waitForResult: Boolean = false,
-    val timeoutSeconds: Int = 300,
-)
-
-/** Result returned from a subagent execution. */
-data class SubagentResult(
-    val agentType: String,
-    val agentId: String,
-    val result: String,
-    val status: String,   // "success" or "error"
-    val turnsUsed: Int,
 )
 
 /** Team configuration persisted to config.json. */
@@ -121,6 +113,7 @@ data class MailboxMessage(
     val from: String,
     val text: String,
     val timestamp: Long = System.currentTimeMillis(),
+    /** Optional UI hint for rendering this message in the team panel (e.g., "red", "green"). */
     val color: String? = null,
     val summary: String? = null,
     var read: Boolean = false,

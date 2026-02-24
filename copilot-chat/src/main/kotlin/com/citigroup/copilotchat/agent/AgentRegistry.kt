@@ -14,6 +14,16 @@ object AgentRegistry : AgentConfigRepository {
 
     private val log = Logger.getInstance(AgentRegistry::class.java)
 
+    /** Frontmatter keys that are parsed into [AgentDefinition] fields. Anything else → extraFrontmatter. */
+    private val KNOWN_FRONTMATTER_KEYS = setOf(
+        "name", "description", "tools", "model", "forkContext", "background",
+        "maxTurns", "disable-model-invocation", "handoffs", "metadata",
+        "mcp-servers", "mcpServers", "subagents", "target",
+    )
+
+    /** Valid MCP server transport types. */
+    private val VALID_MCP_TYPES = setOf("local", "sse")
+
     /** Names of built-in agent resource files (without path prefix). */
     private val BUILT_IN_RESOURCES = listOf(
         "explore.agent.md",
@@ -123,9 +133,19 @@ Complete the full task without stopping for confirmation."""
             }
         }
 
-        val builtInCount = deduplicated.count { it.source == AgentSource.BUILT_IN }
-        log.info("Loaded ${deduplicated.size} agents ($builtInCount built-in, ${deduplicated.size - builtInCount} custom)")
-        return deduplicated
+        // L9: Filter agents by target platform. This is an IntelliJ/VS Code plugin,
+        // so agents targeting "github-copilot" (the GitHub website) are excluded.
+        val filtered = deduplicated.filter { agent ->
+            val t = agent.target
+            if (t != null && t != "vscode") {
+                log.info("Excluding agent '${agent.agentType}' — target '$t' does not match this platform")
+                false
+            } else true
+        }
+
+        val builtInCount = filtered.count { it.source == AgentSource.BUILT_IN }
+        log.info("Loaded ${filtered.size} agents ($builtInCount built-in, ${filtered.size - builtInCount} custom)")
+        return filtered
     }
 
     /** Load built-in agents from classpath resources under /agents/. */
@@ -243,6 +263,18 @@ Complete the full task without stopping for confirmation."""
         val subagents = yamlStringList(yaml["subagents"])
         val target = yaml["target"]?.toString()?.trim()?.ifBlank { null }
 
+        // M5: Validate required fields
+        if (name.isBlank()) {
+            log.warn("Skipping agent with blank name from '$defaultName' (source=$source)")
+            return null
+        }
+
+        // M2: Preserve unknown frontmatter keys for lossless roundtrip
+        val extraFrontmatter = yaml.filterKeys { it !in KNOWN_FRONTMATTER_KEYS }
+        if (extraFrontmatter.isNotEmpty()) {
+            log.info("Agent '$name': preserving ${extraFrontmatter.size} extra frontmatter key(s): ${extraFrontmatter.keys}")
+        }
+
         return AgentDefinition(
             agentType = name,
             whenToUse = description,
@@ -260,6 +292,7 @@ Complete the full task without stopping for confirmation."""
             filePath = filePath,
             subagents = subagents,
             target = target,
+            extraFrontmatter = extraFrontmatter,
         )
     }
 
@@ -267,9 +300,13 @@ Complete the full task without stopping for confirmation."""
     internal fun parseModelString(raw: String?): AgentModel {
         if (raw == null) return AgentModel.INHERIT
         return when (raw.lowercase().trim()) {
+            "inherit" -> AgentModel.INHERIT
             "gpt-4.1", "gpt4.1" -> AgentModel.GPT_4_1
             "claude-sonnet-4", "sonnet-4", "sonnet" -> AgentModel.CLAUDE_SONNET_4
-            else -> AgentModel.INHERIT
+            else -> {
+                log.warn("Unrecognized model '$raw' in agent frontmatter — falling back to INHERIT")
+                AgentModel.INHERIT
+            }
         }
     }
 
@@ -295,10 +332,14 @@ Complete the full task without stopping for confirmation."""
     @Suppress("UNCHECKED_CAST")
     private fun yamlMcpServers(value: Any?): Map<String, McpServerConfig> {
         val servers = value as? Map<String, Any> ?: return emptyMap()
-        return servers.mapValues { (_, serverValue) ->
+        return servers.mapValues { (serverName, serverValue) ->
             val cfg = serverValue as? Map<String, Any> ?: return@mapValues McpServerConfig()
+            val type = cfg["type"]?.toString() ?: "local"
+            if (type !in VALID_MCP_TYPES) {
+                log.warn("MCP server '$serverName': unrecognized type '$type' (expected one of $VALID_MCP_TYPES)")
+            }
             McpServerConfig(
-                type = cfg["type"]?.toString() ?: "local",
+                type = type,
                 command = cfg["command"]?.toString() ?: "",
                 args = yamlStringList(cfg["args"]) ?: emptyList(),
                 tools = yamlStringList(cfg["tools"]),
@@ -355,6 +396,52 @@ Complete the full task without stopping for confirmation."""
         // Use double quotes, escaping internal double quotes and backslashes
         val escaped = value.replace("\\", "\\\\").replace("\"", "\\\"")
         return "\"$escaped\""
+    }
+
+    /**
+     * Serialize an unknown frontmatter key-value pair to YAML.
+     * Handles strings, numbers, booleans, lists, and maps.
+     */
+    private fun yamlSerializeEntry(key: String, value: Any, indent: String = ""): String {
+        return when (value) {
+            is String -> "$indent$key: ${yamlQuote(value)}"
+            is Number, is Boolean -> "$indent$key: $value"
+            is List<*> -> {
+                val items = value.filterNotNull()
+                if (items.all { it is String || it is Number || it is Boolean }) {
+                    "$indent$key: [${items.joinToString(", ")}]"
+                } else {
+                    // Block-style list with nested objects
+                    val sb = StringBuilder("$indent$key:")
+                    for (item in items) {
+                        if (item is Map<*, *>) {
+                            @Suppress("UNCHECKED_CAST")
+                            val map = item as Map<String, Any>
+                            val entries = map.entries.toList()
+                            if (entries.isNotEmpty()) {
+                                sb.append("\n$indent  - ${entries.first().key}: ${yamlQuote(entries.first().value.toString())}")
+                                for (entry in entries.drop(1)) {
+                                    sb.append("\n$indent    ${entry.key}: ${yamlQuote(entry.value.toString())}")
+                                }
+                            }
+                        } else {
+                            sb.append("\n$indent  - $item")
+                        }
+                    }
+                    sb.toString()
+                }
+            }
+            is Map<*, *> -> {
+                @Suppress("UNCHECKED_CAST")
+                val map = value as Map<String, Any>
+                val sb = StringBuilder("$indent$key:")
+                for ((k, v) in map) {
+                    sb.append("\n${yamlSerializeEntry(k, v, "$indent  ")}")
+                }
+                sb.toString()
+            }
+            else -> "$indent$key: ${yamlQuote(value.toString())}"
+        }
     }
 
     /** Filename validation: only [a-zA-Z0-9._-] allowed (Copilot spec). */
@@ -457,6 +544,12 @@ Complete the full task without stopping for confirmation."""
         if (agent.metadata.isNotEmpty()) {
             sb.appendLine("metadata:")
             agent.metadata.forEach { (k, v) -> sb.appendLine("  $k: ${yamlQuote(v)}") }
+        }
+        // M2: Preserve unknown frontmatter keys for lossless roundtrip
+        if (agent.extraFrontmatter.isNotEmpty()) {
+            for ((key, value) in agent.extraFrontmatter) {
+                sb.appendLine(yamlSerializeEntry(key, value))
+            }
         }
         sb.appendLine("---")
         if (agent.systemPromptTemplate.isNotBlank()) {

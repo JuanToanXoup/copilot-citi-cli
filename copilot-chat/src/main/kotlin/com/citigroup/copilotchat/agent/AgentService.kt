@@ -32,6 +32,15 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
     // Default: non-blocking lead agent orchestration and tool routing
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    /**
+     * Single shared event bus for all agent events (lead, subagent, team).
+     *
+     * Buffer starvation design: High-frequency Delta events use [tryEmit] (non-suspending,
+     * drops on overflow) while structural events (Spawned, Completed, Done) use [emit]
+     * (suspending, guaranteed delivery). This means structural events can never be starved
+     * by delta bursts — they will suspend until buffer space is available. Dropped deltas
+     * are acceptable because [LeadEvent.Done] carries the full accumulated text.
+     */
     internal val _events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 512)
     override val events: SharedFlow<AgentEvent> = _events
 

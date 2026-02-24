@@ -636,8 +636,14 @@ class AgentConfigPanel(
     }
 
     private fun populateHandoffs(agent: AgentDefinition) {
-        val handoffAgents = agent.handoffs.mapNotNull { h ->
+        // M4: Show all handoff targets, including unresolved ones (with a warning description).
+        val handoffAgents = agent.handoffs.map { h ->
             allAgents.find { it.agentType.equals(h.agent, ignoreCase = true) }
+                ?: AgentDefinition(
+                    agentType = h.agent,
+                    whenToUse = "(agent not found)",
+                    source = AgentSource.BUILT_IN, // read-only placeholder
+                )
         }
         handoffsModel.update(handoffAgents)
     }
@@ -799,9 +805,13 @@ class AgentConfigPanel(
             if (checked.size == allWorkers.size) emptyList() else checked
         } else null
 
+        // M3: Preserve original HandoffDefinition fields (prompt, send, label) by matching
+        // agent types. Only create flat handoffs for newly-added entries.
+        val originalHandoffs = agent.handoffs.associateBy { it.agent.lowercase() }
         val handoffs = (0 until handoffsModel.rowCount).mapNotNull {
             val a = handoffsModel.agentAt(it) ?: return@mapNotNull null
-            HandoffDefinition(label = a.agentType, agent = a.agentType)
+            originalHandoffs[a.agentType.lowercase()]
+                ?: HandoffDefinition(label = a.agentType, agent = a.agentType)
         }
 
         val targetVal = targetCombo.selectedItem as? String
@@ -824,6 +834,7 @@ class AgentConfigPanel(
             filePath = agent.filePath,
             subagents = subagents,
             target = target,
+            extraFrontmatter = agent.extraFrontmatter,
         )
 
         val saved = configRepo.saveAgent(updated, project.basePath ?: return, agent.filePath)

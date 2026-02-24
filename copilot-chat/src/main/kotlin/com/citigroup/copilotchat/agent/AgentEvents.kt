@@ -2,7 +2,15 @@ package com.citigroup.copilotchat.agent
 
 import kotlinx.serialization.json.JsonObject
 
-/** Marker interface for all agent events, consumed by the UI via [AgentEventBus]. */
+/**
+ * Marker interface for all agent events, consumed by the UI via [AgentEventBus].
+ *
+ * Emit contract:
+ * - **Structural events** (Spawned, Completed, Done, Error, Created, Disbanded):
+ *   Use `emit()` (suspending) for guaranteed delivery.
+ * - **Streaming events** (Delta, ToolCall, ToolResult):
+ *   Use `tryEmit()` (non-suspending) — drops are acceptable since Done carries full text.
+ */
 sealed interface AgentEvent
 
 /** Events emitted by [AgentService] during lead-agent conversation. */
@@ -21,6 +29,7 @@ sealed class SubagentEvent : AgentEvent {
     data class ToolCall(val agentId: String, val toolName: String) : SubagentEvent()
     data class Completed(val agentId: String, val result: String, val status: String, val durationMs: Long = 0) : SubagentEvent()
     data class WorktreeChangesReady(val agentId: String, val changes: List<WorktreeFileChange>) : SubagentEvent()
+    data class HandoffsAvailable(val agentId: String, val completedAgentType: String, val handoffs: List<HandoffDefinition>) : SubagentEvent()
 }
 
 /** Events emitted by [TeamService] during team collaboration. */

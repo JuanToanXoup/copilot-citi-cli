@@ -87,7 +87,14 @@ class Mailbox(
         return try {
             val text = inboxFile.readText()
             if (text.isBlank()) return emptyList()
-            val array = json.parseToJsonElement(text).jsonArray
+            val root = json.parseToJsonElement(text)
+            // M8: Support both versioned envelope and legacy bare-array format
+            val array = when {
+                root is JsonObject && root.containsKey("version") ->
+                    root["messages"]?.jsonArray ?: return emptyList()
+                root is JsonArray -> root
+                else -> return emptyList()
+            }
             array.map { el ->
                 val obj = el.jsonObject
                 MailboxMessage(
@@ -105,6 +112,7 @@ class Mailbox(
         }
     }
 
+    /** Always write the versioned envelope format. */
     private fun writeMessages(messages: List<MailboxMessage>) {
         val array = buildJsonArray {
             for (msg in messages) {
@@ -118,7 +126,11 @@ class Mailbox(
                 }
             }
         }
-        inboxFile.writeText(json.encodeToString(JsonArray.serializer(), array))
+        val envelope = buildJsonObject {
+            put("version", MAILBOX_VERSION)
+            put("messages", array)
+        }
+        inboxFile.writeText(json.encodeToString(JsonObject.serializer(), envelope))
     }
 
     private fun <T> withFileLock(block: () -> T): T {
@@ -137,6 +149,8 @@ class Mailbox(
     }
 
     companion object {
+        private const val MAILBOX_VERSION = 1
+
         /** Delete all mailbox files for a team. */
         fun deleteTeamMailboxes(teamName: String) {
             val dir = StoragePaths.teams(teamName)
