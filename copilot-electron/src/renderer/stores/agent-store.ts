@@ -51,7 +51,7 @@ interface AgentState {
   addUserMessage: (text: string) => void
   addAgentDelta: (text: string) => void
   addSubagentMessage: (agentId: string, agentType: string, description: string, prompt?: string) => void
-  updateSubagentStatus: (agentId: string, status: 'success' | 'error') => void
+  updateSubagentStatus: (agentId: string, status: 'success' | 'error', result?: string) => void
   addSubagentDelta: (agentId: string, text: string) => void
   addToolMessage: (name: string, nodeId?: string, input?: Record<string, unknown>) => void
   updateToolStatus: (name: string, status: 'success' | 'error', nodeId?: string, output?: string) => void
@@ -141,10 +141,16 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     }))
   },
 
-  updateSubagentStatus: (agentId, status) => {
+  updateSubagentStatus: (agentId, status, result?) => {
     set((s) => ({
       messages: s.messages.map((m) =>
-        m.nodeId === `subagent-${agentId}` ? { ...m, status } : m,
+        m.nodeId === `subagent-${agentId}`
+          ? {
+              ...m,
+              status,
+              ...(result != null && { meta: { ...m.meta, output: result } }),
+            }
+          : m,
       ),
     }))
   },
@@ -274,7 +280,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         state.addSubagentDelta(event.agentId, event.text)
         break
       case 'subagent:completed':
-        state.updateSubagentStatus(event.agentId, event.status)
+        state.updateSubagentStatus(event.agentId, event.status, event.result)
         break
       case 'subagent:retrying':
         state.addStatusMessage(`Retrying subagent ${event.agentId}...`)
