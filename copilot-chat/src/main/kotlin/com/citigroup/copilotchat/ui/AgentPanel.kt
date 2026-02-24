@@ -71,6 +71,7 @@ class AgentPanel(private val project: Project) : JPanel(BorderLayout()), Disposa
     private var leadAgents: List<AgentDefinition> = emptyList()
     private var defaultLeadAgent: String? = null
 
+
     private val titleLabel = JLabel("Agent").apply {
         foreground = JBColor(0xBBBBBB, 0x999999)
         border = JBUI.Borders.empty(0, 8, 0, 0)
@@ -285,6 +286,10 @@ class AgentPanel(private val project: Project) : JPanel(BorderLayout()), Disposa
                 }
                 subagentPanels.remove(event.agentId)
                 scrollManager.onContentAdded()
+            }
+
+            is SubagentEvent.HandoffsAvailable -> {
+                // Handoffs are parsed but not rendered — the lead agent drives the pipeline.
             }
 
             is SubagentEvent.WorktreeChangesReady -> {
