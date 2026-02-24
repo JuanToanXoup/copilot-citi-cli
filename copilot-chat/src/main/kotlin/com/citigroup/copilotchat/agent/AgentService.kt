@@ -3,9 +3,6 @@ package com.citigroup.copilotchat.agent
 import com.citigroup.copilotchat.conversation.ConversationManager
 import com.citigroup.copilotchat.lsp.LspClient
 import com.citigroup.copilotchat.tools.ToolRouter
-import com.citigroup.copilotchat.orchestrator.WorkerSession
-import com.citigroup.copilotchat.orchestrator.WorkerEvent
-import com.citigroup.copilotchat.workingset.WorkingSetService
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
@@ -16,15 +13,14 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.serialization.json.*
 import java.util.*
 import java.util.Collections
-import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Core service for the Agent tab. Manages the lead agent conversation,
- * delegates tasks to subagents via WorkerSession, and routes tool calls.
+ * Core service for the Agent tab. Manages the lead agent conversation
+ * and routes tool calls. Subagent lifecycle is delegated to [SubagentManager].
  *
  * Data flow:
  * 1. User sends message -> lead agent conversation created/continued
- * 2. Lead model calls delegate_task -> subagent spawned in background
+ * 2. Lead model calls delegate_task -> SubagentManager spawns subagent in background
  * 3. Lead turn ends -> service waits for all subagents to complete
  * 4. Results collected -> follow-up turn sent to lead with all results
  * 5. Lead model synthesizes final answer
@@ -33,16 +29,20 @@ import java.util.concurrent.ConcurrentHashMap
 class AgentService(private val project: Project) : AgentEventBus, Disposable {
 
     private val log = Logger.getInstance(AgentService::class.java)
-    private val json = Json { ignoreUnknownKeys = true }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     internal val _events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 512)
     override val events: SharedFlow<AgentEvent> = _events
 
     override suspend fun emit(event: AgentEvent) { _events.emit(event) }
+    override fun tryEmit(event: AgentEvent): Boolean = _events.tryEmit(event)
 
     private val lspClient: LspClient get() = LspClient.getInstance(project)
     private val conversationManager: ConversationManager get() = ConversationManager.getInstance(project)
+
+    private val subagentManager by lazy {
+        SubagentManager(project, scope, this, lspClient, conversationManager)
+    }
 
     @Volatile
     private var leadConversationId: String? = null
@@ -54,16 +54,6 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
         private set
 
     private var agents: List<AgentDefinition> = emptyList()
-    private val activeSubagents = ConcurrentHashMap<String, WorkerSession>()
-
-    /** Background subagent jobs launched by delegate_task. Collected after lead turn ends. */
-    private val pendingSubagents = ConcurrentHashMap<String, PendingSubagent>()
-
-    /** Hard-enforced tool filters keyed by subagent conversationId. */
-    private val subagentToolFilters = ConcurrentHashMap<String, SubagentToolFilter>()
-
-    /** Worktree metadata for subagents with forkContext=true. Keyed by agentId. */
-    private val subagentWorktrees = ConcurrentHashMap<String, WorktreeInfo>()
 
     private var currentJob: Job? = null
     private var currentWorkDoneToken: String? = null
@@ -177,13 +167,13 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
                     while (System.currentTimeMillis() - startTime < 300_000) {
                         delay(100)
                         if (!isStreaming) {
-                            if (pendingSubagents.isNotEmpty()) {
+                            if (subagentManager.hasPending()) {
                                 // Lead turn ended but subagents are still running.
                                 // Wait for all, collect results, and send a follow-up turn.
-                                log.info("AgentService: lead turn ended with ${pendingSubagents.size} pending subagents — collecting results")
+                                log.info("AgentService: lead turn ended with pending subagents — collecting results")
                                 lspClient.removeProgressListener(workDoneToken)
 
-                                val resultContext = awaitPendingSubagents()
+                                val resultContext = subagentManager.awaitAll()
 
                                 // Register new progress listener for the follow-up turn
                                 workDoneToken = "agent-lead-${UUID.randomUUID().toString().take(8)}"
@@ -266,13 +256,13 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
             if (command.trimStart().startsWith("delegate ")) {
                 log.info("AgentService: intercepted delegation via run_in_terminal: $command")
                 val delegateInput = parseDelegateCommand(command)
-                handleDelegateTask(id, delegateInput)
+                subagentManager.spawnSubagent(id, delegateInput, agents)
                 return
             }
         }
 
         when (name) {
-            "delegate_task" -> handleDelegateTask(id, input)
+            "delegate_task" -> subagentManager.spawnSubagent(id, input, agents)
             "create_team", "send_message", "delete_team" -> {
                 val teamService = TeamService.getInstance(project)
                 val result = teamService.handleToolCall(name, input)
@@ -314,236 +304,6 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
     }
 
     /**
-     * Handle the delegate_task tool call — spawns a subagent in the background
-     * and responds immediately so the server can dispatch the next tool call.
-     * Results are collected later in the sendMessage wait loop.
-     */
-    private suspend fun handleDelegateTask(id: Int, input: JsonObject) {
-        val description = input["description"]?.jsonPrimitive?.contentOrNull ?: "subtask"
-        val prompt = input["prompt"]?.jsonPrimitive?.contentOrNull ?: ""
-        val subagentType = input["subagent_type"]?.jsonPrimitive?.contentOrNull ?: "general-purpose"
-        val modelOverride = input["model"]?.jsonPrimitive?.contentOrNull
-
-        val agentDef = AgentRegistry.findByType(subagentType, agents)
-        if (agentDef == null) {
-            log.warn("AgentService: unknown subagent type '$subagentType', falling back to general-purpose")
-        }
-        val effectiveDef = agentDef ?: agents.find { it.agentType == "general-purpose" } ?: agents.last()
-
-        val agentId = "subagent-${UUID.randomUUID().toString().take(8)}"
-        val resolvedModel = if (modelOverride != null) modelOverride
-            else effectiveDef.model.resolveModelId("gpt-4.1")
-
-        val effectiveTools = effectiveDef.tools
-
-        // --- Worktree isolation for forkContext agents ---
-        val useWorktree = effectiveDef.forkContext
-        var worktreeInfo: WorktreeInfo? = null
-        var effectiveWorkspaceRoot = project.basePath ?: "/tmp"
-
-        if (useWorktree) {
-            try {
-                val info = withContext(Dispatchers.IO) {
-                    WorktreeManager.createWorktree(project.basePath ?: "/tmp", agentId)
-                }
-                subagentWorktrees[agentId] = info
-                worktreeInfo = info
-                effectiveWorkspaceRoot = info.worktreePath
-                log.info("AgentService: created worktree for $agentId at ${info.worktreePath}")
-            } catch (e: Exception) {
-                log.warn("AgentService: worktree creation failed for $agentId, falling back to shared workspace", e)
-            }
-        }
-
-        // Auto-disable PSI tools for worktree agents (IntelliJ won't index the worktree directory)
-        val extraDisallowed = if (worktreeInfo != null) {
-            setOf("ide", "ide_search_text", "ide_find_usages", "ide_find_symbol",
-                "ide_find_class", "ide_find_file", "ide_diagnostics", "ide_quick_doc",
-                "ide_rename_symbol", "ide_safe_delete")
-        } else emptySet()
-
-        log.info("AgentService: spawning subagent [$agentId] type=$subagentType model=$resolvedModel worktree=$useWorktree (parallel)")
-        _events.tryEmit(AgentEvent.SubagentSpawned(agentId, effectiveDef.agentType, description, prompt))
-
-        val session = WorkerSession(
-            workerId = agentId,
-            role = effectiveDef.agentType,
-            systemPrompt = effectiveDef.systemPromptTemplate,
-            model = resolvedModel,
-            agentMode = true,
-            toolsEnabled = effectiveTools,
-            projectName = project.name,
-            workspaceRoot = effectiveWorkspaceRoot,
-            lspClient = lspClient,
-        )
-
-        session.onEvent = { event ->
-            when (event) {
-                is WorkerEvent.Delta -> _events.tryEmit(AgentEvent.SubagentDelta(agentId, event.text))
-                is WorkerEvent.ToolCall -> _events.tryEmit(AgentEvent.SubagentToolCall(agentId, event.toolName))
-                is WorkerEvent.Done -> {} // handled in awaitPendingSubagents
-                is WorkerEvent.Error -> _events.tryEmit(AgentEvent.SubagentCompleted(agentId, event.message, "error"))
-            }
-        }
-
-        session.onConversationId = { convId ->
-            val disallowed = effectiveDef.disallowedTools.toSet() + extraDisallowed
-            subagentToolFilters[convId] = SubagentToolFilter(
-                allowedTools = effectiveDef.tools?.toSet(),
-                disallowedTools = disallowed,
-            )
-            // Register workspace override so ConversationManager routes tool calls to the worktree
-            if (worktreeInfo != null) {
-                conversationManager.registerWorkspaceOverride(convId, worktreeInfo.worktreePath)
-            }
-            log.info("AgentService: registered tool filter for subagent $agentId (convId=$convId, allowed=${effectiveDef.tools}, disallowed=$disallowed, worktree=${worktreeInfo != null})")
-        }
-
-        activeSubagents[agentId] = session
-
-        // Launch subagent in background — don't block the tool call response
-        val deferred = scope.async {
-            try {
-                val result = session.executeTask(prompt)
-                if (result.isBlank()) {
-                    log.info("AgentService: subagent $agentId returned empty — sending follow-up turn")
-                    session.executeTask("Please provide a text summary of your findings and results.")
-                } else {
-                    result
-                }
-            } catch (e: Exception) {
-                log.error("AgentService: subagent $agentId failed", e)
-                throw e
-            } finally {
-                activeSubagents.remove(agentId)
-            }
-        }
-
-        pendingSubagents[agentId] = PendingSubagent(agentId, effectiveDef.agentType, description, deferred)
-
-        // Respond immediately so the server can dispatch the next tool call
-        val toolResult = buildJsonArray {
-            addJsonObject {
-                putJsonArray("content") {
-                    addJsonObject {
-                        put("value", "Subagent $agentId (${effectiveDef.agentType}) spawned for: $description. Running in parallel — results will be collected automatically.")
-                    }
-                }
-                put("status", "success")
-            }
-            add(JsonNull)
-        }
-        lspClient.sendResponse(id, toolResult)
-        log.info("AgentService: delegate_task responded immediately for $agentId, subagent running in background")
-    }
-
-    /**
-     * Wait for all pending subagents to complete and collect their results.
-     * Emits SubagentCompleted events for each.
-     * Returns a formatted string with all results for the follow-up turn.
-     */
-    private suspend fun awaitPendingSubagents(): String {
-        val results = mutableListOf<Triple<String, String, String>>() // agentId, agentType, result
-
-        for ((agentId, pending) in pendingSubagents) {
-            try {
-                log.info("AgentService: awaiting subagent $agentId (${pending.agentType})")
-                val result = pending.deferred.await()
-                if (result.isBlank()) {
-                    val emptyMsg = "Error: subagent produced no output"
-                    results.add(Triple(agentId, pending.agentType, emptyMsg))
-                    _events.emit(AgentEvent.SubagentCompleted(agentId, emptyMsg, "error"))
-                    log.warn("AgentService: subagent $agentId completed with EMPTY result")
-                } else {
-                    results.add(Triple(agentId, pending.agentType, result))
-                    _events.emit(AgentEvent.SubagentCompleted(agentId, result, "success"))
-                    log.info("AgentService: subagent $agentId completed (${result.length} chars)")
-                }
-            } catch (e: Exception) {
-                val errorMsg = "Error: ${e.message}"
-                results.add(Triple(agentId, pending.agentType, errorMsg))
-                _events.emit(AgentEvent.SubagentCompleted(agentId, e.message ?: "Error", "error"))
-                log.warn("AgentService: subagent $agentId failed: ${e.message}")
-            }
-        }
-        pendingSubagents.clear()
-
-        // Generate diffs for worktree-isolated subagents and emit review events
-        val mainWorkspace = project.basePath ?: "/tmp"
-        for ((agentId, worktreeInfo) in subagentWorktrees) {
-            try {
-                val changes = withContext(Dispatchers.IO) {
-                    WorktreeManager.generateDiff(worktreeInfo, mainWorkspace)
-                }
-                if (changes.isNotEmpty()) {
-                    _events.emit(AgentEvent.WorktreeChangesReady(agentId, changes))
-                    log.info("AgentService: worktree $agentId has ${changes.size} changed file(s) pending review")
-                } else {
-                    // No changes — clean up immediately
-                    withContext(Dispatchers.IO) {
-                        WorktreeManager.removeWorktree(worktreeInfo, mainWorkspace)
-                    }
-                    subagentWorktrees.remove(agentId)
-                    log.info("AgentService: worktree $agentId had no changes, cleaned up")
-                }
-            } catch (e: Exception) {
-                log.warn("AgentService: failed to generate diff for worktree $agentId: ${e.message}")
-            }
-        }
-
-        // Build formatted results for the follow-up turn
-        return results.joinToString("\n\n") { (agentId, agentType, result) ->
-            "<subagent_result agent_type=\"$agentType\" agent_id=\"$agentId\">\n$result\n</subagent_result>"
-        }
-    }
-
-    /**
-     * Apply worktree changes to the main workspace and clean up the worktree.
-     * Called when the user approves changes from a worktree-isolated subagent.
-     */
-    fun approveWorktreeChanges(agentId: String) {
-        val info = subagentWorktrees.remove(agentId) ?: return
-        val mainWorkspace = project.basePath ?: return
-
-        val changes = WorktreeManager.generateDiff(info, mainWorkspace)
-        val ws = WorkingSetService.getInstance(project)
-
-        // Track changes in WorkingSetService so they appear in the Working Set panel
-        for (change in changes) {
-            val absPath = java.io.File(mainWorkspace, change.relativePath).absolutePath
-            ws.captureBeforeState("worktree-apply", absPath)
-        }
-
-        WorktreeManager.applyChanges(changes, mainWorkspace)
-
-        for (change in changes) {
-            val absPath = java.io.File(mainWorkspace, change.relativePath).absolutePath
-            ws.captureAfterState(absPath)
-        }
-
-        // Refresh VFS so IntelliJ sees the new files
-        val lfs = com.intellij.openapi.vfs.LocalFileSystem.getInstance()
-        for (change in changes) {
-            val absPath = java.io.File(mainWorkspace, change.relativePath).absolutePath
-            lfs.refreshAndFindFileByPath(absPath)
-        }
-
-        WorktreeManager.removeWorktree(info, mainWorkspace)
-        log.info("AgentService: approved and applied ${changes.size} worktree change(s) for $agentId")
-    }
-
-    /**
-     * Discard worktree changes and clean up.
-     * Called when the user rejects changes from a worktree-isolated subagent.
-     */
-    fun rejectWorktreeChanges(agentId: String) {
-        val info = subagentWorktrees.remove(agentId) ?: return
-        val mainWorkspace = project.basePath ?: "/tmp"
-        WorktreeManager.removeWorktree(info, mainWorkspace)
-        log.info("AgentService: rejected and discarded worktree changes for $agentId")
-    }
-
-    /**
      * Send a follow-up turn to the lead conversation with collected subagent results.
      */
     private suspend fun sendFollowUpTurn(
@@ -575,7 +335,7 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
             }
         }
 
-        log.info("AgentService: sending follow-up turn with ${pendingSubagents.size} results to lead conversation")
+        log.info("AgentService: sending follow-up turn with results to lead conversation")
         lspClient.sendRequest("conversation/turn", params, timeoutMs = 300_000)
     }
 
@@ -675,29 +435,15 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
         return false
     }
 
-    /**
-     * Check if a tool is allowed for the given conversation based on registered filters.
-     * Returns true if no filter is registered (e.g. lead conversation or unknown conversation).
-     */
-    fun isToolAllowedForConversation(conversationId: String?, toolName: String): Boolean {
-        if (conversationId == null) return true
-        val filter = subagentToolFilters[conversationId] ?: return true
+    /** Delegate to [SubagentManager.isToolAllowed]. */
+    fun isToolAllowedForConversation(conversationId: String?, toolName: String): Boolean =
+        subagentManager.isToolAllowed(conversationId, toolName)
 
-        // Blocklist check
-        if (toolName in filter.disallowedTools) {
-            log.warn("Tool blocked for conversation $conversationId: '$toolName' is in disallowedTools")
-            return false
-        }
+    /** Delegate to [SubagentManager.approveWorktreeChanges]. */
+    fun approveWorktreeChanges(agentId: String) = subagentManager.approveWorktreeChanges(agentId)
 
-        // Allowlist check (null = all allowed)
-        val allowed = filter.allowedTools
-        if (allowed != null && toolName !in allowed) {
-            log.warn("Tool blocked for conversation $conversationId: '$toolName' is not in allowedTools $allowed")
-            return false
-        }
-
-        return true
-    }
+    /** Delegate to [SubagentManager.rejectWorktreeChanges]. */
+    fun rejectWorktreeChanges(agentId: String) = subagentManager.rejectWorktreeChanges(agentId)
 
     /** Cancel the current streaming response and all subagents. */
     fun cancel() {
@@ -713,27 +459,7 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
 
         currentJob?.cancel()
         currentJob = null
-        activeSubagents.values.forEach { it.cancel() }
-        activeSubagents.clear()
-        pendingSubagents.values.forEach { it.deferred.cancel() }
-        pendingSubagents.clear()
-        subagentToolFilters.clear()
-
-        // Clean up any active worktrees on IO thread
-        val mainWorkspace = project.basePath ?: "/tmp"
-        val worktreesToClean = subagentWorktrees.values.toList()
-        subagentWorktrees.clear()
-        if (worktreesToClean.isNotEmpty()) {
-            scope.launch(Dispatchers.IO) {
-                for (info in worktreesToClean) {
-                    try {
-                        WorktreeManager.removeWorktree(info, mainWorkspace)
-                    } catch (e: Exception) {
-                        log.warn("AgentService: failed to clean up worktree ${info.agentId}: ${e.message}")
-                    }
-                }
-            }
-        }
+        subagentManager.cancelAll()
 
         isStreaming = false
 
@@ -752,18 +478,4 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
         cancel()
         scope.cancel()
     }
-
-    /** Tracks a background subagent launched by delegate_task. */
-    private data class PendingSubagent(
-        val agentId: String,
-        val agentType: String,
-        val description: String,
-        val deferred: Deferred<String>,
-    )
-
-    /** Hard-enforced tool filter for a subagent conversation. */
-    private data class SubagentToolFilter(
-        val allowedTools: Set<String>?,   // null = all allowed
-        val disallowedTools: Set<String>,
-    )
 }

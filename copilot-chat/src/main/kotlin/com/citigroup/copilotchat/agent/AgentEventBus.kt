@@ -11,4 +11,6 @@ import kotlinx.coroutines.flow.SharedFlow
 interface AgentEventBus {
     val events: SharedFlow<AgentEvent>
     suspend fun emit(event: AgentEvent)
+    /** Non-suspending emit for use in non-coroutine callbacks. Drops if buffer is full. */
+    fun tryEmit(event: AgentEvent): Boolean
 }
