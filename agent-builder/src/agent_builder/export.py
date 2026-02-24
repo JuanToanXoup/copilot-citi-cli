@@ -437,6 +437,7 @@ def build_agent(config: dict, output_dir: str,
     cmd = [
         *pyinstaller_cmd,
         "--onefile",
+        "--console",
         "--name", name,
         "--distpath", output_dir,
         "--workpath", os.path.join(output_dir, "build"),

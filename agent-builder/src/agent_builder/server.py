@@ -186,6 +186,8 @@ class BuilderHandler(BaseHTTPRequestHandler):
             self._api_build(body)
         elif path == "/api/export-script":
             self._api_export_script(body)
+        elif path == "/api/launch":
+            self._api_launch(body)
         else:
             self._json_response(404, {"error": "not found"})
 
@@ -597,6 +599,19 @@ class BuilderHandler(BaseHTTPRequestHandler):
                 "entry_point": entry_point,
                 "config_path": config_path,
             })
+        except Exception as e:
+            self._json_response(500, {"error": str(e)})
+
+    def _api_launch(self, body):
+        """Launch a built binary in the system's native terminal emulator."""
+        binary_path = body.get("path", "")
+        if not binary_path or not os.path.isfile(binary_path):
+            self._json_response(400, {"error": f"Binary not found: {binary_path}"})
+            return
+        try:
+            from copilot_cli.platform_utils import open_in_system_terminal
+            open_in_system_terminal(binary_path)
+            self._json_response(200, {"ok": True})
         except Exception as e:
             self._json_response(500, {"error": str(e)})
 

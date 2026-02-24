@@ -4,6 +4,7 @@ import glob
 import os
 import platform
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -112,3 +113,75 @@ def default_apps_json() -> str:
 def find_grep() -> str | None:
     """Return the path to grep if available, or None."""
     return shutil.which("grep")
+
+
+def _detect_linux_terminal() -> list[str] | None:
+    """Detect the best available terminal emulator on Linux."""
+    # Prefer $TERMINAL env var, then common terminals in priority order
+    env_term = os.environ.get("TERMINAL")
+    if env_term and shutil.which(env_term):
+        return [env_term, "-e"]
+
+    terminals = [
+        (["gnome-terminal", "--"], "gnome-terminal"),
+        (["konsole", "-e"], "konsole"),
+        (["xfce4-terminal", "-e"], "xfce4-terminal"),
+        (["mate-terminal", "-e"], "mate-terminal"),
+        (["xterm", "-e"], "xterm"),
+    ]
+    for cmd_prefix, binary in terminals:
+        if shutil.which(binary):
+            return cmd_prefix
+    return None
+
+
+def open_in_system_terminal(binary_path: str, cwd: str | None = None) -> None:
+    """Launch an executable in the OS native terminal emulator.
+
+    Args:
+        binary_path: Absolute path to the executable to run.
+        cwd: Working directory for the launched process.
+             Defaults to the binary's parent directory.
+
+    Raises:
+        RuntimeError: If no suitable terminal emulator is found.
+        FileNotFoundError: If binary_path does not exist.
+    """
+    binary_path = os.path.abspath(binary_path)
+    if not os.path.isfile(binary_path):
+        raise FileNotFoundError(f"Binary not found: {binary_path}")
+    if cwd is None:
+        cwd = os.path.dirname(binary_path)
+
+    if sys.platform == "darwin":
+        # macOS: use open -a Terminal with a helper script
+        script = (
+            f'tell application "Terminal"\n'
+            f'  do script "cd {_shell_quote(cwd)} && {_shell_quote(binary_path)}"\n'
+            f'  activate\n'
+            f'end tell'
+        )
+        subprocess.Popen(["osascript", "-e", script])
+
+    elif sys.platform == "win32":
+        # Windows: launch in a new cmd.exe window
+        subprocess.Popen(
+            ["cmd.exe", "/c", "start", "cmd.exe", "/k", binary_path],
+            cwd=cwd,
+        )
+
+    else:
+        # Linux: detect and use system terminal emulator
+        term_cmd = _detect_linux_terminal()
+        if term_cmd is None:
+            raise RuntimeError(
+                "No terminal emulator found. Install one of: "
+                "gnome-terminal, konsole, xfce4-terminal, xterm "
+                "or set the TERMINAL environment variable."
+            )
+        subprocess.Popen([*term_cmd, binary_path], cwd=cwd)
+
+
+def _shell_quote(s: str) -> str:
+    """Quote a string for safe embedding in a shell command."""
+    return "'" + s.replace("'", "'\\''") + "'"
