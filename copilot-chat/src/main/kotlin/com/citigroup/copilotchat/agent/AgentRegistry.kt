@@ -77,11 +77,15 @@ Complete the full task without stopping for confirmation."""
         // .github/agents/ (SpecKit and other GitHub-convention agents)
         if (projectBasePath != null) {
             val githubAgentDir = File(projectBasePath, ".github/agents")
+            log.info("Scanning .github/agents at: ${githubAgentDir.absolutePath} (exists=${githubAgentDir.isDirectory})")
             if (githubAgentDir.isDirectory) {
                 githubAgentDir.listFiles { f -> isAgentFile(f) }?.forEach { file ->
                     try {
                         val agent = parseAgentFile(file, AgentSource.CUSTOM_PROJECT)
-                        if (agent != null) agents.add(agent)
+                        if (agent != null) {
+                            agents.add(agent)
+                            log.info("Loaded .github agent: ${agent.agentType} from ${file.name}")
+                        }
                     } catch (e: Exception) {
                         log.warn("Failed to parse .github agent file ${file.name}: ${e.message}")
                     }
@@ -102,9 +106,26 @@ Complete the full task without stopping for confirmation."""
             }
         }
 
-        val builtInCount = agents.count { it.source == AgentSource.BUILT_IN }
-        log.info("Loaded ${agents.size} agents ($builtInCount built-in, ${agents.size - builtInCount} custom)")
-        return agents
+        // Deduplicate: later sources override earlier ones (custom overrides built-in).
+        // Use case-insensitive matching since findByType is case-insensitive.
+        val seen = mutableMapOf<String, Int>() // lowercase agentType → index in agents list
+        val deduplicated = mutableListOf<AgentDefinition>()
+        for (agent in agents) {
+            val key = agent.agentType.lowercase()
+            val existingIdx = seen[key]
+            if (existingIdx != null) {
+                val existing = deduplicated[existingIdx]
+                log.warn("Agent '${agent.agentType}' (${agent.source}) overrides '${existing.agentType}' (${existing.source})")
+                deduplicated[existingIdx] = agent
+            } else {
+                seen[key] = deduplicated.size
+                deduplicated.add(agent)
+            }
+        }
+
+        val builtInCount = deduplicated.count { it.source == AgentSource.BUILT_IN }
+        log.info("Loaded ${deduplicated.size} agents ($builtInCount built-in, ${deduplicated.size - builtInCount} custom)")
+        return deduplicated
     }
 
     /** Load built-in agents from classpath resources under /agents/. */
@@ -129,9 +150,9 @@ Complete the full task without stopping for confirmation."""
         return agents
     }
 
-    /** Accept both `.agent.md` (preferred) and `.md` (backward compat). */
+    /** Only accept `.agent.md` files — prevents non-agent markdown from being loaded as agents. */
     private fun isAgentFile(f: File): Boolean =
-        f.name.endsWith(".agent.md") || f.extension == "md"
+        f.name.endsWith(".agent.md")
 
     /** Derive the agent name from the file: strip `.agent.md` first, then `.md`. */
     private fun agentNameFromFile(file: File): String =
@@ -214,7 +235,7 @@ Complete the full task without stopping for confirmation."""
         val maxTurns = (yaml["maxTurns"] as? Number)?.toInt() ?: 30
 
         val disableModelInvocation = yaml["disable-model-invocation"]?.toString()?.lowercase() == "true"
-        val handoffs = yamlStringList(yaml["handoffs"]) ?: emptyList()
+        val handoffs = yamlHandoffs(yaml["handoffs"])
         val metadata = yamlStringMap(yaml["metadata"])
         val mcpServers = yamlMcpServers(yaml["mcp-servers"] ?: yaml["mcpServers"])
 
@@ -287,9 +308,53 @@ Complete the full task without stopping for confirmation."""
         }
     }
 
+    /**
+     * Parse handoffs from YAML. Supports both:
+     * - Structured objects: `[{label, agent, prompt, send}]` (SpecKit / Copilot format)
+     * - Flat strings: `[explore, plan]` (legacy format, converted to HandoffDefinition)
+     */
+    @Suppress("UNCHECKED_CAST")
+    private fun yamlHandoffs(value: Any?): List<HandoffDefinition> {
+        if (value == null) return emptyList()
+        val list = value as? List<*> ?: return emptyList()
+        return list.mapNotNull { item ->
+            when (item) {
+                is Map<*, *> -> {
+                    val agent = item["agent"]?.toString() ?: return@mapNotNull null
+                    HandoffDefinition(
+                        label = item["label"]?.toString() ?: agent,
+                        agent = agent,
+                        prompt = item["prompt"]?.toString() ?: "",
+                        send = item["send"]?.toString()?.lowercase() == "true",
+                    )
+                }
+                is String -> HandoffDefinition(label = item, agent = item)
+                else -> null
+            }
+        }
+    }
+
     /** Case-insensitive agent lookup by type. */
     fun findByType(agentType: String, agents: List<AgentDefinition>): AgentDefinition? {
         return agents.find { it.agentType.equals(agentType, ignoreCase = true) }
+    }
+
+    /** Quote a YAML string value if it contains characters that need quoting. */
+    private fun yamlQuote(value: String): String {
+        // Characters that require quoting in YAML values
+        val needsQuoting = value.contains(':') || value.contains('#') ||
+            value.contains('{') || value.contains('}') ||
+            value.contains('[') || value.contains(']') ||
+            value.contains(',') || value.contains('&') ||
+            value.contains('*') || value.contains('!') ||
+            value.contains('|') || value.contains('>') ||
+            value.contains('\'') || value.contains('"') ||
+            value.contains('%') || value.contains('@') ||
+            value.startsWith(' ') || value.endsWith(' ')
+        if (!needsQuoting) return value
+        // Use double quotes, escaping internal double quotes and backslashes
+        val escaped = value.replace("\\", "\\\\").replace("\"", "\\\"")
+        return "\"$escaped\""
     }
 
     /** Filename validation: only [a-zA-Z0-9._-] allowed (Copilot spec). */
@@ -345,8 +410,8 @@ Complete the full task without stopping for confirmation."""
     fun writeAgentFile(agent: AgentDefinition, file: File) {
         val sb = StringBuilder()
         sb.appendLine("---")
-        sb.appendLine("name: ${agent.agentType}")
-        sb.appendLine("description: ${agent.whenToUse}")
+        sb.appendLine("name: ${yamlQuote(agent.agentType)}")
+        sb.appendLine("description: ${yamlQuote(agent.whenToUse)}")
         if (agent.model != AgentModel.INHERIT) {
             sb.appendLine("model: ${modelToString(agent.model)}")
         }
@@ -360,32 +425,38 @@ Complete the full task without stopping for confirmation."""
             sb.appendLine("subagents: [${agent.subagents.joinToString(", ")}]")
         }
         if (agent.target != null) {
-            sb.appendLine("target: ${agent.target}")
+            sb.appendLine("target: ${yamlQuote(agent.target)}")
         }
         if (agent.forkContext) sb.appendLine("forkContext: true")
         if (agent.background) sb.appendLine("background: true")
         if (agent.disableModelInvocation) sb.appendLine("disable-model-invocation: true")
         if (agent.handoffs.isNotEmpty()) {
-            sb.appendLine("handoffs: [${agent.handoffs.joinToString(", ")}]")
+            sb.appendLine("handoffs:")
+            for (h in agent.handoffs) {
+                sb.appendLine("  - label: ${yamlQuote(h.label)}")
+                sb.appendLine("    agent: ${yamlQuote(h.agent)}")
+                if (h.prompt.isNotBlank()) sb.appendLine("    prompt: ${yamlQuote(h.prompt)}")
+                if (h.send) sb.appendLine("    send: true")
+            }
         }
         if (agent.mcpServers.isNotEmpty()) {
             sb.appendLine("mcpServers:")
             for ((name, cfg) in agent.mcpServers) {
                 sb.appendLine("  $name:")
-                if (cfg.type.isNotBlank() && cfg.type != "local") sb.appendLine("    type: ${cfg.type}")
-                if (cfg.command.isNotBlank()) sb.appendLine("    command: ${cfg.command}")
+                if (cfg.type.isNotBlank() && cfg.type != "local") sb.appendLine("    type: ${yamlQuote(cfg.type)}")
+                if (cfg.command.isNotBlank()) sb.appendLine("    command: ${yamlQuote(cfg.command)}")
                 if (cfg.args.isNotEmpty()) sb.appendLine("    args: [${cfg.args.joinToString(", ")}]")
-                if (cfg.url.isNotBlank()) sb.appendLine("    url: ${cfg.url}")
+                if (cfg.url.isNotBlank()) sb.appendLine("    url: ${yamlQuote(cfg.url)}")
                 if (cfg.env.isNotEmpty()) {
                     sb.appendLine("    env:")
-                    cfg.env.forEach { (k, v) -> sb.appendLine("      $k: $v") }
+                    cfg.env.forEach { (k, v) -> sb.appendLine("      $k: ${yamlQuote(v)}") }
                 }
                 if (cfg.tools != null) sb.appendLine("    tools: [${cfg.tools.joinToString(", ")}]")
             }
         }
         if (agent.metadata.isNotEmpty()) {
             sb.appendLine("metadata:")
-            agent.metadata.forEach { (k, v) -> sb.appendLine("  $k: $v") }
+            agent.metadata.forEach { (k, v) -> sb.appendLine("  $k: ${yamlQuote(v)}") }
         }
         sb.appendLine("---")
         if (agent.systemPromptTemplate.isNotBlank()) {

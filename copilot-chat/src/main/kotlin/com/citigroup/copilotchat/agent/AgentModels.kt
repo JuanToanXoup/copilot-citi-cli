@@ -41,7 +41,7 @@ data class McpServerConfig(
 data class AgentDefinition(
     val agentType: String,
     val whenToUse: String,
-    val tools: List<String> = emptyList(),      // explicit tool list from agent.md (empty = no tools)
+    val tools: List<String> = emptyList(),      // explicit tool allowlist (empty = unrestricted)
     val source: AgentSource = AgentSource.BUILT_IN,
     val model: AgentModel = AgentModel.INHERIT,
     val systemPromptTemplate: String = "",     // supports {{AGENT_LIST}} placeholder for supervisors
@@ -49,12 +49,32 @@ data class AgentDefinition(
     val background: Boolean = false,
     val maxTurns: Int = 30,
     val disableModelInvocation: Boolean = false,   // agent requires manual selection
-    val handoffs: List<String> = emptyList(),       // agent-to-agent transitions
+    val handoffs: List<HandoffDefinition> = emptyList(),  // agent-to-agent transitions
     val mcpServers: Map<String, McpServerConfig> = emptyMap(),
     val metadata: Map<String, String> = emptyMap(), // arbitrary key-value pairs
     val filePath: String? = null,                   // path to .agent.md (null for built-in)
     val subagents: List<String>? = null,            // null = worker. list = supervisor with scoped pool
     val target: String? = null,                     // "vscode", "github-copilot", or null (both)
+) {
+    /** True when no tool restrictions are defined — agent can use all registered tools. */
+    val hasUnrestrictedTools: Boolean get() = tools.isEmpty()
+
+    /**
+     * Check whether [toolName] is allowed for this agent.
+     * Handles the "ide" shorthand: if "ide" is in the tools list,
+     * all "ide_*" tool names are allowed.
+     */
+    fun isToolAllowed(toolName: String): Boolean =
+        hasUnrestrictedTools || toolName in tools ||
+            (toolName.startsWith("ide_") && "ide" in tools)
+}
+
+/** A structured handoff: when this agent completes, offer or auto-trigger another agent. */
+data class HandoffDefinition(
+    val label: String,           // display text (e.g., "Build Technical Plan")
+    val agent: String,           // target agentType (e.g., "speckit.plan")
+    val prompt: String = "",     // initial prompt for the target agent
+    val send: Boolean = false,   // true = auto-trigger on completion; false = UI button
 )
 
 /** Parsed input for the delegate_task tool call. */

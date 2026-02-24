@@ -130,6 +130,17 @@ class TeamService(private val project: Project) : Disposable {
             workspaceRoot = project.basePath ?: "/tmp",
             lspClient = LspClient.getInstance(project),
         )
+
+        // Register tool filter when conversationId is captured (mirrors SubagentManager pattern).
+        // Without this, the agent's tools field is never enforced at runtime.
+        if (!agentDef.hasUnrestrictedTools) {
+            val agentService = AgentService.getInstance(project)
+            session.onConversationId = { convId ->
+                agentService.registerTeammateToolFilter(convId, agentDef.tools.toSet())
+                log.info("TeamService: registered tool filter for teammate '$name' (convId=$convId, allowed=${agentDef.tools.size} tools)")
+            }
+        }
+
         teammateSessions[name] = session
 
         val job = scope.launch {

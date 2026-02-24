@@ -53,6 +53,7 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
     /** Tool filter for a direct subagent conversation (no lead agent). */
     @Volatile
     private var directSubagentConvId: String? = null
+    @Volatile
     private var directSubagentToolFilter: Set<String> = emptySet()
     /** True between conversation/create call and its response — tool calls that arrive
      *  during this window carry the conversationId we need but don't have yet. */
@@ -457,7 +458,7 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
         if (conversationId == null) return true
         // Lead agent conversation
         if (conversationId == leadConversationId && leadToolFilter.isNotEmpty()) {
-            if (toolName !in leadToolFilter) {
+            if (!isToolInFilter(toolName, leadToolFilter)) {
                 log.warn("Tool blocked for lead: '$toolName' not in $leadToolFilter")
                 return false
             }
@@ -465,14 +466,26 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
         }
         // Direct subagent conversation
         if (conversationId == directSubagentConvId && directSubagentToolFilter.isNotEmpty()) {
-            if (toolName !in directSubagentToolFilter) {
+            if (!isToolInFilter(toolName, directSubagentToolFilter)) {
                 log.warn("Tool blocked for direct subagent: '$toolName' not in $directSubagentToolFilter")
                 return false
             }
             return true
         }
-        // Delegated subagent conversations
+        // Delegated subagent conversations (and teammate agents)
         return subagentManager.isToolAllowed(conversationId, toolName)
+    }
+
+    /** Check if [toolName] is in [filter], expanding the "ide" shorthand for "ide_*" tools. */
+    private fun isToolInFilter(toolName: String, filter: Set<String>): Boolean =
+        toolName in filter || (toolName.startsWith("ide_") && "ide" in filter)
+
+    /**
+     * Register a tool filter for a teammate agent conversation.
+     * Called by [TeamService] when a teammate's conversationId is captured.
+     */
+    fun registerTeammateToolFilter(conversationId: String, allowedTools: Set<String>) {
+        subagentManager.registerToolFilter(conversationId, allowedTools)
     }
 
     /** Delegate to [SubagentManager.approveWorktreeChanges]. */

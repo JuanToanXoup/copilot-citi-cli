@@ -602,8 +602,7 @@ class AgentConfigPanel(
                 val name = obj["name"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
                 if (name in skipNames) return@mapNotNull null
                 val desc = obj["description"]?.jsonPrimitive?.contentOrNull ?: ""
-                val enabled = name in agent.tools
-                CheckRow(name, desc, enabled)
+                CheckRow(name, desc, agent.isToolAllowed(name))
             } catch (_: Throwable) { null }
         }
         builtInToolsModel.update(rows)
@@ -614,7 +613,7 @@ class AgentConfigPanel(
         try {
             val rows = PsiTools.allTools.map { tool ->
                 val display = tool.name.removePrefix("ide_")
-                val enabled = "ide" in agent.tools || tool.name in agent.tools
+                val enabled = agent.hasUnrestrictedTools || "ide" in agent.tools || tool.name in agent.tools
                 CheckRow(display, tool.description, enabled)
             }
             ideToolsModel.update(rows)
@@ -637,8 +636,8 @@ class AgentConfigPanel(
     }
 
     private fun populateHandoffs(agent: AgentDefinition) {
-        val handoffAgents = agent.handoffs.mapNotNull { name ->
-            allAgents.find { it.agentType.equals(name, ignoreCase = true) }
+        val handoffAgents = agent.handoffs.mapNotNull { h ->
+            allAgents.find { it.agentType.equals(h.agent, ignoreCase = true) }
         }
         handoffsModel.update(handoffAgents)
     }
@@ -766,7 +765,10 @@ class AgentConfigPanel(
         val enabledIde = ideToolsModel.getCheckedNames() // display names without ide_ prefix
         val allIdeChecked = enabledIde.size == ideToolsModel.rowCount
 
-        val tools: List<String> = run {
+        // All checked = unrestricted access → save as empty list (AgentDefinition.hasUnrestrictedTools)
+        val tools: List<String> = if (allBuiltInChecked && allIdeChecked) {
+            emptyList()
+        } else {
             val list = mutableListOf<String>()
             list.addAll(enabledBuiltIn)
             // Use "ide" shorthand if all IDE tools checked, else add individual ide_<name> entries
@@ -798,7 +800,8 @@ class AgentConfigPanel(
         } else null
 
         val handoffs = (0 until handoffsModel.rowCount).mapNotNull {
-            handoffsModel.agentAt(it)?.agentType
+            val a = handoffsModel.agentAt(it) ?: return@mapNotNull null
+            HandoffDefinition(label = a.agentType, agent = a.agentType)
         }
 
         val targetVal = targetCombo.selectedItem as? String

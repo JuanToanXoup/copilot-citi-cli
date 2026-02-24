@@ -51,9 +51,21 @@ class SubagentManager(
      * Called from [AgentService.isToolAllowedForConversation] for subagent conversations.
      */
     fun isToolAllowed(conversationId: String, toolName: String): Boolean {
-        val allowed = subagentToolFilters[conversationId] ?: return true
-        if (allowed.isEmpty()) return true  // empty = parse error fallback, allow all
-        return toolName in allowed
+        val allowed = subagentToolFilters[conversationId]
+            ?: return true // no filter registered = unrestricted
+        if (allowed.isEmpty()) return true
+        // Expand "ide" shorthand: if "ide" is in the filter, all "ide_*" tools pass
+        return toolName in allowed || (toolName.startsWith("ide_") && "ide" in allowed)
+    }
+
+    /**
+     * Register a tool filter for an external conversation (e.g., teammate agents).
+     * Called by [AgentService.registerTeammateToolFilter].
+     */
+    fun registerToolFilter(conversationId: String, allowedTools: Set<String>) {
+        if (allowedTools.isNotEmpty()) {
+            subagentToolFilters[conversationId] = allowedTools
+        }
     }
 
     /**
@@ -75,7 +87,8 @@ class SubagentManager(
 
         val agentDef = AgentRegistry.findByType(subagentType, agents)
         if (agentDef == null) {
-            log.warn("SubagentManager: unknown subagent type '$subagentType', falling back to general-purpose")
+            val available = agents.map { it.agentType }
+            log.warn("SubagentManager: unknown subagent type '$subagentType', falling back to general-purpose. Available: $available")
         }
         val effectiveDef = agentDef ?: agents.find { it.agentType == "general-purpose" } ?: agents.last()
 
@@ -111,10 +124,20 @@ class SubagentManager(
         val mode = if (waitForResult) "sequential" else "parallel"
         log.info("SubagentManager: spawning subagent [$agentId] type=$subagentType model=$resolvedModel worktree=$useWorktree mode=$mode timeout=${timeoutSeconds}s")
         subagentStartTimes[agentId] = System.currentTimeMillis()
-        eventBus.tryEmit(SubagentEvent.Spawned(agentId, effectiveDef.agentType, description, prompt))
+        // Use emit (suspending, guaranteed delivery) for structural events — tryEmit could
+        // drop the Spawned event, leaving the UI with an orphan Completed and no panel.
+        eventBus.emit(SubagentEvent.Spawned(agentId, effectiveDef.agentType, description, prompt))
 
-        // Compute final allowed tools (removing PSI tools for worktree agents)
-        val allowedTools = effectiveDef.tools.toSet() - extraDisallowed
+        // Compute final allowed tools: empty set = unrestricted (per AgentDefinition contract).
+        // For worktree agents, remove PSI tools since IntelliJ won't index the worktree.
+        // Guard: if subtraction would empty the set, keep the original tools — the agent
+        // intended to have restrictions, not become unrestricted.
+        val allowedTools = if (effectiveDef.hasUnrestrictedTools) {
+            emptySet()
+        } else {
+            val subtracted = effectiveDef.tools.toSet() - extraDisallowed
+            if (subtracted.isEmpty()) effectiveDef.tools.toSet() else subtracted
+        }
 
         val session = WorkerSession(
             workerId = agentId,
@@ -227,7 +250,7 @@ class SubagentManager(
             }
         } else {
             // Parallel mode: respond immediately, collect results later
-            pendingSubagents[agentId] = PendingSubagent(agentId, effectiveDef.agentType, description, deferred)
+            pendingSubagents[agentId] = PendingSubagent(agentId, effectiveDef.agentType, description, deferred, effectiveDef)
 
             val toolResult = buildJsonArray {
                 addJsonObject {
@@ -385,5 +408,6 @@ class SubagentManager(
         val agentType: String,
         val description: String,
         val deferred: Deferred<String>,
+        val definition: AgentDefinition,
     )
 }
