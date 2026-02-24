@@ -1,4 +1,4 @@
-package com.citigroup.copilotchat.ui
+package com.citigroup.copilotchat.browser
 
 import com.citigroup.copilotchat.config.CopilotChatSettings
 import com.citigroup.copilotchat.config.StoragePaths

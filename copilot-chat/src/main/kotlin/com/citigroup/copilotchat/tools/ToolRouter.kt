@@ -14,7 +14,7 @@ import java.io.File
  * Routes tool calls to PSI tools, ide-index (via reflection), or built-in tools.
  * Priority: PSI tools > ide-index > built-in tools.
  */
-class ToolRouter(private val project: Project) {
+class ToolRouter(private val project: Project) : ToolExecutor {
 
     private val log = Logger.getInstance(ToolRouter::class.java)
     private val json = Json { ignoreUnknownKeys = true }
@@ -52,7 +52,7 @@ class ToolRouter(private val project: Project) {
      * Then ide-index tools (if any), then built-in tools.
      * Respects disabled tools from settings.
      */
-    fun getToolSchemas(): List<String> {
+    override fun getToolSchemas(): List<String> {
         val settings = CopilotChatSettings.getInstance()
         val schemas = mutableListOf<String>()
         val registeredNames = mutableSetOf<String>()
@@ -104,7 +104,7 @@ class ToolRouter(private val project: Project) {
      * Execute a tool call and return the result in copilot format:
      * [{"content": [{"value": "..."}], "status": "success"}, null]
      */
-    suspend fun executeTool(name: String, input: JsonObject, workspaceRootOverride: String? = null): JsonElement {
+    override suspend fun executeTool(name: String, input: JsonObject, workspaceRootOverride: String?): JsonElement {
         log.info("Tool call: $name")
         val effectiveWs = workspaceRootOverride ?: workspaceRoot
 

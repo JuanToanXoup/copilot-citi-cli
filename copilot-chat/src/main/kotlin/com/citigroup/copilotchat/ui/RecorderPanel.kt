@@ -1,5 +1,6 @@
 package com.citigroup.copilotchat.ui
 
+import com.citigroup.copilotchat.browser.PlaywrightManager
 import com.citigroup.copilotchat.config.CopilotChatSettings
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.Disposable

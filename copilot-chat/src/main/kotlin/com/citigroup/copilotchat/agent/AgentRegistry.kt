@@ -10,7 +10,7 @@ import java.io.File
  * Built-in agents are bundled as classpath resources under `/agents/`.
  * Custom agents are loaded from project and user directories.
  */
-object AgentRegistry {
+object AgentRegistry : AgentConfigRepository {
 
     private val log = Logger.getInstance(AgentRegistry::class.java)
 
@@ -54,7 +54,7 @@ Complete the full task without stopping for confirmation."""
      * Load all agent definitions: built-ins from classpath resources,
      * plus custom `.agent.md` files from project and user directories.
      */
-    fun loadAll(projectBasePath: String?): List<AgentDefinition> {
+    override fun loadAll(projectBasePath: String?): List<AgentDefinition> {
         val agents = loadBuiltIn().toMutableList()
 
         // Project-level custom agents
@@ -295,7 +295,7 @@ Complete the full task without stopping for confirmation."""
      * Resolves the file path from [existingFilePath] or creates a new one under the project's agents dir.
      * Returns an updated [AgentDefinition] with the resolved [AgentDefinition.filePath].
      */
-    fun saveAgent(agent: AgentDefinition, projectBasePath: String, existingFilePath: String? = null): AgentDefinition {
+    override fun saveAgent(agent: AgentDefinition, projectBasePath: String, existingFilePath: String?): AgentDefinition {
         val file = if (existingFilePath != null) File(existingFilePath) else {
             File(StoragePaths.projectAgents(projectBasePath), "${agent.agentType}.agent.md")
         }
@@ -307,7 +307,7 @@ Complete the full task without stopping for confirmation."""
     /**
      * Delete an agent's file from disk.
      */
-    fun deleteAgentFile(filePath: String) {
+    override fun deleteAgentFile(filePath: String) {
         val file = File(filePath)
         if (file.exists()) {
             file.delete()
@@ -318,7 +318,7 @@ Complete the full task without stopping for confirmation."""
     /**
      * Find an agent by name (across all sources) and delete its file.
      */
-    fun deleteAgentByName(name: String, projectBasePath: String?) {
+    override fun deleteAgentByName(name: String, projectBasePath: String?) {
         val agent = loadAll(projectBasePath).find { it.agentType == name }
         agent?.filePath?.let { deleteAgentFile(it) }
     }

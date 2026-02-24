@@ -24,7 +24,10 @@ import javax.swing.table.AbstractTableModel
  * Top: tabbed agent list (Lead Agents / Subagents), tables grow to fit rows.
  * Below: inline config editor for the selected agent.
  */
-class AgentConfigPanel(private val project: Project) : JPanel(BorderLayout()), Disposable {
+class AgentConfigPanel(
+    private val project: Project,
+    private val configRepo: AgentConfigRepository = AgentRegistry,
+) : JPanel(BorderLayout()), Disposable {
 
     private var allAgents: List<AgentDefinition> = emptyList()
     private var currentAgent: AgentDefinition? = null
@@ -274,7 +277,7 @@ class AgentConfigPanel(private val project: Project) : JPanel(BorderLayout()), D
     // ── Data ───────────────────────────────────────────────────────
 
     fun reload() {
-        allAgents = AgentRegistry.loadAll(project.basePath)
+        allAgents = configRepo.loadAll(project.basePath)
         leadTableModel.update(allAgents.filter { it.subagents != null })
         subagentTableModel.update(allAgents.filter { it.subagents == null })
 
@@ -726,7 +729,7 @@ class AgentConfigPanel(private val project: Project) : JPanel(BorderLayout()), D
     private fun flushAllChanges() {
         // 1. Process pending deletions
         for (name in pendingDeletes) {
-            AgentRegistry.deleteAgentByName(name, project.basePath)
+            configRepo.deleteAgentByName(name, project.basePath)
         }
 
         // 2. Save current agent form fields (new agents get written, existing get updated)
@@ -820,11 +823,11 @@ class AgentConfigPanel(private val project: Project) : JPanel(BorderLayout()), D
             target = target,
         )
 
-        val saved = AgentRegistry.saveAgent(updated, project.basePath ?: return, agent.filePath)
+        val saved = configRepo.saveAgent(updated, project.basePath ?: return, agent.filePath)
 
         // If agent was renamed, delete the old file
         if (agent.agentType != name && agent.filePath != null) {
-            AgentRegistry.deleteAgentFile(agent.filePath)
+            configRepo.deleteAgentFile(agent.filePath)
         }
 
         currentAgent = saved
