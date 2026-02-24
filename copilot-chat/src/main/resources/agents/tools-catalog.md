@@ -108,6 +108,23 @@ Add tool names to the `tools:` frontmatter field to grant an agent access.
 
 ---
 
+## SpecKit (Spec-Driven Development)
+
+| Tool | Description |
+|------|-------------|
+| `speckit_setup_feature` | Initialize a new feature: creates numbered branch, spec directory, and spec.md scaffold |
+| `speckit_setup_plan` | Prepare the plan phase: copies plan template into the feature directory |
+| `speckit_check_prerequisites` | Validate that required SpecKit artifacts exist for the current feature branch |
+| `speckit_update_agent_context` | Update agent-specific context files after plan changes |
+| `speckit_read_template` | Read a SpecKit template (spec, plan, tasks, checklist, constitution) |
+| `speckit_read_constitution` | Read the project constitution from `.specify/memory/constitution.md` |
+| `speckit_list_features` | List existing feature spec directories under `specs/` |
+| `speckit_read_artifact` | Read a SpecKit artifact (spec.md, plan.md, tasks.md, etc.) from the current feature |
+| `speckit_write_artifact` | Write content to a SpecKit artifact file in the current feature directory |
+| `speckit_get_feature_dir` | Resolve the current feature directory from the active git branch |
+
+---
+
 ## Agent Collaboration
 
 | Tool | Description |

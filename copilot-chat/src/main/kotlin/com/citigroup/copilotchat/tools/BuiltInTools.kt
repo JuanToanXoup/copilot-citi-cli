@@ -15,6 +15,7 @@ object BuiltInTools {
         InfoTools,
         WebTools,
         MemoryTools,
+        SpeckitTools,
     )
 
     // Agent stub executors — actual execution is handled by AgentService.
