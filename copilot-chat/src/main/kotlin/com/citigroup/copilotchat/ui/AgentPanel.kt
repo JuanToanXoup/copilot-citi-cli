@@ -10,6 +10,7 @@ import com.citigroup.copilotchat.agent.AgentService
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
+import com.intellij.ui.AnimatedIcon
 import com.intellij.ui.JBColor
 import com.intellij.ui.OnePixelSplitter
 import com.intellij.ui.components.JBScrollPane
@@ -204,8 +205,9 @@ class AgentPanel(private val project: Project) : JPanel(BorderLayout()), Disposa
 
                 addItemSpacing()
 
-                // Create collapsible panel for the subagent
+                // Create collapsible panel for the subagent with spinning indicator
                 val headerLabel = JLabel("[${event.agentType}] ${event.description}").apply {
+                    icon = AnimatedIcon.Default()
                     foreground = JBColor(0x0366D6, 0x58A6FF)
                     border = JBUI.Borders.empty(2, 4)
                 }
@@ -270,10 +272,13 @@ class AgentPanel(private val project: Project) : JPanel(BorderLayout()), Disposa
                     if (event.result.isNotBlank() && !state.assistantMessage.hasContent()) {
                         state.assistantMessage.appendText(event.result)
                     }
-                    // Update header to show completion status
+                    // Format duration
+                    val durationStr = formatDuration(event.durationMs)
+                    // Update header: replace spinner with status icon and append duration
                     val statusIcon = if (event.status == "success") "\u2713" else "\u2717"
                     val currentText = state.headerLabel.text
-                    state.headerLabel.text = "$statusIcon $currentText"
+                    state.headerLabel.icon = null
+                    state.headerLabel.text = "$statusIcon $currentText ($durationStr)"
                     state.headerLabel.foreground = if (event.status == "success")
                         JBColor(0x28A745, 0x3FB950)
                     else
@@ -420,6 +425,16 @@ class AgentPanel(private val project: Project) : JPanel(BorderLayout()), Disposa
 
     private fun colorToHex(color: java.awt.Color): String =
         String.format("#%02x%02x%02x", color.red, color.green, color.blue)
+
+    private fun formatDuration(ms: Long): String = when {
+        ms < 1000 -> "${ms}ms"
+        ms < 60_000 -> "%.1fs".format(ms / 1000.0)
+        else -> {
+            val minutes = ms / 60_000
+            val seconds = (ms % 60_000) / 1000
+            "${minutes}m ${seconds}s"
+        }
+    }
 
     private fun refreshLeadAgents() {
         val allAgents = AgentRegistry.loadAll(project.basePath)

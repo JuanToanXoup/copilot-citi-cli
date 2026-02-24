@@ -40,6 +40,9 @@ class SubagentManager(
     /** Worktree metadata for subagents with forkContext=true. Keyed by agentId. */
     private val subagentWorktrees = ConcurrentHashMap<String, WorktreeInfo>()
 
+    /** Start times for duration tracking. Keyed by agentId. */
+    private val subagentStartTimes = ConcurrentHashMap<String, Long>()
+
     /** Whether there are subagents still running. */
     fun hasPending(): Boolean = pendingSubagents.isNotEmpty()
 
@@ -99,6 +102,7 @@ class SubagentManager(
 
         val mode = if (waitForResult) "sequential" else "parallel"
         log.info("SubagentManager: spawning subagent [$agentId] type=$subagentType model=$resolvedModel worktree=$useWorktree mode=$mode timeout=${timeoutSeconds}s")
+        subagentStartTimes[agentId] = System.currentTimeMillis()
         eventBus.tryEmit(SubagentEvent.Spawned(agentId, effectiveDef.agentType, description, prompt))
 
         val session = WorkerSession(
@@ -160,8 +164,9 @@ class SubagentManager(
             val timeoutMs = timeoutSeconds * 1000L
             try {
                 val result = withTimeout(timeoutMs) { deferred.await() }
-                eventBus.emit(SubagentEvent.Completed(agentId, result, "success"))
-                log.info("SubagentManager: subagent $agentId completed synchronously (${result.length} chars)")
+                val durationMs = System.currentTimeMillis() - (subagentStartTimes.remove(agentId) ?: 0)
+                eventBus.emit(SubagentEvent.Completed(agentId, result, "success", durationMs))
+                log.info("SubagentManager: subagent $agentId completed synchronously (${result.length} chars, ${durationMs}ms)")
 
                 val toolResult = buildJsonArray {
                     addJsonObject {
@@ -175,8 +180,9 @@ class SubagentManager(
                 lspClient.sendResponse(id, toolResult)
             } catch (e: TimeoutCancellationException) {
                 deferred.cancel()
+                val durationMs = System.currentTimeMillis() - (subagentStartTimes.remove(agentId) ?: 0)
                 val errorMsg = "Subagent $agentId timed out after ${timeoutSeconds}s"
-                eventBus.tryEmit(SubagentEvent.Completed(agentId, errorMsg, "error"))
+                eventBus.tryEmit(SubagentEvent.Completed(agentId, errorMsg, "error", durationMs))
                 log.warn("SubagentManager: $errorMsg")
 
                 val toolResult = buildJsonArray {
@@ -190,8 +196,9 @@ class SubagentManager(
                 }
                 lspClient.sendResponse(id, toolResult)
             } catch (e: Exception) {
+                val durationMs = System.currentTimeMillis() - (subagentStartTimes.remove(agentId) ?: 0)
                 val errorMsg = "Subagent $agentId failed: ${e.message}"
-                eventBus.tryEmit(SubagentEvent.Completed(agentId, errorMsg, "error"))
+                eventBus.tryEmit(SubagentEvent.Completed(agentId, errorMsg, "error", durationMs))
                 log.error("SubagentManager: $errorMsg", e)
 
                 val toolResult = buildJsonArray {
@@ -237,21 +244,23 @@ class SubagentManager(
             try {
                 log.info("SubagentManager: awaiting subagent $agentId (${pending.agentType})")
                 val result = pending.deferred.await()
+                val durationMs = System.currentTimeMillis() - (subagentStartTimes.remove(agentId) ?: 0)
                 if (result.isBlank()) {
                     val emptyMsg = "Error: subagent produced no output"
                     results.add(Triple(agentId, pending.agentType, emptyMsg))
-                    eventBus.emit(SubagentEvent.Completed(agentId, emptyMsg, "error"))
-                    log.error("SubagentManager: subagent $agentId completed with EMPTY result")
+                    eventBus.emit(SubagentEvent.Completed(agentId, emptyMsg, "error", durationMs))
+                    log.error("SubagentManager: subagent $agentId completed with EMPTY result (${durationMs}ms)")
                 } else {
                     results.add(Triple(agentId, pending.agentType, result))
-                    eventBus.emit(SubagentEvent.Completed(agentId, result, "success"))
-                    log.info("SubagentManager: subagent $agentId completed (${result.length} chars)")
+                    eventBus.emit(SubagentEvent.Completed(agentId, result, "success", durationMs))
+                    log.info("SubagentManager: subagent $agentId completed (${result.length} chars, ${durationMs}ms)")
                 }
             } catch (e: Exception) {
+                val durationMs = System.currentTimeMillis() - (subagentStartTimes.remove(agentId) ?: 0)
                 val errorMsg = "Error: ${e.message}"
                 results.add(Triple(agentId, pending.agentType, errorMsg))
-                eventBus.emit(SubagentEvent.Completed(agentId, e.message ?: "Error", "error"))
-                log.error("SubagentManager: subagent $agentId failed: ${e.message}", e)
+                eventBus.emit(SubagentEvent.Completed(agentId, e.message ?: "Error", "error", durationMs))
+                log.error("SubagentManager: subagent $agentId failed: ${e.message} (${durationMs}ms)", e)
             }
         }
         pendingSubagents.clear()
@@ -354,6 +363,7 @@ class SubagentManager(
         pendingSubagents.values.forEach { it.deferred.cancel() }
         pendingSubagents.clear()
         subagentToolFilters.clear()
+        subagentStartTimes.clear()
 
         // Clean up any active worktrees on IO thread
         val mainWorkspace = project.basePath ?: "/tmp"

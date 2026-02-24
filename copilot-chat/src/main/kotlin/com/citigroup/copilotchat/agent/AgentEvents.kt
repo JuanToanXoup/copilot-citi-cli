@@ -19,7 +19,7 @@ sealed class SubagentEvent : AgentEvent {
     data class Spawned(val agentId: String, val agentType: String, val description: String, val prompt: String = "") : SubagentEvent()
     data class Delta(val agentId: String, val text: String) : SubagentEvent()
     data class ToolCall(val agentId: String, val toolName: String) : SubagentEvent()
-    data class Completed(val agentId: String, val result: String, val status: String) : SubagentEvent()
+    data class Completed(val agentId: String, val result: String, val status: String, val durationMs: Long = 0) : SubagentEvent()
     data class WorktreeChangesReady(val agentId: String, val changes: List<WorktreeFileChange>) : SubagentEvent()
 }
 
