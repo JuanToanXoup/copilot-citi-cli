@@ -3,6 +3,7 @@ package com.citigroup.copilotchat.conversation
 import com.citigroup.copilotchat.auth.CopilotAuth
 import com.citigroup.copilotchat.auth.CopilotBinaryLocator
 import com.citigroup.copilotchat.config.CopilotChatSettings
+import com.citigroup.copilotchat.lsp.CachedAuth
 import com.citigroup.copilotchat.lsp.LspClient
 import com.citigroup.copilotchat.mcp.ClientMcpManager
 import com.citigroup.copilotchat.tools.ToolRouter
@@ -21,6 +22,9 @@ import kotlinx.serialization.json.*
  *
  * Extracted from [ConversationManager] to separate initialization concerns
  * from chat/tool-call handling.
+ *
+ * @param cachedAuth Shared auth state; populated on first init, reused on subsequent inits.
+ * @param toolFilter If non-empty, only register tools whose names are in this set.
  */
 class LspSession(
     private val project: Project,
@@ -28,6 +32,8 @@ class LspSession(
     private val scope: CoroutineScope,
     private val onServerRequest: suspend (method: String, id: Int, params: JsonObject) -> Unit,
     private val onMcpError: suspend (String) -> Unit,
+    val cachedAuth: CachedAuth = CachedAuth(),
+    private val toolFilter: Set<String> = emptySet(),
 ) {
 
     private val log = Logger.getInstance(LspSession::class.java)
@@ -55,20 +61,32 @@ class LspSession(
         val settings = CopilotChatSettings.getInstance()
         settings.ensureDefaults()
 
-        // Discover or use configured binary
-        val binary = settings.binaryPath.ifBlank { null }
-            ?: CopilotBinaryLocator.discover()
-            ?: throw RuntimeException(
-                "copilot-language-server not found. Install GitHub Copilot in a JetBrains IDE or set the path in settings."
-            )
+        // Use cached binary/env if available, otherwise discover
+        val binary: String
+        val lspEnv: Map<String, String>
+        val proxyUrl: String
 
-        // Start the LSP process — pass proxy env vars like the Python CLI does
-        val lspEnv = mutableMapOf<String, String>()
-        val proxyUrl = settings.proxyUrl
-        if (proxyUrl.isNotBlank()) {
-            lspEnv["HTTP_PROXY"] = proxyUrl
-            lspEnv["HTTPS_PROXY"] = proxyUrl
+        if (cachedAuth.isResolved) {
+            binary = cachedAuth.binaryPath!!
+            lspEnv = cachedAuth.lspEnv
+            proxyUrl = cachedAuth.proxyUrl
+            log.info("LspSession[${lspClient.clientId}]: using cached binary + auth")
+        } else {
+            binary = settings.binaryPath.ifBlank { null }
+                ?: CopilotBinaryLocator.discover()
+                ?: throw RuntimeException(
+                    "copilot-language-server not found. Install GitHub Copilot in a JetBrains IDE or set the path in settings."
+                )
+            proxyUrl = settings.proxyUrl
+            val env = mutableMapOf<String, String>()
+            if (proxyUrl.isNotBlank()) {
+                env["HTTP_PROXY"] = proxyUrl
+                env["HTTPS_PROXY"] = proxyUrl
+            }
+            lspEnv = env
         }
+
+        // Start the LSP process
         lspClient.start(binary, lspEnv)
 
         // Set up tool router and server request handler
@@ -77,8 +95,12 @@ class LspSession(
             scope.launch { onServerRequest(method, id, params) }
         }
 
-        // Read auth
-        val auth = CopilotAuth.readAuth(settings.appsJsonPath.ifBlank { null })
+        // Read auth — use cached token if available
+        val auth = if (cachedAuth.isResolved) {
+            CopilotAuth.AuthInfo(cachedAuth.authToken!!, cachedAuth.authUser, cachedAuth.appId)
+        } else {
+            CopilotAuth.readAuth(settings.appsJsonPath.ifBlank { null })
+        }
 
         val rootUri = project.basePath?.let { "file://$it" } ?: "file:///tmp/copilot-workspace"
         val folderName = project.name
@@ -210,10 +232,28 @@ class LspSession(
             log.info("Proxy configured: ${httpSettings["proxy"]}")
         }
 
-        // Wait briefly for feature flags (they arrive shortly after init)
-        val flagsStart = System.currentTimeMillis()
-        while (lspClient.featureFlags.isEmpty() && System.currentTimeMillis() - flagsStart < 3_000) {
-            delay(100)
+        // Wait briefly for feature flags — skip if cached
+        if (cachedAuth.featureFlags.isNotEmpty()) {
+            lspClient.featureFlags = cachedAuth.featureFlags
+            log.info("LspSession[${lspClient.clientId}]: using cached feature flags")
+        } else {
+            val flagsStart = System.currentTimeMillis()
+            while (lspClient.featureFlags.isEmpty() && System.currentTimeMillis() - flagsStart < 3_000) {
+                delay(100)
+            }
+        }
+
+        // Populate CachedAuth for subsequent pool clients
+        if (!cachedAuth.isResolved) {
+            cachedAuth.binaryPath = binary
+            cachedAuth.lspEnv = lspEnv
+            cachedAuth.authToken = auth.token
+            cachedAuth.authUser = auth.user
+            cachedAuth.appId = auth.appId
+            cachedAuth.proxyUrl = proxyUrl
+            cachedAuth.featureFlags = lspClient.featureFlags
+            cachedAuth.isServerMcpEnabled = lspClient.isServerMcpEnabled
+            log.info("LspSession: cached auth state populated")
         }
 
         // MCP: route to server-side or client-side based on feature flags
@@ -283,11 +323,9 @@ class LspSession(
     }
 
     /**
-     * Register all client-side tools with the language server.
-     * Called once at init and again when MCP config changes.
-     *
-     * Per-agent tool isolation is enforced at the execution level:
-     * ConversationManager rejects tool calls not in the agent's allowed set.
+     * Register client-side tools with the language server.
+     * If [toolFilter] is non-empty, only tools whose names match the filter are registered.
+     * The "ide" shorthand expands to all "ide_*" tools.
      */
     suspend fun registerTools() {
         val schemas = toolRouter.getToolSchemas().toMutableList()
@@ -314,6 +352,17 @@ class LspSession(
             }
         }
 
+        // Phase 3: filter schemas to only those matching the toolFilter
+        if (toolFilter.isNotEmpty()) {
+            schemas.retainAll { schema ->
+                val name = try {
+                    json.parseToJsonElement(schema).jsonObject["name"]?.jsonPrimitive?.contentOrNull
+                } catch (_: Exception) { null }
+                name != null && isToolInFilter(name, toolFilter)
+            }
+            log.info("LspSession[${lspClient.clientId}]: tool filter applied — ${schemas.size} tools retained from filter=$toolFilter")
+        }
+
         if (schemas.isEmpty()) return
 
         val params = buildJsonObject {
@@ -331,6 +380,10 @@ class LspSession(
         val mcpNote = if (mcpSchemas.isNotEmpty()) " + ${mcpSchemas.size} client-mcp" else ""
         log.info("Registered ${schemas.size} tools: ${toolNames.joinToString(", ")}$mcpNote")
     }
+
+    /** Check if [toolName] is in [filter], expanding the "ide" shorthand for "ide_*" tools. */
+    private fun isToolInFilter(toolName: String, filter: Set<String>): Boolean =
+        toolName in filter || (toolName.startsWith("ide_") && "ide" in filter)
 
     /**
      * Send MCP server configuration to the language server.

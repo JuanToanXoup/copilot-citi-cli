@@ -1,7 +1,10 @@
 package com.citigroup.copilotchat.agent
 
 import com.citigroup.copilotchat.conversation.ConversationManager
+import com.citigroup.copilotchat.lsp.CachedAuth
 import com.citigroup.copilotchat.lsp.LspClient
+import com.citigroup.copilotchat.lsp.LspClientPool
+import com.citigroup.copilotchat.lsp.ToolSetKey
 import com.citigroup.copilotchat.orchestrator.WorkerSession
 import com.citigroup.copilotchat.orchestrator.WorkerEvent
 import com.citigroup.copilotchat.workingset.WorkingSetService
@@ -23,8 +26,10 @@ class SubagentManager(
     private val project: Project,
     private val scope: CoroutineScope,
     private val eventBus: AgentEventBus,
-    private val lspClient: LspClient,
+    private val pool: LspClientPool,
+    private val leadClient: LspClient,
     private val conversationManager: ConversationManager,
+    private val cachedAuth: CachedAuth,
 ) {
 
     private val log = Logger.getInstance(SubagentManager::class.java)
@@ -34,9 +39,6 @@ class SubagentManager(
     /** Background subagent jobs launched by delegate_task. Collected after lead turn ends. */
     private val pendingSubagents = ConcurrentHashMap<String, PendingSubagent>()
 
-    /** Per-conversation tool filters keyed by conversationId. */
-    private val subagentToolFilters = ConcurrentHashMap<String, Set<String>>()
-
     /** Worktree metadata for subagents with forkContext=true. Keyed by agentId. */
     private val subagentWorktrees = ConcurrentHashMap<String, WorktreeInfo>()
 
@@ -45,28 +47,6 @@ class SubagentManager(
 
     /** Whether there are subagents still running. */
     fun hasPending(): Boolean = pendingSubagents.isNotEmpty()
-
-    /**
-     * Check whether [toolName] is allowed for the conversation identified by [conversationId].
-     * Called from [AgentService.isToolAllowedForConversation] for subagent conversations.
-     */
-    fun isToolAllowed(conversationId: String, toolName: String): Boolean {
-        val allowed = subagentToolFilters[conversationId]
-            ?: return true // no filter registered = unrestricted
-        if (allowed.isEmpty()) return true
-        // Expand "ide" shorthand: if "ide" is in the filter, all "ide_*" tools pass
-        return toolName in allowed || (toolName.startsWith("ide_") && "ide" in allowed)
-    }
-
-    /**
-     * Register a tool filter for an external conversation (e.g., teammate agents).
-     * Called by [AgentService.registerTeammateToolFilter].
-     */
-    fun registerToolFilter(conversationId: String, allowedTools: Set<String>) {
-        if (allowedTools.isNotEmpty()) {
-            subagentToolFilters[conversationId] = allowedTools
-        }
-    }
 
     /**
      * Spawn a subagent in the background and respond immediately so the
@@ -139,6 +119,23 @@ class SubagentManager(
             if (subtracted.isEmpty()) effectiveDef.tools.toSet() else subtracted
         }
 
+        // Acquire a pool client for this subagent's tool set
+        val subagentClient = if (allowedTools.isEmpty()) {
+            pool.default // unrestricted = use default
+        } else {
+            pool.acquireClient(allowedTools)
+        }
+
+        // Ensure the pool client is initialized (uses CachedAuth for fast startup)
+        val toolSetKey = ToolSetKey.of(allowedTools)
+        if (toolSetKey != ToolSetKey.ALL) {
+            try {
+                pool.ensureInitialized(toolSetKey, cachedAuth)
+            } catch (e: Exception) {
+                log.warn("SubagentManager: pool client init failed for $agentId, falling back to default client", e)
+            }
+        }
+
         val session = WorkerSession(
             workerId = agentId,
             role = effectiveDef.agentType,
@@ -148,7 +145,7 @@ class SubagentManager(
             toolsEnabled = allowedTools.toList(),
             projectName = project.name,
             workspaceRoot = effectiveWorkspaceRoot,
-            lspClient = lspClient,
+            lspClient = subagentClient,
         )
 
         // Non-suspend callback — must use tryEmit
@@ -162,14 +159,9 @@ class SubagentManager(
         }
 
         // Register tool filter and workspace override when conversationId is captured
-        session.onConversationId = { convId ->
-            // Per-agent tool isolation: register allowed tools for this conversation
-            if (allowedTools.isNotEmpty()) {
-                subagentToolFilters[convId] = allowedTools
-                log.info("SubagentManager: registered tool filter for $agentId (convId=$convId, allowed=${allowedTools.size} tools)")
-            }
-            // Worktree workspace override
-            if (worktreeInfo != null) {
+        // Register workspace override when conversationId is captured (for worktree agents)
+        if (worktreeInfo != null) {
+            session.onConversationId = { convId ->
                 conversationManager.registerWorkspaceOverride(convId, worktreeInfo.worktreePath)
                 log.info("SubagentManager: registered workspace override for $agentId (convId=$convId, worktree=${worktreeInfo.worktreePath})")
             }
@@ -213,7 +205,7 @@ class SubagentManager(
                     }
                     add(JsonNull)
                 }
-                lspClient.sendResponse(id, toolResult)
+                leadClient.sendResponse(id, toolResult)
             } catch (e: TimeoutCancellationException) {
                 deferred.cancel()
                 val durationMs = System.currentTimeMillis() - (subagentStartTimes.remove(agentId) ?: 0)
@@ -230,7 +222,7 @@ class SubagentManager(
                     }
                     add(JsonNull)
                 }
-                lspClient.sendResponse(id, toolResult)
+                leadClient.sendResponse(id, toolResult)
             } catch (e: Exception) {
                 val durationMs = System.currentTimeMillis() - (subagentStartTimes.remove(agentId) ?: 0)
                 val errorMsg = "Subagent $agentId failed: ${e.message}"
@@ -246,11 +238,16 @@ class SubagentManager(
                     }
                     add(JsonNull)
                 }
-                lspClient.sendResponse(id, toolResult)
+                leadClient.sendResponse(id, toolResult)
+            } finally {
+                // Release pool client for sequential subagent
+                if (allowedTools.isNotEmpty()) {
+                    pool.releaseClient(allowedTools)
+                }
             }
         } else {
             // Parallel mode: respond immediately, collect results later
-            pendingSubagents[agentId] = PendingSubagent(agentId, effectiveDef.agentType, description, deferred, effectiveDef)
+            pendingSubagents[agentId] = PendingSubagent(agentId, effectiveDef.agentType, description, deferred, effectiveDef, allowedTools)
 
             val toolResult = buildJsonArray {
                 addJsonObject {
@@ -263,7 +260,7 @@ class SubagentManager(
                 }
                 add(JsonNull)
             }
-            lspClient.sendResponse(id, toolResult)
+            leadClient.sendResponse(id, toolResult)
             log.info("SubagentManager: delegate_task responded immediately for $agentId, subagent running in background")
         }
     }
@@ -297,6 +294,11 @@ class SubagentManager(
                 results.add(Triple(agentId, pending.agentType, errorMsg))
                 eventBus.emit(SubagentEvent.Completed(agentId, e.message ?: "Error", "error", durationMs))
                 log.error("SubagentManager: subagent $agentId failed: ${e.message} (${durationMs}ms)", e)
+            } finally {
+                // Release pool client reference
+                if (pending.allowedTools.isNotEmpty()) {
+                    pool.releaseClient(pending.allowedTools)
+                }
             }
         }
         pendingSubagents.clear()
@@ -376,14 +378,19 @@ class SubagentManager(
         log.info("SubagentManager: rejected and discarded worktree changes for $agentId")
     }
 
-    /** Cancel all active and pending subagents, clean up worktrees and tool filters. */
+    /** Cancel all active and pending subagents, release pool clients, and clean up worktrees. */
     fun cancelAll() {
         activeSubagents.values.forEach { it.cancel() }
         activeSubagents.clear()
-        pendingSubagents.values.forEach { it.deferred.cancel() }
+        // Release pool clients before clearing
+        for ((_, pending) in pendingSubagents) {
+            pending.deferred.cancel()
+            if (pending.allowedTools.isNotEmpty()) {
+                pool.releaseClient(pending.allowedTools)
+            }
+        }
         pendingSubagents.clear()
         subagentStartTimes.clear()
-        subagentToolFilters.clear()
 
         // Clean up any active worktrees on IO thread
         val mainWorkspace = project.basePath ?: "/tmp"
@@ -409,5 +416,6 @@ class SubagentManager(
         val description: String,
         val deferred: Deferred<String>,
         val definition: AgentDefinition,
+        val allowedTools: Set<String> = emptySet(),
     )
 }
