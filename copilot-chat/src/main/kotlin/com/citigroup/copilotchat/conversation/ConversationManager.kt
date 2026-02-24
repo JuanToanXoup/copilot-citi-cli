@@ -72,6 +72,9 @@ class ConversationManager(private val project: Project) : Disposable {
             project.getService(ConversationManager::class.java)
     }
 
+    /** Client-side MCP manager (e.g. Playwright), if active. */
+    val clientMcpManager get() = lspSession.clientMcpManager
+
     /** Delegate to [LspSession.ensureInitialized]. */
     suspend fun ensureInitialized() = lspSession.ensureInitialized()
 

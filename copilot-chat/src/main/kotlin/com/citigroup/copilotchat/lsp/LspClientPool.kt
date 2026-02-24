@@ -126,7 +126,7 @@ class LspClientPool(private val project: Project) : Disposable {
             lspClient = entry.client,
             scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
             onServerRequest = { method, id, params ->
-                handlePoolServerRequest(entry.client, method, id, params)
+                handlePoolServerRequest(entry, method, id, params)
             },
             onMcpError = { msg -> log.warn("LspClientPool[${key.value}] MCP error: $msg") },
             cachedAuth = cachedAuth,
@@ -141,11 +141,12 @@ class LspClientPool(private val project: Project) : Disposable {
      * Tool calls go straight to execution — no AgentService routing, no Chat tab events.
      */
     private suspend fun handlePoolServerRequest(
-        client: LspClient,
+        entry: PoolEntry,
         method: String,
         id: Int,
         params: JsonObject,
     ) {
+        val client = entry.client
         when (method) {
             "conversation/invokeClientToolConfirmation" -> {
                 val result = buildJsonArray {
@@ -167,9 +168,25 @@ class LspClientPool(private val project: Project) : Disposable {
                     ConversationManager.getInstance(project).getWorkspaceOverride(convId)
                 } else null
 
-                val toolRouter = ToolRouter(project)
-                val result = toolRouter.executeTool(toolName, toolInput, wsOverride)
-                client.sendResponse(id, result)
+                // Check client-side MCP tools first (e.g. Playwright)
+                val mcpManager = entry.session?.clientMcpManager
+                if (mcpManager != null && mcpManager.isMcpTool(toolName)) {
+                    val resultText = mcpManager.callTool(toolName, toolInput)
+                    val result = buildJsonArray {
+                        addJsonObject {
+                            putJsonArray("content") {
+                                addJsonObject { put("value", resultText) }
+                            }
+                            put("status", "success")
+                        }
+                        add(JsonNull)
+                    }
+                    client.sendResponse(id, result)
+                } else {
+                    val toolRouter = ToolRouter(project)
+                    val result = toolRouter.executeTool(toolName, toolInput, wsOverride)
+                    client.sendResponse(id, result)
+                }
             }
             else -> {
                 client.sendResponse(id, JsonNull)

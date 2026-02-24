@@ -288,7 +288,23 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
                 // Emitting here too would double the event count and fill the
                 // SharedFlow buffer, causing emit() to suspend and deadlock the
                 // tool response path.
-                val result = toolRouter.executeTool(name, input)
+
+                // Check client-side MCP tools first (e.g. Playwright)
+                val mcpManager = conversationManager.clientMcpManager
+                val result = if (mcpManager != null && mcpManager.isMcpTool(name)) {
+                    val resultText = mcpManager.callTool(name, input)
+                    buildJsonArray {
+                        addJsonObject {
+                            putJsonArray("content") {
+                                addJsonObject { put("value", resultText) }
+                            }
+                            put("status", "success")
+                        }
+                        add(JsonNull)
+                    }
+                } else {
+                    toolRouter.executeTool(name, input)
+                }
                 lspClient.sendResponse(id, result)
             }
         }
