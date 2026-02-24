@@ -242,19 +242,18 @@ class AgentPanel(private val project: Project) : JPanel(BorderLayout()), Disposa
                     contentPanel.add(Box.createVerticalStrut(6))
                 }
 
-                val replyPane = messageRenderer.createMessagePane()
-                val assistantMsg = AssistantMessageComponent(replyPane)
-                contentPanel.add(assistantMsg)
+                val replyPane = MarkdownHtmlPane()
+                contentPanel.add(replyPane)
                 collapsible.getContent().add(contentPanel)
 
-                subagentPanels[event.agentId] = SubagentPanelState(collapsible, assistantMsg, headerLabel)
+                subagentPanels[event.agentId] = SubagentPanelState(collapsible, replyPane, headerLabel)
                 addMessageComponent(collapsible)
                 scrollManager.onContentAdded()
             }
 
             is SubagentEvent.Delta -> {
                 val state = subagentPanels[event.agentId] ?: return
-                state.assistantMessage.appendText(event.text)
+                state.replyPane.appendText(event.text)
                 scrollManager.onContentAdded()
             }
 
@@ -267,8 +266,8 @@ class AgentPanel(private val project: Project) : JPanel(BorderLayout()), Disposa
                 if (state != null) {
                     // If deltas didn't stream any content, set the full result
                     // so it's available when the user expands the panel
-                    if (event.result.isNotBlank() && !state.assistantMessage.hasContent()) {
-                        state.assistantMessage.appendText(event.result)
+                    if (event.result.isNotBlank() && !state.replyPane.hasContent()) {
+                        state.replyPane.setText(event.result)
                     }
                     // Format duration
                     val durationStr = formatDuration(event.durationMs)
@@ -454,7 +453,7 @@ class AgentPanel(private val project: Project) : JPanel(BorderLayout()), Disposa
     /** Internal state for a subagent's UI panel. */
     private data class SubagentPanelState(
         val collapsible: CollapsiblePanel,
-        val assistantMessage: AssistantMessageComponent,
+        val replyPane: MarkdownHtmlPane,
         val headerLabel: JLabel,
     )
 }

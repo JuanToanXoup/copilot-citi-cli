@@ -23,6 +23,9 @@ dependencies {
     // TOML config parsing
     implementation(libs.tomlj)
 
+    // Markdown rendering (flexmark → HTML in JEditorPane)
+    implementation(libs.flexmark.all)
+
     // ONNX Runtime for local embeddings (all-MiniLM-L6-v2)
     implementation(libs.onnxruntime)
 }
