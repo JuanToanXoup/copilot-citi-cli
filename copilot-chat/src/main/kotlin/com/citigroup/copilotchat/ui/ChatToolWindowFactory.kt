@@ -13,6 +13,7 @@ import com.intellij.ui.content.ContentManagerListener
 /**
  * Creates the Copilot Chat tool window with multiple content tabs:
  *  - Agent: Claude Code architecture (primary interface)
+ *  - Custom: configurable agent session (config -> chat)
  *  - Agents: agent config (leads + subagents)
  *  - Changes: working set file changes
  *  - Tools: registered tools viewer
@@ -35,6 +36,13 @@ class ChatToolWindowFactory : ToolWindowFactory, DumbAware {
         agentContent.isCloseable = false
         contentManager.addContent(agentContent)
         Disposer.register(toolWindow.disposable, agentPanel)
+
+        // Custom tab — configurable agent session (config phase -> chat phase)
+        val customAgentPanel = CustomAgentPanel(project)
+        val customContent = contentFactory.createContent(customAgentPanel, "Custom", false)
+        customContent.isCloseable = false
+        contentManager.addContent(customContent)
+        Disposer.register(toolWindow.disposable, customAgentPanel)
 
         // Agents tab — agent config (leads + subagents)
         val agentConfigPanel = AgentConfigPanel(project)
