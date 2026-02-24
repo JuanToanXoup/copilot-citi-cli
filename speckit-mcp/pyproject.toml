@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "speckit-mcp"
+version = "0.1.0"
+description = "MCP server exposing SpecKit infrastructure tools"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+speckit-mcp = "speckit_mcp.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

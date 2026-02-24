@@ -85,6 +85,7 @@ tasks.register<Exec>("installDeps") {
         pip, "install",
         "-e", project(":cli").projectDir.absolutePath,
         "-e", project(":agent-builder").projectDir.absolutePath,
+        "-e", project(":speckit-mcp").projectDir.absolutePath,
         "pytest", "ruff"
     )
     proxyUrl?.let { cmd.addAll(listOf("--proxy", it)) }
@@ -104,7 +105,7 @@ tasks.register<Exec>("lint") {
     dependsOn("installDeps")
     commandLine(
         python, "-m", "ruff", "check",
-        "cli/src", "agent-builder/src", "tests/"
+        "cli/src", "agent-builder/src", "speckit-mcp/src", "tests/"
     )
 }
 
