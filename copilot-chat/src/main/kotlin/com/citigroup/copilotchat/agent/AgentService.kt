@@ -30,14 +30,16 @@ import java.util.concurrent.ConcurrentHashMap
  * 5. Lead model synthesizes final answer
  */
 @Service(Service.Level.PROJECT)
-class AgentService(private val project: Project) : Disposable {
+class AgentService(private val project: Project) : AgentEventBus, Disposable {
 
     private val log = Logger.getInstance(AgentService::class.java)
     private val json = Json { ignoreUnknownKeys = true }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     internal val _events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 512)
-    val events: SharedFlow<AgentEvent> = _events
+    override val events: SharedFlow<AgentEvent> = _events
+
+    override suspend fun emit(event: AgentEvent) { _events.emit(event) }
 
     private val lspClient: LspClient get() = LspClient.getInstance(project)
     private val conversationManager: ConversationManager get() = ConversationManager.getInstance(project)

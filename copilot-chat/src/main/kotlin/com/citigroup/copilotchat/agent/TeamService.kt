@@ -51,7 +51,7 @@ class TeamService(private val project: Project) : Disposable {
         val description = input["description"]?.jsonPrimitive?.contentOrNull ?: ""
         val membersArray = input["members"]?.jsonArray ?: return wrapResult("Missing members", isError = true)
 
-        val agentService = AgentService.getInstance(project)
+        val eventBus: AgentEventBus = AgentService.getInstance(project)
         val agents = AgentRegistry.loadAll(project.basePath)
 
         val config = TeamConfig(
@@ -95,12 +95,12 @@ class TeamService(private val project: Project) : Disposable {
             spawnedNames.add(name)
 
             scope.launch {
-                agentService._events.emit(AgentEvent.TeammateJoined(name, agentDef.agentType))
+                eventBus.emit(AgentEvent.TeammateJoined(name, agentDef.agentType))
             }
         }
 
         scope.launch {
-            agentService._events.emit(AgentEvent.TeamCreated(teamName))
+            eventBus.emit(AgentEvent.TeamCreated(teamName))
         }
 
         return wrapResult("Team '$teamName' created with ${spawnedNames.size} members: ${spawnedNames.joinToString(", ")}")
@@ -150,7 +150,7 @@ class TeamService(private val project: Project) : Disposable {
         initialPrompt: String,
         abortFlag: AtomicBoolean,
     ) {
-        val agentService = AgentService.getInstance(project)
+        val eventBus: AgentEventBus = AgentService.getInstance(project)
         val mailbox = Mailbox(teamName, name)
         val leadMailbox = Mailbox(teamName, "team-lead")
         var currentPrompt = initialPrompt
@@ -183,8 +183,8 @@ class TeamService(private val project: Project) : Disposable {
                 }
 
                 scope.launch {
-                    agentService._events.emit(AgentEvent.TeammateIdle(name))
-                    agentService._events.emit(AgentEvent.MailboxMessageEvent(name, "team-lead", "Task completed"))
+                    eventBus.emit(AgentEvent.TeammateIdle(name))
+                    eventBus.emit(AgentEvent.MailboxMessageEvent(name, "team-lead", "Task completed"))
                 }
 
                 // Phase 3: Poll mailbox every 500ms
@@ -204,8 +204,8 @@ class TeamService(private val project: Project) : Disposable {
                         }
 
                         scope.launch {
-                            agentService._events.emit(AgentEvent.TeammateResumed(name))
-                            agentService._events.emit(AgentEvent.MailboxMessageEvent(msg.from, name, msg.text.take(50)))
+                            eventBus.emit(AgentEvent.TeammateResumed(name))
+                            eventBus.emit(AgentEvent.MailboxMessageEvent(msg.from, name, msg.text.take(50)))
                         }
                     }
                 }
@@ -249,9 +249,9 @@ class TeamService(private val project: Project) : Disposable {
             ))
         }
 
-        val agentService = AgentService.getInstance(project)
+        val eventBus: AgentEventBus = AgentService.getInstance(project)
         scope.launch {
-            agentService._events.emit(AgentEvent.MailboxMessageEvent("team-lead", to, text.take(50)))
+            eventBus.emit(AgentEvent.MailboxMessageEvent("team-lead", to, text.take(50)))
         }
 
         return wrapResult("Message sent to '$to'")
@@ -274,9 +274,9 @@ class TeamService(private val project: Project) : Disposable {
         // Cleanup files
         Mailbox.deleteTeamMailboxes(teamName)
 
-        val agentService = AgentService.getInstance(project)
+        val eventBus: AgentEventBus = AgentService.getInstance(project)
         scope.launch {
-            agentService._events.emit(AgentEvent.TeamDisbanded(teamName))
+            eventBus.emit(AgentEvent.TeamDisbanded(teamName))
         }
 
         activeTeam = null

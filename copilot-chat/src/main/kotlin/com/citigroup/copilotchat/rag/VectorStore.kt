@@ -22,7 +22,7 @@ import kotlin.math.sqrt
  * Thread-safe: per-collection synchronized access.
  */
 @Service(Service.Level.APP)
-class VectorStore : Disposable {
+class VectorStore : VectorSearchEngine, Disposable {
 
     private val log = Logger.getInstance(VectorStore::class.java)
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = false }
@@ -40,7 +40,7 @@ class VectorStore : Disposable {
      * Ensure a collection exists. Loads from disk if a persisted file is found.
      * If the existing collection has a different vector dimension, clears it.
      */
-    fun ensureCollection(name: String, vectorDim: Int = 384) {
+    override fun ensureCollection(name: String, vectorDim: Int) {
         if (collections.containsKey(name)) {
             // Verify dimension matches
             val points = collections[name]!!
@@ -78,7 +78,7 @@ class VectorStore : Disposable {
     /**
      * Upsert points into a collection. Points with existing IDs are replaced.
      */
-    fun upsertPoints(collection: String, points: List<VectorPoint>) {
+    override fun upsertPoints(collection: String, points: List<VectorPoint>) {
         if (points.isEmpty()) return
         val list = getCollection(collection)
         synchronized(list) {
@@ -98,7 +98,7 @@ class VectorStore : Disposable {
     /**
      * Search for similar vectors using brute-force cosine similarity.
      */
-    fun search(collection: String, query: FloatArray, topK: Int = 5, scoreThreshold: Float = 0.25f): List<VectorSearchResult> {
+    override fun search(collection: String, query: FloatArray, topK: Int, scoreThreshold: Float): List<VectorSearchResult> {
         val list = getCollection(collection)
         val results: List<VectorSearchResult>
         synchronized(list) {
@@ -113,7 +113,7 @@ class VectorStore : Disposable {
     /**
      * Delete points by their IDs.
      */
-    fun deletePoints(collection: String, ids: List<String>) {
+    override fun deletePoints(collection: String, ids: List<String>) {
         if (ids.isEmpty()) return
         val idSet = ids.toSet()
         val list = getCollection(collection)
@@ -126,7 +126,7 @@ class VectorStore : Disposable {
     /**
      * Delete points where a payload field matches a value.
      */
-    fun deleteByPayload(collection: String, key: String, value: String) {
+    override fun deleteByPayload(collection: String, key: String, value: String) {
         val list = getCollection(collection)
         synchronized(list) {
             list.removeAll { it.payload[key] == value }
@@ -137,7 +137,7 @@ class VectorStore : Disposable {
     /**
      * Return all points in a collection (IDs and payloads, no vectors).
      */
-    fun scrollAll(collection: String): List<VectorScrollResult> {
+    override fun scrollAll(collection: String): List<VectorScrollResult> {
         val list = getCollection(collection)
         synchronized(list) {
             return list.map { VectorScrollResult(it.id, it.payload) }
@@ -147,7 +147,7 @@ class VectorStore : Disposable {
     /**
      * Persist a collection to disk. Call after bulk operations (e.g. end of indexing).
      */
-    fun save(collection: String) {
+    override fun save(collection: String) {
         if (dirty[collection] != true) return
         val list = getCollection(collection)
         val snapshot: List<StoredPoint>
@@ -167,7 +167,7 @@ class VectorStore : Disposable {
     }
 
     /** Persist all dirty collections. */
-    fun saveAll() {
+    override fun saveAll() {
         for (name in dirty.keys) {
             save(name)
         }

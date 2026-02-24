@@ -15,7 +15,7 @@ import kotlin.math.sqrt
  * Model (~32MB) is downloaded on first use to `~/.copilot-chat/models/`.
  * [OrtSession] is created once and reused (thread-safe for concurrent `run()` calls).
  */
-object LocalEmbeddings {
+object LocalEmbeddings : EmbeddingsProvider {
 
     private val log = Logger.getInstance(LocalEmbeddings::class.java)
 
@@ -39,10 +39,10 @@ object LocalEmbeddings {
     }
 
     /** Embed a single text string. Returns a float array of dimension 384. */
-    fun embed(text: String): FloatArray = embedBatch(listOf(text)).first()
+    override fun embed(text: String): FloatArray = embedBatch(listOf(text)).first()
 
     /** Embed multiple texts. Returns a list of float arrays, each of dimension 384. */
-    fun embedBatch(texts: List<String>): List<FloatArray> {
+    override fun embedBatch(texts: List<String>): List<FloatArray> {
         if (texts.isEmpty()) return emptyList()
 
         val ortSession = ensureSession()
@@ -96,7 +96,7 @@ object LocalEmbeddings {
     }
 
     /** Dimension of the embedding vectors. */
-    fun vectorDimension(): Int = VECTOR_DIM
+    override fun vectorDimension(): Int = VECTOR_DIM
 
     private fun meanPoolAndNormalize(tokenEmbeddings: Array<FloatArray>, attentionMask: LongArray): FloatArray {
         val dim = tokenEmbeddings[0].size
