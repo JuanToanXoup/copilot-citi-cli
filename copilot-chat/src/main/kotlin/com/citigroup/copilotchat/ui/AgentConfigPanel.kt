@@ -387,8 +387,8 @@ class AgentConfigPanel(
                 border = BorderFactory.createLineBorder(JBColor(0x43454A, 0x43454A))
                 viewport.background = promptBg
                 viewport.isOpaque = true
-                preferredSize = Dimension(preferredSize.width, 200)
-                minimumSize = Dimension(0, 120)
+                preferredSize = Dimension(preferredSize.width, 600)
+                minimumSize = Dimension(0, 300)
             }, BorderLayout.CENTER)
         }
         return collapsible("System Prompt", expanded = true, content)
