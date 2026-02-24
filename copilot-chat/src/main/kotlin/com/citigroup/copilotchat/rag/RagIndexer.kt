@@ -184,7 +184,10 @@ class RagIndexer(private val project: Project) : Disposable {
         val content = ReadAction.compute<String?, Throwable> {
             try {
                 String(virtualFile.contentsToByteArray(), Charsets.UTF_8)
-            } catch (_: Exception) { null }
+            } catch (e: Exception) {
+                log.warn("Failed to read file content: ${virtualFile.path}: ${e.message}")
+                null
+            }
         } ?: return IndexResult.FAILED
 
         val contentHash = md5(content)

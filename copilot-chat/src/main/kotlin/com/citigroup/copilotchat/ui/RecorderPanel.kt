@@ -298,7 +298,9 @@ class RecorderPanel(private val project: Project) : JPanel(BorderLayout()), Disp
                                 log.debug("playwright stdout: $line")
                             }
                         }
-                    } catch (_: Exception) {}
+                    } catch (e: Exception) {
+                        log.warn("Playwright stdout reader ended: ${e.message}")
+                    }
                 }
 
                 // Drain stderr
@@ -310,7 +312,9 @@ class RecorderPanel(private val project: Project) : JPanel(BorderLayout()), Disp
                                 log.debug("playwright stderr: $line")
                             }
                         }
-                    } catch (_: Exception) {}
+                    } catch (e: Exception) {
+                        log.warn("Playwright stderr reader ended: ${e.message}")
+                    }
                 }
 
                 // Wait for process to exit

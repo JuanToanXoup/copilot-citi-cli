@@ -5,6 +5,7 @@ import com.citigroup.copilotchat.tools.BuiltInTools
 import com.citigroup.copilotchat.tools.IdeIndexBridge
 import com.citigroup.copilotchat.tools.psi.PsiTools
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.table.JBTable
@@ -25,6 +26,7 @@ import javax.swing.table.DefaultTableCellRenderer
 class ToolsPanel(
     private val onToolToggled: (() -> Unit)? = null,
 ) : JPanel(BorderLayout()) {
+    private val log = Logger.getInstance(ToolsPanel::class.java)
 
     data class ToolInfo(
         val name: String,
@@ -151,7 +153,9 @@ class ToolsPanel(
             for (tool in PsiTools.allTools) {
                 ideTools.add(ToolInfo(tool.name, tool.description, "PSI", settings.isToolEnabled(tool.name)))
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            log.warn("Failed to load PSI tools: ${e.message}")
+        }
         ideTableModel.setTools(ideTools)
 
         // Other tools list

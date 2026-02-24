@@ -1,5 +1,6 @@
 package com.citigroup.copilotchat.tools.psi
 
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
 import com.intellij.psi.*
@@ -13,6 +14,7 @@ import kotlinx.serialization.json.JsonObject
 // ═══════════════════════════════════════════════════════════════
 
 class RenameSymbolTool : PsiToolBase() {
+    private val log = Logger.getInstance(RenameSymbolTool::class.java)
     override val name = "ide_rename_symbol"
     override val description = "Rename a symbol and update all references across the project. Use instead of find-and-replace for safe, semantic renaming. Automatically renames related elements: getters/setters, overriding methods, constructor parameters, and test classes."
     override val inputSchema = """{"type":"object","properties":{"file":{"type":"string","description":"Path to file relative to project root"},"line":{"type":"integer","description":"1-based line number where the symbol is located"},"column":{"type":"integer","description":"1-based column number"},"newName":{"type":"string","description":"The new name for the symbol"}},"required":["file","line","column","newName"]}"""
@@ -126,15 +128,21 @@ class RenameSymbolTool : PsiToolBase() {
                                     affectedFiles.add(vf.path.removePrefix(basePath).removePrefix("/"))
                                 }
                             }
-                        } catch (_: Exception) {}
+                        } catch (e: Exception) {
+                            log.warn("Failed to process automatic renamer factory: ${e.message}")
+                        }
                     }
-                } catch (_: Exception) {}
+                } catch (e: Exception) {
+                    log.warn("Failed to apply automatic rename factories: ${e.message}")
+                }
 
                 // Disable preview dialog for headless operation
                 try {
                     processorClass.getMethod("setPreviewUsages", Boolean::class.javaPrimitiveType)
                         .invoke(processor, false)
-                } catch (_: Exception) {}
+                } catch (e: Exception) {
+                    log.warn("Failed to disable preview usages: ${e.message}")
+                }
 
                 processorClass.getMethod("run").invoke(processor)
 

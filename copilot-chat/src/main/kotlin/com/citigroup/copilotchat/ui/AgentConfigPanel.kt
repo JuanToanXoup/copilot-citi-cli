@@ -7,6 +7,7 @@ import com.citigroup.copilotchat.tools.psi.PsiTools
 import kotlinx.serialization.json.*
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBScrollPane
@@ -28,6 +29,7 @@ class AgentConfigPanel(
     private val project: Project,
     private val configRepo: AgentConfigRepository = AgentRegistry,
 ) : JPanel(BorderLayout()), Disposable {
+    private val log = Logger.getInstance(AgentConfigPanel::class.java)
 
     private var allAgents: List<AgentDefinition> = emptyList()
     private var currentAgent: AgentDefinition? = null
@@ -617,7 +619,8 @@ class AgentConfigPanel(
             }
             ideToolsModel.update(rows)
             autoFitNameColumn(ideToolsTable)
-        } catch (_: Throwable) {
+        } catch (e: Throwable) {
+            log.warn("Failed to populate IDE tools: ${e.message}")
             ideToolsModel.clear()
         }
     }

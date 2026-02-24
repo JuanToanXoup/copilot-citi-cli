@@ -186,7 +186,10 @@ class WorkerSession(
             }
 
             ""
-        } catch (_: Exception) { "" }
+        } catch (e: Exception) {
+            log.warn("WorkerSession: failed to extract reply from response: ${e.message}")
+            ""
+        }
     }
 
     /**
