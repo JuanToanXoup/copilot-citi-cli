@@ -64,6 +64,8 @@ data class DelegateTaskInput(
     val subagentType: String,
     val model: String? = null,
     val maxTurns: Int? = null,
+    val waitForResult: Boolean = false,
+    val timeoutSeconds: Int = 300,
 )
 
 /** Result returned from a subagent execution. */

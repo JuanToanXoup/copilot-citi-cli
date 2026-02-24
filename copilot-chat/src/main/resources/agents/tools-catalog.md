@@ -112,7 +112,7 @@ Add tool names to the `tools:` frontmatter field to grant an agent access.
 
 | Tool | Description |
 |------|-------------|
-| `delegate_task` | Delegate a task to a sub-agent |
+| `delegate_task` | Delegate a task to a sub-agent. Params: `wait_for_result` (bool, default false — true blocks until result), `timeout_seconds` (int, default 300) |
 | `create_team` | Create a team of persistent agents |
 | `send_message` | Send a message to a teammate |
 | `delete_team` | Disband the active team |

@@ -57,6 +57,8 @@ class SubagentManager(
         val prompt = input["prompt"]?.jsonPrimitive?.contentOrNull ?: ""
         val subagentType = input["subagent_type"]?.jsonPrimitive?.contentOrNull ?: "general-purpose"
         val modelOverride = input["model"]?.jsonPrimitive?.contentOrNull
+        val waitForResult = input["wait_for_result"]?.jsonPrimitive?.booleanOrNull ?: false
+        val timeoutSeconds = input["timeout_seconds"]?.jsonPrimitive?.intOrNull ?: 300
 
         val agentDef = AgentRegistry.findByType(subagentType, agents)
         if (agentDef == null) {
@@ -95,7 +97,8 @@ class SubagentManager(
                 "ide_rename_symbol", "ide_safe_delete")
         } else emptySet()
 
-        log.info("SubagentManager: spawning subagent [$agentId] type=$subagentType model=$resolvedModel worktree=$useWorktree (parallel)")
+        val mode = if (waitForResult) "sequential" else "parallel"
+        log.info("SubagentManager: spawning subagent [$agentId] type=$subagentType model=$resolvedModel worktree=$useWorktree mode=$mode timeout=${timeoutSeconds}s")
         eventBus.tryEmit(SubagentEvent.Spawned(agentId, effectiveDef.agentType, description, prompt))
 
         val session = WorkerSession(
@@ -134,7 +137,7 @@ class SubagentManager(
 
         activeSubagents[agentId] = session
 
-        // Launch subagent in background — don't block the tool call response
+        // Launch subagent in background
         val deferred = scope.async {
             try {
                 val result = session.executeTask(prompt)
@@ -152,22 +155,74 @@ class SubagentManager(
             }
         }
 
-        pendingSubagents[agentId] = PendingSubagent(agentId, effectiveDef.agentType, description, deferred)
+        if (waitForResult) {
+            // Sequential mode: await result and return it as the tool response
+            val timeoutMs = timeoutSeconds * 1000L
+            try {
+                val result = withTimeout(timeoutMs) { deferred.await() }
+                eventBus.emit(SubagentEvent.Completed(agentId, result, "success"))
+                log.info("SubagentManager: subagent $agentId completed synchronously (${result.length} chars)")
 
-        // Respond immediately so the server can dispatch the next tool call
-        val toolResult = buildJsonArray {
-            addJsonObject {
-                putJsonArray("content") {
+                val toolResult = buildJsonArray {
                     addJsonObject {
-                        put("value", "Subagent $agentId (${effectiveDef.agentType}) spawned for: $description. Running in parallel — results will be collected automatically.")
+                        putJsonArray("content") {
+                            addJsonObject { put("value", result) }
+                        }
+                        put("status", "success")
                     }
+                    add(JsonNull)
                 }
-                put("status", "success")
+                lspClient.sendResponse(id, toolResult)
+            } catch (e: TimeoutCancellationException) {
+                deferred.cancel()
+                val errorMsg = "Subagent $agentId timed out after ${timeoutSeconds}s"
+                eventBus.tryEmit(SubagentEvent.Completed(agentId, errorMsg, "error"))
+                log.warn("SubagentManager: $errorMsg")
+
+                val toolResult = buildJsonArray {
+                    addJsonObject {
+                        putJsonArray("content") {
+                            addJsonObject { put("value", errorMsg) }
+                        }
+                        put("status", "error")
+                    }
+                    add(JsonNull)
+                }
+                lspClient.sendResponse(id, toolResult)
+            } catch (e: Exception) {
+                val errorMsg = "Subagent $agentId failed: ${e.message}"
+                eventBus.tryEmit(SubagentEvent.Completed(agentId, errorMsg, "error"))
+                log.error("SubagentManager: $errorMsg", e)
+
+                val toolResult = buildJsonArray {
+                    addJsonObject {
+                        putJsonArray("content") {
+                            addJsonObject { put("value", errorMsg) }
+                        }
+                        put("status", "error")
+                    }
+                    add(JsonNull)
+                }
+                lspClient.sendResponse(id, toolResult)
             }
-            add(JsonNull)
+        } else {
+            // Parallel mode: respond immediately, collect results later
+            pendingSubagents[agentId] = PendingSubagent(agentId, effectiveDef.agentType, description, deferred)
+
+            val toolResult = buildJsonArray {
+                addJsonObject {
+                    putJsonArray("content") {
+                        addJsonObject {
+                            put("value", "Subagent $agentId (${effectiveDef.agentType}) spawned for: $description. Running in parallel — results will be collected automatically.")
+                        }
+                    }
+                    put("status", "success")
+                }
+                add(JsonNull)
+            }
+            lspClient.sendResponse(id, toolResult)
+            log.info("SubagentManager: delegate_task responded immediately for $agentId, subagent running in background")
         }
-        lspClient.sendResponse(id, toolResult)
-        log.info("SubagentManager: delegate_task responded immediately for $agentId, subagent running in background")
     }
 
     /**
