@@ -20,7 +20,8 @@ class SpeckitAnalyzeProject(private val basePath: String) : LanguageModelToolReg
                 ),
                 "require_tasks" to mapOf("type" to "boolean", "description" to "Require tasks.md to exist (for implementation phase)"),
                 "include_tasks" to mapOf("type" to "boolean", "description" to "Include tasks.md in available docs list")
-            )
+            ),
+            "required" to listOf<String>()
         ),
         null,
         "function",

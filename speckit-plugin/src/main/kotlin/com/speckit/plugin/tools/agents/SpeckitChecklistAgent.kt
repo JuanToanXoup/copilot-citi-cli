@@ -11,7 +11,8 @@ class SpeckitChecklistAgent(private val basePath: String) : AgentTool(
         "type" to "object",
         "properties" to mapOf(
             "focus" to mapOf("type" to "string", "description" to "Optional focus area for the checklist, e.g. 'ux', 'api', 'security'")
-        )
+        ),
+        "required" to listOf<String>()
     )
 ) {
     override fun gatherExtraContext(request: ToolInvocationRequest): String {

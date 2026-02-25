@@ -17,7 +17,8 @@ class SpeckitUpdateAgents(private val basePath: String) : LanguageModelToolRegis
                     "type" to "string",
                     "description" to "Optional agent type to update (e.g. claude, gemini, copilot, cursor-agent, qwen). Omit to update all."
                 )
-            )
+            ),
+            "required" to listOf<String>()
         ),
         null,
         "function",

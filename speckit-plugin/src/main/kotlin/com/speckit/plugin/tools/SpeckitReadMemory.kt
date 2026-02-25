@@ -15,7 +15,8 @@ class SpeckitReadMemory(private val basePath: String) : LanguageModelToolRegistr
             "type" to "object",
             "properties" to mapOf(
                 "name" to mapOf("type" to "string", "description" to "File name, e.g. 'constitution.md'. Omit to list all memory files.")
-            )
+            ),
+            "required" to listOf<String>()
         ),
         null,
         "function",

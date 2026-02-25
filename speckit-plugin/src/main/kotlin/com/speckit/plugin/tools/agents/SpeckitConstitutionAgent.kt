@@ -12,7 +12,8 @@ class SpeckitConstitutionAgent(private val basePath: String) : AgentTool(
         "type" to "object",
         "properties" to mapOf(
             "principles" to mapOf("type" to "string", "description" to "Optional comma-separated list of project principles to include")
-        )
+        ),
+        "required" to listOf<String>()
     )
 ) {
     override fun gatherExtraContext(request: ToolInvocationRequest): String {

@@ -13,7 +13,8 @@ class SpeckitListSpecs(private val basePath: String) : LanguageModelToolRegistra
         "List all feature spec directories and their files from specs/.",
         mapOf(
             "type" to "object",
-            "properties" to mapOf<String, Any>()
+            "properties" to mapOf<String, Any>(),
+            "required" to listOf<String>()
         ),
         null,
         "function",

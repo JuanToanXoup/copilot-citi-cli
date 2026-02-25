@@ -13,7 +13,8 @@ class SpeckitListTemplates(private val basePath: String) : LanguageModelToolRegi
         "List all available Spec-Kit templates from .specify/templates/.",
         mapOf(
             "type" to "object",
-            "properties" to mapOf<String, Any>()
+            "properties" to mapOf<String, Any>(),
+            "required" to listOf<String>()
         ),
         null,
         "function",

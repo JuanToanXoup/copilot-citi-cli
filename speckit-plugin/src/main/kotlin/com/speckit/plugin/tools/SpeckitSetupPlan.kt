@@ -14,7 +14,8 @@ class SpeckitSetupPlan(private val basePath: String) : LanguageModelToolRegistra
             "type" to "object",
             "properties" to mapOf(
                 "json" to mapOf("type" to "boolean", "description" to "Return JSON output (default: true)")
-            )
+            ),
+            "required" to listOf<String>()
         ),
         null,
         "function",

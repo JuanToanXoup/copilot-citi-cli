@@ -13,7 +13,8 @@ class SpeckitListAgents(private val basePath: String) : LanguageModelToolRegistr
         "List all available Spec-Kit agent definitions from .github/agents/.",
         mapOf(
             "type" to "object",
-            "properties" to mapOf<String, Any>()
+            "properties" to mapOf<String, Any>(),
+            "required" to listOf<String>()
         ),
         null,
         "function",

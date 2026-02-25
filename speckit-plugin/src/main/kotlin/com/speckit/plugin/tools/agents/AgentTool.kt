@@ -12,7 +12,7 @@ abstract class AgentTool(
     private val toolName: String,
     private val toolDescription: String,
     private val agentFileName: String,
-    private val inputSchema: Map<String, Any> = mapOf("type" to "object", "properties" to mapOf<String, Any>())
+    private val inputSchema: Map<String, Any> = mapOf("type" to "object", "properties" to mapOf<String, Any>(), "required" to listOf<String>())
 ) : LanguageModelToolRegistration {
 
     override val toolDefinition = LanguageModelTool(
