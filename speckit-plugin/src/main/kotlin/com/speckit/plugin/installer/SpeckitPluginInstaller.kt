@@ -66,7 +66,7 @@ class SpeckitPluginInstaller : StartupActivity.DumbAware {
             SpeckitTasksToIssuesAgent(basePath),
             // Coverage orchestrator
             SpeckitCoverageAgent(basePath),
-            // Script wrappers (direct access to bash scripts)
+            // Workflow tools (reimplemented in Kotlin, no shell scripts needed)
             SpeckitAnalyzeProject(basePath),
             SpeckitSetupPlan(basePath),
             SpeckitSetupFeature(basePath),

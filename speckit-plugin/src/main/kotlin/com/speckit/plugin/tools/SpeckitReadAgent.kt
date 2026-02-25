@@ -4,13 +4,12 @@ import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelTool
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelToolResult
 import com.github.copilot.chat.conversation.agent.tool.LanguageModelToolRegistration
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
-import java.io.File
 
 class SpeckitReadAgent(private val basePath: String) : LanguageModelToolRegistration {
 
     override val toolDefinition = LanguageModelTool(
         "speckit_read_agent",
-        "Read a Spec-Kit agent definition file from .github/agents/.",
+        "Read a Spec-Kit agent definition file.",
         mapOf(
             "type" to "object",
             "properties" to mapOf(
@@ -30,12 +29,9 @@ class SpeckitReadAgent(private val basePath: String) : LanguageModelToolRegistra
             ?: return LanguageModelToolResult.Companion.error("Missing required parameter: name")
 
         val fileName = if (name.endsWith(".agent.md")) name else "$name.agent.md"
-        val file = File(basePath, ".github/agents/$fileName")
+        val content = ResourceLoader.readAgent(basePath, fileName)
+            ?: return LanguageModelToolResult.Companion.error("Agent not found: $fileName")
 
-        if (!file.exists()) {
-            return LanguageModelToolResult.Companion.error("Agent not found: $fileName")
-        }
-
-        return LanguageModelToolResult.Companion.success(file.readText())
+        return LanguageModelToolResult.Companion.success(content)
     }
 }

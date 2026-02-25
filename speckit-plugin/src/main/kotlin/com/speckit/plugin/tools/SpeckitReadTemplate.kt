@@ -4,13 +4,12 @@ import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelTool
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelToolResult
 import com.github.copilot.chat.conversation.agent.tool.LanguageModelToolRegistration
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
-import java.io.File
 
 class SpeckitReadTemplate(private val basePath: String) : LanguageModelToolRegistration {
 
     override val toolDefinition = LanguageModelTool(
         "speckit_read_template",
-        "Read a Spec-Kit template file from .specify/templates/.",
+        "Read a Spec-Kit template file.",
         mapOf(
             "type" to "object",
             "properties" to mapOf(
@@ -29,12 +28,9 @@ class SpeckitReadTemplate(private val basePath: String) : LanguageModelToolRegis
         val name = request.input?.get("name")?.asString
             ?: return LanguageModelToolResult.Companion.error("Missing required parameter: name")
 
-        val file = File(basePath, ".specify/templates/$name")
+        val content = ResourceLoader.readTemplate(basePath, name)
+            ?: return LanguageModelToolResult.Companion.error("Template not found: $name")
 
-        if (!file.exists()) {
-            return LanguageModelToolResult.Companion.error("Template not found: $name")
-        }
-
-        return LanguageModelToolResult.Companion.success(file.readText())
+        return LanguageModelToolResult.Companion.success(content)
     }
 }

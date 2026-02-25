@@ -30,7 +30,9 @@ class SpeckitReadMemory(private val basePath: String) : LanguageModelToolRegistr
         val memoryDir = File(basePath, ".specify/memory")
 
         if (!memoryDir.isDirectory) {
-            return LanguageModelToolResult.Companion.error("No .specify/memory/ directory found in project.")
+            return LanguageModelToolResult.Companion.success(
+                "No .specify/memory/ directory found. Memory will be created when speckit_write_memory is first used."
+            )
         }
 
         if (name == null) {

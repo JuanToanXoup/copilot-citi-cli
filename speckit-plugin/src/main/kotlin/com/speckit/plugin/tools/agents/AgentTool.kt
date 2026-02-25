@@ -4,6 +4,7 @@ import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelTool
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelToolResult
 import com.github.copilot.chat.conversation.agent.tool.LanguageModelToolRegistration
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
+import com.speckit.plugin.tools.ResourceLoader
 import com.speckit.plugin.tools.ScriptRunner
 import java.io.File
 
@@ -27,27 +28,27 @@ abstract class AgentTool(
     override suspend fun handleInvocation(
         request: ToolInvocationRequest
     ): LanguageModelToolResult {
-        val agentFile = File(basePath, ".github/agents/$agentFileName")
-        if (!agentFile.exists()) {
-            return LanguageModelToolResult.Companion.error("Agent definition not found: $agentFileName")
-        }
-
-        val agentInstructions = agentFile.readText()
+        val agentInstructions = ResourceLoader.readAgent(basePath, agentFileName)
+            ?: return LanguageModelToolResult.Companion.error(
+                "Agent definition not found: $agentFileName (checked project .github/agents/ and bundled resources)"
+            )
 
         val context = buildString {
             appendLine("# Agent: $toolName")
             appendLine()
 
-            // Project context from prerequisites
-            val prereqResult = ScriptRunner.execScript(
-                "$basePath/.specify/scripts/bash/check-prerequisites.sh",
-                listOf("--json"),
-                basePath
-            )
-            if (prereqResult.success) {
-                appendLine("## Project Context")
-                appendLine(prereqResult.output)
-                appendLine()
+            // Project context from prerequisites (only if script exists)
+            if (ResourceLoader.hasScript(basePath, "check-prerequisites.sh")) {
+                val prereqResult = ScriptRunner.execScript(
+                    "$basePath/.specify/scripts/bash/check-prerequisites.sh",
+                    listOf("--json"),
+                    basePath
+                )
+                if (prereqResult.success) {
+                    appendLine("## Project Context")
+                    appendLine(prereqResult.output)
+                    appendLine()
+                }
             }
 
             // Constitution (governance rules agents must follow)
@@ -73,20 +74,24 @@ abstract class AgentTool(
 
     protected open fun gatherExtraContext(request: ToolInvocationRequest): String = ""
 
+    /**
+     * Read a file from the project, falling back to bundled resources for
+     * known paths (.github/agents/, .specify/templates/).
+     */
     protected fun readFileIfExists(relativePath: String): String? {
-        val file = File(basePath, relativePath)
-        return if (file.exists()) file.readText() else null
+        return ResourceLoader.readFile(basePath, relativePath)
     }
 
     protected fun readFeatureArtifact(featureDir: String, fileName: String): String? {
-        return readFileIfExists("specs/$featureDir/$fileName")
+        // Feature artifacts are project-only (no bundled fallback)
+        val file = File(basePath, "specs/$featureDir/$fileName")
+        return if (file.exists()) file.readText() else null
     }
 
     protected fun findCurrentFeatureDir(): String? {
         val specsDir = File(basePath, "specs")
         if (!specsDir.isDirectory) return null
 
-        // Get current branch to match feature number
         val result = ScriptRunner.exec(listOf("git", "rev-parse", "--abbrev-ref", "HEAD"), basePath)
         if (!result.success) return null
 

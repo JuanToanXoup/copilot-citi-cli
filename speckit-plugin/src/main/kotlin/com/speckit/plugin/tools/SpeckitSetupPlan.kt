@@ -4,8 +4,11 @@ import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelTool
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelToolResult
 import com.github.copilot.chat.conversation.agent.tool.LanguageModelToolRegistration
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
+import java.io.File
 
-class SpeckitSetupPlan(private val basePath: String) : LanguageModelToolRegistration {
+class SpeckitSetupPlan(
+    private val basePath: String
+) : LanguageModelToolRegistration {
 
     override val toolDefinition = LanguageModelTool(
         "speckit_setup_plan",
@@ -25,21 +28,39 @@ class SpeckitSetupPlan(private val basePath: String) : LanguageModelToolRegistra
     override suspend fun handleInvocation(
         request: ToolInvocationRequest
     ): LanguageModelToolResult {
-        val json = request.input?.get("json")?.asBoolean ?: true
+        val project = FeatureWorkspace.findProject(request)
+        val paths = FeatureWorkspace.getFeaturePaths(basePath)
 
-        val args = mutableListOf<String>()
-        if (json) args.add("--json")
-
-        val result = ScriptRunner.execScript(
-            "$basePath/.specify/scripts/bash/setup-plan.sh",
-            args,
-            basePath
-        )
-
-        return if (result.success) {
-            LanguageModelToolResult.Companion.success(result.output)
-        } else {
-            LanguageModelToolResult.Companion.error(result.output)
+        // Validate feature branch
+        if (paths.hasGit && !FeatureWorkspace.isFeatureBranch(paths.currentBranch)) {
+            return LanguageModelToolResult.Companion.error(
+                "Not on a feature branch. Current branch: ${paths.currentBranch}\n" +
+                "Feature branches should be named like: 001-feature-name"
+            )
         }
+
+        // Create feature directory if needed
+        val featureDir = File(paths.featureDir)
+        if (!featureDir.isDirectory) {
+            featureDir.mkdirs()
+        }
+
+        // Copy plan template (project-first, bundled-fallback via ResourceLoader)
+        val templateContent = ResourceLoader.readTemplate(basePath, "plan-template.md")
+        val planFile = File(paths.implPlan)
+
+        if (templateContent != null) {
+            planFile.writeText(templateContent)
+        } else {
+            // No template found anywhere — create empty file
+            planFile.createNewFile()
+        }
+
+        // Refresh VFS so IntelliJ sees the new files immediately
+        FeatureWorkspace.refreshVfs(project, paths.featureDir, paths.implPlan)
+
+        return LanguageModelToolResult.Companion.success(
+            """{"FEATURE_SPEC":"${paths.featureSpec}","IMPL_PLAN":"${paths.implPlan}","SPECS_DIR":"${paths.featureDir}","BRANCH":"${paths.currentBranch}","HAS_GIT":"${paths.hasGit}"}"""
+        )
     }
 }
