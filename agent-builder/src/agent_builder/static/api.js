@@ -231,4 +231,13 @@ const API = {
         });
         return r.json();
     },
+
+    async launchAgent(binaryPath) {
+        const r = await fetch('/api/launch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: binaryPath }),
+        });
+        return r.json();
+    },
 };

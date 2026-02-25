@@ -819,11 +819,13 @@ const App = window.App = {
         const overlay = document.getElementById('build-overlay');
         const log = document.getElementById('build-log');
         const closeBtn = document.getElementById('btn-build-close');
+        const runBtn = document.getElementById('btn-build-run');
         const title = document.getElementById('build-title');
 
         log.innerHTML = '';
         title.textContent = `Building "${name}"...`;
         closeBtn.disabled = true;
+        runBtn.style.display = 'none';
         overlay.classList.add('active');
 
         API.streamBuild(this.state.config, (evt) => {
@@ -837,6 +839,24 @@ const App = window.App = {
                 );
                 title.textContent = 'Build Complete';
                 closeBtn.disabled = false;
+                // Show "Run in Terminal" button with the built binary path
+                runBtn.style.display = '';
+                runBtn.onclick = async () => {
+                    runBtn.disabled = true;
+                    runBtn.textContent = 'Launching...';
+                    try {
+                        const result = await API.launchAgent(evt.path);
+                        if (result.error) {
+                            Components.appendBuildLog(`\nLaunch error: ${result.error}`, 'log-err', log);
+                        } else {
+                            Components.appendBuildLog('\nAgent launched in system terminal.', 'log-ok', log);
+                        }
+                    } catch (e) {
+                        Components.appendBuildLog(`\nLaunch error: ${e.message}`, 'log-err', log);
+                    }
+                    runBtn.disabled = false;
+                    runBtn.textContent = 'Run in Terminal';
+                };
             } else if (evt.type === 'error') {
                 Components.appendBuildLog(
                     `\nError: ${evt.message}`, 'log-err', log

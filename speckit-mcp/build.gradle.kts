@@ -1,5 +1,5 @@
 /**
- * Agent Builder subproject — web UI for visual agent composition.
+ * SpecKit MCP subproject — MCP server for spec-driven development tools.
  */
 
 val venvDir = rootProject.layout.projectDirectory.dir(".venv")
@@ -14,16 +14,15 @@ else
     venvDir.file("bin/pip").asFile.absolutePath
 
 tasks.register<Exec>("install") {
-    description = "Install the agent-builder module in editable mode"
+    description = "Install the speckit-mcp module in editable mode"
     group = "python"
     dependsOn(":upgradePip")
     commandLine(pip, "install", "-e", projectDir.absolutePath)
 }
 
 tasks.register<Exec>("start") {
-    description = "Launch the Agent Builder web UI"
+    description = "Launch the SpecKit MCP server (stdio)"
     group = "application"
     dependsOn(":installDeps")
-    val port = (project.findProperty("port") as? String) ?: "8420"
-    commandLine(python, "-m", "agent_builder", "--port", port)
+    commandLine(python, "-m", "speckit_mcp")
 }
