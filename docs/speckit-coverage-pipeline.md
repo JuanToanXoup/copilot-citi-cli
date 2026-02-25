@@ -33,6 +33,11 @@ Every phase below lists its **questions** (what the phase must answer before it 
 | D14 | Do existing coverage reports exist? | Check standard report paths (build/reports/jacoco, coverage/, htmlcov/) | JaCoCo XML found (2 days old), lcov.info found, no reports found |
 | D15 | What CI system is configured? | Check for .github/workflows, Jenkinsfile, .gitlab-ci.yml, etc. | GitHub Actions, Jenkins, GitLab CI, Azure DevOps, CircleCI, none |
 | D16 | Is this a multi-module project? | Parse build file for module declarations | Single module, multi-module (3 modules), monorepo with workspaces |
+| D17 | Which source files already have a corresponding test file? | Match each source file to test files by naming convention (e.g., `UserService.java` -> `UserServiceTest.java`) | e.g., "37 of 142 source files have matching tests (26%)" |
+| D18 | Which source files have NO corresponding test file? | Inverse of D17 — source files with no name-matched test | e.g., "105 source files have no test: OrderService, PaymentGateway, ..." |
+| D19 | For tested files, what methods are covered vs uncovered? | Read each matched test file and extract test method names; cross-reference with source method names | e.g., "UserService: 3/8 methods tested (createUser, findById, deleteUser)" |
+| D20 | For tested files, what scenarios are covered? | Read test method names and classify: happy path, error path, edge case | e.g., "UserService: 3 happy path, 1 error path, 0 edge cases" |
+| D21 | What is the overall test depth? | Aggregate D19-D20 across all matched files | e.g., "Shallow (mostly happy paths, few error/edge cases)" or "Deep (all paths covered)" |
 
 ### Actions
 
@@ -42,11 +47,19 @@ Every phase below lists its **questions** (what the phase must answer before it 
 4. Extract DI framework from build file
 5. Walk source directories and count files by extension
 6. Walk test directories and count files by extension
-7. Read first 3 test files and extract: imports, annotations, assertion patterns, mock patterns
-8. Check standard coverage report paths for existing reports
-9. Check for CI configuration files
-10. Check for module declarations (Maven modules, Gradle subprojects, workspaces)
-11. Compile open questions for anything that could not be auto-detected
+7. Build source-to-test file mapping:
+   a. For each source file, derive the expected test file name using detected naming convention (D10)
+   b. Check if the test file exists in the test root
+   c. Classify each source file as: tested (has matching test file), untested (no match), partially tested (test exists but covers few methods)
+8. For each matched test file:
+   a. Read the test file and extract test method names
+   b. Cross-reference with source file's public methods to determine which methods have tests
+   c. Classify test scenarios by type (happy path, error path, edge case) based on method naming patterns
+9. Read first 3 test files and extract: imports, annotations, assertion patterns, mock patterns
+10. Check standard coverage report paths for existing reports
+11. Check for CI configuration files
+12. Check for module declarations (Maven modules, Gradle subprojects, workspaces)
+13. Compile open questions for anything that could not be auto-detected
 
 ### Decision
 
@@ -61,6 +74,8 @@ Every phase below lists its **questions** (what the phase must answer before it 
 - DI approach
 - Source structure (roots, file counts)
 - Test conventions (naming, assertion style, mock patterns)
+- Source-to-test mapping (which source files have tests, which don't)
+- Per-file test depth (methods tested, scenario types covered)
 - Coverage state (configured, existing reports)
 - CI configuration
 - Open questions
@@ -465,7 +480,7 @@ speckit_implement -------> unit test files
 
 | Phase | Questions | Focus |
 |-------|-----------|-------|
-| speckit_discover | 16 | Project structure, toolchain, existing patterns |
+| speckit_discover | 21 | Project structure, toolchain, existing patterns, source-to-test mapping |
 | speckit_run_tests | 5 | Test command, report location, baseline data |
 | speckit_constitution | 10 | Conventions, standards, rules |
 | speckit_specify | 9 | Gap identification, impact ranking, exclusions |
@@ -474,4 +489,4 @@ speckit_implement -------> unit test files
 | speckit_tasks | 9 | Per-method scenarios, mocks, assertions, partitioning |
 | speckit_analyze | 6 | Completeness, coverage map, ordering validation |
 | speckit_implement | 10 | Per-file generation, compilation, self-heal, coverage |
-| **Total** | **83** | |
+| **Total** | **88** | |
