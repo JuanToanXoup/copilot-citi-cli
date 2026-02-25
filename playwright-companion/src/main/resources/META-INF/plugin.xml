@@ -1,0 +1,18 @@
+<idea-plugin>
+    <id>com.copilot.playwright</id>
+    <name>Playwright Companion</name>
+    <version>0.1.0</version>
+    <vendor>copilot</vendor>
+    <description>
+        Bridges Playwright MCP server tools as in-process tools
+        on the GitHub Copilot Chat LSP client.
+    </description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.github.copilot</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <postStartupActivity
+            implementation="com.copilot.playwright.installer.PlaywrightToolInstaller"/>
+    </extensions>
+</idea-plugin>
