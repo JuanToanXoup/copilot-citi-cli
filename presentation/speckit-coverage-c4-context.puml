@@ -1,0 +1,22 @@
+@startuml speckit-coverage-c4-context
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+LAYOUT_TOP_DOWN()
+LAYOUT_WITH_LEGEND()
+
+title Spec-Kit Coverage Tool — System Context Diagram (Level 1)
+
+Person(dev, "Microservice Developer", "Runs speckit coverage to bring test coverage to 80%+")
+
+System(speckit, "Spec-Kit Coverage Tool", "Autonomous multi-agent pipeline that analyzes code, generates tests, and self-heals until coverage target is met")
+
+System_Ext(codebase, "Microservices Codebase", "Target services under test: source code, configs, existing tests")
+System_Ext(buildsys, "Build System", "Gradle / Maven / npm / pytest / Go\n+ coverage tools (JaCoCo, Jest, pytest-cov, go cover)")
+
+Rel(dev, speckit, "speckit coverage ./services --target 80")
+Rel(speckit, codebase, "Reads source, writes test files")
+Rel(speckit, buildsys, "Runs builds, collects coverage reports")
+
+SHOW_LEGEND()
+
+@enduml

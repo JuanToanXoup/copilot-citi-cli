@@ -1,0 +1,47 @@
+@startuml speckit-coverage-c4-components
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_LEFT_RIGHT()
+
+title Spec-Kit Coverage Tool — Pipeline Agents Component Diagram (Level 3)
+
+Container_Boundary(pipeline, "Pipeline Agents") {
+
+    Component(constitution, "/speckit.constitution\nStandards Agent", "Reads project codebase.\nProduces test constitution:\nrules, conventions, coverage targets")
+
+    Component(specify, "/speckit.specify\nDiscovery Agent", "Reads codebase + constitution.\nProduces service map, branch inventory,\ncoverage gaps ranked by impact")
+
+    Component(clarify, "/speckit.clarify\nClarification Agent", "Reads gaps + architecture.\nResolves mock strategies,\nedge cases, technical decisions")
+
+    Component(plan, "/speckit.plan\nStrategy Agent", "Reads spec + decisions.\nProduces test architecture:\nexecution order, fixtures,\ncoverage prediction")
+
+    Component(tasks, "/speckit.tasks\nPlanning Agent", "Reads plan.\nProduces individual\ntest scenarios")
+
+    Component(analyze, "/speckit.analyze\nValidation Agent", "Cross-checks tasks for\ncompleteness, gaps,\nredundancies")
+
+    Component(implement, "/speckit.implement\nGeneration Agent", "Reads validated tasks.\nProduces unit test files,\nself-healed and passing")
+}
+
+Component_Ext(codebase, "Microservices Codebase", "Source code")
+Component_Ext(memstore, "Memory Store", "Constitution, patterns")
+Component_Ext(orchestrator, "Coverage Orchestrator", "Lead agent")
+Component_Ext(testwriter, "Test Writer", "Generates & heals tests")
+
+Rel(orchestrator, constitution, "1. Starts pipeline")
+
+Rel(constitution, specify, "constitution.md")
+Rel(specify, clarify, "service-map.md\ncoverage-gaps.md")
+Rel(clarify, plan, "decisions.md")
+Rel(plan, tasks, "test-architecture.md")
+Rel(tasks, analyze, "test-scenarios.md")
+Rel(analyze, implement, "validated-tasks.md")
+
+Rel(constitution, codebase, "Reads source")
+Rel(specify, codebase, "Reads source")
+Rel(constitution, memstore, "Writes constitution")
+Rel(specify, memstore, "Reads constitution")
+Rel(implement, testwriter, "Delegates test generation")
+
+SHOW_LEGEND()
+
+@enduml

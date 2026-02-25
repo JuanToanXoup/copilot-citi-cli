@@ -1,0 +1,42 @@
+@startuml speckit-coverage-c4-containers
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+LAYOUT_TOP_DOWN()
+
+title Spec-Kit Coverage Tool — Container Diagram (Level 2)
+
+Person(dev, "Microservice Developer", "Runs speckit coverage")
+
+System_Boundary(speckit, "Spec-Kit Coverage Tool") {
+    Container(cli, "CLI Entry Point", "CLI", "speckit coverage ./services --target 80\nParses args, bootstraps orchestrator")
+    Container(orchestrator, "Coverage Orchestrator", "Lead Agent", "Drives the full pipeline end-to-end.\nDelegates to pipeline agents in sequence,\nthen loops test-writer batches until target met")
+    Container(pipeline, "Pipeline Agents", "6 Specialized Agents", "constitution -> specify -> clarify -> plan -> tasks/analyze -> implement\nEach reads prior artifacts from disk")
+    Container(testwriter, "Test Writer", "Sub-Agent", "Receives batch of source files.\nLearns project conventions, writes tests,\nruns them, self-heals failures")
+    Container(memory, "Memory Store", "File System", "Constitution, proven patterns, mock strategies,\nfailure lessons. Persists across runs")
+    Container(runner, "Test Runner", "Build Integration", "Auto-detects build system & coverage tooling.\nExecutes tests, parses coverage reports")
+}
+
+System_Ext(codebase, "Microservices Codebase", "Source code, configs, existing tests")
+System_Ext(buildsys, "Build System", "Gradle / Maven / npm / pytest / Go + coverage tools")
+
+Lay_D(runner, codebase)
+Lay_D(runner, buildsys)
+
+Rel(dev, cli, "speckit coverage ./services --target 80")
+Rel(cli, orchestrator, "Initializes and starts")
+Rel(orchestrator, pipeline, "Drives agents in sequence")
+Rel(orchestrator, testwriter, "Delegates batches of files")
+Rel(orchestrator, runner, "Triggers test runs, reads coverage")
+Rel(pipeline, memory, "Reads constitution & patterns;\nwrites new artifacts")
+Rel(testwriter, memory, "Reads conventions & patterns")
+Rel(testwriter, codebase, "Reads source, writes test files")
+Rel(runner, buildsys, "Runs build & coverage commands")
+Rel(runner, codebase, "Reads test files, coverage config")
+Rel(pipeline, codebase, "Reads source for analysis")
+
+
+SHOW_LEGEND()
+
+
+
+@enduml
