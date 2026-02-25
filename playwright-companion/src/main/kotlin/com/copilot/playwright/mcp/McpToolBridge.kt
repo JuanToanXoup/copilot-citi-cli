@@ -19,10 +19,15 @@ class McpToolBridge(
     private val registeredName =
         if (namePrefix.isNotEmpty()) "${namePrefix}_${schema.name}" else schema.name
 
+    // Copilot LSP requires "required" on every tool schema, even if empty.
+    private val normalizedSchema: Map<String, Any> =
+        if (schema.inputSchema.containsKey("required")) schema.inputSchema
+        else schema.inputSchema + ("required" to emptyList<String>())
+
     override val toolDefinition = LanguageModelTool(
         registeredName,
         schema.description,
-        schema.inputSchema,
+        normalizedSchema,
         null,
         "function",
         "enabled"

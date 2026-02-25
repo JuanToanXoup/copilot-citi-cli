@@ -424,6 +424,16 @@ restructure them at any time. The `try/catch` in the installer means a breaking
 change degrades silently (tools just don't register, a warning is logged). Pin
 your Copilot plugin version in CI if stability matters.
 
+**Schema requirement — `"required"` must always be present:**
+The Copilot LSP server rejects tool schemas that omit the `"required"` key, even when
+there are no required parameters. Always include `"required": []` in your `inputSchema`.
+When bridging MCP tools, normalize the schema before passing it to `LanguageModelTool`:
+```kotlin
+val normalizedSchema =
+    if (schema.inputSchema.containsKey("required")) schema.inputSchema
+    else schema.inputSchema + ("required" to emptyList<String>())
+```
+
 **Scope:**
 `postStartupActivity` runs once per project open. Tools are bound to `project.basePath`
 at startup. There's no dynamic re-registration if the project root changes.
