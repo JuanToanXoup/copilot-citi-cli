@@ -182,6 +182,10 @@ class LspClientFactory(private val project: Project) : Disposable {
         log.info("LspClientFactory: disposed standalone client '$clientId'")
     }
 
+    /** Get the [LspSession] for a standalone client, if it exists. */
+    fun getStandaloneSession(clientId: String): LspSession? =
+        standaloneClients[clientId]?.session
+
     /** Whether a standalone client with [clientId] exists and is running. */
     fun isStandaloneRunning(clientId: String): Boolean =
         standaloneClients[clientId]?.client?.isRunning == true

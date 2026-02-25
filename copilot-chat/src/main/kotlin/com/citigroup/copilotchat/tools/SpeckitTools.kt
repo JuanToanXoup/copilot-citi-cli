@@ -24,22 +24,22 @@ object SpeckitTools : ToolGroup {
         """{"name":"speckit_setup_feature","description":"Initialize a new SpecKit feature: creates a numbered branch, spec directory, and empty spec.md scaffold. Returns JSON with BRANCH_NAME, SPEC_FILE, and FEATURE_DIR paths. Run this before writing a spec.","inputSchema":{"type":"object","properties":{"description":{"type":"string","description":"The feature description provided by the user."},"number":{"type":"integer","description":"Feature number to use (next available). Omit to auto-detect."},"short_name":{"type":"string","description":"Short kebab-case name for the branch (2-4 words, e.g. 'user-auth')."}},"required":["description","short_name"]}}""",
 
         // speckit_setup_plan: prepares plan directory + copies template
-        """{"name":"speckit_setup_plan","description":"Prepare the plan phase for the current SpecKit feature: copies the plan template into the feature directory and returns JSON with FEATURE_SPEC, IMPL_PLAN, SPECS_DIR, and BRANCH paths.","inputSchema":{"type":"object","properties":{}}}""",
+        """{"name":"speckit_setup_plan","description":"Prepare the plan phase for the current SpecKit feature: copies the plan template into the feature directory and returns JSON with FEATURE_SPEC, IMPL_PLAN, SPECS_DIR, and BRANCH paths.","inputSchema":{"type":"object","properties":{},"required":[]}}""",
 
         // speckit_check_prerequisites: validates feature artifacts exist
-        """{"name":"speckit_check_prerequisites","description":"Check that required SpecKit artifacts exist for the current feature branch. Returns JSON with FEATURE_DIR and AVAILABLE_DOCS list. Use flags to require/include tasks.md.","inputSchema":{"type":"object","properties":{"require_tasks":{"type":"boolean","description":"If true, require tasks.md to exist (for implementation phase).","default":false},"include_tasks":{"type":"boolean","description":"If true, include tasks content in output.","default":false},"paths_only":{"type":"boolean","description":"If true, only output path variables without validation.","default":false}}}}""",
+        """{"name":"speckit_check_prerequisites","description":"Check that required SpecKit artifacts exist for the current feature branch. Returns JSON with FEATURE_DIR and AVAILABLE_DOCS list. Use flags to require/include tasks.md.","inputSchema":{"type":"object","properties":{"require_tasks":{"type":"boolean","description":"If true, require tasks.md to exist (for implementation phase).","default":false},"include_tasks":{"type":"boolean","description":"If true, include tasks content in output.","default":false},"paths_only":{"type":"boolean","description":"If true, only output path variables without validation.","default":false}},"required":[]}}""",
 
         // speckit_update_agent_context: syncs agent context files
-        """{"name":"speckit_update_agent_context","description":"Update agent-specific context files after plan changes. Detects the AI agent in use and updates the appropriate context file with new technology from the current plan.","inputSchema":{"type":"object","properties":{"agent_type":{"type":"string","description":"Agent type identifier (e.g. 'copilot').","default":"copilot"}}}}""",
+        """{"name":"speckit_update_agent_context","description":"Update agent-specific context files after plan changes. Detects the AI agent in use and updates the appropriate context file with new technology from the current plan.","inputSchema":{"type":"object","properties":{"agent_type":{"type":"string","description":"Agent type identifier (e.g. 'copilot').","default":"copilot"}},"required":[]}}""",
 
         // speckit_read_template: read a SpecKit template file
         """{"name":"speckit_read_template","description":"Read a SpecKit template file from .specify/templates/. Available templates: spec-template.md, plan-template.md, tasks-template.md, checklist-template.md, constitution-template.md.","inputSchema":{"type":"object","properties":{"template":{"type":"string","description":"Template filename (e.g. 'spec-template.md', 'plan-template.md')."}},"required":["template"]}}""",
 
         // speckit_read_constitution: read the project constitution
-        """{"name":"speckit_read_constitution","description":"Read the project constitution from .specify/memory/constitution.md. Returns the constitution content or an error if it doesn't exist yet.","inputSchema":{"type":"object","properties":{}}}""",
+        """{"name":"speckit_read_constitution","description":"Read the project constitution from .specify/memory/constitution.md. Returns the constitution content or an error if it doesn't exist yet.","inputSchema":{"type":"object","properties":{},"required":[]}}""",
 
         // speckit_list_features: list existing feature spec directories
-        """{"name":"speckit_list_features","description":"List existing SpecKit feature directories under specs/. Returns the directory names and their contents.","inputSchema":{"type":"object","properties":{}}}""",
+        """{"name":"speckit_list_features","description":"List existing SpecKit feature directories under specs/. Returns the directory names and their contents.","inputSchema":{"type":"object","properties":{},"required":[]}}""",
 
         // speckit_read_artifact: read a specific artifact from the current feature
         """{"name":"speckit_read_artifact","description":"Read a SpecKit artifact file from the current feature directory. Artifacts include: spec.md, plan.md, tasks.md, research.md, data-model.md, quickstart.md, and files under contracts/ and checklists/.","inputSchema":{"type":"object","properties":{"artifact":{"type":"string","description":"Artifact filename or path relative to feature dir (e.g. 'spec.md', 'plan.md', 'checklists/requirements.md', 'contracts/api.md')."}},"required":["artifact"]}}""",
@@ -48,7 +48,7 @@ object SpeckitTools : ToolGroup {
         """{"name":"speckit_write_artifact","description":"Write content to a SpecKit artifact file in the current feature directory. Creates parent directories as needed.","inputSchema":{"type":"object","properties":{"artifact":{"type":"string","description":"Artifact filename or path relative to feature dir (e.g. 'spec.md', 'plan.md', 'checklists/ux.md')."},"content":{"type":"string","description":"The content to write to the artifact file."}},"required":["artifact","content"]}}""",
 
         // speckit_get_feature_dir: resolve the current feature directory
-        """{"name":"speckit_get_feature_dir","description":"Resolve the current SpecKit feature directory from the active git branch. Returns the absolute path to the feature's specs/ directory, or an error if not on a feature branch.","inputSchema":{"type":"object","properties":{}}}""",
+        """{"name":"speckit_get_feature_dir","description":"Resolve the current SpecKit feature directory from the active git branch. Returns the absolute path to the feature's specs/ directory, or an error if not on a feature branch.","inputSchema":{"type":"object","properties":{},"required":[]}}""",
     )
 
     override val executors: Map<String, (JsonObject, String) -> String> = mapOf(

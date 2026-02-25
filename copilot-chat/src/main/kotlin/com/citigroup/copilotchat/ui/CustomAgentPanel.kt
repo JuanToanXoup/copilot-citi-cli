@@ -2,6 +2,7 @@ package com.citigroup.copilotchat.ui
 
 import com.citigroup.copilotchat.agent.*
 import com.citigroup.copilotchat.conversation.ConversationManager
+import com.citigroup.copilotchat.conversation.LspSession
 import com.citigroup.copilotchat.lsp.LspClient
 import com.citigroup.copilotchat.lsp.LspClientFactory
 import com.citigroup.copilotchat.lsp.ManagedClient
@@ -309,6 +310,7 @@ class CustomAgentPanel(private val project: Project) : JPanel(BorderLayout()), D
                 )
 
                 leadClient = client
+                leadSession = factory.getStandaloneSession(clientId)
                 leadManagedClient = ManagedClient(client, isStandalone = true, clientId = clientId, tools = leadTools)
 
                 // Build the session agents list scoped to enabled subagents
@@ -641,11 +643,26 @@ class CustomAgentPanel(private val project: Project) : JPanel(BorderLayout()), D
                 when (toolName) {
                     "delegate_task" -> subagentManager?.spawnSubagent(id, toolInput, sessionAgents)
                     else -> {
-                        val convManager = ConversationManager.getInstance(project)
-                        val wsOverride = if (callConvId != null) convManager.getWorkspaceOverride(callConvId) else null
-                        val toolRouter = ToolRouter(project)
-                        val result = toolRouter.executeTool(toolName, toolInput, wsOverride)
-                        client.sendResponse(id, result)
+                        // Check client-side MCP tools first (e.g. Playwright)
+                        val mcpManager = leadSession?.clientMcpManager
+                        if (mcpManager != null && mcpManager.isMcpTool(toolName)) {
+                            val resultText = mcpManager.callTool(toolName, toolInput)
+                            val result = buildJsonArray {
+                                addJsonObject {
+                                    putJsonArray("content") {
+                                        addJsonObject { put("value", resultText) }
+                                    }
+                                }
+                                add(JsonNull)
+                            }
+                            client.sendResponse(id, result)
+                        } else {
+                            val convManager = ConversationManager.getInstance(project)
+                            val wsOverride = if (callConvId != null) convManager.getWorkspaceOverride(callConvId) else null
+                            val toolRouter = ToolRouter(project)
+                            val result = toolRouter.executeTool(toolName, toolInput, wsOverride)
+                            client.sendResponse(id, result)
+                        }
                     }
                 }
             }
@@ -999,6 +1016,7 @@ class CustomAgentPanel(private val project: Project) : JPanel(BorderLayout()), D
 
         leadConversationId = null
         pendingLeadCreate = false
+        leadSession = null
         sessionAgents = emptyList()
         sessionLeadAgent = null
         subagentManager = null
@@ -1030,6 +1048,7 @@ class CustomAgentPanel(private val project: Project) : JPanel(BorderLayout()), D
             }
         }
         leadClient = null
+        leadSession = null
         leadManagedClient = null
     }
 

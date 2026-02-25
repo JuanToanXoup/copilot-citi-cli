@@ -322,13 +322,15 @@ class LspSession(
             }
         }
 
-        // Apply tool filter
+        // Apply tool filter — MCP tools always pass through since they're
+        // explicitly configured and not part of the built-in tool list
         if (toolFilter.isNotEmpty()) {
+            val mcpManager = clientMcpManager
             schemas.retainAll { schema ->
                 val name = try {
                     json.parseToJsonElement(schema).jsonObject["name"]?.jsonPrimitive?.contentOrNull
                 } catch (_: Exception) { null }
-                name != null && isToolInFilter(name, toolFilter)
+                name != null && (isToolInFilter(name, toolFilter) || mcpManager?.isMcpTool(name) == true)
             }
             log.info("LspSession[${lspClient.clientId}]: tool filter applied — ${schemas.size} tools retained from filter=$toolFilter")
         }
@@ -373,9 +375,24 @@ class LspSession(
         clientMcpManager?.stopAll()
         val settings = CopilotChatSettings.getInstance()
         val enabledMcpServers = settings.mcpServers.filter { it.enabled }
-        if (enabledMcpServers.isNotEmpty()) {
+
+        // Convert agent-specific mcpConfig entries to McpServerEntry
+        val agentMcpServers = mcpConfig.map { (name, cfg) ->
+            @Suppress("UNCHECKED_CAST")
+            CopilotChatSettings.McpServerEntry(
+                name = name,
+                command = (cfg["command"] as? String) ?: "",
+                args = (cfg["args"] as? List<String>)?.joinToString(" ") ?: "",
+                env = (cfg["env"] as? Map<String, String>)?.entries?.joinToString("\n") { "${it.key}=${it.value}" } ?: "",
+                url = (cfg["url"] as? String) ?: "",
+                enabled = true,
+            )
+        }
+
+        val allServers = enabledMcpServers + agentMcpServers
+        if (allServers.isNotEmpty()) {
             val manager = ClientMcpManager(proxyUrl = settings.proxyUrl)
-            manager.addServers(enabledMcpServers)
+            manager.addServers(allServers)
             manager.startAll()
             clientMcpManager = manager
         } else {

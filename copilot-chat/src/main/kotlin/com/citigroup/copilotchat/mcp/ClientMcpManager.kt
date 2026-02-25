@@ -13,7 +13,7 @@ import kotlinx.serialization.json.*
  * Direct port of Python's ClientMCPManager from mcp.py.
  *
  * Spawns MCP server processes locally, discovers tools, registers them as
- * client tools with prefixed names (mcp_<server>_<tool>), and routes
+ * client tools with prefixed names ({server}_{tool}), and routes
  * invokeClientTool calls to the correct server.
  */
 class ClientMcpManager(
@@ -26,11 +26,8 @@ class ClientMcpManager(
     /** Active MCP servers keyed by name. */
     private val servers = mutableMapOf<String, McpTransport>()
 
-    /** Maps server name -> list of original tool schemas (for compound routing). */
-    private val serverToolIndex = mutableMapOf<String, Map<String, JsonObject>>()
-
-    /** Set of compound tool names (one per server). */
-    private val compoundToolNames = mutableSetOf<String>()
+    /** Maps prefixed tool name ({server}_{tool}) -> (serverName, originalToolName). */
+    private val toolMap = mutableMapOf<String, Pair<String, String>>()
 
     /**
      * Build environment vars that every MCP server process needs:
@@ -161,76 +158,72 @@ class ClientMcpManager(
 
         startupErrors = errors
 
-        // Build server tool index (for compound tool routing)
-        serverToolIndex.clear()
-        compoundToolNames.clear()
+        // Build flat tool map: {server}_{tool} -> (server, tool)
+        toolMap.clear()
         for ((name, server) in servers) {
-            if (server.tools.isNotEmpty()) {
-                serverToolIndex[name] = server.tools.associateBy {
-                    it["name"]?.jsonPrimitive?.contentOrNull ?: ""
-                }
-                compoundToolNames.add(name)
+            for (tool in server.tools) {
+                val toolName = tool["name"]?.jsonPrimitive?.contentOrNull ?: continue
+                val prefixed = "${name}_${toolName}"
+                toolMap[prefixed] = name to toolName
             }
         }
     }
 
     /**
      * Returns tool schemas for conversation/registerTools.
-     * Each MCP server is registered as a single compound tool (server name = tool name).
-     * The model picks the server tool, then specifies an "action" to route to the right sub-tool.
+     * Each MCP tool is registered individually as {server}_{tool}.
      * @param isEnabled optional filter — receives the original tool name, returns true if enabled.
      */
     fun getToolSchemas(isEnabled: ((String) -> Boolean)? = null): List<String> {
         val schemas = mutableListOf<String>()
 
         for ((name, server) in servers) {
-            val tools = filterTools(server.tools, isEnabled)
-            if (tools.isNotEmpty()) {
-                schemas.add(buildCompoundSchema(name, tools))
+            for (tool in server.tools) {
+                val toolName = tool["name"]?.jsonPrimitive?.contentOrNull ?: continue
+                if (isEnabled != null && !isEnabled(toolName)) continue
+
+                val prefixed = "${name}_${toolName}"
+                var inputSchema = tool["inputSchema"]?.jsonObject
+                    ?: buildJsonObject { put("type", "object"); putJsonObject("properties") {} }
+
+                // Sanitize and ensure "required" is present
+                inputSchema = SchemaSanitizer.sanitize(inputSchema)
+                if ("required" !in inputSchema) {
+                    inputSchema = JsonObject(inputSchema + ("required" to JsonArray(emptyList())))
+                }
+
+                val schema = buildJsonObject {
+                    put("name", prefixed)
+                    put("description", "[$name] ${tool["description"]?.jsonPrimitive?.contentOrNull ?: toolName}")
+                    put("inputSchema", inputSchema)
+                }
+                schemas.add(schema.toString())
             }
         }
 
         return schemas
     }
 
-    private fun filterTools(tools: List<JsonObject>, isEnabled: ((String) -> Boolean)?): List<JsonObject> {
-        if (isEnabled == null) return tools
-        return tools.filter { tool ->
-            val toolName = tool["name"]?.jsonPrimitive?.contentOrNull ?: return@filter true
-            isEnabled(toolName)
-        }
-    }
-
     /**
-     * Check if a tool name is a client-side MCP compound tool.
+     * Check if a tool name is a client-side MCP tool.
      */
-    fun isMcpTool(name: String): Boolean = name in compoundToolNames
+    fun isMcpTool(name: String): Boolean = name in toolMap
 
     /**
-     * Call a client-side MCP tool. The input must contain an "action" field
-     * that maps to the original tool name within the server.
+     * Call a client-side MCP tool. The prefixed name is resolved to the
+     * original server and tool name automatically.
      */
     suspend fun callTool(name: String, input: JsonObject): String {
-        val action = input["action"]?.jsonPrimitive?.contentOrNull
-            ?: return "Error: 'action' parameter is required for MCP tool '$name'"
+        val (serverName, originalName) = toolMap[name]
+            ?: return "Unknown MCP tool: $name"
 
-        val serverTools = serverToolIndex[name]
-            ?: return "Unknown MCP server: $name"
-
-        if (action !in serverTools) {
-            return "Unknown action '$action' for MCP server '$name'. Available: ${serverTools.keys.joinToString(", ")}"
-        }
-
-        // Strip "action" from the input, pass the rest to the underlying tool
-        val toolInput = JsonObject(input.filterKeys { it != "action" })
-
-        val server = servers[name]
-            ?: return "MCP server '$name' not found"
+        val server = servers[serverName]
+            ?: return "MCP server '$serverName' not found"
 
         return try {
-            server.callTool(action, toolInput)
+            server.callTool(originalName, input)
         } catch (e: Exception) {
-            "MCP '$name' action '$action' error: ${e.message}"
+            "MCP '$serverName' tool '$originalName' error: ${e.message}"
         }
     }
 
@@ -242,75 +235,7 @@ class ClientMcpManager(
             try { server.stop() } catch (_: Exception) {}
         }
         servers.clear()
-        serverToolIndex.clear()
-        compoundToolNames.clear()
-    }
-
-    /**
-     * Build a single compound tool schema for an MCP server.
-     * All the server's tools become "actions" within one tool.
-     *
-     * Example: a "playwright" server with 22 browser tools becomes:
-     *   { name: "playwright", inputSchema: { action: "browser_click", element: "Submit", ref: "e3" } }
-     */
-    private fun buildCompoundSchema(serverName: String, tools: List<JsonObject>): String {
-        // Collect action names and build per-action descriptions
-        val actionNames = mutableListOf<String>()
-        val actionDocs = StringBuilder()
-
-        // Merge all action-specific properties into a flat set
-        val allProperties = mutableMapOf<String, JsonObject>()
-
-        for (tool in tools) {
-            val toolName = tool["name"]?.jsonPrimitive?.contentOrNull ?: continue
-            val description = tool["description"]?.jsonPrimitive?.contentOrNull ?: toolName
-            actionNames.add(toolName)
-
-            // Build action doc line: "- action_name: description. Params: {p1, p2}"
-            val inputSchema = tool["inputSchema"]?.jsonObject
-            val paramNames = inputSchema?.get("properties")?.jsonObject?.keys ?: emptySet()
-            val paramsHint = if (paramNames.isNotEmpty()) " Params: {${paramNames.joinToString(", ")}}" else ""
-            actionDocs.appendLine("- $toolName: $description$paramsHint")
-
-            // Merge this tool's properties into the flat set
-            if (inputSchema != null) {
-                val props = inputSchema["properties"]?.jsonObject
-                if (props != null) {
-                    for ((propName, propValue) in props) {
-                        if (propName !in allProperties && propValue is JsonObject) {
-                            allProperties[propName] = SchemaSanitizer.sanitize(propValue)
-                        }
-                    }
-                }
-            }
-        }
-
-        // Build the compound schema
-        val compoundSchema = buildJsonObject {
-            put("type", "object")
-            putJsonObject("properties") {
-                putJsonObject("action") {
-                    put("type", "string")
-                    put("description", "The action to perform")
-                    putJsonArray("enum") { actionNames.forEach { add(it) } }
-                }
-                for ((propName, propSchema) in allProperties) {
-                    put(propName, propSchema)
-                }
-            }
-            putJsonArray("required") { add("action") }
-        }
-
-        val desc = buildString {
-            append("$serverName MCP server. Use 'action' to pick the operation.\n\nActions:\n")
-            append(actionDocs.toString().trimEnd())
-        }
-
-        return buildJsonObject {
-            put("name", serverName)
-            put("description", desc)
-            put("inputSchema", compoundSchema)
-        }.toString()
+        toolMap.clear()
     }
 
 }
