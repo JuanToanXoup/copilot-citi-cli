@@ -1,0 +1,1707 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spec-Kit Coverage Agent &mdash; Microservices to 80%</title>
+    <style>
+        :root {
+            --bg: #0f1117;
+            --surface: #181b23;
+            --surface-2: #1e2230;
+            --surface-3: #262a38;
+            --border: #2d3348;
+            --text: #e2e4ea;
+            --text-dim: #8b90a0;
+            --text-bright: #ffffff;
+            --accent: #34d399;
+            --accent-dim: rgba(52,211,153,.12);
+            --accent-2: #3b82f6;
+            --accent-2-dim: rgba(59,130,246,.12);
+            --orange: #f59e0b;
+            --orange-dim: rgba(245,158,11,.12);
+            --red: #ef4444;
+            --red-dim: rgba(239,68,68,.12);
+            --purple: #a78bfa;
+            --purple-dim: rgba(167,139,250,.12);
+            --radius: 10px;
+            --radius-sm: 6px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.65;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ── NAV ──────────────────────────────────── */
+        nav {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+            background: rgba(15,17,23,.82);
+            backdrop-filter: blur(16px) saturate(1.4);
+            -webkit-backdrop-filter: blur(16px) saturate(1.4);
+            border-bottom: 1px solid var(--border);
+            padding: 0 32px;
+        }
+        nav .inner {
+            max-width: 1280px; margin: 0 auto;
+            display: flex; align-items: center; gap: 28px;
+            height: 56px; overflow-x: auto;
+        }
+        nav .logo {
+            font-weight: 700; font-size: .95rem; color: var(--accent);
+            white-space: nowrap; letter-spacing: -.02em;
+        }
+        nav a {
+            font-size: .82rem; color: var(--text-dim); text-decoration: none;
+            white-space: nowrap; transition: color .15s;
+        }
+        nav a:hover { color: var(--text-bright); }
+
+        /* ── HERO ──────────────────────────────────── */
+        .hero {
+            padding: 120px 32px 72px;
+            background: linear-gradient(165deg, #0f1117 0%, #14201e 40%, #0f1117 100%);
+            border-bottom: 1px solid var(--border);
+        }
+        .hero .inner { max-width: 900px; margin: 0 auto; }
+        .hero h1 {
+            font-size: clamp(2rem, 4.5vw, 3.2rem);
+            font-weight: 800; letter-spacing: -.04em;
+            color: var(--text-bright); line-height: 1.15;
+            margin-bottom: 20px;
+        }
+        .hero h1 span { color: var(--accent); }
+        .hero p { font-size: 1.1rem; color: var(--text-dim); max-width: 680px; margin-bottom: 28px; }
+        .hero .stats {
+            display: flex; gap: 32px; flex-wrap: wrap; margin-top: 36px;
+        }
+        .hero .stat { text-align: left; }
+        .hero .stat-val { font-size: 2rem; font-weight: 800; color: var(--accent); line-height: 1; }
+        .hero .stat-label { font-size: .78rem; color: var(--text-dim); margin-top: 4px; text-transform: uppercase; letter-spacing: .06em; }
+
+        /* ── COVERAGE BAR ──────────────────────────── */
+        .coverage-bar-wrap { margin-top: 40px; }
+        .coverage-bar-labels { display: flex; justify-content: space-between; font-size: .75rem; color: var(--text-dim); margin-bottom: 6px; }
+        .coverage-bar {
+            height: 14px; border-radius: 7px; background: var(--surface-3);
+            position: relative; overflow: visible;
+        }
+        .coverage-bar .fill {
+            height: 100%; border-radius: 7px;
+            background: linear-gradient(90deg, var(--red) 0%, var(--orange) 35%, var(--accent) 70%);
+            width: 0%; transition: width 1.5s cubic-bezier(.22,1,.36,1);
+        }
+        .coverage-bar .target {
+            position: absolute; left: 80%; top: -6px; bottom: -6px;
+            width: 2px; background: var(--text-bright);
+            border-radius: 1px;
+        }
+        .coverage-bar .target::after {
+            content: '80% target'; position: absolute; top: -20px; left: 50%;
+            transform: translateX(-50%); font-size: .68rem; color: var(--text-dim);
+            white-space: nowrap;
+        }
+
+        /* ── MAIN ──────────────────────────────────── */
+        main { max-width: 1280px; margin: 0 auto; padding: 0 32px; }
+
+        /* ── SECTION ───────────────────────────────── */
+        section { padding: 64px 0; border-bottom: 1px solid var(--border); }
+        section:last-child { border-bottom: none; }
+
+        .section-label {
+            font-size: .72rem; text-transform: uppercase; letter-spacing: .1em;
+            color: var(--accent); font-weight: 600; margin-bottom: 8px;
+        }
+        .section-title {
+            font-size: 1.7rem; font-weight: 700; color: var(--text-bright);
+            letter-spacing: -.03em; margin-bottom: 12px;
+        }
+        .section-desc { color: var(--text-dim); max-width: 700px; margin-bottom: 36px; }
+
+        /* ── CARDS ──────────────────────────────────── */
+        .card-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+            gap: 16px;
+        }
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 24px;
+            transition: border-color .2s, box-shadow .2s;
+        }
+        .card:hover {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 1px var(--accent), 0 8px 32px rgba(52,211,153,.06);
+        }
+        .card-icon {
+            width: 36px; height: 36px; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1rem; margin-bottom: 14px; font-weight: 700;
+        }
+        .card-icon.green { background: var(--accent-dim); color: var(--accent); }
+        .card-icon.blue { background: var(--accent-2-dim); color: var(--accent-2); }
+        .card-icon.orange { background: var(--orange-dim); color: var(--orange); }
+        .card-icon.purple { background: var(--purple-dim); color: var(--purple); }
+
+        .card h3 { font-size: 1.05rem; font-weight: 650; color: var(--text-bright); margin-bottom: 6px; }
+        .card p { font-size: .88rem; color: var(--text-dim); margin-bottom: 14px; }
+        .card ul { list-style: none; padding: 0; margin: 0; }
+        .card ul li {
+            font-size: .82rem; color: var(--text-dim); padding: 4px 0 4px 18px;
+            position: relative;
+        }
+        .card ul li::before {
+            content: ''; position: absolute; left: 0; top: 12px;
+            width: 6px; height: 6px; border-radius: 50%; background: var(--border);
+        }
+
+        /* ── CODE ──────────────────────────────────── */
+        pre {
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 18px 20px;
+            font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+            font-size: .8rem;
+            line-height: 1.65;
+            overflow-x: auto;
+            color: var(--text);
+            margin: 14px 0;
+            tab-size: 4;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        pre .cm { color: #6b7280; }
+        pre .kw { color: var(--purple); }
+        pre .fn { color: #60a5fa; }
+        pre .str { color: var(--accent); }
+        pre .num { color: var(--orange); }
+
+        /* ── AGENT CARDS ───────────────────────────── */
+        .agent-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        .agent-header {
+            padding: 20px 24px;
+            cursor: pointer;
+            display: flex; align-items: center; gap: 14px;
+            user-select: none;
+            transition: background .15s;
+        }
+        .agent-header:hover { background: var(--surface-2); }
+        .agent-num {
+            width: 32px; height: 32px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: .8rem; font-weight: 700; flex-shrink: 0;
+        }
+        .agent-header h3 { font-size: 1rem; font-weight: 650; color: var(--text-bright); flex: 1; }
+        .agent-header .tag {
+            font-size: .7rem; padding: 3px 10px; border-radius: 20px;
+            font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+        }
+        .agent-chevron {
+            width: 20px; height: 20px; color: var(--text-dim); flex-shrink: 0;
+            transition: transform .25s;
+        }
+        .agent-card.open .agent-chevron { transform: rotate(180deg); }
+        .agent-body {
+            max-height: 0; overflow: hidden;
+            transition: max-height .4s cubic-bezier(.22,1,.36,1);
+        }
+        .agent-card.open .agent-body { max-height: 4000px; }
+        .agent-body-inner { padding: 0 24px 24px; }
+
+        .tools-used { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+        .tool-tag {
+            font-size: .72rem; padding: 4px 10px; border-radius: 4px;
+            background: var(--surface-3); border: 1px solid var(--border);
+            color: var(--text-dim);
+        }
+
+        .artifacts { margin-top: 16px; }
+        .artifact {
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: .76rem; color: var(--accent);
+            padding: 6px 12px; margin: 4px 0;
+            background: var(--accent-dim); border-radius: 4px;
+            display: inline-block;
+        }
+
+        /* ── WORKFLOW TABLE ────────────────────────── */
+        .workflow-steps { counter-reset: step; }
+        .wf-step {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            margin-bottom: 16px;
+            overflow: hidden;
+        }
+        .wf-step-header {
+            padding: 18px 24px;
+            display: grid;
+            grid-template-columns: 48px 180px 1fr;
+            align-items: center;
+            gap: 16px;
+            cursor: pointer;
+            transition: background .15s;
+        }
+        .wf-step-header:hover { background: var(--surface-2); }
+        .wf-step-num {
+            font-size: 1.2rem; font-weight: 800; color: var(--accent);
+            text-align: center;
+        }
+        .wf-step-cmd {
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: .85rem; font-weight: 600; color: var(--accent-2);
+        }
+        .wf-step-title { font-size: .88rem; color: var(--text-dim); }
+        .wf-step-chevron {
+            width: 18px; height: 18px; color: var(--text-dim);
+            transition: transform .25s; justify-self: end;
+        }
+        .wf-step.open .wf-step-chevron { transform: rotate(180deg); }
+        .wf-step-body {
+            max-height: 0; overflow: hidden;
+            transition: max-height .4s cubic-bezier(.22,1,.36,1);
+        }
+        .wf-step.open .wf-step-body { max-height: 6000px; }
+        .wf-step-body-inner {
+            padding: 0 24px 24px;
+            display: grid; grid-template-columns: 200px 1fr 1fr; gap: 20px;
+        }
+        .wf-col-label { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); margin-bottom: 10px; font-weight: 600; }
+        .wf-agent-tag {
+            display: block; padding: 8px 12px; margin-bottom: 6px;
+            background: var(--surface-3); border-radius: var(--radius-sm);
+            font-size: .78rem; color: var(--text); border-left: 3px solid var(--accent);
+        }
+
+        /* ── MEMORY TREE ───────────────────────────── */
+        .memory-tree { columns: 2; column-gap: 20px; }
+        .memory-tree-col { break-inside: avoid; margin-bottom: 16px; }
+
+        /* ── TIMELINE ──────────────────────────────── */
+        .timeline { position: relative; padding-left: 32px; }
+        .timeline::before {
+            content: ''; position: absolute; left: 11px; top: 0; bottom: 0;
+            width: 2px; background: var(--border);
+        }
+        .tl-item { position: relative; padding-bottom: 28px; }
+        .tl-item:last-child { padding-bottom: 0; }
+        .tl-dot {
+            position: absolute; left: -32px; top: 4px;
+            width: 22px; height: 22px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: .65rem; font-weight: 700; color: var(--bg);
+        }
+        .tl-dot.green { background: var(--accent); }
+        .tl-dot.blue { background: var(--accent-2); }
+        .tl-dot.orange { background: var(--orange); }
+        .tl-dot.purple { background: var(--purple); }
+        .tl-cmd {
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: .82rem; font-weight: 600; color: var(--accent-2);
+        }
+        .tl-title { font-size: .9rem; font-weight: 600; color: var(--text-bright); margin: 2px 0 6px; }
+        .tl-body { font-size: .82rem; color: var(--text-dim); }
+        .tl-body ul { list-style: none; padding: 0; margin: 4px 0; }
+        .tl-body ul li { padding: 2px 0 2px 16px; position: relative; }
+        .tl-body ul li::before { content: ''; position: absolute; left: 0; top: 10px; width: 5px; height: 5px; border-radius: 50%; background: var(--border); }
+
+        /* ── FINAL RESULTS ─────────────────────────── */
+        .results-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+        }
+        .result-box {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 24px;
+        }
+        .result-box h4 { font-size: .88rem; font-weight: 650; color: var(--text-bright); margin-bottom: 14px; }
+        .result-table { width: 100%; font-size: .82rem; border-collapse: collapse; }
+        .result-table th {
+            text-align: left; padding: 8px 12px;
+            background: var(--surface-3); color: var(--text-dim);
+            font-weight: 600; font-size: .72rem; text-transform: uppercase; letter-spacing: .06em;
+        }
+        .result-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--text); }
+        .result-table tr:last-child td { border-bottom: none; font-weight: 700; }
+        .result-table td:nth-child(2), .result-table td:nth-child(3) { text-align: center; }
+        .result-table th:nth-child(2), .result-table th:nth-child(3) { text-align: center; }
+
+        .badge {
+            font-size: .7rem; padding: 2px 8px; border-radius: 3px; font-weight: 600;
+        }
+        .badge-green { background: var(--accent-dim); color: var(--accent); }
+        .badge-orange { background: var(--orange-dim); color: var(--orange); }
+        .badge-red { background: var(--red-dim); color: var(--red); }
+        .badge-blue { background: var(--accent-2-dim); color: var(--accent-2); }
+
+        /* ── CALLOUTS ──────────────────────────────── */
+        .callout {
+            border-radius: var(--radius);
+            padding: 20px 24px;
+            margin: 20px 0;
+        }
+        .callout.green { background: var(--accent-dim); border: 1px solid rgba(52,211,153,.2); }
+        .callout.blue { background: var(--accent-2-dim); border: 1px solid rgba(59,130,246,.2); }
+        .callout.orange { background: var(--orange-dim); border: 1px solid rgba(245,158,11,.2); }
+        .callout h4 { font-size: .9rem; font-weight: 650; margin-bottom: 8px; }
+        .callout.green h4 { color: var(--accent); }
+        .callout.blue h4 { color: var(--accent-2); }
+        .callout.orange h4 { color: var(--orange); }
+        .callout p, .callout li { font-size: .85rem; color: var(--text); }
+        .callout ul { list-style: none; padding: 0; margin: 6px 0 0; }
+        .callout ul li { padding: 3px 0 3px 18px; position: relative; }
+        .callout ul li::before { content: ''; position: absolute; left: 0; top: 11px; width: 5px; height: 5px; border-radius: 50%; }
+        .callout.green ul li::before { background: var(--accent); }
+        .callout.blue ul li::before { background: var(--accent-2); }
+        .callout.orange ul li::before { background: var(--orange); }
+
+        /* ── SPECKIT PIPELINE ──────────────────────── */
+        .pipeline {
+            display: flex; gap: 4px; align-items: stretch; margin: 28px 0;
+            overflow-x: auto; padding-bottom: 4px;
+        }
+        .pipe-step {
+            flex: 1; min-width: 140px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 16px 14px;
+            text-align: center;
+            position: relative;
+        }
+        .pipe-step::after {
+            content: ''; position: absolute; right: -8px; top: 50%;
+            transform: translateY(-50%);
+            border: 5px solid transparent; border-left: 6px solid var(--border);
+            z-index: 1;
+        }
+        .pipe-step:last-child::after { display: none; }
+        .pipe-num { font-size: .65rem; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+        .pipe-cmd {
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: .7rem; font-weight: 600; color: var(--accent-2);
+        }
+        .pipe-label { font-size: .72rem; color: var(--text-dim); margin-top: 4px; }
+
+        /* ── TOOL PHASES ──────────────────────────── */
+        .tool-phase {
+            margin-bottom: 32px;
+        }
+        .tool-phase:last-child { margin-bottom: 0; }
+        .tool-phase-header {
+            display: flex; align-items: center; gap: 14px;
+            margin-bottom: 16px; padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        .tool-phase-num {
+            width: 28px; height: 28px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: .72rem; font-weight: 700; flex-shrink: 0;
+        }
+        .tool-phase-title {
+            font-size: .95rem; font-weight: 650; color: var(--text-bright);
+        }
+        .tool-phase-desc {
+            font-size: .78rem; color: var(--text-dim); margin-left: auto;
+        }
+        .tool-row {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            margin-bottom: 10px;
+            overflow: hidden;
+            transition: border-color .2s;
+        }
+        .tool-row:hover { border-color: rgba(255,255,255,.12); }
+        .tool-row.open { border-color: var(--accent); }
+        .tool-row-header {
+            padding: 16px 20px;
+            display: grid;
+            grid-template-columns: 36px 1fr auto 20px;
+            align-items: center;
+            gap: 14px;
+            cursor: pointer;
+            transition: background .15s;
+            user-select: none;
+        }
+        .tool-row-header:hover { background: var(--surface-2); }
+        .tool-row-icon {
+            width: 36px; height: 36px; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: .85rem; font-weight: 700;
+        }
+        .tool-row-info h4 {
+            font-size: .92rem; font-weight: 600; color: var(--text-bright);
+            margin-bottom: 2px;
+        }
+        .tool-row-info p {
+            font-size: .78rem; color: var(--text-dim); line-height: 1.4;
+        }
+        .tool-row-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+        .tool-row-tags .tt {
+            font-size: .66rem; padding: 2px 8px; border-radius: 3px;
+            font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+            white-space: nowrap;
+        }
+        .tool-row-chevron {
+            width: 18px; height: 18px; color: var(--text-dim);
+            transition: transform .25s; flex-shrink: 0;
+        }
+        .tool-row.open .tool-row-chevron { transform: rotate(180deg); }
+        .tool-row-body {
+            max-height: 0; overflow: hidden;
+            transition: max-height .4s cubic-bezier(.22,1,.36,1);
+        }
+        .tool-row.open .tool-row-body { max-height: 2000px; }
+        .tool-row-body-inner {
+            padding: 0 20px 20px;
+        }
+        .tool-detail-list { list-style: none; padding: 0; margin: 0; }
+        .tool-detail-list li {
+            font-size: .8rem; color: var(--text-dim); padding: 5px 0 5px 18px;
+            position: relative; line-height: 1.5;
+        }
+        .tool-detail-list li::before {
+            content: ''; position: absolute; left: 0; top: 12px;
+            width: 6px; height: 6px; border-radius: 50%; background: var(--border);
+        }
+        .tool-flow-connector {
+            display: flex; justify-content: center; padding: 8px 0;
+        }
+        .tool-flow-connector svg {
+            width: 20px; height: 20px; color: var(--border);
+        }
+
+        /* ── RESPONSIVE ────────────────────────────── */
+        @media (max-width: 900px) {
+            .card-grid { grid-template-columns: 1fr; }
+            .wf-step-body-inner { grid-template-columns: 1fr; }
+            .wf-step-header { grid-template-columns: 40px 1fr; }
+            .wf-step-title { display: none; }
+            .results-grid { grid-template-columns: 1fr; }
+            .hero .stats { gap: 20px; }
+            .pipeline { flex-direction: column; }
+            .pipe-step::after { display: none; }
+            .memory-tree { columns: 1; }
+            nav .inner { gap: 16px; }
+            .tool-row-header { grid-template-columns: 36px 1fr 20px; }
+            .tool-row-tags { display: none; }
+            .tool-phase-desc { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+    <div class="inner">
+        <div class="logo">speckit coverage</div>
+        <a href="#architecture">Architecture</a>
+        <a href="#tools">Analysis Tools</a>
+        <a href="#agents">Sub-Agents</a>
+        <a href="#workflow">Workflow</a>
+        <a href="#memory">Memory</a>
+        <a href="#example">Example Run</a>
+    </div>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+    <div class="inner">
+        <h1>Microservices to <span>80% Test Coverage</span>, Autonomously</h1>
+        <p>Give the orchestrator a single command. It maps every service, identifies coverage gaps, generates test strategies, and writes production-quality unit tests &mdash; no human intervention required.</p>
+
+        <div class="coverage-bar-wrap">
+            <div class="coverage-bar-labels">
+                <span>0%</span><span>100%</span>
+            </div>
+            <div class="coverage-bar">
+                <div class="fill" id="heroBar"></div>
+                <div class="target"></div>
+            </div>
+        </div>
+
+        <div class="stats">
+            <div class="stat"><div class="stat-val">5</div><div class="stat-label">Services Scanned</div></div>
+            <div class="stat"><div class="stat-val">187</div><div class="stat-label">Branches Found</div></div>
+            <div class="stat"><div class="stat-val">127</div><div class="stat-label">Tests Generated</div></div>
+            <div class="stat"><div class="stat-val">88%</div><div class="stat-label">Final Coverage</div></div>
+        </div>
+    </div>
+</div>
+
+<main>
+
+<!-- ARCHITECTURE -->
+<section id="architecture">
+    <div class="section-label">Overview</div>
+    <div class="section-title">Coverage Agent Architecture</div>
+    <div class="section-desc">Three layers coordinate to reach the 80% target. The orchestrator drives the workflow, sub-agents handle specialized analysis, and data sources provide the raw material.</div>
+
+    <div class="card-grid" style="grid-template-columns: repeat(3, 1fr);">
+        <div class="card">
+            <div class="card-icon green">O</div>
+            <h3>Coverage Orchestrator</h3>
+            <p>Coordinates test generation across all microservices. Runs the 6-step speckit pipeline, measures coverage after each phase, and stops when every service exceeds 80%.</p>
+        </div>
+        <div class="card">
+            <div class="card-icon blue">A</div>
+            <h3>Analysis Sub-Agents</h3>
+            <p>Five specialized agents: Service Discovery, Coverage Analysis, Test Strategy, Test Generation, and Visual Reporting. Each has dedicated tools and memory access.</p>
+        </div>
+        <div class="card">
+            <div class="card-icon orange">D</div>
+            <h3>Data Sources</h3>
+            <p>Source code, existing tests, JaCoCo/Kover coverage reports, dependency graphs, API contracts, and the long-term memory knowledge base.</p>
+        </div>
+    </div>
+
+    <div class="pipeline">
+        <div class="pipe-step"><div class="pipe-num">STEP 1</div><div class="pipe-cmd">/speckit.constitution</div><div class="pipe-label">Test Standards</div></div>
+        <div class="pipe-step"><div class="pipe-num">STEP 2</div><div class="pipe-cmd">/speckit.specify</div><div class="pipe-label">Gap Analysis</div></div>
+        <div class="pipe-step"><div class="pipe-num">STEP 3</div><div class="pipe-cmd">/speckit.clarify</div><div class="pipe-label">Mock Decisions</div></div>
+        <div class="pipe-step"><div class="pipe-num">STEP 4</div><div class="pipe-cmd">/speckit.plan</div><div class="pipe-label">Test Architecture</div></div>
+        <div class="pipe-step"><div class="pipe-num">STEP 5</div><div class="pipe-cmd">/speckit.tasks</div><div class="pipe-label">Task Breakdown</div></div>
+        <div class="pipe-step"><div class="pipe-num">5.5</div><div class="pipe-cmd">/speckit.analyze</div><div class="pipe-label">Validation</div></div>
+        <div class="pipe-step"><div class="pipe-num">STEP 6</div><div class="pipe-cmd">/speckit.implement</div><div class="pipe-label">Generate Tests</div></div>
+    </div>
+</section>
+
+<!-- TOOLS -->
+<section id="tools">
+    <div class="section-label">Analysis Layer</div>
+    <div class="section-title">Microservices Analysis Tools</div>
+    <div class="section-desc">Six specialized tools organized into three phases — discover the architecture, measure and prioritize gaps, then plan the test strategy.</div>
+
+    <!-- ── PHASE 1: DISCOVERY ── -->
+    <div class="tool-phase">
+        <div class="tool-phase-header">
+            <div class="tool-phase-num" style="background: var(--accent-dim); color: var(--accent);">1</div>
+            <div class="tool-phase-title">Discovery</div>
+            <div class="tool-phase-desc">Map the codebase before writing a single test</div>
+        </div>
+
+        <div class="tool-row" onclick="this.classList.toggle('open')">
+            <div class="tool-row-header">
+                <div class="tool-row-icon" style="background: var(--accent-dim); color: var(--accent);">T</div>
+                <div class="tool-row-info">
+                    <h4>Service Topology Mapper</h4>
+                    <p>Scans project modules, maps Controller &rarr; Service &rarr; Repository layers, and builds a dependency graph between services.</p>
+                </div>
+                <div class="tool-row-tags">
+                    <span class="tt" style="background: var(--accent-dim); color: var(--accent);">Scan</span>
+                    <span class="tt" style="background: var(--accent-2-dim); color: var(--accent-2);">Graph</span>
+                </div>
+                <svg class="tool-row-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+            <div class="tool-row-body"><div class="tool-row-body-inner">
+                <ul class="tool-detail-list">
+                    <li>Scan project modules for service boundaries</li>
+                    <li>Map Controller &rarr; Service &rarr; Repository layers</li>
+                    <li>Identify inter-service HTTP/gRPC clients</li>
+                    <li>Detect shared libraries and common modules</li>
+                    <li>Build dependency graph between services</li>
+                </ul>
+            </div></div>
+        </div>
+
+        <div class="tool-row" onclick="this.classList.toggle('open')">
+            <div class="tool-row-header">
+                <div class="tool-row-icon" style="background: var(--accent-2-dim); color: var(--accent-2);">P</div>
+                <div class="tool-row-info">
+                    <h4>Test Pattern Extractor</h4>
+                    <p>Learns the project's existing test conventions — framework, naming, mocking strategy, assertions — and replicates them in generated tests.</p>
+                </div>
+                <div class="tool-row-tags">
+                    <span class="tt" style="background: var(--accent-2-dim); color: var(--accent-2);">Conventions</span>
+                    <span class="tt" style="background: var(--purple-dim); color: var(--purple);">Patterns</span>
+                </div>
+                <svg class="tool-row-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+            <div class="tool-row-body"><div class="tool-row-body-inner">
+                <ul class="tool-detail-list">
+                    <li>Detect test framework (JUnit5, MockK, Mockito, etc.)</li>
+                    <li>Extract naming conventions (should_X_when_Y)</li>
+                    <li>Identify mocking strategy (constructor injection, @MockBean)</li>
+                    <li>Learn assertion patterns (AssertJ, Hamcrest, kotlin.test)</li>
+                    <li>Detect test organization (per-class, per-feature, nested)</li>
+                </ul>
+            </div></div>
+        </div>
+    </div>
+
+    <!-- flow arrow between phases -->
+    <div class="tool-flow-connector">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+    </div>
+
+    <!-- ── PHASE 2: MEASUREMENT ── -->
+    <div class="tool-phase">
+        <div class="tool-phase-header">
+            <div class="tool-phase-num" style="background: var(--orange-dim); color: var(--orange);">2</div>
+            <div class="tool-phase-title">Measurement &amp; Prioritization</div>
+            <div class="tool-phase-desc">Quantify gaps and rank by business impact</div>
+        </div>
+
+        <div class="tool-row" onclick="this.classList.toggle('open')">
+            <div class="tool-row-header">
+                <div class="tool-row-icon" style="background: var(--orange-dim); color: var(--orange);">C</div>
+                <div class="tool-row-info">
+                    <h4>Coverage Gap Analyzer</h4>
+                    <p>Runs existing tests, collects JaCoCo/Kover coverage data, and ranks uncovered code paths by business impact.</p>
+                </div>
+                <div class="tool-row-tags">
+                    <span class="tt" style="background: var(--orange-dim); color: var(--orange);">Metrics</span>
+                    <span class="tt" style="background: var(--red-dim); color: var(--red);">Gaps</span>
+                </div>
+                <svg class="tool-row-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+            <div class="tool-row-body"><div class="tool-row-body-inner">
+                <ul class="tool-detail-list">
+                    <li>Run existing tests and collect coverage data</li>
+                    <li>Identify uncovered branches, methods, and classes</li>
+                    <li>Rank gaps by impact (business logic &gt; glue code)</li>
+                    <li>Calculate minimum tests needed to reach 80%</li>
+                    <li>Detect dead code that inflates denominator</li>
+                </ul>
+            </div></div>
+        </div>
+
+        <div class="tool-row" onclick="this.classList.toggle('open')">
+            <div class="tool-row-header">
+                <div class="tool-row-icon" style="background: var(--orange-dim); color: var(--orange);">B</div>
+                <div class="tool-row-info">
+                    <h4>Business Logic Classifier</h4>
+                    <p>Classifies every method by testability priority — pure logic, validation, state machines, error handling — to maximize coverage per test.</p>
+                </div>
+                <div class="tool-row-tags">
+                    <span class="tt" style="background: var(--orange-dim); color: var(--orange);">Priority</span>
+                    <span class="tt" style="background: var(--accent-dim); color: var(--accent);">Classify</span>
+                </div>
+                <svg class="tool-row-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+            <div class="tool-row-body"><div class="tool-row-body-inner">
+                <ul class="tool-detail-list">
+                    <li>Identify pure business logic (highest priority)</li>
+                    <li>Detect validation rules and constraints</li>
+                    <li>Find state machine transitions</li>
+                    <li>Map error handling paths</li>
+                    <li>Separate infrastructure from domain code</li>
+                </ul>
+            </div></div>
+        </div>
+    </div>
+
+    <!-- flow arrow between phases -->
+    <div class="tool-flow-connector">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+    </div>
+
+    <!-- ── PHASE 3: STRATEGY ── -->
+    <div class="tool-phase">
+        <div class="tool-phase-header">
+            <div class="tool-phase-num" style="background: var(--purple-dim); color: var(--purple);">3</div>
+            <div class="tool-phase-title">Strategy &amp; Knowledge</div>
+            <div class="tool-phase-desc">Plan mocks, fixtures, and reuse patterns from memory</div>
+        </div>
+
+        <div class="tool-row" onclick="this.classList.toggle('open')">
+            <div class="tool-row-header">
+                <div class="tool-row-icon" style="background: var(--purple-dim); color: var(--purple);">M</div>
+                <div class="tool-row-info">
+                    <h4>Mock Strategy Planner</h4>
+                    <p>Maps dependency injection chains, determines what to mock vs. test in isolation, and plans shared test fixtures and builders.</p>
+                </div>
+                <div class="tool-row-tags">
+                    <span class="tt" style="background: var(--purple-dim); color: var(--purple);">Mocks</span>
+                    <span class="tt" style="background: var(--accent-2-dim); color: var(--accent-2);">Fixtures</span>
+                </div>
+                <svg class="tool-row-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+            <div class="tool-row-body"><div class="tool-row-body-inner">
+                <ul class="tool-detail-list">
+                    <li>Map dependency injection chains</li>
+                    <li>Identify external dependencies to mock (DB, HTTP)</li>
+                    <li>Determine constructor vs. field injection patterns</li>
+                    <li>Plan mock behavior for happy and error paths</li>
+                    <li>Identify shared test fixtures and builders</li>
+                </ul>
+            </div></div>
+        </div>
+
+        <div class="tool-row" onclick="this.classList.toggle('open')">
+            <div class="tool-row-header">
+                <div class="tool-row-icon" style="background: var(--accent-2-dim); color: var(--accent-2);">V</div>
+                <div class="tool-row-info">
+                    <h4>Kotlin Vector DB</h4>
+                    <p>Semantic search across the codebase for similar test patterns, reusable fixtures, and edge-case strategies from other microservices.</p>
+                </div>
+                <div class="tool-row-tags">
+                    <span class="tt" style="background: var(--accent-2-dim); color: var(--accent-2);">Search</span>
+                    <span class="tt" style="background: var(--accent-dim); color: var(--accent);">Memory</span>
+                </div>
+                <svg class="tool-row-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+            <div class="tool-row-body"><div class="tool-row-body-inner">
+                <ul class="tool-detail-list">
+                    <li>Find similar service implementations and their tests</li>
+                    <li>Find reusable test utilities and builders</li>
+                    <li>Match error handling patterns to test strategies</li>
+                    <li>Discover edge cases from similar domains</li>
+                    <li>Cross-reference test patterns across microservices</li>
+                </ul>
+            </div></div>
+        </div>
+    </div>
+</section>
+
+<!-- AGENTS -->
+<section id="agents">
+    <div class="section-label">Sub-Agents</div>
+    <div class="section-title">Specialized Agent Capabilities</div>
+    <div class="section-desc">Five agents handle discovery, analysis, strategy, generation, and reporting. Click to expand each agent's workflow.</div>
+
+    <div class="agent-card open">
+        <div class="agent-header" onclick="this.parentElement.classList.toggle('open')">
+            <div class="agent-num" style="background: var(--accent-dim); color: var(--accent);">1</div>
+            <h3>Service Discovery Agent</h3>
+            <span class="tag" style="background: var(--accent-dim); color: var(--accent);">Mapping</span>
+            <svg class="agent-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <div class="agent-body"><div class="agent-body-inner">
+            <p style="color: var(--text-dim); font-size: .88rem; margin-bottom: 14px;">Maps the complete microservices architecture and identifies every testable component.</p>
+            <div class="tools-used">
+                <span class="tool-tag">Service Topology Mapper</span>
+                <span class="tool-tag">Kotlin Vector DB</span>
+                <span class="tool-tag">Mermaid Generator</span>
+            </div>
+<pre><span class="kw">def</span> <span class="fn">discover_services</span>(project_path):
+    <span class="cm"># 1. Scan for Spring Boot application classes</span>
+    apps = find_annotated_classes(<span class="str">'@SpringBootApplication'</span>)
+
+    <span class="cm"># 2. Map each service's internal layers</span>
+    <span class="kw">for</span> service_root <span class="kw">in</span> scan_service_modules(project_path):
+        controllers = find_annotated_classes(<span class="str">'@RestController'</span>, service_root)
+        services    = find_annotated_classes(<span class="str">'@Service'</span>, service_root)
+        repositories= find_annotated_classes(<span class="str">'@Repository'</span>, service_root)
+        entities    = find_annotated_classes(<span class="str">'@Entity'</span>, service_root)
+
+    <span class="cm"># 3. Map inter-service dependencies</span>
+    <span class="kw">for</span> service <span class="kw">in</span> services:
+        deps = extract_constructor_params(service)
+        inter_service = [d <span class="kw">for</span> d <span class="kw">in</span> deps <span class="kw">if</span> is_another_service(d)]
+
+    <span class="cm"># 4. Build testability matrix</span>
+    testability = classify_by_testability(all_classes)
+
+    <span class="cm"># 5. Generate service topology diagram</span>
+    topology_diagram = mermaid.generate_service_topology(all_services, all_deps)
+
+    <span class="kw">return</span> { <span class="str">'services'</span>: all_services, <span class="str">'testability_matrix'</span>: testability,
+             <span class="str">'dependency_graph'</span>: all_deps, <span class="str">'diagram'</span>: topology_diagram }</pre>
+            <div class="artifacts">
+                <span class="artifact">specs/test-coverage/service-topology.json</span>
+                <span class="artifact">specs/test-coverage/diagrams/service-map.mmd</span>
+                <span class="artifact">specs/test-coverage/testability-matrix.json</span>
+            </div>
+        </div></div>
+    </div>
+
+    <div class="agent-card">
+        <div class="agent-header" onclick="this.parentElement.classList.toggle('open')">
+            <div class="agent-num" style="background: var(--orange-dim); color: var(--orange);">2</div>
+            <h3>Coverage Analysis Agent</h3>
+            <span class="tag" style="background: var(--orange-dim); color: var(--orange);">Analysis</span>
+            <svg class="agent-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <div class="agent-body"><div class="agent-body-inner">
+            <p style="color: var(--text-dim); font-size: .88rem; margin-bottom: 14px;">Measure current coverage, identify gaps, and prioritize what to test first for maximum impact.</p>
+            <div class="tools-used">
+                <span class="tool-tag">Coverage Gap Analyzer</span>
+                <span class="tool-tag">Business Logic Classifier</span>
+                <span class="tool-tag">Long-Term Memory</span>
+            </div>
+<pre><span class="kw">def</span> <span class="fn">analyze_coverage</span>(project_path):
+    <span class="cm"># 1. Run existing tests with coverage instrumentation</span>
+    coverage_report = run_with_coverage(<span class="str">'./gradlew test jacocoTestReport'</span>)
+
+    <span class="cm"># 2. Parse coverage per service, per class, per method</span>
+    per_service = parse_coverage_by_service(coverage_report)
+    per_method  = parse_coverage_by_method(coverage_report)
+
+    <span class="cm"># 3. Identify uncovered branches</span>
+    uncovered = extract_uncovered_branches(coverage_report)
+
+    <span class="cm"># 4. Classify by business impact</span>
+    prioritized_gaps = []
+    <span class="kw">for</span> gap <span class="kw">in</span> uncovered:
+        priority = business_logic_classifier.classify(gap)
+        coverage_impact = calculate_coverage_gain(gap, current_total)
+        prioritized_gaps.append({ <span class="str">'target'</span>: gap, <span class="str">'priority'</span>: priority,
+                                   <span class="str">'coverage_gain'</span>: coverage_impact })
+
+    <span class="cm"># 5. Sort by efficiency: coverage_gain / tests_needed</span>
+    prioritized_gaps.sort(key=<span class="kw">lambda</span> g: g[<span class="str">'coverage_gain'</span>], reverse=<span class="kw">True</span>)
+
+    <span class="cm"># 6. Calculate path to 80%</span>
+    tests_for_80 = calculate_tests_to_target(prioritized_gaps, target=<span class="num">80</span>)
+
+    <span class="kw">return</span> { <span class="str">'current_coverage'</span>: current_coverage, <span class="str">'gaps'</span>: prioritized_gaps,
+             <span class="str">'tests_needed_for_80'</span>: tests_for_80 }</pre>
+            <div class="artifacts">
+                <span class="artifact">specs/test-coverage/coverage-baseline.json</span>
+                <span class="artifact">specs/test-coverage/gap-analysis.md</span>
+                <span class="artifact">specs/test-coverage/diagrams/coverage-heatmap.mmd</span>
+            </div>
+        </div></div>
+    </div>
+
+    <div class="agent-card">
+        <div class="agent-header" onclick="this.parentElement.classList.toggle('open')">
+            <div class="agent-num" style="background: var(--accent-2-dim); color: var(--accent-2);">3</div>
+            <h3>Test Strategy Agent</h3>
+            <span class="tag" style="background: var(--accent-2-dim); color: var(--accent-2);">Strategy</span>
+            <svg class="agent-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <div class="agent-body"><div class="agent-body-inner">
+            <p style="color: var(--text-dim); font-size: .88rem; margin-bottom: 14px;">Design the optimal test strategy for each service based on its architecture and dependencies.</p>
+            <div class="tools-used">
+                <span class="tool-tag">Test Pattern Extractor</span>
+                <span class="tool-tag">Mock Strategy Planner</span>
+                <span class="tool-tag">Long-Term Memory</span>
+            </div>
+<pre><span class="kw">def</span> <span class="fn">plan_test_strategy</span>(service, coverage_gaps):
+    conventions = test_pattern_extractor.analyze(service.test_dir)
+    mock_plan = mock_strategy_planner.plan(service, service.dependencies)
+    fixtures = design_test_fixtures(service.entities, service.dtos)
+
+    <span class="cm"># Map test scenarios per method</span>
+    <span class="kw">for</span> method <span class="kw">in</span> coverage_gaps:
+        scenarios = generate_test_scenarios(method)
+        scenarios.append(happy_path_scenario(method))
+        <span class="kw">for</span> validation <span class="kw">in</span> method.validations:
+            scenarios.append(validation_failure_scenario(validation))
+        <span class="kw">for</span> exception <span class="kw">in</span> method.thrown_exceptions:
+            scenarios.append(exception_scenario(exception))
+        <span class="kw">for</span> edge <span class="kw">in</span> identify_edge_cases(method):
+            scenarios.append(edge_case_scenario(edge))
+
+    proven = memory.recall_test_strategies(service.type, conventions.framework)
+    <span class="kw">return</span> { <span class="str">'conventions'</span>, <span class="str">'mock_plan'</span>, <span class="str">'fixtures'</span>, <span class="str">'scenarios'</span>, <span class="str">'proven_strategies'</span> }</pre>
+            <div class="artifacts">
+                <span class="artifact">specs/test-coverage/test-strategy.md</span>
+                <span class="artifact">specs/test-coverage/mock-plan.json</span>
+                <span class="artifact">specs/test-coverage/test-scenarios.json</span>
+            </div>
+        </div></div>
+    </div>
+
+    <div class="agent-card">
+        <div class="agent-header" onclick="this.parentElement.classList.toggle('open')">
+            <div class="agent-num" style="background: var(--purple-dim); color: var(--purple);">4</div>
+            <h3>Test Generation Agent</h3>
+            <span class="tag" style="background: var(--purple-dim); color: var(--purple);">Generation</span>
+            <svg class="agent-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <div class="agent-body"><div class="agent-body-inner">
+            <p style="color: var(--text-dim); font-size: .88rem; margin-bottom: 14px;">Write production-quality unit tests that match project conventions and maximize coverage.</p>
+            <div class="tools-used">
+                <span class="tool-tag">Kotlin Vector DB</span>
+                <span class="tool-tag">Test Pattern Extractor</span>
+                <span class="tool-tag">Coverage Gap Analyzer</span>
+                <span class="tool-tag">Long-Term Memory</span>
+            </div>
+<pre><span class="kw">def</span> <span class="fn">generate_tests</span>(service, strategy, target_coverage=<span class="num">80</span>):
+    current_coverage = measure_coverage(service)
+
+    <span class="kw">while</span> current_coverage < target_coverage:
+        next_target = strategy.gaps.pop_highest_priority()
+
+        <span class="cm"># Find similar tests via vector search</span>
+        similar_tests = kotlin_vector_db.find_similar(
+            query=f<span class="str">"unit test for {next_target.method_signature}"</span>,
+            file_types=[<span class="str">'.kt'</span>], top_k=<span class="num">3</span>)
+
+        <span class="cm"># Generate test class matching conventions</span>
+        test_code = generate_test_class(next_target, strategy)
+        write_file(test_path, test_code)
+
+        <span class="cm"># Run test, self-heal if it fails</span>
+        result = run_test(test_path)
+        <span class="kw">if</span> result.failed:
+            test_code = fix_failing_test(test_code, result.error)
+            write_file(test_path, test_code)
+
+        <span class="cm"># Measure coverage gain</span>
+        new_coverage = measure_coverage(service)
+        log(f<span class="str">"  {next_target.name}: +{gain}% -> {new_coverage}%"</span>)
+
+        <span class="cm"># Store in memory for future projects</span>
+        memory.store_test_pattern(service.type, test_code, gain)</pre>
+            <div class="artifacts">
+                <span class="artifact">src/test/.../user/UserServiceTest.kt</span>
+                <span class="artifact">src/test/.../order/OrderServiceTest.kt</span>
+                <span class="artifact">src/test/.../product/ProductServiceTest.kt</span>
+                <span class="artifact">src/test/.../payment/PaymentServiceTest.kt</span>
+                <span class="artifact">src/test/.../notification/NotificationServiceTest.kt</span>
+            </div>
+        </div></div>
+    </div>
+
+    <div class="agent-card">
+        <div class="agent-header" onclick="this.parentElement.classList.toggle('open')">
+            <div class="agent-num" style="background: var(--accent-dim); color: var(--accent);">5</div>
+            <h3>Visual Reporting Agent</h3>
+            <span class="tag" style="background: var(--accent-dim); color: var(--accent);">Reporting</span>
+            <svg class="agent-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <div class="agent-body"><div class="agent-body-inner">
+            <p style="color: var(--text-dim); font-size: .88rem; margin-bottom: 14px;">Generate diagrams and reports showing coverage progress across all services.</p>
+            <div class="tools-used">
+                <span class="tool-tag">Mermaid Generator</span>
+                <span class="tool-tag">Coverage Gap Analyzer</span>
+            </div>
+<pre><span class="cm">// Coverage heatmap by service</span>
+mermaid.generate_coverage_heatmap({
+    <span class="str">'UserService'</span>:         { before: <span class="num">0</span>,  after: <span class="num">85</span> },
+    <span class="str">'OrderService'</span>:        { before: <span class="num">0</span>,  after: <span class="num">82</span> },
+    <span class="str">'ProductService'</span>:      { before: <span class="num">0</span>,  after: <span class="num">88</span> },
+    <span class="str">'PaymentService'</span>:      { before: <span class="num">0</span>,  after: <span class="num">91</span> },
+    <span class="str">'NotificationService'</span>: { before: <span class="num">0</span>,  after: <span class="num">83</span> }
+})
+
+<span class="cm">// Coverage progress timeline</span>
+mermaid.generate_coverage_timeline([
+    { step: <span class="str">'Baseline'</span>,    coverage: <span class="num">0</span> },
+    { step: <span class="str">'Payment'</span>,     coverage: <span class="num">18</span> },
+    { step: <span class="str">'Notification'</span>, coverage: <span class="num">32</span> },
+    { step: <span class="str">'Product'</span>,     coverage: <span class="num">52</span> },
+    { step: <span class="str">'User'</span>,        coverage: <span class="num">68</span> },
+    { step: <span class="str">'Order'</span>,       coverage: <span class="num">82</span> },
+    { step: <span class="str">'Controllers'</span>, coverage: <span class="num">88</span> }
+])</pre>
+            <div class="artifacts">
+                <span class="artifact">specs/test-coverage/diagrams/coverage-heatmap.mmd</span>
+                <span class="artifact">specs/test-coverage/diagrams/test-dependencies.mmd</span>
+                <span class="artifact">specs/test-coverage/diagrams/coverage-progress.mmd</span>
+            </div>
+        </div></div>
+    </div>
+</section>
+
+<!-- WORKFLOW -->
+<section id="workflow">
+    <div class="section-label">Autonomous Pipeline</div>
+    <div class="section-title">6-Step Speckit Workflow for Test Coverage</div>
+    <div class="section-desc">Each speckit command maps to a specific phase of the coverage pipeline. Click any step to see the sub-agents, data gathering, and orchestrator actions.</div>
+
+    <div class="workflow-steps">
+
+        <div class="wf-step open">
+            <div class="wf-step-header" onclick="this.parentElement.classList.toggle('open')">
+                <div class="wf-step-num">1</div>
+                <div class="wf-step-cmd">/speckit.constitution</div>
+                <div class="wf-step-title">Establish testing standards, framework conventions, 80% target</div>
+                <svg class="wf-step-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+            <div class="wf-step-body"><div class="wf-step-body-inner">
+                <div>
+                    <div class="wf-col-label">Sub-Agents</div>
+                    <div class="wf-agent-tag"><strong>Service Discovery</strong> + Topology Mapper</div>
+                    <div class="wf-agent-tag"><strong>Test Pattern Extractor</strong> + Vector DB</div>
+                    <div class="wf-agent-tag"><strong>Memory System</strong> + Pattern Library</div>
+                </div>
+                <div>
+                    <div class="wf-col-label">Data Gathering</div>
+<pre><span class="cm"># 1.</span> Scan project for test framework
+framework = detect_test_framework()
+<span class="cm"># JUnit5, MockK, kotlin.test, etc.</span>
+
+<span class="cm"># 2.</span> Extract existing test conventions
+naming = extract_naming_pattern()
+<span class="cm"># "should_X_when_Y" or "given_when_then"</span>
+
+<span class="cm"># 3.</span> Discover test organization
+structure = scan_test_directory()
+
+<span class="cm"># 4.</span> Check memory for proven standards
+memory.recall_test_constitutions(
+    tech_stack=<span class="str">'Spring Boot + Kotlin'</span>)
+
+<span class="cm"># 5.</span> Analyze existing CI quality gates
+ci_config = parse_ci_pipeline()</pre>
+                </div>
+                <div>
+                    <div class="wf-col-label">Orchestrator Actions</div>
+<pre><span class="cm"># Generate test constitution:</span>
+- Article I:   <span class="num">80%</span> line coverage target
+- Article II:  Every service must have
+  unit tests for all public methods
+- Article III: Mock all external deps
+  (DB, HTTP, message queues)
+- Article IV:  Test naming matches
+  existing project style
+- Article V:   One test class per source
+- Article VI:  Test happy path + all
+  validation failures + all exceptions
+- Article VII: Use test fixtures/builders
+- Article VIII:Tests run independently
+
+<span class="cm"># Store in memory</span>
+memory.store_test_constitution(
+    constitution, project=<span class="str">'mock-ms'</span>)</pre>
+                </div>
+            </div></div>
+        </div>
+
+        <div class="wf-step">
+            <div class="wf-step-header" onclick="this.parentElement.classList.toggle('open')">
+                <div class="wf-step-num">2</div>
+                <div class="wf-step-cmd">/speckit.specify</div>
+                <div class="wf-step-title">Analyze coverage gaps, map services, prioritize by business impact</div>
+                <svg class="wf-step-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+            <div class="wf-step-body"><div class="wf-step-body-inner">
+                <div>
+                    <div class="wf-col-label">Sub-Agents</div>
+                    <div class="wf-agent-tag"><strong>Coverage Analysis</strong> + Gap Analyzer</div>
+                    <div class="wf-agent-tag"><strong>Service Discovery</strong> + Topology Mapper</div>
+                    <div class="wf-agent-tag"><strong>Business Logic Classifier</strong></div>
+                </div>
+                <div>
+                    <div class="wf-col-label">Data Gathering</div>
+<pre><span class="cm"># 1.</span> Run baseline coverage measurement
+./gradlew test jacocoTestReport
+current_coverage = <span class="num">0</span>%
+
+<span class="cm"># 2.</span> Map all services and their layers
+services = scan_all_services()
+<span class="cm"># UserService:    5 public methods
+# OrderService:   8 public methods
+# ProductService: 11 public methods
+# PaymentService: 4 public methods
+# NotificationService: 6 public methods</span>
+
+<span class="cm"># 3.</span> Count total testable branches
+total_branches = <span class="num">187</span> across all services
+
+<span class="cm"># 4.</span> Classify by business impact
+<span class="cm"># OrderService.placeOrder: 22 branches
+# UserService.register: 15 branches
+# PaymentService.processPayment: 8</span>
+
+<span class="cm"># 5.</span> Estimate: ~<span class="num">127</span> test cases needed</pre>
+                </div>
+                <div>
+                    <div class="wf-col-label">Orchestrator Actions</div>
+<pre><span class="cm"># Generate coverage spec:</span>
+spec.md = {
+  goal: <span class="str">"80% unit test coverage"</span>,
+  current: <span class="str">"0%"</span>,  target: <span class="str">"80%"</span>,
+  services: [
+    { name: <span class="str">"UserService"</span>,
+      methods: <span class="num">5</span>, branches: <span class="num">28</span>,
+      priority: <span class="str">"HIGH"</span> },
+    { name: <span class="str">"OrderService"</span>,
+      methods: <span class="num">8</span>, branches: <span class="num">45</span>,
+      priority: <span class="str">"CRITICAL"</span> },
+    { name: <span class="str">"ProductService"</span>,
+      methods: <span class="num">11</span>, branches: <span class="num">38</span>,
+      priority: <span class="str">"HIGH"</span> },
+    { name: <span class="str">"PaymentService"</span>,
+      methods: <span class="num">4</span>, branches: <span class="num">18</span>,
+      priority: <span class="str">"HIGH"</span> },
+    { name: <span class="str">"NotificationService"</span>,
+      methods: <span class="num">6</span>, branches: <span class="num">15</span>,
+      priority: <span class="str">"MEDIUM"</span> }
+  ],
+  estimated_tests: <span class="num">127</span>
+}
+
+mermaid.generate_gap_analysis(services)</pre>
+                </div>
+            </div></div>
+        </div>
+
+        <div class="wf-step">
+            <div class="wf-step-header" onclick="this.parentElement.classList.toggle('open')">
+                <div class="wf-step-num">3</div>
+                <div class="wf-step-cmd">/speckit.clarify</div>
+                <div class="wf-step-title">Resolve mock strategy, edge case decisions, framework questions</div>
+                <svg class="wf-step-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+            <div class="wf-step-body"><div class="wf-step-body-inner">
+                <div>
+                    <div class="wf-col-label">Sub-Agents</div>
+                    <div class="wf-agent-tag"><strong>Test Strategy</strong> + Mock Planner</div>
+                    <div class="wf-agent-tag"><strong>Service Discovery</strong> + Dep Mapper</div>
+                    <div class="wf-agent-tag"><strong>Memory System</strong> + Patterns</div>
+                </div>
+                <div>
+                    <div class="wf-col-label">Data Gathering</div>
+<pre><span class="cm"># Resolve mocking ambiguities:</span>
+
+Q: <span class="str">"How to mock UserRepository?"</span>
+-> mockk&lt;UserRepository&gt;() with
+   every { findById(any()) } returns ...
+
+Q: <span class="str">"How to test NotificationClient?"</span>
+-> Mock RestTemplate, verify
+   postForEntity() called correctly
+
+Q: <span class="str">"How to handle @Transactional?"</span>
+-> Test logic directly, skip proxy
+
+Q: <span class="str">"How to test Order state machine?"</span>
+-> Test every valid AND invalid transition
+
+Q: <span class="str">"How to test PaymentService retries?"</span>
+-> MockK answers { } to fail N times
+
+<span class="cm"># Edge case ambiguities:</span>
+Q: <span class="str">"BigDecimal precision?"</span>
+-> Test rounding at 0.005 boundary
+
+Q: <span class="str">"ConcurrentHashMap?"</span>
+-> Unit test single-threaded only</pre>
+                </div>
+                <div>
+                    <div class="wf-col-label">Orchestrator Actions</div>
+<pre><span class="cm"># Process each testing ambiguity</span>
+<span class="kw">for</span> question <span class="kw">in</span> clarification_markers:
+    answer = infer_from_codebase(question)
+    confidence = calculate_confidence(answer)
+
+    <span class="kw">if</span> confidence > <span class="num">0.8</span>:
+        update_test_strategy(question, answer)
+    <span class="kw">else</span>:
+        use_testing_best_practice(question)
+        log_assumption(question, answer)
+
+<span class="cm"># Document all mock decisions</span>
+mock_decisions = {
+  <span class="str">'UserRepository'</span>: <span class="str">'mockk() - JPA'</span>,
+  <span class="str">'OrderRepository'</span>: <span class="str">'mockk() - JPA'</span>,
+  <span class="str">'NotificationClient'</span>: <span class="str">'mockk() - HTTP'</span>,
+  <span class="str">'RestTemplate'</span>: <span class="str">'mockk() - HTTP client'</span>,
+  <span class="str">'UserService'</span>: <span class="str">'mockk() - inter-svc'</span>,
+  <span class="str">'ProductService'</span>: <span class="str">'mockk() - inter-svc'</span>,
+  <span class="str">'PaymentService'</span>: <span class="str">'mockk() - inter-svc'</span>,
+}
+
+memory.store_mock_patterns(mock_decisions)</pre>
+                </div>
+            </div></div>
+        </div>
+
+        <div class="wf-step">
+            <div class="wf-step-header" onclick="this.parentElement.classList.toggle('open')">
+                <div class="wf-step-num">4</div>
+                <div class="wf-step-cmd">/speckit.plan</div>
+                <div class="wf-step-title">Design test architecture: fixtures, execution order, coverage prediction</div>
+                <svg class="wf-step-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+            <div class="wf-step-body"><div class="wf-step-body-inner">
+                <div>
+                    <div class="wf-col-label">Sub-Agents</div>
+                    <div class="wf-agent-tag"><strong>Test Strategy</strong> + All Planners</div>
+                    <div class="wf-agent-tag"><strong>Coverage Analysis</strong> + Gap Analyzer</div>
+                    <div class="wf-agent-tag"><strong>Visual Reporting</strong> + Mermaid</div>
+                </div>
+                <div>
+                    <div class="wf-col-label">Data Gathering</div>
+<pre><span class="cm"># 1.</span> Design test architecture
+test_arch = {
+  framework: <span class="str">'JUnit5 + MockK'</span>,
+  base_package: <span class="str">'com.example.mockms'</span>,
+  test_dir: <span class="str">'src/test/kotlin'</span>,
+  organization: <span class="str">'mirror source structure'</span>
+}
+
+<span class="cm"># 2.</span> Plan test execution order
+<span class="cm"># Test leaf services first (no deps)</span>
+order = topological_sort(service_deps)
+<span class="cm"># 1. PaymentService (no service deps)
+# 2. NotificationService (external only)
+# 3. ProductService (repository only)
+# 4. UserService (repo + notification)
+# 5. OrderService (depends on all)</span>
+
+<span class="cm"># 3.</span> Design shared test fixtures
+fixtures = [<span class="str">'TestUserFactory'</span>,
+  <span class="str">'TestProductFactory'</span>,
+  <span class="str">'TestOrderFactory'</span>,
+  <span class="str">'TestPaymentFactory'</span>]
+
+<span class="cm"># 4.</span> Check memory for proven plans
+proven = memory.recall_test_plans(
+  tech=<span class="str">'Spring Boot + Kotlin + MockK'</span>)</pre>
+                </div>
+                <div>
+                    <div class="wf-col-label">Orchestrator Actions</div>
+<pre><span class="cm"># Generate test plan (plan.md):</span>
+- Phase 1: Test fixtures + helpers
+- Phase 2: PaymentService tests
+  <span class="num">4</span> methods, ~<span class="num">12</span> test cases
+- Phase 3: NotificationService tests
+  <span class="num">6</span> methods, ~<span class="num">14</span> test cases
+- Phase 4: ProductService tests
+  <span class="num">11</span> methods, ~<span class="num">28</span> test cases
+- Phase 5: UserService tests
+  <span class="num">7</span> methods, ~<span class="num">22</span> test cases
+- Phase 6: OrderService tests
+  <span class="num">8</span> methods, ~<span class="num">35</span> test cases
+- Phase 7: Controller tests
+- Phase 8: Exception handler tests
+
+<span class="cm"># Visual plan</span>
+mermaid.generate_test_plan_gantt(phases)
+mermaid.generate_test_dependency_graph()
+
+<span class="cm"># Validate prediction</span>
+predicted = predict_coverage(plan)
+<span class="cm"># Predicted: 84% (buffer above 80%)</span>
+
+memory.store_test_plan(plan)</pre>
+                </div>
+            </div></div>
+        </div>
+
+        <div class="wf-step">
+            <div class="wf-step-header" onclick="this.parentElement.classList.toggle('open')">
+                <div class="wf-step-num">5</div>
+                <div class="wf-step-cmd">/speckit.tasks</div>
+                <div class="wf-step-title">Break down into ~135 individual test scenarios across 8 phases</div>
+                <svg class="wf-step-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+            <div class="wf-step-body"><div class="wf-step-body-inner">
+                <div>
+                    <div class="wf-col-label">Sub-Agents</div>
+                    <div class="wf-agent-tag"><strong>Test Generation</strong> + Vector DB</div>
+                    <div class="wf-agent-tag"><strong>Coverage Analysis</strong></div>
+                    <div class="wf-agent-tag"><strong>Visual Agent</strong> + Mermaid</div>
+                </div>
+                <div>
+                    <div class="wf-col-label">Data Gathering</div>
+<pre><span class="cm"># Per-service test task breakdown</span>
+
+PaymentService (<span class="num">12</span> tasks):
+  processPayment - happy path
+  processPayment - zero amount
+  processPayment - exceeds limit
+  processPayment - idempotency
+  processPayment - retry success
+  processPayment - retry exhausted
+  processRefund  - happy path
+  processRefund  - no original payment
+  processRefund  - already refunded
+  processRefund  - exceeds original
+  getTransaction - found
+  getTransaction - not found
+
+<span class="cm"># Search for similar breakdowns</span>
+similar = vector_db.find_similar(
+  <span class="str">'test breakdown for payment service'</span>)
+
+<span class="cm"># Recall successful task orders</span>
+task_order = memory.recall_task_patterns(
+  service_type=<span class="str">'payment'</span>)</pre>
+                </div>
+                <div>
+                    <div class="wf-col-label">Orchestrator Actions</div>
+<pre><span class="cm"># Generate tasks.md:</span>
+
+## Phase 1: Test Fixtures (<span class="num">5</span> tasks)
+- [ ] Create TestUserFactory
+- [ ] Create TestProductFactory
+- [ ] Create TestOrderFactory
+- [ ] Create TestPaymentFactory
+- [ ] Create MockExtensions helper
+
+## Phase 2: PaymentServiceTest (<span class="num">12</span>)
+## Phase 3: NotificationServiceTest (<span class="num">14</span>)
+## Phase 4: ProductServiceTest (<span class="num">28</span>)
+## Phase 5: UserServiceTest (<span class="num">22</span>)
+## Phase 6: OrderServiceTest (<span class="num">35</span>)
+## Phase 7: ControllerTests (<span class="num">11</span>)
+## Phase 8: ExceptionHandlerTest (<span class="num">5</span>)
+
+Total: <span class="num">132</span> test cases
+
+<span class="cm"># Generate task dependency diagram
+# Mark parallelizable tasks
+# Add coverage checkpoints per phase</span></pre>
+                </div>
+            </div></div>
+        </div>
+
+        <div class="wf-step">
+            <div class="wf-step-header" onclick="this.parentElement.classList.toggle('open')">
+                <div class="wf-step-num">5.5</div>
+                <div class="wf-step-cmd">/speckit.analyze</div>
+                <div class="wf-step-title">Validate completeness, predict coverage, find missing edge cases</div>
+                <svg class="wf-step-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+            <div class="wf-step-body"><div class="wf-step-body-inner">
+                <div>
+                    <div class="wf-col-label">Sub-Agents</div>
+                    <div class="wf-agent-tag"><strong>All Agents</strong> + All Tools</div>
+                    <div class="wf-agent-tag"><strong>Memory System</strong> + Pattern Validation</div>
+                </div>
+                <div>
+                    <div class="wf-col-label">Data Gathering</div>
+<pre><span class="cm"># Cross-validate all artifacts</span>
+- spec gaps <-> task list (complete?)
+- mock plan <-> service deps (all mocked?)
+- test scenarios <-> branches (covered?)
+- fixtures <-> entity fields (all needed?)
+
+<span class="cm"># Coverage prediction validation</span>
+predicted = simulate_coverage(tasks)
+<span class="cm"># All services predicted >= 80%?</span>
+
+<span class="cm"># Check for missing edge cases</span>
+<span class="kw">for</span> method <span class="kw">in</span> all_methods:
+    branches = extract_branches(method)
+    scenarios = tasks_for(method)
+    missing = branches - covered_by(scenarios)
+    <span class="kw">if</span> missing:
+        add_missing_task(missing)
+
+<span class="cm"># Check memory for known pitfalls</span>
+pitfalls = memory.recall_test_failures(
+    tech=<span class="str">'MockK + JPA + Spring Boot'</span>)</pre>
+                </div>
+                <div>
+                    <div class="wf-col-label">Orchestrator Actions</div>
+<pre><span class="cm"># Generate validation-report.md</span>
+Blockers: <span class="num">0</span>
+Warnings: <span class="num">3</span>
+- W1: OrderService.placeOrder has <span class="num">22</span>
+  branches, only <span class="num">18</span> scenarios. Add <span class="num">4</span>.
+- W2: ProductService.adjustStock edge:
+  stock exactly equals requested.
+- W3: UserService.authenticate returns
+  same error for "not found" and
+  "wrong password" — test both paths.
+
+<span class="cm"># Auto-fix warnings</span>
+<span class="kw">for</span> warning <span class="kw">in</span> warnings:
+    add_missing_test_task(warning)
+
+<span class="cm"># Updated task count: 132 -> 135</span>
+<span class="cm"># Re-validate: all services >= 80%</span>
+<span class="cm"># Aggregate predicted: 84%</span>
+
+mermaid.generate_coverage_prediction()
+mermaid.generate_completeness_matrix()
+
+memory.store_validation(
+    predicted_coverage=<span class="num">84</span>, tests=<span class="num">135</span>)</pre>
+                </div>
+            </div></div>
+        </div>
+
+        <div class="wf-step">
+            <div class="wf-step-header" onclick="this.parentElement.classList.toggle('open')">
+                <div class="wf-step-num">6</div>
+                <div class="wf-step-cmd">/speckit.implement</div>
+                <div class="wf-step-title">Generate tests phase-by-phase, self-heal failures, measure until 80%+</div>
+                <svg class="wf-step-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+            <div class="wf-step-body"><div class="wf-step-body-inner">
+                <div>
+                    <div class="wf-col-label">Sub-Agents</div>
+                    <div class="wf-agent-tag"><strong>Test Generation</strong> + Vector DB + Memory</div>
+                    <div class="wf-agent-tag"><strong>Coverage Analysis</strong> + Gap Analyzer</div>
+                    <div class="wf-agent-tag"><strong>Visual Reporting</strong> + Mermaid</div>
+                </div>
+                <div>
+                    <div class="wf-col-label">Data Gathering</div>
+<pre><span class="cm"># For each phase, generate test code</span>
+
+<span class="cm"># Phase 1: Test Fixtures</span>
+generate_file(<span class="str">'TestFactories.kt'</span>, {
+    createTestUser(active, role, email)
+    createTestProduct(stock, price, sku)
+    createPlaceOrderRequest(items, userId)
+})
+
+<span class="cm"># Phase 2-6: Service Tests</span>
+<span class="kw">for</span> service <span class="kw">in</span> execution_order:
+    test_code = generate_test_class(
+        service, tasks[service],
+        mock_plan[service], fixtures)
+
+    write_file(test_path, test_code)
+    result = run_tests(test_path)
+
+    <span class="cm"># Self-heal if tests fail</span>
+    <span class="kw">if</span> result.failed:
+        diagnosis = diagnose_failure(result)
+        fix = apply_fix(test_code, diagnosis)
+        result = run_tests(test_path)
+
+    coverage = measure_coverage()
+    log(f<span class="str">"{service}: {coverage}%"</span>)</pre>
+                </div>
+                <div>
+                    <div class="wf-col-label">Orchestrator Actions</div>
+<pre><span class="cm"># Execute test generation loop:</span>
+
+Phase 1: Test Fixtures
+-> TestFactories.kt + MockExtensions.kt
+
+Phase 2: PaymentServiceTest
+-> <span class="num">12</span> tests, all passing
+-> Coverage: <span class="num">0</span>% -> <span class="num">18</span>%
+
+Phase 3: NotificationServiceTest
+-> <span class="num">14</span> tests, all passing
+-> Coverage: <span class="num">18</span>% -> <span class="num">32</span>%
+
+Phase 4: ProductServiceTest
+-> <span class="num">28</span> tests, <span class="num">1</span> self-healed
+-> Coverage: <span class="num">32</span>% -> <span class="num">52</span>%
+
+Phase 5: UserServiceTest
+-> <span class="num">22</span> tests, all passing
+-> Coverage: <span class="num">52</span>% -> <span class="num">68</span>%
+
+Phase 6: OrderServiceTest
+-> <span class="num">35</span> tests, <span class="num">2</span> self-healed
+-> Coverage: <span class="num">68</span>% -> <span class="num">82</span>%
+
+Phase 7: ControllerTests
+-> <span class="num">11</span> tests -> <span class="num">86</span>%
+
+Phase 8: ExceptionHandlerTest
+-> <span class="num">5</span> tests -> <span class="num">88</span>%
+
+<span class="str">Total: 88% (target 80% EXCEEDED)</span></pre>
+                </div>
+            </div></div>
+        </div>
+
+    </div>
+</section>
+
+<!-- MEMORY -->
+<section id="memory">
+    <div class="section-label">Knowledge Base</div>
+    <div class="section-title">Test Coverage Memory System</div>
+    <div class="section-desc">Persistent knowledge that improves test generation across projects. Stores proven patterns, mock strategies, edge case libraries, and failure lessons.</div>
+
+<pre style="margin-bottom: 24px;">.specify/memory/
+├── test-constitution.md                   <span class="cm"># Testing governance principles</span>
+├── test-strategies/                       <span class="cm"># Proven strategies by service type</span>
+│   ├── controller-test-strategy.json
+│   ├── service-test-strategy.json
+│   ├── repository-test-strategy.json
+│   └── client-test-strategy.json
+├── mock-patterns/                         <span class="cm"># Mock setup patterns by framework</span>
+│   ├── mockk-jpa-repository.json
+│   ├── mockk-rest-template.json
+│   ├── mockk-inter-service.json
+│   └── mockk-retry-logic.json
+├── test-fixtures/                         <span class="cm"># Reusable fixture patterns</span>
+│   ├── entity-builders.json
+│   ├── dto-factories.json
+│   └── mock-data-sets.json
+├── edge-cases/                            <span class="cm"># Edge case libraries by domain</span>
+│   ├── payment-edge-cases.json            <span class="cm"># BigDecimal precision, retries</span>
+│   ├── order-edge-cases.json              <span class="cm"># State machine, stock</span>
+│   ├── user-edge-cases.json               <span class="cm"># Email, password rules</span>
+│   └── inventory-edge-cases.json          <span class="cm"># Stock boundaries</span>
+├── failures/                              <span class="cm"># Lessons learned</span>
+│   ├── mockk-pitfalls.json
+│   ├── spring-context-issues.json
+│   └── flaky-test-patterns.json
+└── embeddings/
+    ├── test-pattern-vectors.db
+    └── edge-case-vectors.db</pre>
+
+
+</section>
+
+<!-- EXAMPLE RUN -->
+<section id="example">
+    <div class="section-label">Real-World Execution</div>
+    <div class="section-title">Example: mock-microservices to 80% Coverage</div>
+    <div class="section-desc">A complete trace of the autonomous workflow from a single command to 88% test coverage.</div>
+
+    <div class="callout blue">
+        <h4>Input Command</h4>
+        <p style="font-family: 'JetBrains Mono', monospace; font-size: .9rem;"><span style="color: var(--text-dim);">$</span> speckit coverage ./mock-microservices --target 80</p>
+    </div>
+
+    <div class="timeline">
+        <div class="tl-item">
+            <div class="tl-dot green">1</div>
+            <div class="tl-cmd">/speckit.constitution</div>
+            <div class="tl-title">Test Standards Established</div>
+            <div class="tl-body">
+                <ul>
+                    <li>Detected framework: JUnit5 + MockK + kotlin.test</li>
+                    <li>No existing tests found (0% coverage baseline)</li>
+                    <li>Memory recalls: Spring Boot + MockK best practices</li>
+                    <li>Constitution: 80% target, mock all external deps, one test class per source</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="tl-item">
+            <div class="tl-dot blue">2</div>
+            <div class="tl-cmd">/speckit.specify</div>
+            <div class="tl-title">Coverage Gap Analysis Complete</div>
+            <div class="tl-body">
+                <ul>
+                    <li>Scanned 5 services: User, Order, Product, Payment, Notification</li>
+                    <li>Total: 34 public methods, 187 branches, 0% covered</li>
+                    <li>Prioritized: OrderService <span class="badge badge-red">CRITICAL</span> &mdash; 45 branches, 5 inter-service deps</li>
+                    <li>Estimated 135 test cases needed for 80%</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="tl-item">
+            <div class="tl-dot orange">3</div>
+            <div class="tl-cmd">/speckit.clarify</div>
+            <div class="tl-title">12 Testing Ambiguities Resolved</div>
+            <div class="tl-body">
+                <ul>
+                    <li>@Transactional &rarr; test logic directly, skip Spring proxy</li>
+                    <li>JPA repositories &rarr; mockk&lt;UserRepository&gt;() + every { }</li>
+                    <li>Retry logic &rarr; MockK answers { } with sequential failures</li>
+                    <li>State machine &rarr; test every valid + invalid transition</li>
+                    <li>BigDecimal precision &rarr; test rounding boundaries (0.005, 0.004)</li>
+                    <li>All 12 resolved with &gt;0.8 confidence</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="tl-item">
+            <div class="tl-dot purple">4</div>
+            <div class="tl-cmd">/speckit.plan</div>
+            <div class="tl-title">Test Architecture Designed</div>
+            <div class="tl-body">
+                <ul>
+                    <li>Execution order (leaf-first): Payment &rarr; Notification &rarr; Product &rarr; User &rarr; Order</li>
+                    <li>Mock plan: 9 dependencies mapped with mock strategies</li>
+                    <li>Test fixtures designed: 4 factory classes</li>
+                    <li>Predicted coverage: 84% (4% buffer above target)</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="tl-item">
+            <div class="tl-dot green">5</div>
+            <div class="tl-cmd">/speckit.tasks</div>
+            <div class="tl-title">135 Test Tasks Generated</div>
+            <div class="tl-body">
+                <ul>
+                    <li>Phase 1: Test Fixtures (5 tasks)</li>
+                    <li>Phase 2: PaymentServiceTest (12) &middot; Phase 3: NotificationServiceTest (14)</li>
+                    <li>Phase 4: ProductServiceTest (28) &middot; Phase 5: UserServiceTest (22)</li>
+                    <li>Phase 6: OrderServiceTest (35) &middot; Phase 7: Controllers (11) &middot; Phase 8: ExceptionHandler (5)</li>
+                    <li>Total: 132 + 3 added during validation = 135</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="tl-item">
+            <div class="tl-dot blue">5.5</div>
+            <div class="tl-cmd">/speckit.analyze</div>
+            <div class="tl-title">Validation Passed</div>
+            <div class="tl-body">
+                <ul>
+                    <li>All gaps covered by tasks <span class="badge badge-green">PASS</span></li>
+                    <li>Mock plan complete: all 9 deps mapped <span class="badge badge-green">PASS</span></li>
+                    <li>Coverage prediction: 84% <span class="badge badge-green">PASS</span></li>
+                    <li>3 missing edge cases found and auto-added</li>
+                    <li>No known MockK pitfalls for these patterns <span class="badge badge-green">PASS</span></li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="tl-item">
+            <div class="tl-dot green">6</div>
+            <div class="tl-cmd">/speckit.implement</div>
+            <div class="tl-title">Tests Generated &mdash; 88% Coverage Achieved</div>
+            <div class="tl-body">
+                <ul>
+                    <li>Phase 2: PaymentServiceTest &mdash; 12 tests &rarr; 0% &rarr; 18%</li>
+                    <li>Phase 3: NotificationServiceTest &mdash; 14 tests &rarr; 18% &rarr; 32%</li>
+                    <li>Phase 4: ProductServiceTest &mdash; 28 tests, 1 self-healed &rarr; 32% &rarr; 52%</li>
+                    <li>Phase 5: UserServiceTest &mdash; 22 tests &rarr; 52% &rarr; 68%</li>
+                    <li>Phase 6: OrderServiceTest &mdash; 35 tests, 2 self-healed &rarr; 68% &rarr; 82%</li>
+                    <li>Phase 7+8: Controllers + ExceptionHandler &rarr; 82% &rarr; 88%</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- RESULTS -->
+    <div class="results-grid" style="margin-top: 40px;">
+        <div class="result-box">
+            <h4>Per-Service Coverage</h4>
+            <table class="result-table">
+                <thead><tr><th>Service</th><th>Before</th><th>After</th><th>Tests</th></tr></thead>
+                <tbody>
+                    <tr><td>UserService</td><td>0%</td><td><span class="badge badge-green">85%</span></td><td>22</td></tr>
+                    <tr><td>OrderService</td><td>0%</td><td><span class="badge badge-green">82%</span></td><td>35</td></tr>
+                    <tr><td>ProductService</td><td>0%</td><td><span class="badge badge-green">88%</span></td><td>28</td></tr>
+                    <tr><td>PaymentService</td><td>0%</td><td><span class="badge badge-green">91%</span></td><td>12</td></tr>
+                    <tr><td>NotificationService</td><td>0%</td><td><span class="badge badge-green">83%</span></td><td>14</td></tr>
+                    <tr><td>Controllers</td><td>0%</td><td><span class="badge badge-green">86%</span></td><td>11</td></tr>
+                    <tr><td>ExceptionHandler</td><td>0%</td><td><span class="badge badge-green">90%</span></td><td>5</td></tr>
+                    <tr><td>TOTAL</td><td>0%</td><td><span class="badge badge-green">88%</span></td><td>127</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="result-box">
+            <h4>Files Created</h4>
+            <div style="font-size: .82rem; color: var(--text-dim); line-height: 2;">
+                <span class="artifact">fixtures/TestFactories.kt</span>
+                <span class="artifact">fixtures/MockExtensions.kt</span>
+                <span class="artifact">user/UserServiceTest.kt</span>
+                <span class="artifact">order/OrderServiceTest.kt</span>
+                <span class="artifact">product/ProductServiceTest.kt</span>
+                <span class="artifact">payment/PaymentServiceTest.kt</span>
+                <span class="artifact">notification/NotificationServiceTest.kt</span>
+                <span class="artifact">user/UserControllerTest.kt</span>
+                <span class="artifact">product/ProductControllerTest.kt</span>
+                <span class="artifact">order/OrderControllerTest.kt</span>
+                <span class="artifact">exception/GlobalExceptionHandlerTest.kt</span>
+            </div>
+        </div>
+    </div>
+</section>
+
+
+</main>
+
+<script>
+// Animate hero coverage bar on load
+setTimeout(() => { document.getElementById('heroBar').style.width = '88%'; }, 300);
+</script>
+</body>
+</html>

@@ -1,0 +1,2211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spec-Kit Coverage Validation: Measurement & Success Criteria</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.4;
+            color: #2c3e50;
+            background: #f8f9fa;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 15px;
+            color: #1a1a1a;
+            border-bottom: 4px solid #27ae60;
+            padding-bottom: 10px;
+        }
+
+        h2 {
+            font-size: 2em;
+            margin: 25px 0 15px 0;
+            color: #1a1a1a;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 8px;
+        }
+
+        h3 {
+            font-size: 1.5em;
+            margin: 20px 0 10px 0;
+            color: #2c3e50;
+        }
+
+        .intro {
+            background: white;
+            padding: 20px;
+            border-radius: 6px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+
+        .section-card {
+            background: white;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-radius: 6px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            border-left: 6px solid #27ae60;
+        }
+
+        .validation-card {
+            background: white;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-radius: 6px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            border-left: 6px solid #e67e22;
+        }
+
+        .code-block {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+
+        .info-box {
+            background: #e8f4f8;
+            border-left: 4px solid #3498db;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+
+        .warning-box {
+            background: #ffe5d0;
+            border-left: 4px solid #e67e22;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+
+        .success-box {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+
+        .error-box {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+
+        th {
+            background: #27ae60;
+            color: white;
+            font-weight: 600;
+            padding: 12px;
+            text-align: left;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+            vertical-align: top;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .metric {
+            text-align: center;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border-top: 4px solid #27ae60;
+        }
+
+        .metric-value {
+            font-size: 2.5em;
+            font-weight: 700;
+            color: #27ae60;
+            margin-bottom: 5px;
+        }
+
+        .metric-label {
+            font-size: 0.95em;
+            color: #7f8c8d;
+        }
+
+        .validation-step {
+            background: #f8f9fa;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #e67e22;
+            border-radius: 4px;
+        }
+
+        .validation-step h4 {
+            color: #e67e22;
+            margin-bottom: 8px;
+        }
+
+        .tool-list {
+            list-style: none;
+            margin: 10px 0;
+            padding: 0;
+        }
+
+        .tool-list li {
+            padding: 6px 0;
+            padding-left: 25px;
+            position: relative;
+        }
+
+        .tool-list li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #27ae60;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+
+        .formula-box {
+            background: #fff;
+            border: 2px solid #3498db;
+            padding: 20px;
+            border-radius: 6px;
+            margin: 15px 0;
+            text-align: center;
+        }
+
+        .formula {
+            font-size: 1.3em;
+            font-family: 'Courier New', monospace;
+            color: #2c3e50;
+            margin: 10px 0;
+        }
+
+        @media (max-width: 1200px) {
+            .metric-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Coverage Validation & Success Criteria</h1>
+    <h2 style="border-bottom-color: #27ae60; margin-top: 0;">How the Orchestrator Validates Coverage and Determines Success</h2>
+
+    <div class="intro">
+        <p style="font-size: 1.2em; margin-bottom: 12px;"><strong>Challenge:</strong> How does an autonomous orchestrator accurately measure test coverage, validate quality, and determine when the mission is successfully complete?</p>
+        <p style="font-size: 1.05em; color: #7f8c8d;"><strong>Solution:</strong> Multi-layered validation using coverage tools, mutation testing, quality gates, and success criteria matrices.</p>
+    </div>
+
+    <h2>Coverage Measurement Architecture</h2>
+
+    <div class="section-card">
+        <h3>1. Language-Specific Coverage Tools</h3>
+        <p>The orchestrator automatically detects the project language and uses the appropriate coverage tool:</p>
+
+        <table>
+            <thead>
+            <tr>
+                <th>Language/Framework</th>
+                <th>Coverage Tool</th>
+                <th>Command</th>
+                <th>Report Format</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td>.NET / C#</td>
+                <td>Coverlet</td>
+                <td><code style="font-family: monospace; font-size: 0.9em;">dotnet test /p:CollectCoverage=true /p:CoverletOutputFormat=opencover</code></td>
+                <td>coverage.opencover.xml</td>
+            </tr>
+            <tr>
+                <td>Java / Spring Boot</td>
+                <td>JaCoCo</td>
+                <td><code style="font-family: monospace; font-size: 0.9em;">mvn test jacoco:report</code></td>
+                <td>target/site/jacoco/jacoco.xml</td>
+            </tr>
+            <tr>
+                <td>Python</td>
+                <td>Coverage.py</td>
+                <td><code style="font-family: monospace; font-size: 0.9em;">pytest --cov=src --cov-report=xml</code></td>
+                <td>coverage.xml</td>
+            </tr>
+            <tr>
+                <td>Node.js / JavaScript</td>
+                <td>Istanbul (nyc)</td>
+                <td><code style="font-family: monospace; font-size: 0.9em;">npm test -- --coverage</code></td>
+                <td>coverage/coverage-final.json</td>
+            </tr>
+            <tr>
+                <td>Go</td>
+                <td>go test -cover</td>
+                <td><code style="font-family: monospace; font-size: 0.9em;">go test -coverprofile=coverage.out ./...</code></td>
+                <td>coverage.out</td>
+            </tr>
+            </tbody>
+        </table>
+
+        <div class="info-box">
+            <strong>Auto-Detection Logic:</strong>
+            <div class="code-block" style="margin-top: 10px;">def detect_coverage_tool(project_path):
+                if exists('*.csproj'):
+                return CoverletCoverageTool()
+                elif exists('pom.xml') or exists('build.gradle'):
+                return JacocoCoverageTool()
+                elif exists('requirements.txt') or exists('pyproject.toml'):
+                return CoveragePyTool()
+                elif exists('package.json'):
+                return IstanbulCoverageTool()
+                elif exists('go.mod'):
+                return GoCoverageTool()
+                else:
+                raise UnsupportedProjectType()</div>
+        </div>
+    </div>
+
+    <div class="section-card">
+        <h3>2. Coverage Calculation Methodology</h3>
+
+        <div class="formula-box">
+            <h4>Line Coverage Formula</h4>
+            <div class="formula">
+                Coverage % = (Covered Lines / Total Executable Lines) × 100
+            </div>
+        </div>
+
+        <h4>Detailed Coverage Metrics</h4>
+        <div class="code-block">class CoverageMetrics:
+            def calculate_comprehensive_coverage(self, coverage_report):
+            """
+            Calculate multiple coverage dimensions
+            """
+
+            # 1. Line Coverage (primary metric)
+            line_coverage = (
+            coverage_report.lines_covered /
+            coverage_report.lines_executable
+            ) * 100
+
+            # 2. Branch Coverage (decision points)
+            branch_coverage = (
+            coverage_report.branches_covered /
+            coverage_report.branches_total
+            ) * 100
+
+            # 3. Method Coverage (function-level)
+            method_coverage = (
+            coverage_report.methods_covered /
+            coverage_report.methods_total
+            ) * 100
+
+            # 4. Class Coverage (type-level)
+            class_coverage = (
+            coverage_report.classes_with_tests /
+            coverage_report.classes_total
+            ) * 100
+
+            # 5. Weighted Coverage (by component importance)
+            weighted_coverage = sum(
+            component.coverage * component.weight
+            for component in coverage_report.components
+            )
+
+            return {
+            'line_coverage': line_coverage,           # Primary: 78%
+            'branch_coverage': branch_coverage,       # 72%
+            'method_coverage': method_coverage,       # 81%
+            'class_coverage': class_coverage,         # 85%
+            'weighted_coverage': weighted_coverage,   # 76%
+            'overall': line_coverage                  # Default to line coverage
+            }</div>
+
+        <h4>Coverage by Component</h4>
+        <div class="code-block">def calculate_component_coverage(coverage_report):
+            """
+            Break down coverage by architectural component
+            """
+
+            components = {
+            'Controllers': {
+            'files': glob('src/Controllers/**/*.cs'),
+            'lines_covered': 0,
+            'lines_total': 0
+            },
+            'Services': {
+            'files': glob('src/Services/**/*.cs'),
+            'lines_covered': 0,
+            'lines_total': 0
+            },
+            'Repositories': {
+            'files': glob('src/Repositories/**/*.cs'),
+            'lines_covered': 0,
+            'lines_total': 0
+            },
+            'Validators': {
+            'files': glob('src/Validators/**/*.cs'),
+            'lines_covered': 0,
+            'lines_total': 0
+            },
+            'Utilities': {
+            'files': glob('src/Utilities/**/*.cs'),
+            'lines_covered': 0,
+            'lines_total': 0
+            }
+            }
+
+            # Calculate coverage for each component
+            for component_name, component in components.items():
+            for file in component.files:
+            file_coverage = coverage_report.get_file_coverage(file)
+            component.lines_covered += file_coverage.lines_covered
+            component.lines_total += file_coverage.lines_total
+
+            component.coverage = (
+            component.lines_covered / component.lines_total
+            ) * 100
+
+            return components
+
+            # Example output:
+            {
+            'Controllers': {'coverage': 82, 'lines_covered': 245, 'lines_total': 299},
+            'Services': {'coverage': 85, 'lines_covered': 512, 'lines_total': 602},
+            'Repositories': {'coverage': 72, 'lines_covered': 180, 'lines_total': 250},
+            'Validators': {'coverage': 88, 'lines_covered': 176, 'lines_total': 200},
+            'Utilities': {'coverage': 75, 'lines_covered': 90, 'lines_total': 120}
+            }</div>
+    </div>
+
+    <div class="validation-card">
+        <h3>3. Real-Time Coverage Validation Process</h3>
+
+        <div class="validation-step">
+            <h4>Step 1: Execute Tests with Coverage Instrumentation</h4>
+            <div class="code-block">def run_tests_with_coverage(self):
+                """
+                Run tests with coverage instrumentation enabled
+                """
+
+                # Detect test framework
+                test_framework = self.detect_test_framework()
+                # Returns: 'xUnit' for .NET
+
+                # Run tests with coverage
+                if test_framework == 'xUnit':
+                result = subprocess.run([
+                'dotnet', 'test',
+                '/p:CollectCoverage=true',
+                '/p:CoverletOutputFormat=opencover',
+                '/p:CoverletOutput=./coverage/',
+                '--logger', 'trx',
+                '--results-directory', './test-results/'
+                ], capture_output=True)
+
+                elif test_framework == 'JUnit':
+                result = subprocess.run([
+                'mvn', 'test',
+                'jacoco:report'
+                ], capture_output=True)
+
+                elif test_framework == 'pytest':
+                result = subprocess.run([
+                'pytest',
+                '--cov=src',
+                '--cov-report=xml',
+                '--cov-report=html',
+                '--cov-report=term'
+                ], capture_output=True)
+
+                # Parse test results
+                test_results = self.parse_test_results(result)
+
+                return {
+                'exit_code': result.returncode,
+                'tests_run': test_results.total,
+                'tests_passed': test_results.passed,
+                'tests_failed': test_results.failed,
+                'tests_skipped': test_results.skipped,
+                'duration': test_results.duration,
+                'coverage_file': self.locate_coverage_file()
+                }</div>
+        </div>
+
+        <div class="validation-step">
+            <h4>Step 2: Parse Coverage Report</h4>
+            <div class="code-block">def parse_coverage_report(self, coverage_file):
+                """
+                Parse coverage report into structured data
+                """
+
+                # Example: Parsing OpenCover XML format (.NET)
+                import xml.etree.ElementTree as ET
+
+                tree = ET.parse(coverage_file)
+                root = tree.getroot()
+
+                # Extract summary metrics
+                summary = root.find('.//Summary')
+
+                coverage_data = {
+                'timestamp': datetime.now().isoformat(),
+                'overall': {
+                'lines_covered': int(summary.get('visitedSequencePoints')),
+                'lines_total': int(summary.get('numSequencePoints')),
+                'branches_covered': int(summary.get('visitedBranchPoints')),
+                'branches_total': int(summary.get('numBranchPoints')),
+                'methods_covered': int(summary.get('visitedMethods')),
+                'methods_total': int(summary.get('numMethods')),
+                'classes_covered': int(summary.get('visitedClasses')),
+                'classes_total': int(summary.get('numClasses'))
+                },
+                'by_file': {},
+                'by_class': {},
+                'by_method': {}
+                }
+
+                # Calculate overall coverage percentage
+                coverage_data['overall']['line_coverage'] = (
+                coverage_data['overall']['lines_covered'] /
+                coverage_data['overall']['lines_total']
+                ) * 100
+
+                # Parse file-level coverage
+                for module in root.findall('.//Module'):
+                for file in module.findall('.//File'):
+                file_path = file.get('fullPath')
+
+                # Get line coverage for this file
+                sequence_points = file.findall('.//SequencePoint')
+                covered_lines = sum(1 for sp in sequence_points if int(sp.get('vc')) > 0)
+                total_lines = len(sequence_points)
+
+                coverage_data['by_file'][file_path] = {
+                'lines_covered': covered_lines,
+                'lines_total': total_lines,
+                'coverage': (covered_lines / total_lines * 100) if total_lines > 0 else 0,
+                'uncovered_lines': [
+                int(sp.get('sl'))
+                for sp in sequence_points
+                if int(sp.get('vc')) == 0
+                ]
+                }
+
+                # Parse method-level coverage
+                for method in root.findall('.//Method'):
+                method_name = method.get('name')
+                sequence_points = method.findall('.//SequencePoint')
+
+                covered = sum(1 for sp in sequence_points if int(sp.get('vc')) > 0)
+                total = len(sequence_points)
+
+                coverage_data['by_method'][method_name] = {
+                'lines_covered': covered,
+                'lines_total': total,
+                'coverage': (covered / total * 100) if total > 0 else 0,
+                'cyclomatic_complexity': int(method.get('cyclomaticComplexity', 1)),
+                'visited': int(method.get('visited', 0)) > 0
+                }
+
+                return coverage_data</div>
+        </div>
+
+        <div class="validation-step">
+            <h4>Step 3: Calculate Coverage Percentage</h4>
+            <div class="code-block">def calculate_coverage_percentage(self, coverage_data):
+                """
+                Calculate final coverage percentage with validation
+                """
+
+                # Primary metric: Line coverage
+                line_coverage = (
+                coverage_data['overall']['lines_covered'] /
+                coverage_data['overall']['lines_total']
+                ) * 100
+
+                # Round to 2 decimal places
+                line_coverage = round(line_coverage, 2)
+
+                # Validate calculation
+                assert 0 <= line_coverage <= 100, "Coverage must be between 0-100%"
+
+                # Calculate by component
+                component_coverage = {}
+                for component_name, files in self.group_files_by_component().items():
+                covered = sum(
+                coverage_data['by_file'][f]['lines_covered']
+                for f in files
+                )
+                total = sum(
+                coverage_data['by_file'][f]['lines_total']
+                for f in files
+                )
+
+                component_coverage[component_name] = round((covered / total) * 100, 2)
+
+                # Verify overall matches sum of components
+                weighted_avg = sum(
+                component_coverage[c] * self.get_component_weight(c)
+                for c in component_coverage
+                )
+
+                # Allow 1% variance due to rounding
+                assert abs(line_coverage - weighted_avg) < 1.0, \
+                "Coverage calculation mismatch"
+
+                return {
+                'overall': line_coverage,
+                'by_component': component_coverage,
+                'validated': True,
+                'timestamp': datetime.now().isoformat()
+                }</div>
+        </div>
+
+        <div class="validation-step">
+            <h4>Step 4: Verify Coverage Report Integrity</h4>
+            <div class="code-block">def verify_coverage_integrity(self, coverage_data):
+                """
+                Validate that coverage report is accurate and not corrupted
+                """
+
+                validations = []
+
+                # 1. Check file exists and is recent
+                coverage_file = 'coverage.opencover.xml'
+                if not exists(coverage_file):
+                validations.append({
+                'check': 'File Exists',
+                'status': 'FAIL',
+                'message': 'Coverage file not found'
+                })
+                return validations
+
+                file_age = time.time() - os.path.getmtime(coverage_file)
+                if file_age > 300:  # 5 minutes
+                validations.append({
+                'check': 'File Freshness',
+                'status': 'WARN',
+                'message': f'Coverage file is {file_age}s old'
+                })
+
+                # 2. Validate XML structure
+                try:
+                tree = ET.parse(coverage_file)
+                validations.append({
+                'check': 'XML Valid',
+                'status': 'PASS',
+                'message': 'Coverage XML is well-formed'
+                })
+                except ET.ParseError as e:
+                validations.append({
+                'check': 'XML Valid',
+                'status': 'FAIL',
+                'message': f'XML parse error: {e}'
+                })
+                return validations
+
+                # 3. Validate metrics are reasonable
+                if coverage_data['overall']['lines_total'] == 0:
+                validations.append({
+                'check': 'Has Executable Lines',
+                'status': 'FAIL',
+                'message': 'No executable lines found'
+                })
+
+                if coverage_data['overall']['line_coverage'] > 100:
+                validations.append({
+                'check': 'Coverage Range',
+                'status': 'FAIL',
+                'message': 'Coverage exceeds 100%'
+                })
+
+                # 4. Validate all source files are included
+                source_files = glob('src/**/*.cs')
+                covered_files = coverage_data['by_file'].keys()
+
+                missing_files = set(source_files) - set(covered_files)
+                if missing_files:
+                validations.append({
+                'check': 'All Files Covered',
+                'status': 'WARN',
+                'message': f'{len(missing_files)} files not in coverage report'
+                })
+
+                # 5. Cross-check with test results
+                test_results = self.parse_test_results()
+                if test_results.total == 0:
+                validations.append({
+                'check': 'Tests Executed',
+                'status': 'FAIL',
+                'message': 'No tests were run'
+                })
+
+                # 6. Validate coverage increased (not decreased)
+                if hasattr(self, 'baseline_coverage'):
+                if coverage_data['overall']['line_coverage'] < self.baseline_coverage:
+                validations.append({
+                'check': 'Coverage Improved',
+                'status': 'FAIL',
+                'message': f'Coverage decreased from {self.baseline_coverage}%'
+                })
+
+                return validations</div>
+        </div>
+    </div>
+
+    <h2>Multi-Dimensional Success Criteria</h2>
+
+    <div class="validation-card">
+        <h3>Success Criteria Matrix</h3>
+        <p>The orchestrator validates success across six dimensions:</p>
+
+        <table>
+            <thead>
+            <tr>
+                <th>Dimension</th>
+                <th>Metric</th>
+                <th>Target</th>
+                <th>Validation Method</th>
+                <th>Weight</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td><strong>1. Coverage Percentage</strong></td>
+                <td>Line Coverage</td>
+                <td>70-80%</td>
+                <td>Parse coverage report, calculate percentage</td>
+                <td>40%</td>
+            </tr>
+            <tr>
+                <td><strong>2. Test Quality</strong></td>
+                <td>Mutation Score</td>
+                <td>≥80%</td>
+                <td>Run mutation testing (Stryker, PIT, mutmut)</td>
+                <td>25%</td>
+            </tr>
+            <tr>
+                <td><strong>3. Test Success Rate</strong></td>
+                <td>Passing Tests</td>
+                <td>100%</td>
+                <td>Parse test results, verify all pass</td>
+                <td>15%</td>
+            </tr>
+            <tr>
+                <td><strong>4. Component Balance</strong></td>
+                <td>Min Component Coverage</td>
+                <td>≥60%</td>
+                <td>Ensure no component below threshold</td>
+                <td>10%</td>
+            </tr>
+            <tr>
+                <td><strong>5. Test Performance</strong></td>
+                <td>Avg Test Duration</td>
+                <td>&lt;100ms</td>
+                <td>Measure test execution time</td>
+                <td>5%</td>
+            </tr>
+            <tr>
+                <td><strong>6. Code Quality</strong></td>
+                <td>No Flaky Tests</td>
+                <td>0 flaky</td>
+                <td>Run tests 3x, check consistency</td>
+                <td>5%</td>
+            </tr>
+            </tbody>
+        </table>
+
+        <div class="formula-box">
+            <h4>Overall Success Score</h4>
+            <div class="formula">
+                Success Score = Σ (Metric Score × Weight)
+            </div>
+            <p style="margin-top: 10px; color: #7f8c8d;">Target: ≥90% for successful completion</p>
+        </div>
+
+        <h4>Success Calculation Implementation</h4>
+        <div class="code-block">def calculate_success_score(self, validation_results):
+            """
+            Calculate weighted success score across all dimensions
+            """
+
+            scores = {}
+
+            # 1. Coverage Percentage (40% weight)
+            coverage = validation_results.coverage.overall
+            if 70 <= coverage <= 80:
+            scores['coverage'] = 100  # Perfect score in target range
+            elif coverage > 80:
+            scores['coverage'] = 100  # Exceeded target
+            elif coverage >= 65:
+            scores['coverage'] = 80   # Close to target
+            else:
+            scores['coverage'] = (coverage / 70) * 100  # Proportional
+
+            # 2. Test Quality - Mutation Score (25% weight)
+            mutation_score = validation_results.mutation_score
+            if mutation_score >= 80:
+            scores['quality'] = 100
+            else:
+            scores['quality'] = (mutation_score / 80) * 100
+
+            # 3. Test Success Rate (15% weight)
+            pass_rate = (
+            validation_results.tests_passed /
+            validation_results.tests_total
+            ) * 100
+            scores['success_rate'] = pass_rate
+
+            # 4. Component Balance (10% weight)
+            min_component_coverage = min(
+            validation_results.coverage.by_component.values()
+            )
+            if min_component_coverage >= 60:
+            scores['balance'] = 100
+            else:
+            scores['balance'] = (min_component_coverage / 60) * 100
+
+            # 5. Test Performance (5% weight)
+            avg_duration = validation_results.performance.avg_test_duration
+            if avg_duration <= 100:
+            scores['performance'] = 100
+            elif avg_duration <= 200:
+            scores['performance'] = 75
+            else:
+            scores['performance'] = 50
+
+            # 6. Code Quality - No Flaky Tests (5% weight)
+            flaky_count = validation_results.flaky_tests
+            if flaky_count == 0:
+            scores['code_quality'] = 100
+            else:
+            scores['code_quality'] = max(0, 100 - (flaky_count * 20))
+
+            # Calculate weighted score
+            weights = {
+            'coverage': 0.40,
+            'quality': 0.25,
+            'success_rate': 0.15,
+            'balance': 0.10,
+            'performance': 0.05,
+            'code_quality': 0.05
+            }
+
+            overall_score = sum(
+            scores[dimension] * weights[dimension]
+            for dimension in scores
+            )
+
+            return {
+            'overall_score': round(overall_score, 2),
+            'dimension_scores': scores,
+            'weights': weights,
+            'success': overall_score >= 90,
+            'grade': self.calculate_grade(overall_score)
+            }
+
+            def calculate_grade(self, score):
+            if score >= 95:
+            return 'A+'
+            elif score >= 90:
+            return 'A'
+            elif score >= 85:
+            return 'B+'
+            elif score >= 80:
+            return 'B'
+            else:
+            return 'C'</div>
+    </div>
+
+    <div class="validation-step">
+        <h4>Step 3: Mutation Testing Validation</h4>
+        <div class="code-block">def run_mutation_testing(self):
+            """
+            Validate test quality through mutation testing
+            """
+
+            # Detect mutation testing tool
+            if self.project_type == '.NET':
+            mutation_tool = 'dotnet-stryker'
+            command = ['dotnet', 'stryker']
+            elif self.project_type == 'Java':
+            mutation_tool = 'pitest'
+            command = ['mvn', 'org.pitest:pitest-maven:mutationCoverage']
+            elif self.project_type == 'Python':
+            mutation_tool = 'mutmut'
+            command = ['mutmut', 'run']
+
+            print(f"   Running mutation testing with {mutation_tool}...")
+
+            # Run mutation testing
+            result = subprocess.run(command, capture_output=True)
+
+            # Parse mutation report
+            if self.project_type == '.NET':
+            report = self.parse_stryker_report('StrykerOutput/reports/mutation-report.json')
+
+            mutation_results = {
+            'total_mutants': report['totalMutants'],
+            'killed_mutants': report['killedMutants'],
+            'survived_mutants': report['survivedMutants'],
+            'timeout_mutants': report['timeoutMutants'],
+            'no_coverage_mutants': report['noCoverageMutants'],
+            'mutation_score': report['mutationScore']
+            }
+
+            # Analyze survived mutants
+            weak_tests = []
+            for mutant in report['survivedMutants']:
+            weak_tests.append({
+            'file': mutant['fileName'],
+            'line': mutant['location']['start']['line'],
+            'mutation': mutant['mutatorName'],
+            'original': mutant['replacement'],
+            'test_file': self.find_test_for_file(mutant['fileName']),
+            'recommendation': self.suggest_test_improvement(mutant)
+            })
+
+            return {
+            'mutation_score': mutation_results['mutation_score'],
+            'weak_tests': weak_tests,
+            'quality_grade': self.grade_mutation_score(mutation_results['mutation_score'])
+            }
+
+            def grade_mutation_score(self, score):
+            if score >= 90:
+            return 'Excellent'
+            elif score >= 80:
+            return 'Good'
+            elif score >= 70:
+            return 'Acceptable'
+            else:
+            return 'Needs Improvement'</div>
+    </div>
+
+    <div class="validation-step">
+        <h4>Step 4: Flaky Test Detection</h4>
+        <div class="code-block">def detect_flaky_tests(self):
+            """
+            Run tests multiple times to detect non-deterministic behavior
+            """
+
+            print("   Detecting flaky tests (running 3 iterations)...")
+
+            test_results_by_iteration = []
+
+            # Run tests 3 times
+            for iteration in range(3):
+            result = self.run_tests()
+            test_results_by_iteration.append(result)
+
+            # Compare results across iterations
+            all_test_names = set()
+            for result in test_results_by_iteration:
+            all_test_names.update(result.test_names)
+
+            flaky_tests = []
+
+            for test_name in all_test_names:
+            # Get results for this test across all iterations
+            results = [
+            result.get_test_status(test_name)
+            for result in test_results_by_iteration
+            ]
+
+            # If results differ, test is flaky
+            if len(set(results)) > 1:
+            flaky_tests.append({
+            'test_name': test_name,
+            'results': results,
+            'pattern': self.analyze_flaky_pattern(results),
+            'likely_cause': self.infer_flaky_cause(test_name)
+            })
+
+            return {
+            'flaky_count': len(flaky_tests),
+            'flaky_tests': flaky_tests,
+            'stability_score': (
+            (len(all_test_names) - len(flaky_tests)) /
+            len(all_test_names)
+            ) * 100
+            }
+
+            def infer_flaky_cause(self, test_name):
+            """Infer likely cause of flakiness"""
+
+            test_code = self.get_test_code(test_name)
+
+            if 'DateTime.Now' in test_code or 'Date.now()' in test_code:
+            return 'Time-dependent test (use fixed time)'
+            elif 'Random' in test_code:
+            return 'Random values (use seeded random)'
+            elif 'Thread.Sleep' in test_code or 'setTimeout' in test_code:
+            return 'Timing-dependent (use deterministic waits)'
+            elif 'async' in test_code and 'await' not in test_code:
+            return 'Async without await (race condition)'
+            else:
+            return 'Unknown (requires investigation)'</div>
+    </div>
+</div>
+
+<h2>Success Determination Logic</h2>
+
+<div class="validation-card">
+    <h3>Comprehensive Success Validation</h3>
+    <div class="code-block">def determine_success(self, validation_results):
+        """
+        Determine if coverage improvement mission is successful
+        """
+
+        success_criteria = {
+        'coverage_target_met': False,
+        'quality_acceptable': False,
+        'all_tests_pass': False,
+        'no_component_gaps': False,
+        'performance_acceptable': False,
+        'no_flaky_tests': False
+        }
+
+        failures = []
+        warnings = []
+
+        # ============================================================
+        # CRITERION 1: Coverage Target Met (CRITICAL)
+        # ============================================================
+        coverage = validation_results.coverage.overall
+        target_min = self.target_coverage - 5  # Allow 5% tolerance
+        target_max = self.target_coverage + 5
+
+        if target_min <= coverage <= target_max:
+        success_criteria['coverage_target_met'] = True
+        print(f"   ✅ Coverage target met: {coverage}% (target: {self.target_coverage}%)")
+        elif coverage > target_max:
+        success_criteria['coverage_target_met'] = True
+        warnings.append(f"Coverage exceeded target: {coverage}% > {target_max}%")
+        print(f"   ⚠️  Coverage exceeded: {coverage}% (may indicate over-testing)")
+        else:
+        failures.append(f"Coverage below target: {coverage}% < {target_min}%")
+        print(f"   ❌ Coverage insufficient: {coverage}%")
+
+        # ============================================================
+        # CRITERION 2: Test Quality Acceptable (CRITICAL)
+        # ============================================================
+        mutation_score = validation_results.mutation_score
+
+        if mutation_score >= 80:
+        success_criteria['quality_acceptable'] = True
+        print(f"   ✅ Test quality acceptable: {mutation_score}% mutation score")
+        elif mutation_score >= 70:
+        success_criteria['quality_acceptable'] = True
+        warnings.append(f"Mutation score below ideal: {mutation_score}% < 80%")
+        print(f"   ⚠️  Test quality marginal: {mutation_score}%")
+        else:
+        failures.append(f"Test quality insufficient: {mutation_score}% < 70%")
+        print(f"   ❌ Test quality poor: {mutation_score}%")
+
+        # ============================================================
+        # CRITERION 3: All Tests Pass (CRITICAL)
+        # ============================================================
+        test_results = validation_results.test_results
+        pass_rate = (test_results.passed / test_results.total) * 100
+
+        if pass_rate == 100:
+        success_criteria['all_tests_pass'] = True
+        print(f"   ✅ All tests passing: {test_results.passed}/{test_results.total}")
+        else:
+        failures.append(f"{test_results.failed} tests failing")
+        print(f"   ❌ Tests failing: {test_results.failed}/{test_results.total}")
+
+        # ============================================================
+        # CRITERION 4: No Component Gaps (IMPORTANT)
+        # ============================================================
+        component_coverage = validation_results.coverage.by_component
+        min_component = min(component_coverage.values())
+        min_component_name = min(component_coverage, key=component_coverage.get)
+
+        if min_component >= 60:
+        success_criteria['no_component_gaps'] = True
+        print(f"   ✅ All components above 60%: lowest is {min_component_name} at {min_component}%")
+        elif min_component >= 50:
+        warnings.append(f"{min_component_name} coverage low: {min_component}%")
+        print(f"   ⚠️  {min_component_name} coverage low: {min_component}%")
+        else:
+        failures.append(f"{min_component_name} coverage critically low: {min_component}%")
+        print(f"   ❌ {min_component_name} coverage insufficient: {min_component}%")
+
+        # ============================================================
+        # CRITERION 5: Performance Acceptable (NICE TO HAVE)
+        # ============================================================
+        avg_duration = validation_results.performance.avg_test_duration
+
+        if avg_duration <= 100:
+        success_criteria['performance_acceptable'] = True
+        print(f"   ✅ Test performance good: {avg_duration}ms avg")
+        elif avg_duration <= 200:
+        success_criteria['performance_acceptable'] = True
+        warnings.append(f"Test performance acceptable but slow: {avg_duration}ms")
+        print(f"   ⚠️  Test performance acceptable: {avg_duration}ms")
+        else:
+        warnings.append(f"Test performance slow: {avg_duration}ms > 200ms")
+        print(f"   ⚠️  Test performance slow: {avg_duration}ms")
+
+        # ============================================================
+        # CRITERION 6: No Flaky Tests (NICE TO HAVE)
+        # ============================================================
+        flaky_count = validation_results.flaky_tests.count
+
+        if flaky_count == 0:
+        success_criteria['no_flaky_tests'] = True
+        print(f"   ✅ No flaky tests detected")
+        else:
+        warnings.append(f"{flaky_count} flaky tests detected")
+        print(f"   ⚠️  Flaky tests found: {flaky_count}")
+
+        # ============================================================
+        # OVERALL SUCCESS DETERMINATION
+        # ============================================================
+
+        # Critical criteria (must all pass)
+        critical_pass = (
+        success_criteria['coverage_target_met'] and
+        success_criteria['quality_acceptable'] and
+        success_criteria['all_tests_pass']
+        )
+
+        # Calculate success score
+        success_score = self.calculate_success_score(validation_results)
+
+        # Determine overall success
+        overall_success = critical_pass and success_score.overall_score >= 90
+
+        return {
+        'success': overall_success,
+        'success_score': success_score.overall_score,
+        'criteria': success_criteria,
+        'failures': failures,
+        'warnings': warnings,
+        'grade': success_score.grade,
+        'summary': self.generate_success_summary(
+        overall_success,
+        success_criteria,
+        failures,
+        warnings
+        )
+        }</div>
+</div>
+
+<h2>Validation Execution Flow</h2>
+
+<div class="section-card">
+    <h3>Complete Validation Pipeline</h3>
+    <div class="code-block">def execute_validation_pipeline(self):
+        """
+        Complete validation pipeline with all checks
+        """
+
+        print("\n🔍 Executing validation pipeline...")
+
+        validation_results = {}
+
+        # ============================================================
+        # STEP 1: Run Tests with Coverage
+        # ============================================================
+        print("\n   Step 1: Running tests with coverage instrumentation...")
+
+        test_run = self.run_tests_with_coverage()
+
+        if test_run.exit_code != 0:
+        print(f"   ❌ Tests failed with exit code {test_run.exit_code}")
+        return {'success': False, 'reason': 'Test execution failed'}
+
+        print(f"   ✓ Tests executed: {test_run.tests_run}")
+        print(f"   ✓ Tests passed: {test_run.tests_passed}")
+        print(f"   ✓ Duration: {test_run.duration}ms")
+
+        validation_results['test_results'] = test_run
+
+        # ============================================================
+        # STEP 2: Parse and Validate Coverage Report
+        # ============================================================
+        print("\n   Step 2: Parsing coverage report...")
+
+        coverage_data = self.parse_coverage_report(test_run.coverage_file)
+
+        # Verify integrity
+        integrity_checks = self.verify_coverage_integrity(coverage_data)
+
+        failed_checks = [c for c in integrity_checks if c['status'] == 'FAIL']
+        if failed_checks:
+        print(f"   ❌ Coverage report integrity failed:")
+        for check in failed_checks:
+        print(f"      - {check['check']}: {check['message']}")
+        return {'success': False, 'reason': 'Coverage report invalid'}
+
+        # Calculate coverage percentage
+        coverage = self.calculate_coverage_percentage(coverage_data)
+
+        print(f"   ✓ Overall coverage: {coverage.overall}%")
+        print(f"   ✓ Coverage by component:")
+        for component, cov in coverage.by_component.items():
+        print(f"      - {component}: {cov}%")
+
+        validation_results['coverage'] = coverage
+
+        # ============================================================
+        # STEP 3: Run Mutation Testing
+        # ============================================================
+        print("\n   Step 3: Running mutation testing...")
+
+        mutation_results = self.run_mutation_testing()
+
+        print(f"   ✓ Mutation score: {mutation_results.mutation_score}%")
+        print(f"   ✓ Mutants killed: {mutation_results.killed_mutants}")
+        print(f"   ✓ Mutants survived: {mutation_results.survived_mutants}")
+
+        if mutation_results.survived_mutants > 0:
+        print(f"   ⚠️  {len(mutation_results.weak_tests)} weak tests identified")
+
+        validation_results['mutation_score'] = mutation_results.mutation_score
+        validation_results['weak_tests'] = mutation_results.weak_tests
+
+        # ============================================================
+        # STEP 4: Detect Flaky Tests
+        # ============================================================
+        print("\n   Step 4: Detecting flaky tests...")
+
+        flaky_results = self.detect_flaky_tests()
+
+        if flaky_results.flaky_count == 0:
+        print(f"   ✓ No flaky tests detected")
+        else:
+        print(f"   ⚠️  {flaky_results.flaky_count} flaky tests found:")
+        for flaky in flaky_results.flaky_tests:
+        print(f"      - {flaky.test_name}: {flaky.likely_cause}")
+
+        validation_results['flaky_tests'] = flaky_results
+
+        # ============================================================
+        # STEP 5: Analyze Test Performance
+        # ============================================================
+        print("\n   Step 5: Analyzing test performance...")
+
+        performance = self.analyze_test_performance()
+
+        print(f"   ✓ Total duration: {performance.total_duration}ms")
+        print(f"   ✓ Average per test: {performance.avg_test_duration}ms")
+
+        if performance.slow_tests:
+        print(f"   ⚠️  {len(performance.slow_tests)} slow tests (>1s)")
+
+        validation_results['performance'] = performance
+
+        # ============================================================
+        # STEP 6: Calculate Success Score
+        # ============================================================
+        print("\n   Step 6: Calculating success score...")
+
+        success_result = self.determine_success(validation_results)
+
+        print(f"\n   Overall Success Score: {success_result.success_score}/100")
+        print(f"   Grade: {success_result.grade}")
+        print(f"\n   Dimension Scores:")
+        for dimension, score in success_result.dimension_scores.items():
+        print(f"      - {dimension}: {score}/100")
+
+        if success_result.failures:
+        print(f"\n   ❌ Failures:")
+        for failure in success_result.failures:
+        print(f"      - {failure}")
+
+        if success_result.warnings:
+        print(f"\n   ⚠️  Warnings:")
+        for warning in success_result.warnings:
+        print(f"      - {warning}")
+
+        # ============================================================
+        # STEP 7: Generate Validation Report
+        # ============================================================
+        print("\n   Step 7: Generating validation report...")
+
+        report = self.generate_validation_report(validation_results, success_result)
+        self.save_report('specs/test-coverage-improvement/validation-report.md', report)
+
+        # Generate validation diagrams
+        diagrams = self.generate_validation_diagrams(validation_results)
+        self.save_diagrams('validation', diagrams)
+
+        print(f"   ✓ Validation report saved")
+        print(f"   ✓ {len(diagrams)} validation diagrams generated")
+
+        # ============================================================
+        # FINAL DECISION
+        # ============================================================
+
+        if success_result.success:
+        print(f"\n   ✅ VALIDATION PASSED - Mission successful!")
+        return {'success': True, 'results': validation_results}
+        else:
+        print(f"\n   ❌ VALIDATION FAILED - Criteria not met")
+        return {'success': False, 'results': validation_results, 'failures': success_result.failures}
+    </div>
+</div>
+
+<h2>Example Validation Report</h2>
+
+<div class="section-card">
+    <h3>Generated Validation Report</h3>
+    <div class="code-block" style="background: #f8f9fa; color: #2c3e50;">
+        # Test Coverage Validation Report
+        **Project:** payment-service
+        **Date:** 2024-02-24 14:32:15
+        **Target Coverage:** 75%
+        **Validation Status:** ✅ PASSED
+
+        ---
+
+        ## Executive Summary
+
+        | Metric | Value | Target | Status |
+        |--------|-------|--------|--------|
+        | Overall Coverage | 78.3% | 70-80% | ✅ PASS |
+        | Mutation Score | 87.2% | ≥80% | ✅ PASS |
+        | Tests Passing | 168/168 (100%) | 100% | ✅ PASS |
+        | Min Component Coverage | 72.1% (Repositories) | ≥60% | ✅ PASS |
+        | Avg Test Duration | 49ms | &lt;100ms | ✅ PASS |
+        | Flaky Tests | 0 | 0 | ✅ PASS |
+
+        **Overall Success Score:** 96.4/100 (Grade: A+)
+
+        ---
+
+        ## Coverage Breakdown
+
+        ### Overall Metrics
+        - **Lines Covered:** 1,203 / 1,537
+        - **Branches Covered:** 456 / 589 (77.4%)
+        - **Methods Covered:** 187 / 231 (80.9%)
+        - **Classes Covered:** 42 / 48 (87.5%)
+
+        ### Coverage by Component
+
+        | Component | Before | After | Improvement | Status |
+        |-----------|--------|-------|-------------|--------|
+        | PaymentController | 35% | 82% | +47% | ✅ Excellent |
+        | PaymentService | 55% | 85% | +30% | ✅ Excellent |
+        | RefundService | 30% | 75% | +45% | ✅ Good |
+        | PaymentValidator | 60% | 88% | +28% | ✅ Excellent |
+        | PaymentRepository | 45% | 72% | +27% | ✅ Good |
+
+        ### Coverage Progression
+
+        | Iteration | Coverage | Tests Added | Improvement |
+        |-----------|----------|-------------|-------------|
+        | Baseline | 42.0% | 0 | - |
+        | Iteration 1 | 68.2% | 127 | +26.2% |
+        | Iteration 2 | 76.1% | 23 | +7.9% |
+        | Iteration 3 | 78.3% | 18 | +2.2% |
+
+        ---
+
+        ## Test Quality Analysis
+
+        ### Mutation Testing Results
+        - **Total Mutants Generated:** 342
+        - **Mutants Killed:** 298 (87.2%)
+        - **Mutants Survived:** 44 (12.8%)
+        - **Timeout Mutants:** 0
+        - **No Coverage Mutants:** 0
+
+        **Mutation Score:** 87.2% ✅ (Target: ≥80%)
+
+        ### Survived Mutants Analysis
+        8 weak tests identified and enhanced:
+        1. PaymentServiceTests.ProcessPayment_ValidInput - Missing boundary assertion
+        2. RefundServiceTests.CalculateRefund - Missing null check validation
+        3. PaymentValidatorTests.ValidateAmount - Missing negative value test
+        ... (5 more)
+
+        **Action Taken:** All weak tests enhanced, new mutation score: 87.2%
+
+        ---
+
+        ## Test Execution Metrics
+
+        ### Performance
+        - **Total Tests:** 168
+        - **Total Duration:** 8,234ms
+        - **Average Duration:** 49ms per test
+        - **Slowest Test:** PaymentRepositoryTests.ConcurrentUpdate (234ms)
+        - **Tests >1s:** 0
+
+        ### Stability
+        - **Flaky Tests Detected:** 0
+        - **Stability Score:** 100%
+        - **Iterations Run:** 3
+        - **Consistent Results:** ✅ Yes
+
+        ### Test Distribution
+        - **Unit Tests:** 127 (75.6%)
+        - **Contract Tests:** 23 (13.7%)
+        - **Integration Tests:** 18 (10.7%)
+
+        ---
+
+        ## Success Criteria Validation
+
+        ### Critical Criteria (Must Pass)
+        ✅ **Coverage Target Met:** 78.3% within 70-80% range
+        ✅ **Test Quality Acceptable:** 87.2% mutation score ≥ 80%
+        ✅ **All Tests Pass:** 168/168 (100%)
+
+        ### Important Criteria
+        ✅ **No Component Gaps:** Minimum component coverage 72.1% ≥ 60%
+        ✅ **Performance Acceptable:** 49ms average &lt; 100ms
+        ✅ **No Flaky Tests:** 0 flaky tests detected
+
+        ### Success Score Calculation
+        Coverage Score:     100 × 0.40 = 40.0
+        Quality Score:      100 × 0.25 = 25.0
+        Success Rate Score: 100 × 0.15 = 15.0
+        Balance Score:      100 × 0.10 = 10.0
+        Performance Score:  100 × 0.05 = 5.0
+        Code Quality Score: 100 × 0.05 = 5.0
+        ─────────────────────────────────
+        Overall Score:                96.4/100
+        Grade:                        A+
+
+        ---
+
+        ## Validation Diagrams
+
+        ### Coverage Heatmap
+        ![Coverage Heatmap](diagrams/coverage-heatmap.png)
+
+        ### Coverage Progression
+        ![Coverage Progression](diagrams/coverage-progression.png)
+
+        ### Mutation Coverage
+        ![Mutation Coverage](diagrams/mutation-coverage.png)
+
+        ---
+
+        ## Recommendations
+
+        ### Strengths
+        ✅ Excellent overall coverage (78.3%)
+        ✅ High mutation score (87.2%)
+        ✅ All tests passing
+        ✅ Fast test execution (49ms avg)
+        ✅ No flaky tests
+
+        ### Areas for Improvement
+        ⚠️  Consider adding more edge case tests for RefundService (currently 75%)
+        ⚠️  PaymentRepository could benefit from additional concurrency tests
+
+        ### Next Steps
+        1. ✅ Coverage target achieved - ready for production
+        2. ✅ All quality gates passed
+        3. ✅ Tests are stable and performant
+        4. Recommended: Set up CI/CD coverage gates to maintain 70% minimum
+        5. Recommended: Enable mutation testing in CI/CD pipeline
+
+        ---
+
+        ## Conclusion
+
+        **Status:** ✅ SUCCESS
+
+        The test coverage improvement mission has been completed successfully. All critical criteria have been met:
+        - Coverage increased from 42% to 78.3% (+36.3 points)
+        - High-quality tests with 87.2% mutation score
+        - All 168 tests passing consistently
+        - No flaky tests or performance issues
+
+        The payment-service is now well-tested and ready for production deployment.
+
+        **Time Taken:** 45 minutes
+        **Human Input:** 1 command
+        **Tests Generated:** 168
+        **Artifacts Created:** 15 files + 8 diagrams
+    </div>
+</div>
+
+<h2>Continuous Validation During Execution</h2>
+
+<div class="validation-card">
+    <h3>Real-Time Coverage Monitoring</h3>
+    <div class="code-block">class ContinuousCoverageValidator:
+        def __init__(self, target_coverage=75):
+        self.target_coverage = target_coverage
+        self.baseline_coverage = None
+        self.coverage_history = []
+        self.validation_checkpoints = []
+
+        def validate_after_each_iteration(self, iteration_num):
+        """
+        Validate coverage after each test generation iteration
+        """
+
+        print(f"\n   📊 Validating iteration {iteration_num}...")
+
+        # 1. Run tests with coverage
+        test_run = self.run_tests_with_coverage()
+
+        # 2. Parse coverage
+        coverage = self.parse_and_calculate_coverage(test_run.coverage_file)
+
+        # 3. Store in history
+        self.coverage_history.append({
+        'iteration': iteration_num,
+        'coverage': coverage.overall,
+        'tests_count': test_run.tests_run,
+        'timestamp': datetime.now()
+        })
+
+        # 4. Calculate improvement
+        if iteration_num == 1:
+        improvement = coverage.overall - self.baseline_coverage
+        else:
+        previous = self.coverage_history[-2]['coverage']
+        improvement = coverage.overall - previous
+
+        print(f"   Coverage: {coverage.overall}% (+{improvement:.1f} points)")
+
+        # 5. Check if target reached
+        if coverage.overall >= self.target_coverage:
+        print(f"   ✅ Target coverage reached!")
+        return {
+        'target_reached': True,
+        'coverage': coverage.overall,
+        'iterations': iteration_num,
+        'continue': False
+        }
+
+        # 6. Check if making progress
+        if iteration_num > 1 and improvement < 1.0:
+        print(f"   ⚠️  Diminishing returns (improvement < 1%)")
+
+        # Check if close enough to target
+        gap = self.target_coverage - coverage.overall
+        if gap <= 3:
+        print(f"   ✓ Within 3% of target, accepting result")
+        return {
+        'target_reached': True,
+        'coverage': coverage.overall,
+        'iterations': iteration_num,
+        'continue': False,
+        'note': 'Accepted within tolerance'
+        }
+
+        # 7. Check iteration limit
+        if iteration_num >= 5:
+        print(f"   ⚠️  Maximum iterations reached")
+        return {
+        'target_reached': False,
+        'coverage': coverage.overall,
+        'iterations': iteration_num,
+        'continue': False,
+        'reason': 'Max iterations exceeded'
+        }
+
+        # 8. Continue to next iteration
+        print(f"   → Continuing to iteration {iteration_num + 1}")
+        return {
+        'target_reached': False,
+        'coverage': coverage.overall,
+        'iterations': iteration_num,
+        'continue': True
+        }
+
+        def validate_coverage_trend(self):
+        """
+        Validate that coverage is trending upward
+        """
+
+        if len(self.coverage_history) < 2:
+        return {'trending': 'unknown', 'valid': True}
+
+        # Calculate trend
+        recent_improvements = [
+        self.coverage_history[i]['coverage'] - self.coverage_history[i-1]['coverage']
+        for i in range(1, len(self.coverage_history))
+        ]
+
+        # Check if consistently improving
+        all_positive = all(imp >= 0 for imp in recent_improvements)
+
+        if all_positive:
+        return {
+        'trending': 'upward',
+        'valid': True,
+        'avg_improvement': sum(recent_improvements) / len(recent_improvements)
+        }
+        else:
+        # Coverage decreased - something is wrong
+        return {
+        'trending': 'downward',
+        'valid': False,
+        'message': 'Coverage decreased - possible test deletion or code changes'
+        }
+
+        def generate_coverage_progression_chart(self):
+        """
+        Generate Mermaid chart showing coverage progression
+        """
+
+        chart = "graph LR\n"
+
+        for i, entry in enumerate(self.coverage_history):
+        node_id = f"I{entry['iteration']}"
+        label = f"Iteration {entry['iteration']}: {entry['coverage']}%"
+
+        # Color based on coverage level
+        if entry['coverage'] >= self.target_coverage:
+        style = "fill:#6bcf7f"  # Green
+        elif entry['coverage'] >= self.target_coverage - 10:
+        style = "fill:#ffd93d"  # Yellow
+        else:
+        style = "fill:#ff6b6b"  # Red
+
+        chart += f'    {node_id}["{label}"]\n'
+
+        if i > 0:
+        prev_node = f"I{self.coverage_history[i-1]['iteration']}"
+        chart += f'    {prev_node} --> {node_id}\n'
+
+        chart += f'    style {node_id} {style}\n'
+
+        return chart</div>
+</div>
+
+<h2>Success Determination Decision Tree</h2>
+
+<div class="validation-card">
+    <h3>Automated Success Logic</h3>
+    <div class="code-block">def determine_final_success(self, validation_results):
+        """
+        Final success determination with detailed reasoning
+        """
+
+        decision_tree = {
+        'coverage_check': None,
+        'quality_check': None,
+        'stability_check': None,
+        'performance_check': None,
+        'final_decision': None
+        }
+
+        # ============================================================
+        # CHECK 1: Coverage Target (CRITICAL - 40% weight)
+        # ============================================================
+        coverage = validation_results.coverage.overall
+        target = self.target_coverage
+
+        if target - 5 <= coverage <= target + 5:
+        decision_tree['coverage_check'] = {
+        'status': 'PASS',
+        'score': 100,
+        'message': f'Coverage {coverage}% within target range {target-5}%-{target+5}%'
+        }
+        elif coverage > target + 5:
+        decision_tree['coverage_check'] = {
+        'status': 'PASS',
+        'score': 100,
+        'message': f'Coverage {coverage}% exceeds target {target}%',
+        'warning': 'May indicate over-testing'
+        }
+        elif coverage >= target - 10:
+        decision_tree['coverage_check'] = {
+        'status': 'MARGINAL',
+        'score': 80,
+        'message': f'Coverage {coverage}% close to target {target}%',
+        'recommendation': 'Add 5-10 more tests'
+        }
+        else:
+        decision_tree['coverage_check'] = {
+        'status': 'FAIL',
+        'score': (coverage / target) * 100,
+        'message': f'Coverage {coverage}% significantly below target {target}%',
+        'action_required': 'Generate additional tests'
+        }
+
+        # ============================================================
+        # CHECK 2: Test Quality (CRITICAL - 25% weight)
+        # ============================================================
+        mutation_score = validation_results.mutation_score
+
+        if mutation_score >= 85:
+        decision_tree['quality_check'] = {
+        'status': 'PASS',
+        'score': 100,
+        'message': f'Excellent mutation score: {mutation_score}%'
+        }
+        elif mutation_score >= 80:
+        decision_tree['quality_check'] = {
+        'status': 'PASS',
+        'score': 95,
+        'message': f'Good mutation score: {mutation_score}%'
+        }
+        elif mutation_score >= 70:
+        decision_tree['quality_check'] = {
+        'status': 'MARGINAL',
+        'score': 80,
+        'message': f'Acceptable mutation score: {mutation_score}%',
+        'recommendation': 'Enhance weak tests'
+        }
+        else:
+        decision_tree['quality_check'] = {
+        'status': 'FAIL',
+        'score': mutation_score,
+        'message': f'Poor mutation score: {mutation_score}%',
+        'action_required': 'Strengthen test assertions'
+        }
+
+        # ============================================================
+        # CHECK 3: Test Stability (IMPORTANT - 15% weight)
+        # ============================================================
+        pass_rate = (
+        validation_results.test_results.passed /
+        validation_results.test_results.total
+        ) * 100
+
+        flaky_count = validation_results.flaky_tests.flaky_count
+
+        if pass_rate == 100 and flaky_count == 0:
+        decision_tree['stability_check'] = {
+        'status': 'PASS',
+        'score': 100,
+        'message': 'All tests passing, no flaky tests'
+        }
+        elif pass_rate == 100 and flaky_count <= 2:
+        decision_tree['stability_check'] = {
+        'status': 'MARGINAL',
+        'score': 90,
+        'message': f'{flaky_count} flaky tests detected',
+        'recommendation': 'Fix flaky tests'
+        }
+        else:
+        decision_tree['stability_check'] = {
+        'status': 'FAIL',
+        'score': pass_rate,
+        'message': f'{validation_results.test_results.failed} tests failing',
+        'action_required': 'Fix failing tests'
+        }
+
+        # ============================================================
+        # CHECK 4: Component Balance (IMPORTANT - 10% weight)
+        # ============================================================
+        component_coverage = validation_results.coverage.by_component
+        min_component = min(component_coverage.values())
+        min_component_name = min(component_coverage, key=component_coverage.get)
+
+        if min_component >= 70:
+        decision_tree['performance_check'] = {
+        'status': 'PASS',
+        'score': 100,
+        'message': f'All components well-tested (min: {min_component}%)'
+        }
+        elif min_component >= 60:
+        decision_tree['performance_check'] = {
+        'status': 'PASS',
+        'score': 90,
+        'message': f'All components above threshold (min: {min_component_name} at {min_component}%)'
+        }
+        elif min_component >= 50:
+        decision_tree['performance_check'] = {
+        'status': 'MARGINAL',
+        'score': 75,
+        'message': f'{min_component_name} coverage low: {min_component}%',
+        'recommendation': f'Add tests for {min_component_name}'
+        }
+        else:
+        decision_tree['performance_check'] = {
+        'status': 'FAIL',
+        'score': min_component,
+        'message': f'{min_component_name} critically low: {min_component}%',
+        'action_required': f'Generate tests for {min_component_name}'
+        }
+
+        # ============================================================
+        # FINAL DECISION CALCULATION
+        # ============================================================
+
+        # All critical checks must pass
+        critical_pass = (
+        decision_tree['coverage_check']['status'] in ['PASS', 'MARGINAL'] and
+        decision_tree['quality_check']['status'] in ['PASS', 'MARGINAL'] and
+        decision_tree['stability_check']['status'] == 'PASS'
+        )
+
+        # Calculate weighted score
+        weighted_score = (
+        decision_tree['coverage_check']['score'] * 0.40 +
+        decision_tree['quality_check']['score'] * 0.25 +
+        decision_tree['stability_check']['score'] * 0.15 +
+        decision_tree['performance_check']['score'] * 0.10 +
+        100 * 0.05 +  # Performance (assume pass)
+        100 * 0.05    # Code quality (assume pass)
+        )
+
+        # Determine final success
+        if critical_pass and weighted_score >= 90:
+        decision_tree['final_decision'] = {
+        'success': True,
+        'score': weighted_score,
+        'grade': self.calculate_grade(weighted_score),
+        'message': 'All success criteria met',
+        'ready_for_production': True
+        }
+        elif critical_pass and weighted_score >= 80:
+        decision_tree['final_decision'] = {
+        'success': True,
+        'score': weighted_score,
+        'grade': self.calculate_grade(weighted_score),
+        'message': 'Success criteria met with minor warnings',
+        'ready_for_production': True,
+        'warnings': self.collect_warnings(decision_tree)
+        }
+        else:
+        decision_tree['final_decision'] = {
+        'success': False,
+        'score': weighted_score,
+        'grade': self.calculate_grade(weighted_score),
+        'message': 'Success criteria not met',
+        'ready_for_production': False,
+        'failures': self.collect_failures(decision_tree),
+        'action_required': self.generate_action_plan(decision_tree)
+        }
+
+        return decision_tree</div>
+</div>
+
+<h2>Validation Failure Handling</h2>
+
+<div class="section-card">
+    <h3>Automatic Remediation Strategies</h3>
+
+    <table>
+        <thead>
+        <tr>
+            <th>Failure Type</th>
+            <th>Detection</th>
+            <th>Automatic Remediation</th>
+            <th>Fallback</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+            <td><strong>Coverage Below Target</strong></td>
+            <td>coverage &lt; target - 5%</td>
+            <td>
+                <div class="code-block" style="font-size: 0.8em; margin: 5px 0;">1. Identify remaining gaps
+                    2. Generate additional test scenarios
+                    3. Prioritize by complexity
+                    4. Generate tests for top 20 gaps
+                    5. Re-measure coverage
+                    6. Repeat if needed (max 5 iterations)</div>
+            </td>
+            <td>Accept if within 3% of target after 5 iterations</td>
+        </tr>
+        <tr>
+            <td><strong>Low Mutation Score</strong></td>
+            <td>mutation_score &lt; 80%</td>
+            <td>
+                <div class="code-block" style="font-size: 0.8em; margin: 5px 0;">1. Analyze survived mutants
+                    2. Identify weak assertions
+                    3. Enhance tests with better assertions
+                    4. Add missing edge case tests
+                    5. Re-run mutation testing
+                    6. Verify improvement</div>
+            </td>
+            <td>Accept if ≥70% and document weak areas</td>
+        </tr>
+        <tr>
+            <td><strong>Failing Tests</strong></td>
+            <td>pass_rate &lt; 100%</td>
+            <td>
+                <div class="code-block" style="font-size: 0.8em; margin: 5px 0;">1. Parse test failure messages
+                    2. Analyze failure cause
+                    3. Fix test code or implementation
+                    4. Re-run tests
+                    5. Verify all pass</div>
+            </td>
+            <td>Rollback failing tests, document issue</td>
+        </tr>
+        <tr>
+            <td><strong>Flaky Tests</strong></td>
+            <td>flaky_count &gt; 0</td>
+            <td>
+                <div class="code-block" style="font-size: 0.8em; margin: 5px 0;">1. Identify flaky test cause
+                    2. Fix time dependencies (use fixed time)
+                    3. Fix random dependencies (use seeded random)
+                    4. Fix async issues (proper awaits)
+                    5. Re-run stability check</div>
+            </td>
+            <td>Mark as flaky, exclude from coverage calculation</td>
+        </tr>
+        <tr>
+            <td><strong>Component Gap</strong></td>
+            <td>min_component &lt; 60%</td>
+            <td>
+                <div class="code-block" style="font-size: 0.8em; margin: 5px 0;">1. Focus on low-coverage component
+                    2. Generate targeted tests
+                    3. Prioritize critical methods
+                    4. Re-measure component coverage
+                    5. Verify improvement</div>
+            </td>
+            <td>Document component as low-priority if non-critical</td>
+        </tr>
+        <tr>
+            <td><strong>Slow Tests</strong></td>
+            <td>avg_duration &gt; 100ms</td>
+            <td>
+                <div class="code-block" style="font-size: 0.8em; margin: 5px 0;">1. Identify slow tests
+                    2. Optimize setup/teardown
+                    3. Use test fixtures for shared setup
+                    4. Replace real dependencies with mocks in unit tests
+                    5. Re-measure performance</div>
+            </td>
+            <td>Accept if &lt;200ms, document slow tests</td>
+        </tr>
+        </tbody>
+    </table>
+</div>
+
+<h2>Example: Real-Time Validation Output</h2>
+
+<div class="section-card">
+    <h3>Console Output During Validation</h3>
+    <div class="code-block" style="background: #1e1e1e; color: #d4d4d4;">
+        🔍 Executing validation pipeline...
+
+        Step 1: Running tests with coverage instrumentation...
+        $ dotnet test /p:CollectCoverage=true /p:CoverletOutputFormat=opencover
+
+        ✓ Tests executed: 168
+        ✓ Tests passed: 168
+        ✓ Duration: 8234ms
+        ✓ Coverage file: coverage.opencover.xml
+
+        Step 2: Parsing coverage report...
+        ✓ XML parsed successfully
+        ✓ Overall coverage: 78.3%
+        ✓ Coverage by component:
+        - PaymentController: 82.0%
+        - PaymentService: 85.0%
+        - RefundService: 75.0%
+        - PaymentValidator: 88.0%
+        - PaymentRepository: 72.1%
+
+        Validating coverage integrity...
+        ✓ File exists and is fresh (12s old)
+        ✓ XML structure valid
+        ✓ Metrics reasonable (1203/1537 lines)
+        ✓ All source files included
+        ✓ Coverage increased from baseline (42% → 78.3%)
+
+        Step 3: Running mutation testing...
+        $ dotnet stryker
+
+        Stryker.NET is running...
+        [====================] 100% | ETA: 00:00:00
+
+        ✓ Mutation score: 87.2%
+        ✓ Mutants killed: 298/342
+        ✓ Mutants survived: 44
+
+        Analyzing survived mutants...
+        ⚠️  8 weak tests identified:
+        - PaymentServiceTests.ProcessPayment_ValidInput
+        - RefundServiceTests.CalculateRefund
+        ... (6 more)
+
+        Enhancing weak tests...
+        ✓ Enhanced 8 tests with better assertions
+
+        Re-running mutation testing...
+        ✓ New mutation score: 87.2% (no change - acceptable)
+
+        Step 4: Detecting flaky tests...
+        Running tests 3 times...
+
+        Iteration 1: 168/168 passed
+        Iteration 2: 168/168 passed
+        Iteration 3: 168/168 passed
+
+        ✓ No flaky tests detected
+        ✓ Stability score: 100%
+
+        Step 5: Analyzing test performance...
+        ✓ Total duration: 8,234ms
+        ✓ Average per test: 49ms
+        ✓ Slowest test: PaymentRepositoryTests.ConcurrentUpdate (234ms)
+        ✓ Tests >1s: 0
+        ✓ Performance: EXCELLENT
+
+        Step 6: Calculating success score...
+
+        Dimension Scores:
+        - coverage: 100/100 (78.3% in target range)
+        - quality: 100/100 (87.2% mutation score)
+        - success_rate: 100/100 (168/168 passing)
+        - balance: 100/100 (min component 72.1%)
+        - performance: 100/100 (49ms avg)
+        - code_quality: 100/100 (0 flaky tests)
+
+        Overall Success Score: 96.4/100
+        Grade: A+
+
+        Step 7: Generating validation report...
+        ✓ Validation report saved to specs/test-coverage-improvement/validation-report.md
+        ✓ 8 validation diagrams generated
+
+        ============================================================
+        ✅ VALIDATION PASSED - Mission successful!
+        ============================================================
+
+        Success Criteria:
+        ✅ Coverage target met: 78.3% (target: 75%)
+        ✅ Test quality acceptable: 87.2% mutation score
+        ✅ All tests passing: 168/168 (100%)
+        ✅ No component gaps: minimum 72.1%
+        ✅ Performance acceptable: 49ms average
+        ✅ No flaky tests: 0 detected
+
+        Overall Score: 96.4/100 (Grade: A+)
+
+        Ready for production: YES
+    </div>
+</div>
+
+<h2>Validation Failure Example</h2>
+
+<div class="section-card">
+    <h3>When Validation Fails</h3>
+    <div class="code-block" style="background: #1e1e1e; color: #d4d4d4;">
+        🔍 Executing validation pipeline...
+
+        Step 1: Running tests with coverage instrumentation...
+        ✓ Tests executed: 142
+        ✓ Tests passed: 138
+        ❌ Tests failed: 4
+        ✓ Duration: 6543ms
+
+        Step 2: Parsing coverage report...
+        ✓ Overall coverage: 67.8%
+        ⚠️  Coverage below target: 67.8% < 70%
+
+        Step 3: Running mutation testing...
+        ✓ Mutation score: 72.3%
+        ⚠️  Mutation score below target: 72.3% < 80%
+        ⚠️  23 weak tests identified
+
+        Step 6: Calculating success score...
+
+        Dimension Scores:
+        - coverage: 77/100 (67.8% below target)
+        - quality: 81/100 (72.3% mutation score)
+        - success_rate: 97/100 (138/142 passing)
+        - balance: 85/100 (min component 58%)
+        - performance: 100/100 (46ms avg)
+        - code_quality: 100/100 (0 flaky tests)
+
+        Overall Success Score: 84.2/100
+        Grade: B
+
+        ============================================================
+        ❌ VALIDATION FAILED - Criteria not met
+        ============================================================
+
+        Failures:
+        ❌ Coverage below target: 67.8% < 70%
+        ❌ Test quality insufficient: 72.3% < 80%
+        ❌ 4 tests failing
+
+        Warnings:
+        ⚠️  RefundService coverage low: 58%
+
+        Action Plan:
+        1. Fix 4 failing tests
+        2. Generate 15-20 additional tests to reach 75% coverage
+        3. Enhance 23 weak tests to improve mutation score
+        4. Focus on RefundService (currently 58%)
+
+        Estimated time to fix: 15 minutes
+
+        Would you like me to:
+        [A] Auto-fix issues and retry validation
+        [B] Generate detailed failure report
+        [C] Abort mission
+
+        Selecting: [A] Auto-fix issues and retry validation
+
+        🔧 Auto-fixing issues...
+
+        Fixing failing tests...
+        ✓ Fixed PaymentServiceTests.ProcessPayment_Timeout
+        ✓ Fixed RefundServiceTests.CalculateRefund_NullInput
+        ✓ Fixed PaymentValidatorTests.Validate_InvalidCurrency
+        ✓ Fixed PaymentRepositoryTests.Save_DuplicateId
+
+        Generating additional tests for coverage gaps...
+        ✓ Generated 18 additional tests
+
+        Enhancing weak tests...
+        ✓ Enhanced 23 tests with better assertions
+
+        Re-running validation pipeline...
+
+        ✓ Coverage: 76.2% ✅
+        ✓ Mutation score: 83.1% ✅
+        ✓ All tests passing: 160/160 ✅
+
+        Overall Success Score: 94.1/100 (Grade: A)
+
+        ============================================================
+        ✅ VALIDATION PASSED - Mission successful after auto-fix!
+        ============================================================
+    </div>
+</div>
+
+<h2>Validation Artifacts Generated</h2>
+
+<div class="section-card">
+    <h3>Complete Validation Output</h3>
+    <div class="code-block">specs/test-coverage-improvement/
+        ├── validation-report.md              # Comprehensive validation report
+        ├── coverage-analysis.md              # Detailed coverage breakdown
+        ├── mutation-report.md                # Mutation testing results
+        ├── performance-analysis.md           # Test performance metrics
+        ├── success-criteria.json             # Machine-readable success data
+        ├── diagrams/
+        │   ├── coverage-heatmap.mmd          # Visual coverage by component
+        │   ├── coverage-progression.mmd      # Coverage over iterations
+        │   ├── mutation-coverage.mmd         # Mutation score visualization
+        │   ├── test-distribution.mmd         # Test type distribution
+        │   ├── component-coverage.mmd        # Component-level coverage
+        │   ├── coverage-trend.mmd            # Trend analysis
+        │   ├── success-score.mmd             # Success score breakdown
+        │   └── validation-matrix.mmd         # Validation criteria matrix
+        └── raw-data/
+        ├── coverage.opencover.xml        # Raw coverage data
+        ├── test-results.trx              # Raw test results
+        ├── mutation-report.json          # Raw mutation data
+        └── performance-metrics.json      # Raw performance data</div>
+
+    <div class="info-box">
+        <strong>Machine-Readable Success Data:</strong>
+        <div class="code-block" style="margin-top: 10px;">{
+            "validation_timestamp": "2024-02-24T14:32:15Z",
+            "project": "payment-service",
+            "target_coverage": 75,
+            "success": true,
+            "overall_score": 96.4,
+            "grade": "A+",
+            "metrics": {
+            "coverage": {
+            "overall": 78.3,
+            "by_component": {
+            "PaymentController": 82.0,
+            "PaymentService": 85.0,
+            "RefundService": 75.0,
+            "PaymentValidator": 88.0,
+            "PaymentRepository": 72.1
+            },
+            "baseline": 42.0,
+            "improvement": 36.3
+            },
+            "quality": {
+            "mutation_score": 87.2,
+            "tests_total": 168,
+            "tests_passed": 168,
+            "tests_failed": 0,
+            "flaky_tests": 0
+            },
+            "performance": {
+            "total_duration_ms": 8234,
+            "avg_duration_ms": 49,
+            "slow_tests_count": 0
+            }
+            },
+            "criteria_met": {
+            "coverage_target_met": true,
+            "quality_acceptable": true,
+            "all_tests_pass": true,
+            "no_component_gaps": true,
+            "performance_acceptable": true,
+            "no_flaky_tests": true
+            },
+            "ready_for_production": true
+            }</div>
+    </div>
+</div>
+
+<div class="success-box" style="margin-top: 25px;">
+    <h3 style="margin-bottom: 10px;">Key Validation Principles</h3>
+    <ul class="tool-list">
+        <li><strong>Multi-Dimensional:</strong> Coverage percentage alone is insufficient - validate quality, stability, and performance</li>
+        <li><strong>Automated Measurement:</strong> Use language-specific coverage tools, parse reports programmatically</li>
+        <li><strong>Mutation Testing:</strong> Validate tests actually catch bugs, not just execute code</li>
+        <li><strong>Continuous Monitoring:</strong> Validate after each iteration, track trends</li>
+        <li><strong>Integrity Checks:</strong> Verify coverage reports are accurate and not corrupted</li>
+        <li><strong>Auto-Remediation:</strong> Automatically fix common issues and retry validation</li>
+        <li><strong>Weighted Scoring:</strong> Critical criteria (coverage, quality, stability) weighted higher</li>
+        <li><strong>Clear Success Criteria:</strong> 90+ overall score with all critical checks passing</li>
+    </ul>
+</div>
+
+<div class="info-box" style="margin-top: 25px;">
+    <h3 style="margin-bottom: 10px;">Why This Validation Approach Works</h3>
+    <p><strong>Traditional Approach:</strong> Developers manually check coverage percentage, often accepting low-quality tests that inflate numbers.</p>
+    <p style="margin-top: 10px;"><strong>Spec-Kit Approach:</strong> Multi-dimensional validation ensures coverage is meaningful:</p>
+    <ul class="tool-list" style="margin-top: 10px;">
+        <li>Coverage percentage validates quantity</li>
+        <li>Mutation testing validates quality</li>
+        <li>Flaky test detection validates stability</li>
+        <li>Component balance prevents gaps</li>
+        <li>Performance analysis ensures maintainability</li>
+        <li>Automated remediation fixes issues without human intervention</li>
+    </ul>
+    <p style="margin-top: 10px;"><strong>Result:</strong> 78% coverage with 87% mutation score is far more valuable than 90% coverage with 60% mutation score.</p>
+</div>
+</div>
+</body>
+</html>
+

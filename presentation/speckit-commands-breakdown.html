@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spec-Kit Commands: Complete Breakdown</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.4;
+            color: #2c3e50;
+            background: #f8f9fa;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 15px;
+            color: #1a1a1a;
+            border-bottom: 4px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        .intro {
+            background: white;
+            padding: 20px;
+            border-radius: 6px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+
+        .workflow-diagram {
+            background: white;
+            padding: 25px;
+            border-radius: 6px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+
+        .command-card {
+            background: white;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-radius: 6px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            border-left: 6px solid #3498db;
+        }
+
+        .command-card.validation {
+            border-left-color: #e67e22;
+        }
+
+        .command-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #ecf0f1;
+        }
+
+        .command-number {
+            width: 50px;
+            height: 50px;
+            background: #3498db;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+
+        .command-number.validation {
+            background: #e67e22;
+        }
+
+        .command-title {
+            flex: 1;
+        }
+
+        .command-name {
+            font-size: 1.8em;
+            font-weight: 600;
+            color: #1a1a1a;
+            font-family: 'Courier New', monospace;
+            margin-bottom: 5px;
+        }
+
+        .command-tagline {
+            font-size: 1.1em;
+            color: #7f8c8d;
+        }
+
+        .validation-badge {
+            display: inline-block;
+            background: #e67e22;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            margin-left: 10px;
+            font-weight: 600;
+        }
+
+        .section {
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+        }
+
+        .section-title:before {
+            content: "▸";
+            color: #3498db;
+            margin-right: 8px;
+            font-weight: bold;
+        }
+
+        .section-content {
+            padding-left: 20px;
+        }
+
+        .code-block {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.95em;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+
+        .code-inline {
+            background: #ecf0f1;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            color: #e74c3c;
+        }
+
+        ul {
+            list-style: none;
+            margin: 8px 0;
+        }
+
+        ul li {
+            padding: 5px 0;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        ul li:before {
+            content: "•";
+            position: absolute;
+            left: 0;
+            color: #3498db;
+            font-weight: bold;
+        }
+
+        .workflow-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin: 15px 0;
+        }
+
+        .workflow-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid #3498db;
+        }
+
+        .workflow-item strong {
+            display: block;
+            margin-bottom: 5px;
+            color: #2c3e50;
+        }
+
+        .output-box {
+            background: #e8f4f8;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid #3498db;
+            margin: 10px 0;
+        }
+
+        .output-box strong {
+            display: block;
+            margin-bottom: 8px;
+            color: #2c3e50;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background: #3498db;
+            color: white;
+            font-weight: 600;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        .highlight-box {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+
+        .success-box {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+
+        .info-box {
+            background: #e8f4f8;
+            border-left: 4px solid #3498db;
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+
+        .warning-box {
+            background: #ffe5d0;
+            border-left: 4px solid #e67e22;
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+
+        .comparison-table {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin: 15px 0;
+        }
+
+        .comparison-col {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+        }
+
+        .comparison-col h4 {
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+
+        .flow-diagram {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            flex-wrap: wrap;
+        }
+
+        .flow-step {
+            flex: 1;
+            min-width: 150px;
+            text-align: center;
+            padding: 15px;
+            background: white;
+            border-radius: 4px;
+            margin: 5px;
+            border-left: 4px solid #3498db;
+        }
+
+        .flow-step.validation {
+            border-left-color: #e67e22;
+        }
+
+        .flow-arrow {
+            font-size: 1.5em;
+            color: #bdc3c7;
+            margin: 0 5px;
+        }
+
+        @media (max-width: 768px) {
+            .workflow-grid, .comparison-table {
+                grid-template-columns: 1fr;
+            }
+
+            .flow-diagram {
+                flex-direction: column;
+            }
+
+            .flow-arrow {
+                transform: rotate(90deg);
+                margin: 10px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Spec-Kit Commands: Complete Breakdown</h1>
+
+    <div class="intro">
+        <p style="font-size: 1.15em; margin-bottom: 10px;">Spec-Kit provides six core commands that orchestrate the Specification-Driven Development workflow. Each command automates a critical phase of the development process, from establishing governance principles to generating executable code.</p>
+        <p style="font-size: 1.05em; color: #7f8c8d;">These commands transform a 12-hour manual specification process into a 15-minute automated workflow.</p>
+    </div>
+
+    <div class="workflow-diagram">
+        <h2 style="margin-bottom: 15px; border-bottom: 2px solid #3498db; padding-bottom: 8px;">Complete Workflow Sequence</h2>
+        <div class="flow-diagram">
+            <div class="flow-step">
+                <strong>1. Constitution</strong>
+                <p style="font-size: 0.9em; color: #7f8c8d; margin-top: 5px;">Establish governance</p>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step">
+                <strong>2. Specify</strong>
+                <p style="font-size: 0.9em; color: #7f8c8d; margin-top: 5px;">Create feature spec</p>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step">
+                <strong>3. Clarify</strong>
+                <p style="font-size: 0.9em; color: #7f8c8d; margin-top: 5px;">Eliminate ambiguities</p>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step">
+                <strong>4. Plan</strong>
+                <p style="font-size: 0.9em; color: #7f8c8d; margin-top: 5px;">Generate architecture</p>
+            </div>
+        </div>
+        <div class="flow-diagram" style="margin-top: 10px;">
+            <div class="flow-step">
+                <strong>5. Tasks</strong>
+                <p style="font-size: 0.9em; color: #7f8c8d; margin-top: 5px;">Create task breakdown</p>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step validation">
+                <strong>5.5. Analyze</strong>
+                <p style="font-size: 0.9em; color: #7f8c8d; margin-top: 5px;">Validate consistency</p>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step">
+                <strong>6. Implement</strong>
+                <p style="font-size: 0.9em; color: #7f8c8d; margin-top: 5px;">Execute implementation</p>
+            </div>
+        </div>
+        <div class="info-box" style="margin-top: 15px;">
+            <strong>Critical Validation Gate:</strong> /speckit.analyze (Step 5.5) performs cross-artifact consistency and coverage analysis before implementation. This catches specification issues that would be expensive to fix in code.
+        </div>
+    </div>
+
+    <!-- Command 1: Constitution -->
+    <div class="command-card">
+        <div class="command-header">
+            <div class="command-number">1</div>
+            <div class="command-title">
+                <div class="command-name">/speckit.constitution</div>
+                <div class="command-tagline">Establish Architectural Governance</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Purpose</div>
+            <div class="section-content">
+                <p>Creates or updates the project's constitutional principles that govern all subsequent development decisions. This is the foundational step that ensures consistency, quality, and architectural integrity across all generated code.</p>
+                <div class="warning-box" style="margin-top: 10px;">
+                    <strong>ALWAYS FIRST:</strong> The constitution must be established before any other Spec-Kit commands. It defines the rules that all subsequent specifications, plans, and implementations must follow.
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">When to Use</div>
+            <div class="section-content">
+                <ul>
+                    <li>At the very beginning of a new project (before any other commands)</li>
+                    <li>When establishing organizational development standards</li>
+                    <li>When refining architectural principles based on learnings</li>
+                    <li>Before any feature specifications are created</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Example Usage</div>
+            <div class="section-content">
+                <div class="code-block">/speckit.constitution Create principles focused on code quality, testing standards, user experience consistency, and performance requirements. Include governance for how these principles should guide technical decisions and implementation choices.</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">What It Does</div>
+            <div class="section-content">
+                <div class="workflow-grid">
+                    <div class="workflow-item">
+                        <strong>1. Analyzes Requirements</strong>
+                        Interprets your governance needs and organizational constraints
+                    </div>
+                    <div class="workflow-item">
+                        <strong>2. Generates Constitution</strong>
+                        Creates structured articles covering architecture, testing, simplicity, etc.
+                    </div>
+                    <div class="workflow-item">
+                        <strong>3. Defines Gates</strong>
+                        Establishes checkpoints that all implementations must pass
+                    </div>
+                    <div class="workflow-item">
+                        <strong>4. Creates Amendment Process</strong>
+                        Documents how principles can evolve over time
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Output</div>
+            <div class="section-content">
+                <div class="output-box">
+                    <strong>File Created:</strong>
+                    <code class="code-inline">.specify/memory/constitution.md</code>
+                    <p style="margin-top: 8px;">Contains nine articles defining immutable principles:</p>
+                    <ul style="margin-top: 5px;">
+                        <li>Article I: Library-First Principle</li>
+                        <li>Article II: CLI Interface Mandate</li>
+                        <li>Article III: Test-First Imperative</li>
+                        <li>Article VII: Simplicity and Minimal Complexity</li>
+                        <li>Article VIII: Anti-Abstraction Principle</li>
+                        <li>Article IX: Integration-First Testing</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Key Constitutional Principles</div>
+            <div class="section-content">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>Article</th>
+                        <th>Principle</th>
+                        <th>Enforcement</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr>
+                        <td>I</td>
+                        <td>Every feature must begin as a standalone library</td>
+                        <td>Modularity by default</td>
+                    </tr>
+                    <tr>
+                        <td>II</td>
+                        <td>All functionality exposed via CLI (text in/out)</td>
+                        <td>Observability and testability</td>
+                    </tr>
+                    <tr>
+                        <td>III</td>
+                        <td>No code before tests (strict TDD)</td>
+                        <td>Quality built-in from start</td>
+                    </tr>
+                    <tr>
+                        <td>VII</td>
+                        <td>Maximum 3 projects initially</td>
+                        <td>Simplicity over complexity</td>
+                    </tr>
+                    <tr>
+                        <td>VIII</td>
+                        <td>Use frameworks directly, no wrappers</td>
+                        <td>Avoid over-abstraction</td>
+                    </tr>
+                    <tr>
+                        <td>IX</td>
+                        <td>Real databases over mocks</td>
+                        <td>Integration-first testing</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Business Impact</div>
+            <div class="section-content">
+                <div class="success-box">
+                    <strong>Ensures:</strong> Consistent architecture across all teams, systematic quality enforcement, reduced technical debt, and maintainable codebases that follow proven patterns.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Command 2: Specify -->
+    <div class="command-card">
+        <div class="command-header">
+            <div class="command-number">2</div>
+            <div class="command-title">
+                <div class="command-name">/speckit.specify</div>
+                <div class="command-tagline">Create Feature Specification</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Purpose</div>
+            <div class="section-content">
+                <p>Transforms a natural language feature description into a complete, structured specification with automatic repository management. This is where business requirements become formalized, testable specifications.</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">When to Use</div>
+            <div class="section-content">
+                <ul>
+                    <li>When starting a new feature or project</li>
+                    <li>After constitutional principles are established</li>
+                    <li>When you have a clear idea of WHAT to build (not HOW)</li>
+                    <li>Before any technical planning or architecture decisions</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Example Usage</div>
+            <div class="section-content">
+                <div class="code-block">/speckit.specify Real-time chat system with message history and user presence tracking. Users should be able to send messages, see who's online, and view conversation history. Support for 10K concurrent users.</div>
+                <div class="highlight-box">
+                    <strong>Important:</strong> Focus on WHAT and WHY, not HOW. Do not mention tech stack, frameworks, or implementation details at this stage.
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">What It Does</div>
+            <div class="section-content">
+                <div class="workflow-grid">
+                    <div class="workflow-item">
+                        <strong>1. Auto-Numbers Feature</strong>
+                        Scans existing specs to determine next feature number (001, 002, 003...)
+                    </div>
+                    <div class="workflow-item">
+                        <strong>2. Creates Branch</strong>
+                        Generates semantic branch name from description (e.g., "003-chat-system")
+                    </div>
+                    <div class="workflow-item">
+                        <strong>3. Generates Specification</strong>
+                        Copies and customizes feature template with your requirements
+                    </div>
+                    <div class="workflow-item">
+                        <strong>4. Structures Content</strong>
+                        Creates user stories, acceptance criteria, and non-functional requirements
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Output</div>
+            <div class="section-content">
+                <div class="output-box">
+                    <strong>Files Created:</strong>
+                    <div class="code-block">specs/003-chat-system/
+                        └── spec.md  # Complete feature specification</div>
+                    <p style="margin-top: 10px;"><strong>Git Branch Created:</strong> <code class="code-inline">003-chat-system</code></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Business Impact</div>
+            <div class="section-content">
+                <div class="success-box">
+                    <strong>Reduces:</strong> Specification time from 2-3 hours to 5 minutes. Creates traceable, version-controlled requirements that stay in sync with code.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Command 3: Clarify -->
+    <div class="command-card">
+        <div class="command-header">
+            <div class="command-number">3</div>
+            <div class="command-title">
+                <div class="command-name">/speckit.clarify</div>
+                <div class="command-tagline">Structured Specification Refinement</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Purpose</div>
+            <div class="section-content">
+                <p>Conducts sequential, coverage-based questioning to eliminate all ambiguities from the specification before technical planning begins. This critical step prevents downstream rework and ensures specifications are complete and unambiguous.</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">When to Use</div>
+            <div class="section-content">
+                <ul>
+                    <li>Immediately after creating a specification with /speckit.specify</li>
+                    <li>Before generating any implementation plans</li>
+                    <li>When [NEEDS CLARIFICATION] markers exist in the spec</li>
+                    <li>To validate completeness of requirements</li>
+                </ul>
+                <div class="highlight-box">
+                    <strong>Critical:</strong> This step is mandatory before planning. Skipping it leads to implementation plans with hidden assumptions and increased rework.
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Example Usage</div>
+            <div class="section-content">
+                <div class="code-block">/speckit.clarify</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Business Impact</div>
+            <div class="section-content">
+                <div class="success-box">
+                    <strong>Prevents:</strong> 80% of rework caused by ambiguous requirements. Ensures alignment between stakeholders before expensive implementation begins.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Command 4: Plan -->
+    <div class="command-card">
+        <div class="command-header">
+            <div class="command-number">4</div>
+            <div class="command-title">
+                <div class="command-name">/speckit.plan</div>
+                <div class="command-tagline">Generate Implementation Plan</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Purpose</div>
+            <div class="section-content">
+                <p>Transforms business requirements into a detailed technical implementation plan with architecture decisions, technology choices, and supporting documentation. This is where you specify the HOW after clarifying the WHAT.</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">When to Use</div>
+            <div class="section-content">
+                <ul>
+                    <li>After specification is complete and clarified</li>
+                    <li>When ready to make technical architecture decisions</li>
+                    <li>After constitutional principles are established</li>
+                    <li>Before task breakdown and implementation</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Example Usage</div>
+            <div class="section-content">
+                <div class="code-block">/speckit.plan We are going to generate this using .NET Aspire, using Postgres as the database. The frontend should use Blazor server with drag-and-drop task boards, real-time updates. There should be a REST API created with a projects API, tasks API, and a notifications API.</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Output</div>
+            <div class="section-content">
+                <div class="output-box">
+                    <strong>Files Created:</strong>
+                    <div class="code-block">specs/003-chat-system/
+                        ├── plan.md                    # High-level implementation strategy
+                        ├── research.md                # Tech stack justifications, version details
+                        ├── data-model.md              # Entity schemas, relationships
+                        ├── quickstart.md              # Key validation scenarios
+                        └── contracts/
+                        ├── api-spec.json          # OpenAPI/REST contracts
+                        └── websocket-spec.md      # Real-time communication contracts</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Business Impact</div>
+            <div class="section-content">
+                <div class="success-box">
+                    <strong>Delivers:</strong> Complete technical architecture in 5 minutes vs. 3-4 hours manually. Every decision is documented, traceable, and constitutionally compliant.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Command 5: Tasks -->
+    <div class="command-card">
+        <div class="command-header">
+            <div class="command-number">5</div>
+            <div class="command-title">
+                <div class="command-name">/speckit.tasks</div>
+                <div class="command-tagline">Generate Task Breakdown</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Purpose</div>
+            <div class="section-content">
+                <p>Analyzes the implementation plan and design documents to generate a detailed, dependency-ordered task list with parallelization markers. This creates the executable roadmap for implementation.</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">When to Use</div>
+            <div class="section-content">
+                <ul>
+                    <li>After implementation plan is validated and approved</li>
+                    <li>Before running /speckit.analyze (validation gate)</li>
+                    <li>When you need a clear execution roadmap</li>
+                    <li>To identify parallelizable work streams</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Example Usage</div>
+            <div class="section-content">
+                <div class="code-block">/speckit.tasks</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Output</div>
+            <div class="section-content">
+                <div class="output-box">
+                    <strong>File Created:</strong> <code class="code-inline">specs/[feature]/tasks.md</code>
+                    <p style="margin-top: 8px;">Contains organized task breakdown by user story with dependency ordering and parallelization markers.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Business Impact</div>
+            <div class="section-content">
+                <div class="success-box">
+                    <strong>Provides:</strong> Clear execution roadmap with optimal task ordering. Enables parallel work streams and incremental delivery of user stories.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Command 5.5: Analyze (Validation) -->
+    <div class="command-card validation">
+        <div class="command-header">
+            <div class="command-number validation">5.5</div>
+            <div class="command-title">
+                <div class="command-name">/speckit.analyze <span class="validation-badge">VALIDATION GATE</span></div>
+                <div class="command-tagline">Cross-Artifact Consistency & Coverage Analysis</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Purpose</div>
+            <div class="section-content">
+                <p>Performs comprehensive validation of all specification artifacts to ensure consistency, completeness, and constitutional compliance. This is the final quality gate before code generation.</p>
+                <div class="warning-box" style="margin-top: 10px;">
+                    <strong>Critical Checkpoint:</strong> This validation step catches inconsistencies, gaps, and constitutional violations before expensive implementation begins. It's the last chance to fix specification issues without code rework.
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">When to Use</div>
+            <div class="section-content">
+                <ul>
+                    <li>After /speckit.tasks has generated the task breakdown</li>
+                    <li>Before /speckit.implement begins code generation</li>
+                    <li>When you want to validate cross-artifact consistency</li>
+                    <li>To ensure constitutional compliance across all documents</li>
+                    <li>To verify test coverage will meet targets</li>
+                </ul>
+                <div class="info-box" style="margin-top: 10px;">
+                    <strong>Recommended:</strong> Always run this validation before implementation, especially for complex features or when multiple team members contributed to specifications.
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Example Usage</div>
+            <div class="section-content">
+                <div class="code-block">/speckit.analyze</div>
+                <p style="margin-top: 10px;">The command automatically runs in validation mode when spec.md, plan.md, and tasks.md exist.</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">What It Validates</div>
+            <div class="section-content">
+                <div class="workflow-grid">
+                    <div class="workflow-item">
+                        <strong>1. Cross-Artifact Consistency</strong>
+                        Ensures spec.md, plan.md, contracts/, data-model.md, and tasks.md are aligned
+                    </div>
+                    <div class="workflow-item">
+                        <strong>2. Constitutional Compliance</strong>
+                        Validates all artifacts against the nine constitutional articles
+                    </div>
+                    <div class="workflow-item">
+                        <strong>3. Coverage Analysis</strong>
+                        Verifies tasks will achieve target test coverage (70-80%)
+                    </div>
+                    <div class="workflow-item">
+                        <strong>4. Completeness Check</strong>
+                        Identifies missing scenarios, edge cases, or acceptance criteria
+                    </div>
+                    <div class="workflow-item">
+                        <strong>5. Dependency Validation</strong>
+                        Ensures task ordering respects dependencies
+                    </div>
+                    <div class="workflow-item">
+                        <strong>6. Contract Alignment</strong>
+                        Verifies API contracts match user stories and data models
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Validation Checks</div>
+            <div class="section-content">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>Check Category</th>
+                        <th>What It Validates</th>
+                        <th>Common Issues Found</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr>
+                        <td>Specification Alignment</td>
+                        <td>User stories in spec.md match implementation phases in plan.md</td>
+                        <td>Missing user stories, orphaned implementation phases</td>
+                    </tr>
+                    <tr>
+                        <td>Contract Consistency</td>
+                        <td>API contracts match acceptance criteria and data models</td>
+                        <td>Mismatched field names, missing endpoints, type conflicts</td>
+                    </tr>
+                    <tr>
+                        <td>Data Model Integrity</td>
+                        <td>Entities in data-model.md support all user stories</td>
+                        <td>Missing relationships, undefined fields, circular dependencies</td>
+                    </tr>
+                    <tr>
+                        <td>Task Coverage</td>
+                        <td>Tasks in tasks.md cover all acceptance criteria</td>
+                        <td>Untested scenarios, missing edge cases, incomplete flows</td>
+                    </tr>
+                    <tr>
+                        <td>Test Strategy</td>
+                        <td>Test tasks will achieve 70-80% coverage target</td>
+                        <td>Insufficient test scenarios, missing integration tests</td>
+                    </tr>
+                    <tr>
+                        <td>Constitutional Gates</td>
+                        <td>Plan passes Simplicity, Anti-Abstraction, Integration-First gates</td>
+                        <td>Over-engineering, unnecessary abstractions, mock-heavy tests</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Output</div>
+            <div class="section-content">
+                <div class="output-box">
+                    <strong>File Created:</strong> <code class="code-inline">specs/[feature]/validation-report.md</code>
+                    <p style="margin-top: 8px;">Comprehensive analysis report with findings organized by severity:</p>
+                </div>
+                <div class="code-block" style="margin-top: 10px;">## Validation Report: 003-chat-system
+
+                    ### Summary
+                    - **Status**: ⚠️ Issues Found
+                    - **Blockers**: 2
+                    - **Warnings**: 5
+                    - **Recommendations**: 8
+
+                    ### Blockers (Must Fix Before Implementation)
+
+                    #### 1. Contract-Specification Mismatch
+                    - **Location**: contracts/api-spec.json, spec.md User Story 2
+                    - **Issue**: API contract defines POST /api/messages but spec requires
+                    message editing (PUT /api/messages/{id})
+                    - **Impact**: Missing functionality, incomplete implementation
+                    - **Fix**: Add PUT endpoint to contract or remove edit requirement from spec
+
+                    #### 2. Missing Test Coverage
+                    - **Location**: tasks.md Phase 2.3
+                    - **Issue**: No integration tests for WebSocket reconnection scenarios
+                    - **Impact**: Critical failure mode untested, coverage target not met
+                    - **Fix**: Add reconnection test scenarios to tasks.md
+
+                    ### Warnings (Should Fix)
+
+                    #### 1. Data Model Inconsistency
+                    - **Location**: data-model.md, contracts/api-spec.json
+                    - **Issue**: Message entity has 'content' field but API uses 'text'
+                    - **Impact**: Confusion, potential mapping errors
+                    - **Fix**: Standardize on single field name
+
+                    ### Coverage Analysis
+
+                    | Component | Planned Coverage | Target | Status |
+                    |-----------|-----------------|--------|--------|
+                    | Controllers | 75% | 70% | ✅ Pass |
+                    | Services | 68% | 70% | ⚠️ Below Target |
+                    | WebSocket Handlers | 60% | 70% | ❌ Below Target |
+                    | **Overall** | **71%** | **70%** | ✅ Pass |
+
+                    ### Next Steps
+                    1. Fix 2 blockers before proceeding to implementation
+                    2. Address 5 warnings to improve quality
+                    3. Re-run /speckit.analyze after fixes to verify</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Validation Categories</div>
+            <div class="section-content">
+                <div class="workflow-grid">
+                    <div class="workflow-item" style="border-left-color: #e74c3c;">
+                        <strong>Blockers</strong>
+                        <p>Critical issues that will cause implementation failure. Must be fixed before /speckit.implement.</p>
+                        <ul style="margin-top: 8px; font-size: 0.9em;">
+                            <li>Missing required functionality</li>
+                            <li>Contract-spec mismatches</li>
+                            <li>Insufficient test coverage</li>
+                            <li>Invalid dependencies</li>
+                        </ul>
+                    </div>
+                    <div class="workflow-item" style="border-left-color: #f39c12;">
+                        <strong>Warnings</strong>
+                        <p>Issues that should be addressed but won't block implementation. May cause confusion or technical debt.</p>
+                        <ul style="margin-top: 8px; font-size: 0.9em;">
+                            <li>Naming inconsistencies</li>
+                            <li>Constitutional violations</li>
+                            <li>Incomplete error handling</li>
+                            <li>Missing edge cases</li>
+                        </ul>
+                    </div>
+                    <div class="workflow-item" style="border-left-color: #3498db;">
+                        <strong>Recommendations</strong>
+                        <p>Suggestions for improvement that enhance quality but aren't required.</p>
+                        <ul style="margin-top: 8px; font-size: 0.9em;">
+                            <li>Additional test scenarios</li>
+                            <li>Performance optimizations</li>
+                            <li>Enhanced documentation</li>
+                            <li>Refactoring opportunities</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Iterative Refinement Workflow</div>
+            <div class="section-content">
+                <div class="code-block">1. Run /speckit.analyze (validation mode)
+                    2. Review validation-report.md
+                    3. Fix blockers:
+                    - Update contracts to match specifications
+                    - Add missing test scenarios to tasks.md
+                    - Resolve data model inconsistencies
+                    4. Address warnings:
+                    - Fix constitutional violations
+                    - Standardize naming conventions
+                    - Add error handling scenarios
+                    5. Re-run /speckit.analyze to verify fixes
+                    6. Proceed to /speckit.implement when validation passes</div>
+                <div class="success-box" style="margin-top: 10px;">
+                    <strong>Best Practice:</strong> Treat validation as an iterative process. Each fix may reveal new issues. Continue until validation report shows zero blockers and minimal warnings.
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Business Impact</div>
+            <div class="section-content">
+                <div class="success-box">
+                    <strong>Prevents:</strong> Implementation rework caused by specification inconsistencies, missing requirements, or constitutional violations. Catches issues in minutes that would take hours to fix in code.
+                </div>
+                <div class="info-box" style="margin-top: 10px;">
+                    <strong>ROI:</strong> 10-15 minutes of validation saves 2-4 hours of implementation rework. Typical validation finds 3-7 blockers and 5-12 warnings per feature.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Command 6: Implement -->
+    <div class="command-card">
+        <div class="command-header">
+            <div class="command-number">6</div>
+            <div class="command-title">
+                <div class="command-name">/speckit.implement</div>
+                <div class="command-tagline">Execute Implementation</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Purpose</div>
+            <div class="section-content">
+                <p>Executes the implementation plan by parsing the task breakdown and generating code in the correct order, respecting dependencies and following TDD practices. This is where specifications become working software.</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">When to Use</div>
+            <div class="section-content">
+                <ul>
+                    <li>After all prerequisites are validated (constitution, spec, plan, tasks)</li>
+                    <li>After /speckit.analyze (validation mode) passes with zero blockers</li>
+                    <li>When ready to generate actual code</li>
+                    <li>When local development environment is set up</li>
+                </ul>
+                <div class="warning-box">
+                    <strong>Prerequisite:</strong> Always run /speckit.analyze (validation mode) before implementation to catch specification issues early.
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Example Usage</div>
+            <div class="section-content">
+                <div class="code-block">/speckit.implement</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Business Impact</div>
+            <div class="section-content">
+                <div class="success-box">
+                    <strong>Delivers:</strong> Working, tested code from specifications in minutes to hours vs. days to weeks. Follows TDD, constitutional principles, and best practices automatically.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="command-card" style="border-left-color: #27ae60;">
+        <h2 style="border-bottom-color: #27ae60; margin-bottom: 15px;">Complete Workflow Summary</h2>
+
+        <div class="workflow-grid">
+            <div class="workflow-item" style="border-left-color: #27ae60;">
+                <strong>1. /speckit.constitution</strong>
+                <p>Establish governance principles</p>
+                <p style="font-size: 0.85em; color: #7f8c8d; margin-top: 5px;">ALWAYS FIRST - Required before all other commands</p>
+            </div>
+            <div class="workflow-item" style="border-left-color: #27ae60;">
+                <strong>2. /speckit.specify</strong>
+                <p>Create feature specification</p>
+                <p style="font-size: 0.85em; color: #7f8c8d; margin-top: 5px;">Output: spec.md + branch</p>
+            </div>
+            <div class="workflow-item" style="border-left-color: #27ae60;">
+                <strong>3. /speckit.clarify</strong>
+                <p>Eliminate ambiguities</p>
+                <p style="font-size: 0.85em; color: #7f8c8d; margin-top: 5px;">Output: Updated spec.md</p>
+            </div>
+            <div class="workflow-item" style="border-left-color: #27ae60;">
+                <strong>4. /speckit.plan</strong>
+                <p>Generate technical architecture</p>
+                <p style="font-size: 0.85em; color: #7f8c8d; margin-top: 5px;">Output: plan.md + contracts + research</p>
+            </div>
+            <div class="workflow-item" style="border-left-color: #27ae60;">
+                <strong>5. /speckit.tasks</strong>
+                <p>Create task breakdown</p>
+                <p style="font-size: 0.85em; color: #7f8c8d; margin-top: 5px;">Output: tasks.md</p>
+            </div>
+            <div class="workflow-item" style="border-left-color: #e67e22;">
+                <strong>5.5. /speckit.analyze</strong>
+                <p>Validate consistency & coverage</p>
+                <p style="font-size: 0.85em; color: #7f8c8d; margin-top: 5px;">Pre-implementation quality gate</p>
+            </div>
+            <div class="workflow-item" style="border-left-color: #27ae60;">
+                <strong>6. /speckit.implement</strong>
+                <p>Execute implementation</p>
+                <p style="font-size: 0.85em; color: #7f8c8d; margin-top: 5px;">Output: Working code + tests</p>
+            </div>
+        </div>
+
+        <div class="success-box" style="margin-top: 20px;">
+            <strong>Total Time:</strong> From idea to working code in ~30 minutes vs. 2-3 days with traditional development.
+        </div>
+    </div>
+</div>
+</body>
+</html>
+

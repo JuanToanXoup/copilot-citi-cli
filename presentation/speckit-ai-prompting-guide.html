@@ -1,0 +1,2415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spec-Kit AI Orchestrator: Autonomous Agent Framework</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.4;
+            color: #2c3e50;
+            background: #f8f9fa;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 15px;
+            color: #1a1a1a;
+            border-bottom: 4px solid #9b59b6;
+            padding-bottom: 10px;
+        }
+
+        h2 {
+            font-size: 2em;
+            margin: 25px 0 15px 0;
+            color: #1a1a1a;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 8px;
+        }
+
+        h3 {
+            font-size: 1.5em;
+            margin: 20px 0 10px 0;
+            color: #2c3e50;
+        }
+
+        .intro {
+            background: white;
+            padding: 20px;
+            border-radius: 6px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+
+        .architecture-diagram {
+            background: white;
+            padding: 25px;
+            border-radius: 6px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+
+        .agent-card {
+            background: white;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-radius: 6px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            border-left: 6px solid #9b59b6;
+        }
+
+        .tool-card {
+            background: white;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-radius: 6px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            border-left: 6px solid #e67e22;
+        }
+
+        .command-table {
+            background: white;
+            padding: 25px;
+            border-radius: 6px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            overflow-x: auto;
+            margin-bottom: 25px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+
+        th {
+            background: #9b59b6;
+            color: white;
+            font-weight: 600;
+            padding: 12px;
+            text-align: left;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        td {
+            padding: 15px 12px;
+            border-bottom: 1px solid #ddd;
+            vertical-align: top;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        .code-block {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+
+        .agent-list {
+            list-style: none;
+            margin: 10px 0;
+            padding: 0;
+        }
+
+        .agent-list li {
+            padding: 8px 0;
+            padding-left: 25px;
+            position: relative;
+        }
+
+        .agent-list li:before {
+            content: "🤖";
+            position: absolute;
+            left: 0;
+            font-size: 1.2em;
+        }
+
+        .tool-list {
+            list-style: none;
+            margin: 10px 0;
+            padding: 0;
+        }
+
+        .tool-list li {
+            padding: 8px 0;
+            padding-left: 25px;
+            position: relative;
+        }
+
+        .tool-list li:before {
+            content: "🔧";
+            position: absolute;
+            left: 0;
+            font-size: 1.2em;
+        }
+
+        .info-box {
+            background: #e8f4f8;
+            border-left: 4px solid #3498db;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+
+        .warning-box {
+            background: #ffe5d0;
+            border-left: 4px solid #e67e22;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+
+        .success-box {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+
+        .flow-diagram {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 6px;
+            margin: 15px 0;
+        }
+
+        .flow-step {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #9b59b6;
+            border-radius: 4px;
+        }
+
+        .flow-step h4 {
+            color: #9b59b6;
+            margin-bottom: 8px;
+        }
+
+        .sub-agent {
+            background: #f0e6f6;
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 4px;
+            border-left: 3px solid #9b59b6;
+        }
+
+        .data-source {
+            background: #e8f4f8;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .orchestrator-flow {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .orchestrator-box {
+            background: white;
+            padding: 20px;
+            border-radius: 6px;
+            border-top: 4px solid #9b59b6;
+            text-align: center;
+        }
+
+        .orchestrator-box h4 {
+            color: #9b59b6;
+            margin-bottom: 10px;
+        }
+
+        .tool-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin: 15px 0;
+        }
+
+        .tool-box {
+            background: #fff5e6;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid #e67e22;
+        }
+
+        .tool-box h4 {
+            color: #e67e22;
+            margin-bottom: 8px;
+        }
+
+        @media (max-width: 1200px) {
+            .orchestrator-flow, .tool-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Spec-Kit AI Orchestrator: Autonomous Agent Framework</h1>
+
+    <div class="intro">
+        <p style="font-size: 1.2em; margin-bottom: 12px;"><strong>Paradigm Shift:</strong> Remove the user from the specification loop. The AI Orchestrator autonomously gathers project context using specialized sub-agents and advanced tooling, then executes the complete Spec-Kit workflow without human intervention.</p>
+        <p style="font-size: 1.05em; color: #7f8c8d;">The orchestrator analyzes the project, infers requirements, validates decisions, and generates production-ready code-all automatically using MCP tools, vector databases, and persistent memory.</p>
+    </div>
+
+    <div class="architecture-diagram">
+        <h2>Enhanced Autonomous Agent Architecture</h2>
+        <div class="orchestrator-flow">
+            <div class="orchestrator-box">
+                <h4>Orchestrator Agent</h4>
+                <p>Coordinates workflow, makes decisions, executes commands</p>
+            </div>
+            <div class="orchestrator-box">
+                <h4>Sub-Agents + Tools</h4>
+                <p>Specialized agents with MCP tools, vector search, memory</p>
+            </div>
+            <div class="orchestrator-box">
+                <h4>Data Sources</h4>
+                <p>Codebase, docs, APIs, git history, visual diagrams</p>
+            </div>
+        </div>
+        <div class="info-box">
+            <strong>Enhanced Capabilities:</strong> Sub-agents now have access to browser automation (Playwright MCP), semantic search (vector DB), persistent memory, API exploration, and visual diagram generation.
+        </div>
+    </div>
+
+    <h2>Enhanced Tooling Layer</h2>
+
+    <div class="tool-grid">
+        <div class="tool-box">
+            <h4>Playwright MCP (Browser Automation)</h4>
+            <p><strong>Purpose:</strong> Interact with web-based documentation, admin panels, and live applications</p>
+            <ul class="tool-list">
+                <li>Scrape API documentation from web portals</li>
+                <li>Extract requirements from Confluence/Jira</li>
+                <li>Test live applications for behavior analysis</li>
+                <li>Capture screenshots of UI for visual specs</li>
+                <li>Validate deployed applications</li>
+            </ul>
+            <div class="code-block" style="font-size: 0.85em; margin-top: 10px;">// Example: Extract API docs from web portal
+                playwright_agent.navigate('https://api-docs.company.com')
+                endpoints = playwright_agent.extract_table('.api-endpoints')
+                schemas = playwright_agent.extract_json('.schema-definitions')
+                return {endpoints, schemas}</div>
+        </div>
+
+        <div class="tool-box">
+            <h4>Vector Database (Semantic Search)</h4>
+            <p><strong>Purpose:</strong> Semantic search across codebase, documentation, and historical decisions</p>
+            <ul class="tool-list">
+                <li>Find similar features in codebase</li>
+                <li>Search documentation by concept, not keywords</li>
+                <li>Retrieve relevant architectural decisions</li>
+                <li>Match patterns across projects</li>
+                <li>Query historical specifications</li>
+            </ul>
+            <div class="code-block" style="font-size: 0.85em; margin-top: 10px;">// Example: Find similar authentication implementations
+                vector_db.embed_and_index(codebase)
+                similar = vector_db.semantic_search(
+                query="OAuth2 authentication with JWT tokens",
+                top_k=5
+                )
+                return similar.code_examples</div>
+        </div>
+
+        <div class="tool-box">
+            <h4>Long-Term Memory Files</h4>
+            <p><strong>Purpose:</strong> Persistent context across sessions, learning from past decisions</p>
+            <ul class="tool-list">
+                <li>Store architectural decisions and rationale</li>
+                <li>Remember failed approaches and why</li>
+                <li>Track constitutional amendments over time</li>
+                <li>Maintain project-specific conventions</li>
+                <li>Build knowledge base of patterns</li>
+            </ul>
+            <div class="code-block" style="font-size: 0.85em; margin-top: 10px;">// Memory structure
+                .specify/memory/
+                ├── constitution.md           # Governance principles
+                ├── decisions.json            # ADRs and rationale
+                ├── patterns.json             # Successful patterns
+                ├── failures.json             # What didn't work
+                ├── conventions.json          # Project-specific rules
+                └── embeddings/               # Vector embeddings of all memory</div>
+        </div>
+
+        <div class="tool-box">
+            <h4>API Documentation Tools</h4>
+            <p><strong>Purpose:</strong> Automatically discover and understand external APIs</p>
+            <ul class="tool-list">
+                <li>Parse OpenAPI/Swagger specifications</li>
+                <li>Extract GraphQL schemas</li>
+                <li>Analyze gRPC proto files</li>
+                <li>Test API endpoints for behavior</li>
+                <li>Generate client code from specs</li>
+            </ul>
+            <div class="code-block" style="font-size: 0.85em; margin-top: 10px;">// Example: Auto-discover API contracts
+                api_agent.discover_openapi('./docs/swagger.json')
+                api_agent.test_endpoints(base_url='https://api.service.com')
+                contracts = api_agent.generate_contracts()
+                return contracts</div>
+        </div>
+
+        <div class="tool-box">
+            <h4>Mermaid UML Generator</h4>
+            <p><strong>Purpose:</strong> Generate visual diagrams from code and specifications</p>
+            <ul class="tool-list">
+                <li>Create architecture diagrams from code structure</li>
+                <li>Generate sequence diagrams from API flows</li>
+                <li>Visualize data models and relationships</li>
+                <li>Document state machines and workflows</li>
+                <li>Create deployment diagrams</li>
+            </ul>
+            <div class="code-block" style="font-size: 0.85em; margin-top: 10px;">// Example: Generate architecture diagram
+                mermaid_agent.analyze_codebase()
+                diagram = mermaid_agent.generate_c4_diagram(level='container')
+                save_to('specs/architecture.mmd', diagram)</div>
+        </div>
+
+        <div class="tool-box">
+            <h4>Kotlin Vector Database</h4>
+            <p><strong>Purpose:</strong> High-performance semantic search and similarity matching</p>
+            <ul class="tool-list">
+                <li>Index entire codebase with embeddings</li>
+                <li>Fast similarity search for patterns</li>
+                <li>Cross-project pattern matching</li>
+                <li>Semantic code search</li>
+                <li>Duplicate detection</li>
+            </ul>
+            <div class="code-block" style="font-size: 0.85em; margin-top: 10px;">// Example: Find similar implementations
+                kotlin_vector_db.index_project(project_path)
+                similar_features = kotlin_vector_db.find_similar(
+                embedding=embed("payment processing with retry logic"),
+                threshold=0.85
+                )
+                return similar_features.with_context()</div>
+        </div>
+    </div>
+
+    <h2>Enhanced Sub-Agent Capabilities</h2>
+
+    <div class="agent-card">
+        <h3>1. Codebase Analysis Agent (Enhanced)</h3>
+        <p><strong>New Capabilities:</strong> Vector search, visual diagram generation, semantic code understanding</p>
+
+        <h4>Tools Used:</h4>
+        <ul class="tool-list">
+            <li><strong>Kotlin Vector DB:</strong> Semantic code search and pattern matching</li>
+            <li><strong>Mermaid Generator:</strong> Auto-generate architecture diagrams</li>
+            <li><strong>Long-Term Memory:</strong> Recall similar patterns from past projects</li>
+        </ul>
+
+        <h4>Enhanced Workflow:</h4>
+        <div class="code-block">def analyze_codebase_enhanced(project_path):
+            # 1. Traditional analysis
+            structure = analyze_directory_structure(project_path)
+            tech_stack = extract_tech_stack(project_path)
+
+            # 2. Vector indexing for semantic search
+            kotlin_vector_db.index_codebase(project_path)
+
+            # 3. Generate visual diagrams
+            architecture_diagram = mermaid_agent.generate_c4_diagram(
+            level='container',
+            source=project_path
+            )
+
+            class_diagram = mermaid_agent.generate_class_diagram(
+            namespace='Core.Domain'
+            )
+
+            # 4. Semantic pattern search
+            patterns = kotlin_vector_db.find_patterns([
+            'repository pattern',
+            'dependency injection',
+            'error handling middleware'
+            ])
+
+            # 5. Check long-term memory for similar projects
+            similar_projects = memory.search_similar_projects(
+            tech_stack=tech_stack,
+            domain=structure.domain
+            )
+
+            return {
+            'structure': structure,
+            'tech_stack': tech_stack,
+            'diagrams': [architecture_diagram, class_diagram],
+            'patterns': patterns,
+            'similar_projects': similar_projects
+            }</div>
+
+        <h4>Output Artifacts:</h4>
+        <div class="data-source">specs/[feature]/diagrams/architecture.mmd</div>
+        <div class="data-source">specs/[feature]/diagrams/class-diagram.mmd</div>
+        <div class="data-source">specs/[feature]/patterns-analysis.json</div>
+    </div>
+
+    <div class="agent-card">
+        <h3>2. Documentation Analysis Agent (Enhanced)</h3>
+        <p><strong>New Capabilities:</strong> Web scraping, API doc parsing, visual content extraction</p>
+
+        <h4>Tools Used:</h4>
+        <ul class="tool-list">
+            <li><strong>Playwright MCP:</strong> Scrape web-based documentation and wikis</li>
+            <li><strong>API Doc Parser:</strong> Extract contracts from OpenAPI/GraphQL</li>
+            <li><strong>Vector DB:</strong> Semantic search across all documentation</li>
+            <li><strong>Long-Term Memory:</strong> Recall documentation patterns</li>
+        </ul>
+
+        <h4>Enhanced Workflow:</h4>
+        <div class="code-block">def analyze_documentation_enhanced(project_path):
+            # 1. Local documentation
+            local_docs = parse_markdown_files(project_path)
+
+            # 2. Web-based documentation (Playwright)
+            if has_confluence_link(local_docs):
+            playwright_agent.navigate(confluence_url)
+            confluence_pages = playwright_agent.extract_content([
+            '.page-content',
+            '.requirements-section',
+            '.user-stories'
+            ])
+
+            # 3. API documentation
+            if exists('docs/swagger.json'):
+            api_docs = api_parser.parse_openapi('docs/swagger.json')
+            endpoints = api_docs.extract_endpoints()
+            schemas = api_docs.extract_schemas()
+
+            # 4. Vector search for requirements
+            vector_db.index_documents(local_docs + confluence_pages)
+            requirements = vector_db.semantic_search([
+            'user requirements',
+            'business rules',
+            'acceptance criteria',
+            'non-functional requirements'
+            ])
+
+            # 5. Extract visual specifications
+            if has_screenshots(project_path):
+            ui_specs = playwright_agent.analyze_screenshots(
+            'docs/mockups/*.png'
+            )
+
+            return {
+            'requirements': requirements,
+            'api_contracts': {endpoints, schemas},
+            'ui_specifications': ui_specs,
+            'confluence_content': confluence_pages
+            }</div>
+
+        <h4>Output Artifacts:</h4>
+        <div class="data-source">specs/[feature]/requirements-extracted.md</div>
+        <div class="data-source">specs/[feature]/api-contracts-discovered.json</div>
+        <div class="data-source">specs/[feature]/ui-specifications.md</div>
+    </div>
+
+    <div class="agent-card">
+        <h3>3. API Exploration Agent (New)</h3>
+        <p><strong>Purpose:</strong> Discover, test, and document external API integrations</p>
+
+        <h4>Tools Used:</h4>
+        <ul class="tool-list">
+            <li><strong>API Doc Parser:</strong> Parse OpenAPI, GraphQL, gRPC specs</li>
+            <li><strong>Playwright MCP:</strong> Test API endpoints via browser tools</li>
+            <li><strong>Vector DB:</strong> Find similar API integration patterns</li>
+        </ul>
+
+        <h4>Workflow:</h4>
+        <div class="code-block">def explore_apis(project_path):
+            # 1. Discover API specifications
+            api_specs = find_api_specs([
+            'docs/openapi.yaml',
+            'graphql/schema.graphql',
+            'proto/*.proto'
+            ])
+
+            # 2. Parse and extract contracts
+            for spec in api_specs:
+            if spec.type == 'openapi':
+            contracts = openapi_parser.extract_contracts(spec)
+            elif spec.type == 'graphql':
+            contracts = graphql_parser.extract_schema(spec)
+            elif spec.type == 'grpc':
+            contracts = proto_parser.extract_services(spec)
+
+            # 3. Test live endpoints (if available)
+            if has_test_environment():
+            for endpoint in contracts.endpoints:
+            response = test_endpoint(endpoint)
+            validate_against_contract(response, endpoint.schema)
+
+            # 4. Find similar integrations in memory
+            similar = memory.search_api_integrations(
+            api_type=contracts.type,
+            domain=contracts.domain
+            )
+
+            # 5. Generate client code patterns
+            client_patterns = generate_client_from_contract(contracts)
+
+            return {
+            'contracts': contracts,
+            'test_results': test_results,
+            'similar_integrations': similar,
+            'client_patterns': client_patterns
+            }</div>
+
+        <h4>Output Artifacts:</h4>
+        <div class="data-source">specs/[feature]/contracts/external-apis.json</div>
+        <div class="data-source">specs/[feature]/api-test-results.md</div>
+        <div class="data-source">specs/[feature]/client-patterns.md</div>
+    </div>
+
+    <div class="agent-card">
+        <h3>4. Visual Specification Agent (New)</h3>
+        <p><strong>Purpose:</strong> Generate and analyze visual specifications and diagrams</p>
+
+        <h4>Tools Used:</h4>
+        <ul class="tool-list">
+            <li><strong>Mermaid Generator:</strong> Create UML, sequence, architecture diagrams</li>
+            <li><strong>Playwright MCP:</strong> Capture screenshots of existing UI</li>
+            <li><strong>Vector DB:</strong> Search for similar UI patterns</li>
+        </ul>
+
+        <h4>Workflow:</h4>
+        <div class="code-block">def generate_visual_specs(spec, plan, data_model):
+            # 1. Generate architecture diagram
+            architecture = mermaid_agent.generate_diagram(
+            type='C4',
+            level='container',
+            components=plan.components
+            )
+
+            # 2. Generate sequence diagrams for user stories
+            sequences = []
+            for story in spec.user_stories:
+            sequence = mermaid_agent.generate_sequence_diagram(
+            actors=story.actors,
+            flow=story.acceptance_criteria
+            )
+            sequences.append(sequence)
+
+            # 3. Generate data model ERD
+            erd = mermaid_agent.generate_erd(
+            entities=data_model.entities,
+            relationships=data_model.relationships
+            )
+
+            # 4. Generate state machine diagrams
+            state_machines = []
+            for entity in data_model.entities:
+            if entity.has_states:
+            state_diagram = mermaid_agent.generate_state_diagram(
+            states=entity.states,
+            transitions=entity.transitions
+            )
+            state_machines.append(state_diagram)
+
+            # 5. If UI exists, capture current state
+            if has_frontend():
+            screenshots = playwright_agent.capture_ui_flows(
+            base_url='http://localhost:3000',
+            flows=spec.user_stories
+            )
+
+            return {
+            'architecture': architecture,
+            'sequences': sequences,
+            'erd': erd,
+            'state_machines': state_machines,
+            'ui_screenshots': screenshots
+            }</div>
+
+        <h4>Output Artifacts:</h4>
+        <div class="data-source">specs/[feature]/diagrams/architecture.mmd</div>
+        <div class="data-source">specs/[feature]/diagrams/sequences/*.mmd</div>
+        <div class="data-source">specs/[feature]/diagrams/data-model.mmd</div>
+        <div class="data-source">specs/[feature]/diagrams/state-machines/*.mmd</div>
+        <div class="data-source">specs/[feature]/ui-screenshots/*.png</div>
+    </div>
+
+    <div class="tool-box">
+        <h4>Long-Term Memory System</h4>
+        <p><strong>Purpose:</strong> Persistent learning and context across all projects</p>
+        <ul class="tool-list">
+            <li>Store successful patterns and anti-patterns</li>
+            <li>Remember architectural decisions and outcomes</li>
+            <li>Track constitutional amendments</li>
+            <li>Build organizational knowledge base</li>
+            <li>Learn from implementation failures</li>
+        </ul>
+        <div class="code-block" style="font-size: 0.85em; margin-top: 10px;">// Memory structure
+            .specify/memory/
+            ├── constitution.md              # Current governance
+            ├── decisions/
+            │   ├── adr-001-database-choice.md
+            │   ├── adr-002-auth-strategy.md
+            │   └── index.json
+            ├── patterns/
+            │   ├── successful/
+            │   │   ├── payment-retry-pattern.json
+            │   │   └── circuit-breaker-pattern.json
+            │   └── anti-patterns/
+            │       └── avoid-nested-transactions.json
+            ├── failures/
+            │   ├── failed-approach-001.json
+            │   └── lessons-learned.md
+            └── embeddings/
+            └── memory-vectors.db          # Vector embeddings</div>
+    </div>
+
+    <div class="tool-box">
+        <h4>API Documentation Parser</h4>
+        <p><strong>Purpose:</strong> Extract structured contracts from various API formats</p>
+        <ul class="tool-list">
+            <li>OpenAPI/Swagger 2.0 and 3.0 parsing</li>
+            <li>GraphQL schema introspection</li>
+            <li>gRPC proto file analysis</li>
+            <li>WSDL/SOAP service discovery</li>
+            <li>AsyncAPI for event-driven APIs</li>
+        </ul>
+        <div class="code-block" style="font-size: 0.85em; margin-top: 10px;">// Example: Multi-format API parsing
+            api_parser.register_formats(['openapi', 'graphql', 'grpc'])
+
+            contracts = api_parser.discover_and_parse(project_path)
+            # Returns unified contract format regardless of source
+
+            for contract in contracts:
+            endpoints = contract.extract_endpoints()
+            schemas = contract.extract_schemas()
+            auth = contract.extract_auth_requirements()
+
+            generate_contract_tests(endpoints, schemas)</div>
+    </div>
+</div>
+
+<h2>Enhanced Autonomous Workflow</h2>
+
+<div class="command-table">
+    <table>
+        <thead>
+        <tr>
+            <th style="width: 8%;">Step</th>
+            <th style="width: 12%;">Command</th>
+            <th style="width: 20%;">Sub-Agents + Tools</th>
+            <th style="width: 30%;">Autonomous Data Gathering</th>
+            <th style="width: 30%;">Orchestrator Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+            <td><strong>1</strong></td>
+            <td><strong>/speckit.constitution</strong></td>
+            <td>
+                <div class="sub-agent">
+                    <strong>Codebase Agent</strong>
+                    + Vector DB + Mermaid
+                </div>
+                <div class="sub-agent">
+                    <strong>Documentation Agent</strong>
+                    + Playwright MCP
+                </div>
+                <div class="sub-agent">
+                    <strong>Memory System</strong>
+                    + Vector Search
+                </div>
+            </td>
+            <td>
+                <div class="code-block" style="font-size: 0.85em;">1. Vector search for existing patterns:
+                    kotlin_vector_db.find_patterns([
+                    'architectural patterns',
+                    'testing strategies',
+                    'quality standards'
+                    ])
+
+                    2. Scrape internal wiki (Playwright):
+                    playwright.navigate(wiki_url)
+                    standards = playwright.extract(
+                    '.coding-standards',
+                    '.architecture-guidelines'
+                    )
+
+                    3. Check long-term memory:
+                    memory.recall_constitutional_patterns()
+                    memory.get_org_standards()
+
+                    4. Generate architecture diagram:
+                    mermaid.generate_current_architecture()
+
+                    5. Synthesize constitution from:
+                    - Existing code patterns
+                    - Documented standards
+                    - Organizational memory
+                    - Industry best practices</div>
+            </td>
+            <td>
+                <div class="code-block" style="font-size: 0.85em;">1. Aggregate all gathered data
+                    2. Identify existing principles:
+                    - Found Clean Architecture → Article I
+                    - Found 65% coverage → Set 75% target
+                    - Found integration tests → Article IX
+                    3. Generate constitution.md:
+                    - Codify discovered patterns
+                    - Add missing SDD articles
+                    - Set measurable targets
+                    4. Store in memory:
+                    memory.store_decision(
+                    'constitution-v1',
+                    rationale='Based on existing patterns'
+                    )
+                    5. Generate visual governance:
+                    mermaid.generate_governance_diagram()</div>
+            </td>
+        </tr>
+
+        <tr>
+            <td><strong>2</strong></td>
+            <td><strong>/speckit.specify</strong></td>
+            <td>
+                <div class="sub-agent">
+                    <strong>Documentation Agent</strong>
+                    + Playwright + Vector DB
+                </div>
+                <div class="sub-agent">
+                    <strong>Git History Agent</strong>
+                    + Memory System
+                </div>
+                <div class="sub-agent">
+                    <strong>API Explorer Agent</strong>
+                    + API Parser
+                </div>
+            </td>
+            <td>
+                <div class="code-block" style="font-size: 0.85em;">1. Scrape Jira/GitHub issues (Playwright):
+                    playwright.navigate(jira_url)
+                    issues = playwright.extract_issues(
+                    filter='status=open AND priority=high'
+                    )
+
+                    2. Vector search documentation:
+                    vector_db.semantic_search([
+                    'planned features',
+                    'user requirements',
+                    'feature requests'
+                    ])
+
+                    3. Analyze git history:
+                    recent_commits = git.get_commits(days=30)
+                    feature_branches = git.get_branches('feature/*')
+
+                    4. Parse API gaps:
+                    current_apis = api_parser.discover_endpoints()
+                    documented_apis = api_parser.parse_swagger()
+                    missing = documented_apis - current_apis
+
+                    5. Check memory for similar features:
+                    memory.find_similar_features(
+                    domain=project.domain
+                    )
+
+                    6. Synthesize highest priority feature</div>
+            </td>
+            <td>
+                <div class="code-block" style="font-size: 0.85em;">1. Prioritize features by:
+                    - Issue priority/votes
+                    - Business value (from docs)
+                    - Technical feasibility
+                    - Dependencies on other features
+
+                    2. Generate spec.md:
+                    - Feature overview (from issues)
+                    - User stories (from Jira/GitHub)
+                    - Acceptance criteria (inferred)
+                    - Non-functional (from ADRs)
+                    - API contracts (from swagger)
+
+                    3. Generate visual specs:
+                    mermaid.generate_user_journey(stories)
+                    mermaid.generate_wireframes(ui_specs)
+
+                    4. Auto-number and branch:
+                    feature_num = scan_existing_specs() + 1
+                    branch = create_branch(feature_num, name)
+
+                    5. Store in memory:
+                    memory.store_feature_spec(spec)</div>
+            </td>
+        </tr>
+
+        <tr>
+            <td><strong>3</strong></td>
+            <td><strong>/speckit.clarify</strong></td>
+            <td>
+                <div class="sub-agent">
+                    <strong>Codebase Agent</strong>
+                    + Vector DB
+                </div>
+                <div class="sub-agent">
+                    <strong>Documentation Agent</strong>
+                    + Playwright
+                </div>
+                <div class="sub-agent">
+                    <strong>Memory System</strong>
+                    + Pattern Matching
+                </div>
+            </td>
+            <td>
+                <div class="code-block" style="font-size: 0.85em;">1. For each [NEEDS CLARIFICATION]:
+
+                    a. Vector search codebase:
+                    similar = kotlin_vector_db.find_similar(
+                    query=clarification_context,
+                    top_k=5
+                    )
+
+                    b. Search documentation:
+                    docs = vector_db.semantic_search(
+                    clarification_question
+                    )
+
+                    c. Check memory for patterns:
+                    pattern = memory.recall_pattern(
+                    similar_to=clarification_context
+                    )
+
+                    d. Scrape internal docs (Playwright):
+                    if has_internal_wiki:
+                    answer = playwright.search_wiki(
+                    clarification_question
+                    )
+
+                    2. Infer from context:
+                    - Auth method? → Found JWT in 3 services
+                    - Timeout? → Found 30s in config
+                    - Validation? → Found regex in validator
+
+                    3. Use sensible defaults if cannot infer:
+                    defaults = get_industry_standards(domain)</div>
+            </td>
+            <td>
+                <div class="code-block" style="font-size: 0.85em;">1. Process each ambiguity:
+                    for marker in clarification_markers:
+                    inferred = infer_from_gathered_data(marker)
+                    confidence = calculate_confidence(inferred)
+
+                    if confidence > 0.8:
+                    update_spec(marker, inferred)
+                    else:
+                    use_default = get_best_practice(marker)
+                    update_spec(marker, use_default)
+                    log_assumption(marker, use_default)
+
+                    2. Document all clarifications:
+                    - Source of clarification
+                    - Confidence level
+                    - Assumptions made
+
+                    3. Remove all markers
+
+                    4. Store learnings in memory:
+                    memory.store_clarification_pattern(
+                    question=marker,
+                    answer=inferred,
+                    source=data_source
+                    )</div>
+            </td>
+        </tr>
+
+        <tr>
+            <td><strong>4</strong></td>
+            <td><strong>/speckit.plan</strong></td>
+            <td>
+                <div class="sub-agent">
+                    <strong>Codebase Agent</strong>
+                    + Vector DB + Mermaid
+                </div>
+                <div class="sub-agent">
+                    <strong>Dependency Agent</strong>
+                    + API Parser
+                </div>
+                <div class="sub-agent">
+                    <strong>Infrastructure Agent</strong>
+                    + Memory System
+                </div>
+            </td>
+            <td>
+                <div class="code-block" style="font-size: 0.85em;">1. Extract complete tech stack:
+                    tech = codebase_agent.extract_stack()
+                    versions = dependency_agent.get_versions()
+
+                    2. Analyze deployment platform:
+                    platform = infrastructure_agent.detect()
+                    constraints = infrastructure_agent.get_limits()
+
+                    3. Search for similar implementations:
+                    similar = kotlin_vector_db.find_similar(
+                    query=spec.feature_description,
+                    filter='same_tech_stack'
+                    )
+
+                    4. Check memory for proven patterns:
+                    patterns = memory.recall_patterns(
+                    tech_stack=tech,
+                    feature_type=spec.type
+                    )
+
+                    5. Parse existing API contracts:
+                    apis = api_parser.discover_all()
+
+                    6. Generate architecture diagrams:
+                    current = mermaid.current_architecture()
+                    proposed = mermaid.proposed_architecture(
+                    current + new_feature
+                    )</div>
+            </td>
+            <td>
+                <div class="code-block" style="font-size: 0.85em;">1. Generate plan.md:
+                    - Use extracted tech stack
+                    - Follow discovered patterns
+                    - Match existing architecture
+                    - Apply memory patterns
+
+                    2. Generate supporting docs:
+                    - data-model.md (with ERD diagram)
+                    - contracts/ (from API parser)
+                    - research.md (version compatibility)
+                    - quickstart.md
+
+                    3. Validate constitutional gates:
+                    - Check against constitution
+                    - Document justifications
+
+                    4. Generate visual architecture:
+                    - Before/after diagrams
+                    - Component interaction diagrams
+                    - Deployment diagrams
+
+                    5. Store plan in memory:
+                    memory.store_implementation_plan(
+                    feature=spec.name,
+                    plan=plan,
+                    tech_decisions=decisions
+                    )</div>
+            </td>
+        </tr>
+
+        <tr>
+            <td><strong>5</strong></td>
+            <td><strong>/speckit.tasks</strong></td>
+            <td>
+                <div class="sub-agent">
+                    <strong>Codebase Agent</strong>
+                    + Vector DB
+                </div>
+                <div class="sub-agent">
+                    <strong>Test Agent</strong>
+                    + Memory System
+                </div>
+                <div class="sub-agent">
+                    <strong>Visual Agent</strong>
+                    + Mermaid
+                </div>
+            </td>
+            <td>
+                <div class="code-block" style="font-size: 0.85em;">1. Analyze project structure:
+                    structure = codebase_agent.get_structure()
+                    naming = codebase_agent.get_conventions()
+
+                    2. Analyze test organization:
+                    test_structure = test_agent.get_structure()
+                    test_patterns = test_agent.get_patterns()
+
+                    3. Search for similar task breakdowns:
+                    similar_tasks = vector_db.find_similar(
+                    query='task breakdown for ' + feature_type,
+                    source='previous_specs'
+                    )
+
+                    4. Recall successful task orders:
+                    task_order = memory.recall_task_patterns(
+                    feature_type=spec.type
+                    )
+
+                    5. Generate dependency graph:
+                    deps = mermaid.generate_dependency_graph(
+                    components=plan.components
+                    )</div>
+            </td>
+            <td>
+                <div class="code-block" style="font-size: 0.85em;">1. Generate tasks.md:
+                    - Match file structure conventions
+                    - Follow test organization patterns
+                    - Use proven task ordering
+                    - Mark parallelizable tasks
+
+                    2. Ensure test coverage:
+                    - Calculate predicted coverage
+                    - Add tasks to reach 70-80%
+                    - Prioritize integration tests
+
+                    3. Generate task dependency diagram:
+                    mermaid.generate_task_graph(tasks)
+
+                    4. Validate task order:
+                    - Check for circular dependencies
+                    - Verify checkpoint placement
+
+                    5. Store in memory:
+                    memory.store_task_breakdown(
+                    feature=spec.name,
+                    tasks=tasks,
+                    coverage_target=75
+                    )</div>
+            </td>
+        </tr>
+
+        <tr>
+            <td><strong>5.5</strong></td>
+            <td><strong>/speckit.analyze</strong></td>
+            <td>
+                <div class="sub-agent">
+                    <strong>All Agents</strong>
+                    + All Tools
+                </div>
+                <div class="sub-agent">
+                    <strong>Memory System</strong>
+                    + Pattern Validation
+                </div>
+                <div class="sub-agent">
+                    <strong>Visual Agent</strong>
+                    + Mermaid
+                </div>
+            </td>
+            <td>
+                <div class="code-block" style="font-size: 0.85em;">1. Cross-validate all artifacts:
+                    - spec.md ↔ plan.md
+                    - contracts/ ↔ data-model.md
+                    - tasks.md ↔ acceptance criteria
+
+                    2. Vector similarity check:
+                    consistency = vector_db.check_consistency([
+                    spec, plan, contracts, data_model, tasks
+                    ])
+
+                    3. Constitutional compliance:
+                    violations = validate_against_constitution()
+
+                    4. Coverage prediction:
+                    coverage = predict_coverage_from_tasks()
+
+                    5. Check memory for known issues:
+                    known_issues = memory.recall_issues(
+                    similar_to=current_plan
+                    )
+
+                    6. Generate validation diagrams:
+                    mermaid.generate_coverage_diagram()
+                    mermaid.generate_consistency_matrix()</div>
+            </td>
+            <td>
+                <div class="code-block" style="font-size: 0.85em;">1. Generate validation-report.md:
+                    - Blockers (with auto-fix suggestions)
+                    - Warnings (with recommendations)
+                    - Coverage analysis
+                    - Consistency matrix
+
+                    2. Auto-fix blockers:
+                    for blocker in blockers:
+                    if blocker.fixable:
+                    apply_fix(blocker)
+                    log_fix(blocker)
+
+                    3. Update artifacts:
+                    - Align contracts with spec
+                    - Add missing test scenarios
+                    - Resolve naming conflicts
+
+                    4. Generate visual validation:
+                    - Coverage heatmap diagram
+                    - Consistency matrix diagram
+                    - Dependency validation graph
+
+                    5. Store validation results:
+                    memory.store_validation(
+                    feature=spec.name,
+                    issues_found=len(blockers),
+                    auto_fixed=len(fixed)
+                    )
+
+                    6. Re-validate if needed</div>
+            </td>
+        </tr>
+
+        <tr>
+            <td><strong>6</strong></td>
+            <td><strong>/speckit.implement</strong></td>
+            <td>
+                <div class="sub-agent">
+                    <strong>Codebase Agent</strong>
+                    + Vector DB
+                </div>
+                <div class="sub-agent">
+                    <strong>Test Agent</strong>
+                    + Playwright MCP
+                </div>
+                <div class="sub-agent">
+                    <strong>Memory System</strong>
+                    + Pattern Library
+                </div>
+            </td>
+            <td>
+                <div class="code-block" style="font-size: 0.85em;">1. Extract code style examples:
+                    style = kotlin_vector_db.find_similar(
+                    query='code style examples',
+                    file_types=['.cs', '.js']
+                    )
+
+                    2. Get test patterns:
+                    test_patterns = test_agent.extract_patterns()
+
+                    3. Recall successful implementations:
+                    patterns = memory.recall_implementations(
+                    similar_to=current_feature
+                    )
+
+                    4. Get error handling patterns:
+                    error_handling = vector_db.search(
+                    'error handling middleware'
+                    )
+
+                    5. For UI features, capture existing:
+                    if has_frontend:
+                    ui_patterns = playwright.capture_ui(
+                    'http://localhost:3000'
+                    )</div>
+            </td>
+            <td>
+                <div class="code-block" style="font-size: 0.85em;">1. Generate code matching style:
+                    for task in tasks:
+                    code = generate_with_style(
+                    task,
+                    style_examples=style,
+                    patterns=patterns
+                    )
+
+                    2. Execute TDD workflow:
+                    - Generate contract tests
+                    - Run tests (expect fail)
+                    - Generate implementation
+                    - Run tests (expect pass)
+
+                    3. Test with Playwright (if UI):
+                    playwright.test_generated_ui(
+                    scenarios=spec.user_stories
+                    )
+
+                    4. Measure coverage:
+                    coverage = run_coverage_analysis()
+
+                    5. Generate implementation diagrams:
+                    mermaid.generate_sequence_diagrams()
+                    mermaid.generate_component_diagram()
+
+                    6. Store in memory:
+                    memory.store_implementation(
+                    feature=spec.name,
+                    code=generated_code,
+                    coverage=coverage,
+                    success=True
+                    )</div>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+</div>
+
+<h2>Memory System Architecture</h2>
+
+<div class="agent-card">
+    <h3>Long-Term Memory Structure</h3>
+    <div class="code-block">.specify/memory/
+        ├── constitution.md                    # Current governance principles
+        ├── decisions/                         # Architectural Decision Records
+        │   ├── adr-001-database-choice.md
+        │   ├── adr-002-auth-strategy.md
+        │   ├── adr-003-api-design.md
+        │   └── index.json                     # Searchable index
+        ├── patterns/                          # Proven patterns library
+        │   ├── successful/
+        │   │   ├── payment-retry-pattern.json
+        │   │   ├── circuit-breaker-pattern.json
+        │   │   ├── idempotency-pattern.json
+        │   │   └── rate-limiting-pattern.json
+        │   └── anti-patterns/
+        │       ├── avoid-nested-transactions.json
+        │       ├── avoid-god-objects.json
+        │       └── avoid-premature-optimization.json
+        ├── failures/                          # Failed approaches and lessons
+        │   ├── failed-approach-001.json
+        │   ├── failed-approach-002.json
+        │   └── lessons-learned.md
+        ├── features/                          # Historical feature implementations
+        │   ├── feature-001-auth.json
+        │   ├── feature-002-payments.json
+        │   └── index.json
+        ├── conventions/                       # Project-specific conventions
+        │   ├── naming-conventions.json
+        │   ├── code-style.json
+        │   ├── test-patterns.json
+        │   └── api-design-rules.json
+        └── embeddings/                        # Vector database
+        ├── codebase-vectors.db
+        ├── documentation-vectors.db
+        ├── pattern-vectors.db
+        └── memory-vectors.db</div>
+
+    <h3>Memory Operations</h3>
+    <div class="tool-grid">
+        <div class="tool-box">
+            <h4>Store Operation</h4>
+            <div class="code-block" style="font-size: 0.85em;">memory.store_decision(
+                id='adr-004-caching-strategy',
+                decision='Use Redis for session caching',
+                rationale='Sub-10ms response time requirement',
+                alternatives=['Memcached', 'In-memory'],
+                outcome='Achieved 5ms avg response time',
+                date='2024-02-24'
+                )
+
+                # Auto-generates embedding
+                vector_db.embed_and_store(decision)</div>
+        </div>
+
+        <div class="tool-box">
+            <h4>Recall Operation</h4>
+            <div class="code-block" style="font-size: 0.85em;">similar_decisions = memory.recall_decisions(
+                query='caching strategy for performance',
+                min_similarity=0.85
+                )
+
+                # Returns ranked results with context
+                for decision in similar_decisions:
+                print(f"{decision.id}: {decision.outcome}")
+                print(f"Similarity: {decision.similarity}")</div>
+        </div>
+
+        <div class="tool-box">
+            <h4>Pattern Matching</h4>
+            <div class="code-block" style="font-size: 0.85em;">pattern = memory.find_pattern(
+                problem='handle payment gateway timeouts',
+                context='e-commerce payment processing'
+                )
+
+                # Returns proven pattern with code examples
+                return {
+                'pattern': 'Retry with exponential backoff',
+                'code_example': pattern.implementation,
+                'success_rate': '98% (from 15 uses)',
+                'pitfalls': pattern.known_issues
+                }</div>
+        </div>
+
+        <div class="tool-box">
+            <h4>Learning from Failures</h4>
+            <div class="code-block" style="font-size: 0.85em;">if implementation_failed:
+                memory.store_failure(
+                approach='Nested database transactions',
+                reason='Deadlocks under load',
+                context='Payment processing',
+                lesson='Use saga pattern instead'
+                )
+
+                # Future implementations avoid this
+                memory.check_against_failures(proposed_approach)</div>
+        </div>
+    </div>
+</div>
+
+<h2>Complete Autonomous Workflow with Enhanced Tools</h2>
+
+<div class="flow-diagram">
+    <div class="code-block" style="background: #f8f9fa; color: #2c3e50; padding: 20px;">
+        # Enhanced Orchestrator with Full Tooling
+
+        class SpecKitOrchestrator:
+        def __init__(self, project_path):
+        self.project_path = project_path
+
+        # Initialize tools
+        self.vector_db = KotlinVectorDB()
+        self.memory = LongTermMemory('.specify/memory')
+        self.playwright = PlaywrightMCP()
+        self.api_parser = APIDocumentationParser()
+        self.mermaid = MermaidGenerator()
+
+        # Initialize sub-agents
+        self.agents = {
+        'codebase': CodebaseAgent(vector_db, mermaid),
+        'documentation': DocumentationAgent(playwright, vector_db),
+        'git_history': GitHistoryAgent(memory),
+        'dependency': DependencyAgent(api_parser),
+        'test': TestAgent(vector_db, memory),
+        'infrastructure': InfrastructureAgent(memory),
+        'api_explorer': APIExplorerAgent(api_parser, playwright),
+        'visual': VisualSpecAgent(mermaid, playwright)
+        }
+
+        def autonomous_workflow(self):
+        print("🚀 Starting autonomous Spec-Kit workflow...")
+
+        # STEP 1: Establish Constitution
+        print("\n📜 Step 1: Establishing constitutional principles...")
+
+        if not self.memory.has_constitution():
+        # Gather context from all sources
+        code_patterns = self.agents['codebase'].analyze_patterns()
+
+        # Scrape internal standards wiki
+        wiki_standards = self.playwright.navigate_and_extract(
+        url='https://wiki.company.com/coding-standards',
+        selectors=['.standards', '.best-practices']
+        )
+
+        # Check organizational memory
+        org_standards = self.memory.recall_org_standards()
+
+        # Generate architecture diagram of current state
+        current_arch = self.mermaid.generate_current_architecture(
+        self.project_path
+        )
+
+        # Synthesize constitution
+        constitution = self.synthesize_constitution(
+        code_patterns,
+        wiki_standards,
+        org_standards
+        )
+
+        self.execute_command('/speckit.constitution', constitution)
+        self.memory.store_constitution(constitution, current_arch)
+
+        # STEP 2: Identify and Specify Feature
+        print("\n📝 Step 2: Identifying next feature...")
+
+        # Scrape Jira for high-priority issues
+        jira_issues = self.playwright.navigate_and_extract(
+        url='https://jira.company.com/browse/PROJECT',
+        selectors=['.issue-row[data-priority="High"]']
+        )
+
+        # Search documentation for planned features
+        doc_features = self.vector_db.semantic_search(
+        query='planned features and roadmap items',
+        sources=['README.md', 'docs/**/*.md']
+        )
+
+        # Analyze git for feature branches
+        git_features = self.agents['git_history'].extract_planned_features()
+
+        # Parse API docs for unimplemented endpoints
+        api_gaps = self.agents['api_explorer'].find_documented_but_missing_apis()
+
+        # Prioritize features
+        all_features = jira_issues + doc_features + git_features + api_gaps
+        next_feature = self.prioritize_features(all_features)[0]
+
+        print(f"   Selected: {next_feature.name}")
+
+        # Generate specification
+        spec = self.execute_command('/speckit.specify', next_feature)
+
+        # Generate visual user journey
+        user_journey = self.mermaid.generate_user_journey(spec.user_stories)
+        self.save_diagram('user-journey.mmd', user_journey)
+
+        # STEP 3: Autonomous Clarification
+        print("\n🔍 Step 3: Clarifying ambiguities...")
+
+        ambiguities = self.find_clarification_markers(spec)
+
+        for ambiguity in ambiguities:
+        # Vector search for similar implementations
+        similar_code = self.vector_db.find_similar_code(
+        query=ambiguity.context,
+        top_k=5
+        )
+
+        # Search documentation semantically
+        doc_answers = self.vector_db.semantic_search(
+        query=ambiguity.question,
+        sources=['docs/**/*.md', 'README.md']
+        )
+
+        # Check memory for patterns
+        pattern = self.memory.recall_pattern(
+        similar_to=ambiguity.context
+        )
+
+        # Scrape internal wiki if needed
+        if ambiguity.requires_org_policy:
+        wiki_answer = self.playwright.search_wiki(
+        query=ambiguity.question
+        )
+
+        # Infer clarification
+        clarification = self.infer_from_context(
+        similar_code,
+        doc_answers,
+        pattern,
+        wiki_answer
+        )
+
+        self.update_spec(ambiguity, clarification)
+
+        self.execute_command('/speckit.clarify')
+
+        # STEP 4: Generate Implementation Plan
+        print("\n🏗️  Step 4: Planning implementation...")
+
+        # Extract tech stack from codebase
+        tech_stack = self.agents['codebase'].extract_tech_stack()
+
+        # Get dependency versions
+        versions = self.agents['dependency'].analyze_versions()
+
+        # Detect infrastructure platform
+        platform = self.agents['infrastructure'].detect_platform()
+
+        # Parse existing API contracts
+        existing_apis = self.api_parser.discover_all_apis(self.project_path)
+
+        # Search memory for similar implementations
+        similar_impls = self.memory.recall_implementations(
+        tech_stack=tech_stack,
+        feature_type=spec.type
+        )
+
+        # Generate plan
+        plan = self.execute_command('/speckit.plan', {
+        'tech_stack': tech_stack,
+        'versions': versions,
+        'platform': platform,
+        'existing_apis': existing_apis,
+        'proven_patterns': similar_impls
+        })
+
+        # Generate visual architecture
+        architecture = self.mermaid.generate_architecture_diagram(
+        current=self.agents['codebase'].get_current_architecture(),
+        proposed=plan.components
+        )
+
+        sequence_diagrams = self.mermaid.generate_sequence_diagrams(
+        user_stories=spec.user_stories,
+        components=plan.components
+        )
+
+        erd = self.mermaid.generate_erd(plan.data_model)
+
+        self.save_diagrams([architecture, sequence_diagrams, erd])
+
+        # STEP 5: Generate Task Breakdown
+        print("\n📋 Step 5: Generating task breakdown...")
+
+        # Get project structure conventions
+        structure = self.agents['codebase'].analyze_structure()
+
+        # Get test organization patterns
+        test_patterns = self.agents['test'].analyze_patterns()
+
+        # Search for similar task breakdowns
+        similar_tasks = self.vector_db.find_similar(
+        query=f'task breakdown for {spec.type}',
+        source='previous_specs/*/tasks.md'
+        )
+
+        # Generate tasks
+        tasks = self.execute_command('/speckit.tasks', {
+        'structure': structure,
+        'test_patterns': test_patterns,
+        'similar_tasks': similar_tasks
+        })
+
+        # Generate task dependency diagram
+        task_graph = self.mermaid.generate_task_dependency_graph(tasks)
+        self.save_diagram('task-dependencies.mmd', task_graph)
+
+        # STEP 6: Validate Everything
+        print("\n✅ Step 5.5: Validating artifacts...")
+
+        # Cross-validate with vector similarity
+        consistency = self.vector_db.check_artifact_consistency([
+        spec, plan, tasks
+        ])
+
+        # Check constitutional compliance
+        violations = self.validate_constitution(plan, tasks)
+
+        # Predict coverage
+        coverage = self.predict_coverage(tasks)
+
+        # Check memory for known issues
+        known_issues = self.memory.recall_issues_with_pattern(plan.patterns)
+
+        # Run validation
+        validation = self.execute_command('/speckit.analyze')
+
+        # Auto-fix blockers
+        for blocker in validation.blockers:
+        if blocker.auto_fixable:
+        self.apply_fix(blocker)
+        print(f"   ✓ Auto-fixed: {blocker.description}")
+
+        # Re-validate
+        if validation.had_blockers:
+        validation = self.execute_command('/speckit.analyze')
+
+        # Generate validation diagrams
+        coverage_heatmap = self.mermaid.generate_coverage_heatmap(
+        predicted_coverage=coverage
+        )
+
+        consistency_matrix = self.mermaid.generate_consistency_matrix(
+        artifacts=[spec, plan, tasks, contracts]
+        )
+
+        self.save_diagrams([coverage_heatmap, consistency_matrix])
+
+        # STEP 7: Implement
+        print("\n⚙️  Step 6: Implementing feature...")
+
+        # Extract code style examples via vector search
+        code_examples = self.vector_db.find_similar_code(
+        query='code style examples',
+        top_k=10
+        )
+
+        # Get proven patterns from memory
+        proven_patterns = self.memory.recall_successful_patterns(
+        feature_type=spec.type
+        )
+
+        # Generate code
+        result = self.execute_command('/speckit.implement', {
+        'code_examples': code_examples,
+        'patterns': proven_patterns
+        })
+
+        # Test with Playwright if UI feature
+        if spec.has_ui:
+        print("   Testing UI with Playwright...")
+        ui_tests = self.playwright.test_ui_flows(
+        base_url='http://localhost:5000',
+        scenarios=spec.user_stories
+        )
+        result.ui_test_results = ui_tests
+
+        # Measure final coverage
+        coverage = self.run_coverage_analysis()
+
+        # Generate final diagrams
+        final_architecture = self.mermaid.generate_as_built_diagram(
+        implemented_code=result.code
+        )
+
+        # Store in memory for future reference
+        self.memory.store_implementation(
+        feature=spec.name,
+        spec=spec,
+        plan=plan,
+        tasks=tasks,
+        code=result.code,
+        coverage=coverage,
+        diagrams=[final_architecture],
+        success=True,
+        lessons=result.lessons_learned
+        )
+
+        print(f"\n✨ Implementation complete!")
+        print(f"   Coverage: {coverage}%")
+        print(f"   Tests: {result.tests_passed}/{result.tests_total}")
+        print(f"   Files generated: {len(result.files)}")
+
+        return result
+
+        # Execute autonomous workflow
+        orchestrator = SpecKitOrchestrator('./project')
+        result = orchestrator.autonomous_workflow()</div>
+</div>
+
+<h2>Tool Integration Matrix</h2>
+
+<div class="command-table">
+    <table>
+        <thead>
+        <tr>
+            <th>Tool</th>
+            <th>Primary Use Cases</th>
+            <th>Integration Points</th>
+            <th>Example Operations</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+            <td><strong>Playwright MCP</strong></td>
+            <td>
+                <ul class="tool-list">
+                    <li>Scrape web documentation</li>
+                    <li>Extract Jira/Confluence content</li>
+                    <li>Test live applications</li>
+                    <li>Capture UI screenshots</li>
+                    <li>Validate deployed features</li>
+                </ul>
+            </td>
+            <td>
+                <ul class="agent-list">
+                    <li>Documentation Agent</li>
+                    <li>Test Agent</li>
+                    <li>Visual Spec Agent</li>
+                </ul>
+            </td>
+            <td>
+                <div class="code-block" style="font-size: 0.8em;">playwright.navigate(jira_url)
+                    playwright.login(credentials)
+                    issues = playwright.extract({
+                    selector: '.issue-row',
+                    fields: ['title', 'description', 'priority']
+                    })
+
+                    playwright.navigate(app_url)
+                    playwright.test_user_flow([
+                    'click #login',
+                    'fill #email',
+                    'click #submit',
+                    'assert .dashboard'
+                    ])</div>
+            </td>
+        </tr>
+
+        <tr>
+            <td><strong>Kotlin Vector DB</strong></td>
+            <td>
+                <ul class="tool-list">
+                    <li>Semantic code search</li>
+                    <li>Pattern matching across projects</li>
+                    <li>Similarity detection</li>
+                    <li>Duplicate code finding</li>
+                    <li>Cross-artifact consistency</li>
+                </ul>
+            </td>
+            <td>
+                <ul class="agent-list">
+                    <li>All Agents</li>
+                    <li>Memory System</li>
+                    <li>Validation Engine</li>
+                </ul>
+            </td>
+            <td>
+                <div class="code-block" style="font-size: 0.8em;">// Index codebase
+                    vector_db.index_directory(
+                    path='./src',
+                    file_types=['.cs', '.js', '.py']
+                    )
+
+                    // Semantic search
+                    results = vector_db.search(
+                    query='retry logic with exponential backoff',
+                    top_k=5,
+                    threshold=0.85
+                    )
+
+                    // Check consistency
+                    similarity = vector_db.compare_embeddings(
+                    spec.embedding,
+                    plan.embedding
+                    )
+                    // Returns 0.92 (highly consistent)</div>
+            </td>
+        </tr>
+
+        <tr>
+            <td><strong>Long-Term Memory</strong></td>
+            <td>
+                <ul class="tool-list">
+                    <li>Store architectural decisions</li>
+                    <li>Remember successful patterns</li>
+                    <li>Track failures and lessons</li>
+                    <li>Maintain conventions</li>
+                    <li>Build knowledge base</li>
+                </ul>
+            </td>
+            <td>
+                <ul class="agent-list">
+                    <li>Orchestrator</li>
+                    <li>All Agents</li>
+                    <li>Validation Engine</li>
+                </ul>
+            </td>
+            <td>
+                <div class="code-block" style="font-size: 0.8em;">// Store decision
+                    memory.store_decision({
+                    id: 'adr-005',
+                    decision: 'Use PostgreSQL',
+                    rationale: 'ACID compliance needed',
+                    outcome: 'Zero data loss incidents'
+                    })
+
+                    // Recall similar
+                    similar = memory.recall_decisions(
+                    query='database choice for transactions',
+                    min_similarity=0.8
+                    )
+
+                    // Learn from failure
+                    memory.store_failure({
+                    approach: 'MongoDB for transactions',
+                    reason: 'Lost data during network partition',
+                    lesson: 'Use ACID-compliant DB for financial data'
+                    })</div>
+            </td>
+        </tr>
+
+        <tr>
+            <td><strong>API Doc Parser</strong></td>
+            <td>
+                <ul class="tool-list">
+                    <li>Parse OpenAPI/Swagger specs</li>
+                    <li>Extract GraphQL schemas</li>
+                    <li>Analyze gRPC proto files</li>
+                    <li>Discover API endpoints</li>
+                    <li>Generate client code</li>
+                </ul>
+            </td>
+            <td>
+                <ul class="agent-list">
+                    <li>API Explorer Agent</li>
+                    <li>Documentation Agent</li>
+                    <li>Codebase Agent</li>
+                </ul>
+            </td>
+            <td>
+                <div class="code-block" style="font-size: 0.8em;">// Discover all API specs
+                    specs = api_parser.discover([
+                    'docs/openapi.yaml',
+                    'graphql/schema.graphql',
+                    'proto/**/*.proto'
+                    ])
+
+                    // Extract contracts
+                    for spec in specs:
+                    endpoints = spec.extract_endpoints()
+                    schemas = spec.extract_schemas()
+                    auth = spec.extract_auth()
+
+                    // Generate contract tests
+                    tests = generate_contract_tests(
+                    endpoints, schemas
+                    )</div>
+            </td>
+        </tr>
+
+        <tr>
+            <td><strong>Mermaid UML</strong></td>
+            <td>
+                <ul class="tool-list">
+                    <li>Generate architecture diagrams</li>
+                    <li>Create sequence diagrams</li>
+                    <li>Visualize data models (ERD)</li>
+                    <li>Document state machines</li>
+                    <li>Create deployment diagrams</li>
+                </ul>
+            </td>
+            <td>
+                <ul class="agent-list">
+                    <li>Visual Spec Agent</li>
+                    <li>Codebase Agent</li>
+                    <li>All Agents (for visualization)</li>
+                </ul>
+            </td>
+            <td>
+                <div class="code-block" style="font-size: 0.8em;">// Architecture diagram
+                    mermaid.generate_c4_diagram(
+                    level='container',
+                    components=plan.components
+                    )
+
+                    // Sequence diagram
+                    mermaid.generate_sequence(
+                    actors=['User', 'API', 'Database'],
+                    flow=user_story.steps
+                    )
+
+                    // ERD
+                    mermaid.generate_erd(
+                    entities=data_model.entities,
+                    relationships=data_model.relations
+                    )
+
+                    // State machine
+                    mermaid.generate_state_diagram(
+                    states=order.states,
+                    transitions=order.transitions
+                    )</div>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+</div>
+
+<h2>Enhanced Command Execution with Tools</h2>
+
+<div class="flow-diagram">
+    <div class="flow-step">
+        <h4>Step 1: /speckit.constitution (Enhanced)</h4>
+        <div class="code-block">def execute_constitution_enhanced():
+            # 1. Analyze codebase with vector search
+            patterns = vector_db.find_all_patterns(project_path)
+
+            # 2. Scrape company standards (Playwright)
+            playwright.navigate('https://wiki.company.com/standards')
+            org_standards = playwright.extract_all('.standard-section')
+
+            # 3. Check organizational memory
+            past_constitutions = memory.recall_constitutions(
+            organization='company',
+            successful=True
+            )
+
+            # 4. Generate current architecture diagram
+            current_arch = mermaid.generate_c4_diagram(
+            level='system',
+            source=project_path
+            )
+
+            # 5. Synthesize constitution
+            constitution = synthesize({
+            'discovered_patterns': patterns,
+            'org_standards': org_standards,
+            'proven_constitutions': past_constitutions,
+            'sdd_core_articles': [I, II, III, VII, VIII, IX]
+            })
+
+            # 6. Store in memory with diagram
+            memory.store_constitution(constitution, current_arch)
+
+            # 7. Generate governance diagram
+            governance = mermaid.generate_governance_flowchart(constitution)
+
+            return constitution</div>
+    </div>
+
+    <div class="flow-step">
+        <h4>Step 2: /speckit.specify (Enhanced)</h4>
+        <div class="code-block">def execute_specify_enhanced():
+            # 1. Scrape Jira for requirements (Playwright)
+            jira_issues = playwright.extract_jira_issues(
+            project='PROJ',
+            filter='priority=High AND status=Open'
+            )
+
+            # 2. Vector search for feature requests in docs
+            feature_requests = vector_db.semantic_search(
+            query='feature requests and user needs',
+            sources=['docs/**/*.md', 'README.md', 'ROADMAP.md']
+            )
+
+            # 3. Parse API documentation for gaps
+            documented_apis = api_parser.parse_openapi('docs/api-spec.yaml')
+            implemented_apis = codebase_agent.discover_endpoints()
+            missing_features = documented_apis - implemented_apis
+
+            # 4. Check memory for similar features
+            similar = memory.recall_features(
+            domain=project.domain,
+            successful=True
+            )
+
+            # 5. Prioritize and select feature
+            all_features = jira_issues + feature_requests + missing_features
+            next_feature = prioritize_by_value_and_effort(all_features)[0]
+
+            # 6. Generate spec.md
+            spec = generate_specification(next_feature, similar)
+
+            # 7. Generate visual user journey
+            journey = mermaid.generate_user_journey_map(spec.user_stories)
+
+            # 8. Generate UI wireframes if applicable
+            if spec.has_ui:
+            wireframes = mermaid.generate_wireframe_diagram(spec.ui_requirements)
+
+            return spec</div>
+    </div>
+
+    <div class="flow-step">
+        <h4>Step 3: /speckit.clarify (Enhanced)</h4>
+        <div class="code-block">def execute_clarify_enhanced(spec):
+            ambiguities = find_clarification_markers(spec)
+
+            for ambiguity in ambiguities:
+            # 1. Vector search for similar implementations
+            similar_code = vector_db.find_similar_implementations(
+            query=ambiguity.context,
+            top_k=5
+            )
+
+            # 2. Semantic search documentation
+            doc_answers = vector_db.semantic_search(
+            query=ambiguity.question,
+            sources=['docs/**/*.md']
+            )
+
+            # 3. Check memory for patterns
+            pattern = memory.recall_pattern(ambiguity.type)
+
+            # 4. Scrape internal wiki (Playwright)
+            if ambiguity.requires_policy:
+            wiki_answer = playwright.search_and_extract(
+            url='https://wiki.company.com',
+            query=ambiguity.question
+            )
+
+            # 5. Check API docs for integration details
+            if ambiguity.relates_to_api:
+            api_details = api_parser.get_endpoint_details(
+            ambiguity.api_name
+            )
+
+            # 6. Infer with high confidence
+            clarification = infer_with_confidence(
+            similar_code,
+            doc_answers,
+            pattern,
+            wiki_answer,
+            api_details
+            )
+
+            # 7. Update spec
+            if clarification.confidence > 0.8:
+            update_spec(ambiguity, clarification)
+            else:
+            use_best_practice_default(ambiguity)
+            log_assumption(ambiguity, clarification)
+
+            # 8. Store clarification patterns in memory
+            memory.store_clarification_patterns(ambiguities, clarifications)
+
+            return clarified_spec</div>
+    </div>
+
+    <div class="flow-step">
+        <h4>Step 4: /speckit.plan (Enhanced)</h4>
+        <div class="code-block">def execute_plan_enhanced(spec):
+            # 1. Extract tech stack with vector search
+            tech_stack = vector_db.find_tech_stack_patterns(project_path)
+
+            # 2. Parse all API contracts
+            api_contracts = api_parser.discover_and_parse_all([
+            'docs/openapi.yaml',
+            'graphql/schema.graphql'
+            ])
+
+            # 3. Check memory for proven architectures
+            proven_architectures = memory.recall_architectures(
+            tech_stack=tech_stack,
+            feature_type=spec.type,
+            success_rate_min=0.9
+            )
+
+            # 4. Generate plan.md
+            plan = generate_plan(spec, tech_stack, proven_architectures)
+
+            # 5. Generate visual architecture
+            diagrams = {
+            'architecture': mermaid.generate_c4_diagram(plan.components),
+            'sequences': mermaid.generate_all_sequences(spec.user_stories),
+            'erd': mermaid.generate_erd(plan.data_model),
+            'deployment': mermaid.generate_deployment_diagram(plan.infrastructure)
+            }
+
+            # 6. Generate API contracts
+            contracts = api_parser.generate_openapi_from_plan(plan)
+
+            # 7. Store in memory
+            memory.store_plan(spec.name, plan, diagrams)
+
+            return {plan, diagrams, contracts}</div>
+    </div>
+
+    <div class="flow-step">
+        <h4>Step 5: /speckit.tasks (Enhanced)</h4>
+        <div class="code-block">def execute_tasks_enhanced(plan):
+            # 1. Vector search for similar task breakdowns
+            similar_tasks = vector_db.find_similar(
+            query=f'task breakdown for {plan.feature_type}',
+            source='specs/*/tasks.md',
+            top_k=3
+            )
+
+            # 2. Recall successful task patterns from memory
+            task_patterns = memory.recall_task_patterns(
+            feature_type=plan.feature_type,
+            tech_stack=plan.tech_stack
+            )
+
+            # 3. Generate tasks.md
+            tasks = generate_tasks(plan, similar_tasks, task_patterns)
+
+            # 4. Generate task dependency diagram
+            dependency_graph = mermaid.generate_task_graph(
+            tasks=tasks,
+            show_parallel=True
+            )
+
+            # 5. Generate Gantt chart for timeline
+            gantt = mermaid.generate_gantt_chart(
+            tasks=tasks,
+            estimate_duration=True
+            )
+
+            # 6. Store in memory
+            memory.store_task_breakdown(plan.feature, tasks)
+
+            return {tasks, dependency_graph, gantt}</div>
+    </div>
+
+    <div class="flow-step">
+        <h4>Step 5.5: /speckit.analyze (Enhanced)</h4>
+        <div class="code-block">def execute_analyze_enhanced(spec, plan, tasks):
+            # 1. Vector similarity check across artifacts
+            consistency_scores = {
+            'spec_plan': vector_db.similarity(spec, plan),
+            'plan_tasks': vector_db.similarity(plan, tasks),
+            'spec_contracts': vector_db.similarity(spec, contracts),
+            'contracts_datamodel': vector_db.similarity(contracts, data_model)
+            }
+
+            # 2. Check memory for known issues with this pattern
+            known_issues = memory.recall_issues(
+            pattern=plan.architecture_pattern,
+            tech_stack=plan.tech_stack
+            )
+
+            # 3. Validate against successful implementations
+            successful_impls = memory.recall_implementations(
+            similar_to=spec,
+            success=True
+            )
+
+            deviations = compare_to_successful(plan, successful_impls)
+
+            # 4. Generate validation diagrams
+            diagrams = {
+            'consistency_matrix': mermaid.generate_consistency_matrix(
+            artifacts=[spec, plan, tasks, contracts],
+            scores=consistency_scores
+            ),
+            'coverage_heatmap': mermaid.generate_coverage_heatmap(
+            predicted_coverage=predict_coverage(tasks)
+            ),
+            'dependency_validation': mermaid.generate_dependency_validation(
+            tasks=tasks
+            )
+            }
+
+            # 5. Auto-fix blockers
+            for blocker in blockers:
+            if blocker.auto_fixable:
+            fix = memory.recall_fix_pattern(blocker.type)
+            apply_fix(blocker, fix)
+
+            # 6. Store validation results
+            memory.store_validation(spec.name, validation_report)
+
+            return {validation_report, diagrams}</div>
+    </div>
+
+    <div class="flow-step">
+        <h4>Step 6: /speckit.implement (Enhanced)</h4>
+        <div class="code-block">def execute_implement_enhanced(tasks):
+            # 1. Vector search for code style examples
+            code_examples = vector_db.find_code_examples(
+            language=plan.language,
+            patterns=plan.patterns,
+            top_k=10
+            )
+
+            # 2. Recall proven implementations from memory
+            proven_code = memory.recall_implementations(
+            feature_type=spec.type,
+            tech_stack=plan.tech_stack,
+            success=True
+            )
+
+            # 3. Generate code matching style
+            for task in tasks:
+            code = generate_code(
+            task,
+            style_examples=code_examples,
+            proven_patterns=proven_code
+            )
+
+            # Run tests
+            if task.type == 'test':
+            result = run_test(code, expect='fail')
+            else:
+            result = run_test(code, expect='pass')
+
+            # 4. Test UI with Playwright (if applicable)
+            if spec.has_ui:
+            ui_results = playwright.test_ui_flows(
+            base_url='http://localhost:5000',
+            scenarios=spec.user_stories,
+            screenshots=True
+            )
+
+            # 5. Measure coverage
+            coverage = run_coverage_analysis()
+
+            # 6. Generate as-built diagrams
+            as_built = mermaid.generate_as_built_architecture(
+            implemented_code=generated_code
+            )
+
+            # 7. Store in memory
+            memory.store_implementation(
+            feature=spec.name,
+            code=generated_code,
+            coverage=coverage,
+            success=(coverage >= 70 and all_tests_pass),
+            diagrams=[as_built]
+            )
+
+            return {code, coverage, ui_results, diagrams}</div>
+    </div>
+</div>
+
+<h2>Memory-Driven Learning Loop</h2>
+
+<div class="agent-card">
+    <h3>Continuous Improvement Through Memory</h3>
+    <div class="code-block">class MemoryDrivenLearning:
+        def learn_from_implementation(self, result):
+        # 1. Store successful patterns
+        if result.success and result.coverage >= 75:
+        self.memory.store_pattern(
+        name=f"{result.feature}-pattern",
+        code=result.code,
+        coverage=result.coverage,
+        performance=result.metrics,
+        success_indicators=['high_coverage', 'all_tests_pass']
+        )
+
+        # 2. Store failures for avoidance
+        if result.failed:
+        self.memory.store_failure(
+        approach=result.approach,
+        reason=result.failure_reason,
+        context=result.context,
+        lesson=result.lesson_learned
+        )
+
+        # 3. Update constitutional amendments
+        if result.constitutional_violation_justified:
+        self.memory.amend_constitution(
+        article=result.violated_article,
+        exception=result.justification,
+        outcome=result.outcome
+        )
+
+        # 4. Refine clarification patterns
+        for clarification in result.clarifications:
+        self.memory.store_clarification_pattern(
+        question_type=clarification.type,
+        answer=clarification.answer,
+        confidence=clarification.confidence,
+        source=clarification.source
+        )
+
+        # 5. Update vector embeddings
+        self.vector_db.update_embeddings([
+        result.spec,
+        result.plan,
+        result.code
+        ])
+
+        def apply_learnings_to_next_feature(self):
+        # Recall all learnings
+        learnings = self.memory.get_all_learnings()
+
+        # Apply to orchestrator
+        self.orchestrator.update_strategies(learnings)
+
+        # Improve pattern matching
+        self.vector_db.retrain_with_feedback(learnings)</div>
+</div>
+
+<h2>Example: Complete Autonomous Execution</h2>
+
+<div class="flow-diagram">
+    <div class="code-block" style="background: #f8f9fa; color: #2c3e50; padding: 20px;">
+        # Real-world example: Payment Refunds Feature
+
+        orchestrator = SpecKitOrchestrator('./ecommerce-api')
+
+        # User provides single high-level instruction
+        user_input = "Implement payment refunds feature"
+
+        # Orchestrator executes complete workflow autonomously
+        result = orchestrator.autonomous_workflow(user_input)
+
+        # Behind the scenes:
+
+        ## Step 1: Constitution
+        - Vector search finds existing patterns (Clean Architecture, 65% coverage)
+        - Playwright scrapes company wiki for security standards
+        - Memory recalls successful e-commerce constitutions
+        - Mermaid generates current architecture diagram
+        - Constitution generated with 75% coverage target
+
+        ## Step 2: Specify
+        - Playwright scrapes Jira: "PROJ-123: Implement refund processing"
+        - Vector search finds "refund requirements" in docs/business-rules.md
+        - API parser discovers POST /api/refunds in swagger but not implemented
+        - Memory recalls similar feature: "payment-processing" (successful)
+        - Spec generated with user stories from Jira + inferred acceptance criteria
+        - Mermaid generates user journey diagram
+
+        ## Step 3: Clarify
+        - [NEEDS CLARIFICATION: refund time window?]
+        → Vector search finds "30-day return policy" in docs/policies.md
+        → Clarified: "Refunds allowed within 30 days of purchase"
+
+        - [NEEDS CLARIFICATION: partial refunds?]
+        → Playwright searches wiki: "Partial refunds supported"
+        → API parser finds "amount" field in schema (supports partial)
+        → Clarified: "Support full and partial refunds"
+
+        - [NEEDS CLARIFICATION: refund method?]
+        → Vector search finds existing payment code uses Stripe
+        → Memory recalls: "Stripe refunds via API"
+        → Clarified: "Refund to original payment method via Stripe API"
+
+        ## Step 4: Plan
+        - Codebase agent extracts: .NET 8, PostgreSQL, Stripe SDK
+        - Dependency agent finds: Stripe.net v43.0.0
+        - Infrastructure agent detects: Azure App Service + Docker
+        - API parser extracts existing payment endpoints for consistency
+        - Memory recalls: "payment-processing-plan" (proven pattern)
+        - Plan generated matching existing architecture
+        - Mermaid generates:
+        * Architecture diagram (before/after)
+        * Sequence diagram (refund flow)
+        * ERD (Refund entity + relationships)
+        * State machine (refund states)
+
+        ## Step 5: Tasks
+        - Vector search finds similar task breakdown from "payment-processing"
+        - Test agent extracts test patterns from existing payment tests
+        - Tasks generated with proven ordering
+        - Mermaid generates task dependency graph + Gantt chart
+
+        ## Step 5.5: Analyze
+        - Vector similarity check: spec ↔ plan = 0.94 (excellent)
+        - Constitutional validation: All gates pass
+        - Coverage prediction: 78% (above 75% target)
+        - Memory check: No known issues with this pattern
+        - Validation: ✅ Zero blockers, 2 minor warnings
+        - Mermaid generates consistency matrix + coverage heatmap
+
+        ## Step 6: Implement
+        - Vector search provides code style examples
+        - Memory provides proven refund implementation pattern
+        - Code generated matching existing style
+        - Playwright tests refund UI flow
+        - Coverage measured: 79%
+        - Mermaid generates as-built architecture diagram
+        - Memory stores successful implementation
+
+        # Final Output
+        print(f"""
+        ✨ Feature implemented autonomously!
+
+        Feature: Payment Refunds
+        Coverage: 79%
+        Tests: 47/47 passed
+        Files: 12 generated
+        Diagrams: 8 generated
+        Time: 35 minutes
+        Human input: 1 sentence
+
+        Artifacts:
+        - specs/004-payment-refunds/spec.md
+        - specs/004-payment-refunds/plan.md
+        - specs/004-payment-refunds/tasks.md
+        - specs/004-payment-refunds/validation-report.md
+        - specs/004-payment-refunds/diagrams/*.mmd (8 diagrams)
+        - src/Services/RefundService.cs
+        - src/Controllers/RefundsController.cs
+        - tests/Integration/RefundServiceTests.cs
+        - tests/Contract/RefundApiTests.cs
+        """)</div>
+</div>
+
+<div class="success-box" style="margin-top: 25px;">
+    <h3 style="margin-bottom: 10px;">Enhanced Autonomous Capabilities</h3>
+    <ul class="agent-list">
+        <li><strong>Zero Human Input:</strong> Single sentence instruction → complete implementation</li>
+        <li><strong>Web-Scale Context:</strong> Scrapes Jira, wikis, internal docs automatically</li>
+        <li><strong>Semantic Understanding:</strong> Vector search finds relevant context across all sources</li>
+        <li><strong>Visual Specifications:</strong> Auto-generates 8+ diagrams per feature</li>
+        <li><strong>API-Aware:</strong> Discovers, parses, and tests external APIs automatically</li>
+        <li><strong>Continuous Learning:</strong> Every implementation improves future decisions</li>
+        <li><strong>Pattern Library:</strong> Builds organizational knowledge base over time</li>
+        <li><strong>Self-Healing:</strong> Recalls failures and avoids repeating mistakes</li>
+    </ul>
+</div>
+
+<div class="info-box" style="margin-top: 25px;">
+    <h3 style="margin-bottom: 10px;">Tool Synergy: How They Work Together</h3>
+    <p><strong>Example: Implementing OAuth2 Authentication</strong></p>
+    <div class="code-block" style="margin-top: 10px;">1. Playwright scrapes internal auth wiki → Discovers company uses Azure AD
+        2. API Parser extracts Azure AD OpenAPI spec → Gets OAuth2 endpoints
+        3. Vector DB searches codebase → Finds 3 existing OAuth2 implementations
+        4. Memory recalls → "oauth2-pattern" used successfully 5 times
+        5. Mermaid generates → OAuth2 sequence diagram
+        6. Orchestrator synthesizes → Complete auth implementation plan
+        7. Implementation uses → Proven pattern + company-specific config
+        8. Playwright tests → Login flow end-to-end
+        9. Memory stores → New successful OAuth2 implementation
+
+        Result: Perfect implementation matching company standards, zero human input needed</div>
+</div>
+</div>
+</body>
+</html>

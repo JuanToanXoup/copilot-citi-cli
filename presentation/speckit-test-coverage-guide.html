@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Achieving 70-80% Test Coverage with Spec-Kit</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.4;
+            color: #2c3e50;
+            background: #f8f9fa;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 15px;
+            color: #1a1a1a;
+            border-bottom: 4px solid #27ae60;
+            padding-bottom: 10px;
+        }
+
+        h2 {
+            font-size: 2em;
+            margin: 30px 0 15px 0;
+            color: #1a1a1a;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 8px;
+        }
+
+        h3 {
+            font-size: 1.5em;
+            margin: 20px 0 10px 0;
+            color: #2c3e50;
+        }
+
+        .intro {
+            background: white;
+            padding: 20px;
+            border-radius: 6px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+
+        .section {
+            background: white;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-radius: 6px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+
+        .workflow-card {
+            background: white;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-radius: 6px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            border-left: 6px solid #27ae60;
+        }
+
+        .step-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #ecf0f1;
+        }
+
+        .step-number {
+            width: 50px;
+            height: 50px;
+            background: #27ae60;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+
+        .step-title {
+            flex: 1;
+        }
+
+        .step-name {
+            font-size: 1.6em;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+
+        .step-description {
+            font-size: 1.05em;
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+
+        .code-block {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.95em;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+
+        .code-inline {
+            background: #ecf0f1;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            color: #e74c3c;
+        }
+
+        ul {
+            list-style: none;
+            margin: 10px 0;
+        }
+
+        ul li {
+            padding: 6px 0;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        ul li:before {
+            content: "•";
+            position: absolute;
+            left: 0;
+            color: #27ae60;
+            font-weight: bold;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 15px 0;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin: 15px 0;
+        }
+
+        .card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid #27ae60;
+        }
+
+        .card h4 {
+            margin-bottom: 8px;
+            color: #2c3e50;
+            font-size: 1.15em;
+        }
+
+        .highlight-box {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+
+        .success-box {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+
+        .info-box {
+            background: #e8f4f8;
+            border-left: 4px solid #3498db;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+
+        .warning-box {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background: #27ae60;
+            color: white;
+            font-weight: 600;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .metric {
+            text-align: center;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border-top: 4px solid #27ae60;
+        }
+
+        .metric-value {
+            font-size: 2.5em;
+            font-weight: 700;
+            color: #27ae60;
+            margin-bottom: 5px;
+        }
+
+        .metric-label {
+            font-size: 0.95em;
+            color: #7f8c8d;
+        }
+
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .comparison-col {
+            padding: 20px;
+            border-radius: 6px;
+        }
+
+        .before {
+            background: #fee;
+            border-left: 4px solid #e74c3c;
+        }
+
+        .after {
+            background: #efe;
+            border-left: 4px solid #27ae60;
+        }
+
+        .comparison-col h4 {
+            margin-bottom: 12px;
+            font-size: 1.3em;
+        }
+
+        @media (max-width: 768px) {
+            .grid-2, .grid-3, .comparison, .metric-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Achieving 70-80% Test Coverage with Spec-Kit</h1>
+
+    <div class="intro">
+        <p style="font-size: 1.2em; margin-bottom: 12px;"><strong>The Challenge:</strong> Most microservice projects struggle to achieve meaningful test coverage due to the time and effort required to write comprehensive tests after code is already written.</p>
+        <p style="font-size: 1.1em; color: #7f8c8d;">Spec-Kit's Test-First Imperative (Article III) inverts this problem by generating tests before implementation, making 70-80% coverage the default outcome rather than an aspirational goal.</p>
+    </div>
+
+    <div class="section">
+        <h2>Why Traditional Approaches Fail</h2>
+        <div class="comparison">
+            <div class="comparison-col before">
+                <h4>Traditional Development</h4>
+                <ul>
+                    <li>Code written first, tests added later</li>
+                    <li>Developers resist writing tests for existing code</li>
+                    <li>Time pressure leads to skipped tests</li>
+                    <li>Tests become an afterthought</li>
+                    <li>Coverage measured but not enforced</li>
+                    <li>Technical debt accumulates</li>
+                </ul>
+                <div class="metric" style="margin-top: 15px;">
+                    <div class="metric-value" style="color: #e74c3c;">20-40%</div>
+                    <div class="metric-label">Typical Coverage</div>
+                </div>
+            </div>
+            <div class="comparison-col after">
+                <h4>Spec-Kit Approach</h4>
+                <ul>
+                    <li>Tests generated from specifications first</li>
+                    <li>Implementation written to pass tests</li>
+                    <li>Coverage built-in from the start</li>
+                    <li>Tests are the specification</li>
+                    <li>Constitutional enforcement prevents shortcuts</li>
+                    <li>Quality is systematic, not optional</li>
+                </ul>
+                <div class="metric" style="margin-top: 15px;">
+                    <div class="metric-value">70-80%</div>
+                    <div class="metric-label">Default Coverage</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>The Spec-Kit Test Coverage Strategy</h2>
+        <div class="metric-grid">
+            <div class="metric">
+                <div class="metric-value">1st</div>
+                <div class="metric-label">Contract Tests</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">2nd</div>
+                <div class="metric-label">Integration Tests</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">3rd</div>
+                <div class="metric-label">Implementation</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">4th</div>
+                <div class="metric-label">Unit Tests</div>
+            </div>
+        </div>
+        <div class="info-box">
+            <strong>Key Principle:</strong> Tests are derived from specifications, not from code. This ensures tests validate business requirements, not just code structure.
+        </div>
+    </div>
+
+    <h2>Step-by-Step Workflow for Existing Microservices</h2>
+
+    <!-- Step 1 -->
+    <div class="workflow-card">
+        <div class="step-header">
+            <div class="step-number">1</div>
+            <div class="step-title">
+                <div class="step-name">Analyze Existing Codebase</div>
+                <div class="step-description">Reverse-engineer specifications and identify coverage gaps</div>
+            </div>
+        </div>
+
+        <h3>Command</h3>
+        <div class="code-block">/speckit.analyze src/services/payment-service</div>
+
+        <h3>What Happens</h3>
+        <div class="grid-3">
+            <div class="card">
+                <h4>Code Discovery</h4>
+                <p>Scans all source files, identifies endpoints, services, and data models</p>
+            </div>
+            <div class="card">
+                <h4>Test Analysis</h4>
+                <p>Measures current coverage, identifies untested code paths</p>
+            </div>
+            <div class="card">
+                <h4>Gap Identification</h4>
+                <p>Lists missing tests by category (unit, integration, contract)</p>
+            </div>
+        </div>
+
+        <h3>Output Example</h3>
+        <div class="code-block">specs/000-payment-service-analysis/
+            ├── spec.md                    # Reverse-engineered specification
+            ├── analysis-report.md         # Current state assessment
+            ├── test-coverage-report.md    # Detailed coverage analysis
+            └── recommendations.md         # Test generation plan</div>
+
+        <h3>Coverage Report Contents</h3>
+        <table>
+            <thead>
+            <tr>
+                <th>Component</th>
+                <th>Current Coverage</th>
+                <th>Missing Tests</th>
+                <th>Priority</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td>PaymentController</td>
+                <td>35%</td>
+                <td>Error handling, validation, edge cases</td>
+                <td>High</td>
+            </tr>
+            <tr>
+                <td>PaymentService</td>
+                <td>50%</td>
+                <td>Retry logic, timeout scenarios</td>
+                <td>High</td>
+            </tr>
+            <tr>
+                <td>PaymentRepository</td>
+                <td>60%</td>
+                <td>Concurrent access, transaction rollback</td>
+                <td>Medium</td>
+            </tr>
+            <tr>
+                <td>PaymentValidator</td>
+                <td>80%</td>
+                <td>Complex validation rules</td>
+                <td>Low</td>
+            </tr>
+            </tbody>
+        </table>
+
+        <div class="success-box">
+            <strong>Outcome:</strong> Complete inventory of what needs testing, prioritized by business impact and risk.
+        </div>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="workflow-card">
+        <div class="step-header">
+            <div class="step-number">2</div>
+            <div class="step-title">
+                <div class="step-name">Clarify Test Requirements</div>
+                <div class="step-description">Define acceptance criteria for untested scenarios</div>
+            </div>
+        </div>
+
+        <h3>Command</h3>
+        <div class="code-block">/speckit.clarify</div>
+
+        <h3>What Happens</h3>
+        <p>The AI asks targeted questions about untested scenarios:</p>
+        <ul>
+            <li><strong>Error Handling:</strong> "What should happen when payment gateway times out?"</li>
+            <li><strong>Edge Cases:</strong> "How should the system handle duplicate payment requests?"</li>
+            <li><strong>Validation:</strong> "What are the valid ranges for payment amounts?"</li>
+            <li><strong>Concurrency:</strong> "How should simultaneous payments be handled?"</li>
+            <li><strong>Security:</strong> "What authentication is required for refund operations?"</li>
+        </ul>
+
+        <h3>Example Clarification</h3>
+        <div class="comparison">
+            <div class="comparison-col before">
+                <h4>Before Clarification</h4>
+                <div class="code-block" style="font-size: 0.85em;">User Story: Process payment
+                    [NEEDS CLARIFICATION: timeout behavior?]
+                    [NEEDS CLARIFICATION: retry strategy?]
+                    [NEEDS CLARIFICATION: idempotency?]</div>
+            </div>
+            <div class="comparison-col after">
+                <h4>After Clarification</h4>
+                <div class="code-block" style="font-size: 0.85em;">User Story: Process payment
+
+                    Acceptance Criteria:
+                    - Timeout after 30 seconds
+                    - Retry 3 times with exponential backoff
+                    - Idempotent using request ID
+                    - Return 409 for duplicate requests</div>
+            </div>
+        </div>
+
+        <div class="success-box">
+            <strong>Outcome:</strong> Precise, testable acceptance criteria for all previously untested scenarios.
+        </div>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="workflow-card">
+        <div class="step-header">
+            <div class="step-number">3</div>
+            <div class="step-title">
+                <div class="step-name">Generate Test Plan</div>
+                <div class="step-description">Create comprehensive test strategy aligned with specifications</div>
+            </div>
+        </div>
+
+        <h3>Command</h3>
+        <div class="code-block">/speckit.plan Focus on generating comprehensive test coverage for payment-service. Include contract tests for all API endpoints, integration tests for payment gateway interactions, and unit tests for business logic. Target 75% coverage minimum.</div>
+
+        <h3>What Gets Generated</h3>
+        <div class="code-block">specs/001-payment-service-tests/
+            ├── plan.md                    # Test implementation strategy
+            ├── test-scenarios.md          # All test cases by category
+            ├── contracts/
+            │   ├── payment-api.json       # API contract specifications
+            │   └── gateway-api.json       # External dependency contracts
+            └── test-data.md               # Test fixtures and mock data</div>
+
+        <h3>Test Scenarios Structure</h3>
+        <table>
+            <thead>
+            <tr>
+                <th>Test Type</th>
+                <th>Coverage Target</th>
+                <th>What It Tests</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td>Contract Tests</td>
+                <td>100% of API surface</td>
+                <td>Request/response schemas, status codes, headers</td>
+            </tr>
+            <tr>
+                <td>Integration Tests</td>
+                <td>80% of service interactions</td>
+                <td>Database operations, external API calls, message queues</td>
+            </tr>
+            <tr>
+                <td>Unit Tests</td>
+                <td>70% of business logic</td>
+                <td>Validation, calculations, state transitions</td>
+            </tr>
+            <tr>
+                <td>E2E Tests</td>
+                <td>Critical user journeys</td>
+                <td>Complete payment flows, error recovery</td>
+            </tr>
+            </tbody>
+        </table>
+
+        <h3>Test Scenario Example</h3>
+        <div class="code-block">## Contract Tests: POST /api/payments
+
+            ### Scenario 1: Successful Payment
+            - Given: Valid payment request with amount, currency, card details
+            - When: POST to /api/payments
+            - Then: 201 Created, payment ID returned, idempotency key stored
+
+            ### Scenario 2: Invalid Amount
+            - Given: Payment request with negative amount
+            - When: POST to /api/payments
+            - Then: 400 Bad Request, validation error details
+
+            ### Scenario 3: Duplicate Request
+            - Given: Payment request with previously used idempotency key
+            - When: POST to /api/payments
+            - Then: 409 Conflict, original payment ID returned
+
+            ### Scenario 4: Gateway Timeout
+            - Given: Payment gateway responds after 30 seconds
+            - When: POST to /api/payments
+            - Then: 504 Gateway Timeout, retry scheduled</div>
+
+        <div class="success-box">
+            <strong>Outcome:</strong> Detailed test plan covering all scenarios identified in analysis, organized by test type and priority.
+        </div>
+    </div>
+
+    <!-- Step 4 -->
+    <div class="workflow-card">
+        <div class="step-header">
+            <div class="step-number">4</div>
+            <div class="step-title">
+                <div class="step-name">Generate Test Tasks</div>
+                <div class="step-description">Break down test plan into executable tasks</div>
+            </div>
+        </div>
+
+        <h3>Command</h3>
+        <div class="code-block">/speckit.tasks</div>
+
+        <h3>Generated Task Structure</h3>
+        <div class="code-block">## Phase 1: Contract Tests (Priority: High)
+
+            ### Phase 1.1: Payment API Contracts
+            - [ ] Create tests/Contract/PaymentApiTests.cs
+            - [ ] Test POST /api/payments - success scenario
+            - [ ] Test POST /api/payments - validation errors
+            - [ ] Test POST /api/payments - duplicate detection
+            - [ ] Test GET /api/payments/{id} - found
+            - [ ] Test GET /api/payments/{id} - not found
+            - [ ] Test POST /api/payments/{id}/refund - success
+            - [ ] Test POST /api/payments/{id}/refund - already refunded
+            - [ ] [P] Run contract tests against OpenAPI spec
+
+            ### Phase 1.2: Gateway Integration Contracts
+            - [ ] Create tests/Contract/PaymentGatewayTests.cs
+            - [ ] Test gateway timeout handling
+            - [ ] Test gateway error responses
+            - [ ] Test gateway retry logic
+            - [ ] [P] Mock gateway responses for deterministic testing
+
+            ## Phase 2: Integration Tests (Priority: High)
+
+            ### Phase 2.1: Database Operations
+            - [ ] Create tests/Integration/PaymentRepositoryTests.cs
+            - [ ] Test payment creation with real database
+            - [ ] Test concurrent payment updates
+            - [ ] Test transaction rollback scenarios
+            - [ ] Test payment query performance
+            - [ ] [P] Use test containers for isolated database
+
+            ### Phase 2.2: External Service Integration
+            - [ ] Create tests/Integration/PaymentGatewayIntegrationTests.cs
+            - [ ] Test end-to-end payment flow with test gateway
+            - [ ] Test webhook handling
+            - [ ] Test idempotency across service restarts
+            - [ ] [P] Use WireMock for gateway simulation
+
+            ## Phase 3: Unit Tests (Priority: Medium)
+
+            ### Phase 3.1: Business Logic
+            - [ ] Create tests/Unit/PaymentValidatorTests.cs
+            - [ ] Test amount validation rules
+            - [ ] Test currency validation
+            - [ ] Test card number validation
+            - [ ] Test expiry date validation
+            - [ ] [P] Parameterized tests for edge cases
+
+            ### Phase 3.2: Service Layer
+            - [ ] Create tests/Unit/PaymentServiceTests.cs
+            - [ ] Test payment processing logic
+            - [ ] Test refund calculation
+            - [ ] Test state machine transitions
+            - [ ] [P] Mock repository for isolated testing
+
+            ## Phase 4: E2E Tests (Priority: Low)
+
+            ### Phase 4.1: Critical User Journeys
+            - [ ] Create tests/E2E/PaymentFlowTests.cs
+            - [ ] Test complete payment journey
+            - [ ] Test payment failure and retry
+            - [ ] Test refund flow
+            - [ ] [P] Use test data builders for scenarios</div>
+
+        <div class="info-box">
+            <strong>Task Organization:</strong> Tests are ordered by priority and dependency. Contract tests run first to validate API surface, followed by integration tests, then unit tests.
+        </div>
+
+        <div class="success-box">
+            <strong>Outcome:</strong> Clear roadmap of exactly which test files to create and what scenarios to cover, with parallelization opportunities marked.
+        </div>
+    </div>
+
+    <!-- Step 5 -->
+    <div class="workflow-card">
+        <div class="step-header">
+            <div class="step-number">5</div>
+            <div class="step-title">
+                <div class="step-name">Implement Tests</div>
+                <div class="step-description">Generate test code following TDD principles</div>
+            </div>
+        </div>
+
+        <h3>Command</h3>
+        <div class="code-block">/speckit.implement</div>
+
+        <h3>What Happens</h3>
+        <div class="grid-3">
+            <div class="card">
+                <h4>1. Test Generation</h4>
+                <p>Creates test files in correct order: contract → integration → unit</p>
+            </div>
+            <div class="card">
+                <h4>2. Test Execution</h4>
+                <p>Runs tests to verify they fail (Red phase of TDD)</p>
+            </div>
+            <div class="card">
+                <h4>3. Coverage Measurement</h4>
+                <p>Tracks coverage as tests are added</p>
+            </div>
+        </div>
+
+        <h3>Generated Test Example</h3>
+        <div class="code-block">// tests/Contract/PaymentApiTests.cs
+            public class PaymentApiTests : IClassFixture&lt;WebApplicationFactory&lt;Program&gt;&gt;
+            {
+            private readonly HttpClient _client;
+
+            public PaymentApiTests(WebApplicationFactory&lt;Program&gt; factory)
+            {
+            _client = factory.CreateClient();
+            }
+
+            [Fact]
+            public async Task PostPayment_ValidRequest_Returns201Created()
+            {
+            // Arrange
+            var request = new PaymentRequest
+            {
+            Amount = 100.00m,
+            Currency = "USD",
+            CardNumber = "4111111111111111",
+            ExpiryMonth = 12,
+            ExpiryYear = 2025,
+            Cvv = "123",
+            IdempotencyKey = Guid.NewGuid().ToString()
+            };
+
+            // Act
+            var response = await _client.PostAsJsonAsync("/api/payments", request);
+
+            // Assert
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            var payment = await response.Content.ReadFromJsonAsync&lt;PaymentResponse&gt;();
+            Assert.NotNull(payment.PaymentId);
+            Assert.Equal(request.Amount, payment.Amount);
+            Assert.Equal("pending", payment.Status);
+            }
+
+            [Theory]
+            [InlineData(-100.00, "Amount must be positive")]
+            [InlineData(0, "Amount must be greater than zero")]
+            [InlineData(1000000, "Amount exceeds maximum allowed")]
+            public async Task PostPayment_InvalidAmount_Returns400BadRequest(
+            decimal amount, string expectedError)
+            {
+            // Arrange
+            var request = new PaymentRequest
+            {
+            Amount = amount,
+            Currency = "USD",
+            CardNumber = "4111111111111111",
+            ExpiryMonth = 12,
+            ExpiryYear = 2025,
+            Cvv = "123",
+            IdempotencyKey = Guid.NewGuid().ToString()
+            };
+
+            // Act
+            var response = await _client.PostAsJsonAsync("/api/payments", request);
+
+            // Assert
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            var error = await response.Content.ReadFromJsonAsync&lt;ErrorResponse&gt;();
+            Assert.Contains(expectedError, error.Message);
+            }
+
+            [Fact]
+            public async Task PostPayment_DuplicateIdempotencyKey_Returns409Conflict()
+            {
+            // Arrange
+            var idempotencyKey = Guid.NewGuid().ToString();
+            var request = new PaymentRequest
+            {
+            Amount = 100.00m,
+            Currency = "USD",
+            CardNumber = "4111111111111111",
+            ExpiryMonth = 12,
+            ExpiryYear = 2025,
+            Cvv = "123",
+            IdempotencyKey = idempotencyKey
+            };
+
+            // Act - First request
+            var firstResponse = await _client.PostAsJsonAsync("/api/payments", request);
+            Assert.Equal(HttpStatusCode.Created, firstResponse.StatusCode);
+
+            // Act - Duplicate request
+            var duplicateResponse = await _client.PostAsJsonAsync("/api/payments", request);
+
+            // Assert
+            Assert.Equal(HttpStatusCode.Conflict, duplicateResponse.StatusCode);
+            var firstPayment = await firstResponse.Content.ReadFromJsonAsync&lt;PaymentResponse&gt;();
+            var duplicatePayment = await duplicateResponse.Content.ReadFromJsonAsync&lt;PaymentResponse&gt;();
+            Assert.Equal(firstPayment.PaymentId, duplicatePayment.PaymentId);
+            }
+            }</div>
+
+        <h3>Coverage Progression</h3>
+        <table>
+            <thead>
+            <tr>
+                <th>Phase</th>
+                <th>Tests Added</th>
+                <th>Coverage After</th>
+                <th>Time</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td>Initial State</td>
+                <td>0</td>
+                <td>35%</td>
+                <td>-</td>
+            </tr>
+            <tr>
+                <td>Contract Tests</td>
+                <td>15</td>
+                <td>55%</td>
+                <td>10 min</td>
+            </tr>
+            <tr>
+                <td>Integration Tests</td>
+                <td>12</td>
+                <td>68%</td>
+                <td>8 min</td>
+            </tr>
+            <tr>
+                <td>Unit Tests</td>
+                <td>25</td>
+                <td>76%</td>
+                <td>12 min</td>
+            </tr>
+            <tr>
+                <td>E2E Tests</td>
+                <td>5</td>
+                <td>78%</td>
+                <td>5 min</td>
+            </tr>
+            </tbody>
+        </table>
+
+        <div class="success-box">
+            <strong>Outcome:</strong> 78% test coverage achieved in ~35 minutes vs. 2-3 days of manual test writing.
+        </div>
+    </div>
+
+    <!-- Step 6 -->
+    <div class="workflow-card">
+        <div class="step-header">
+            <div class="step-number">6</div>
+            <div class="step-title">
+                <div class="step-name">Validate and Refine</div>
+                <div class="step-description">Run coverage analysis and fill remaining gaps</div>
+            </div>
+        </div>
+
+        <h3>Coverage Analysis</h3>
+        <div class="code-block"># Run coverage report
+            dotnet test /p:CollectCoverage=true /p:CoverletOutputFormat=opencover
+
+            # Generate HTML report
+            reportgenerator -reports:coverage.opencover.xml -targetdir:coverage-report</div>
+
+        <h3>Identify Remaining Gaps</h3>
+        <p>Review coverage report to find:</p>
+        <ul>
+            <li><strong>Uncovered Branches:</strong> Error handling paths not tested</li>
+            <li><strong>Edge Cases:</strong> Boundary conditions missed</li>
+            <li><strong>Exception Scenarios:</strong> Failure modes not covered</li>
+            <li><strong>Async Code Paths:</strong> Concurrent execution scenarios</li>
+        </ul>
+
+        <h3>Iterative Refinement</h3>
+        <div class="code-block"># Ask AI to analyze coverage gaps
+            "Review the coverage report and identify the top 5 untested code paths.
+            For each, generate additional test scenarios to cover them."
+
+            # AI generates targeted tests
+            - Test payment timeout during database transaction
+            - Test concurrent refund requests for same payment
+            - Test payment processing when gateway returns 500 error
+            - Test webhook retry logic when endpoint is down
+            - Test payment state recovery after service restart</div>
+
+        <h3>Final Coverage Report</h3>
+        <div class="metric-grid">
+            <div class="metric">
+                <div class="metric-value">78%</div>
+                <div class="metric-label">Overall Coverage</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">85%</div>
+                <div class="metric-label">Business Logic</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">72%</div>
+                <div class="metric-label">Controllers</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">80%</div>
+                <div class="metric-label">Services</div>
+            </div>
+        </div>
+
+        <div class="success-box">
+            <strong>Outcome:</strong> Target coverage achieved with comprehensive test suite covering critical paths, edge cases, and error scenarios.
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Constitutional Enforcement of Test Coverage</h2>
+        <p>Article III (Test-First Imperative) ensures tests are non-negotiable:</p>
+
+        <div class="grid-2">
+            <div class="card">
+                <h4>Constitutional Requirement</h4>
+                <div class="code-block" style="font-size: 0.85em; margin-top: 10px;">Article III: Test-First Imperative
+
+                    No implementation code shall be written
+                    before:
+                    1. Unit tests are written
+                    2. Tests are validated and approved
+                    3. Tests are confirmed to FAIL
+
+                    Minimum coverage thresholds:
+                    - Business logic: 80%
+                    - API endpoints: 75%
+                    - Overall: 70%</div>
+            </div>
+            <div class="card">
+                <h4>Enforcement Mechanism</h4>
+                <ul style="margin-top: 10px;">
+                    <li>CI/CD pipeline blocks merges below threshold</li>
+                    <li>Coverage reports generated automatically</li>
+                    <li>Trend tracking shows coverage over time</li>
+                    <li>Pull requests require test additions</li>
+                    <li>Constitutional gates validate compliance</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Test Types and Coverage Strategy</h2>
+        <table>
+            <thead>
+            <tr>
+                <th>Test Type</th>
+                <th>Coverage Target</th>
+                <th>What It Validates</th>
+                <th>When to Write</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td>Contract Tests</td>
+                <td>100% of API surface</td>
+                <td>API contracts match specifications</td>
+                <td>Before implementation</td>
+            </tr>
+            <tr>
+                <td>Integration Tests</td>
+                <td>80% of integrations</td>
+                <td>Components work together correctly</td>
+                <td>Before service implementation</td>
+            </tr>
+            <tr>
+                <td>Unit Tests</td>
+                <td>70-80% of logic</td>
+                <td>Individual functions behave correctly</td>
+                <td>After integration tests</td>
+            </tr>
+            <tr>
+                <td>E2E Tests</td>
+                <td>Critical user journeys</td>
+                <td>Complete flows work end-to-end</td>
+                <td>After all components implemented</td>
+            </tr>
+            </tbody>
+        </table>
+
+        <div class="info-box">
+            <strong>Integration-First Testing (Article IX):</strong> Spec-Kit prioritizes integration tests over unit tests because they validate real-world behavior with actual dependencies, not mocked scenarios.
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Handling Different Microservice Scenarios</h2>
+
+        <h3>Scenario 1: Greenfield Microservice</h3>
+        <div class="card">
+            <h4>Workflow</h4>
+            <ol style="list-style: decimal; padding-left: 20px;">
+                <li>/speckit.constitution - Establish test coverage requirements</li>
+                <li>/speckit.specify - Define microservice functionality</li>
+                <li>/speckit.clarify - Detail all test scenarios</li>
+                <li>/speckit.plan - Generate test strategy with coverage targets</li>
+                <li>/speckit.tasks - Break down test implementation</li>
+                <li>/speckit.implement - Generate tests first, then implementation</li>
+            </ol>
+            <div class="success-box" style="margin-top: 10px;">
+                <strong>Result:</strong> 75-80% coverage from day one, tests written before code.
+            </div>
+        </div>
+
+        <h3>Scenario 2: Existing Microservice with Low Coverage</h3>
+        <div class="card">
+            <h4>Workflow</h4>
+            <ol style="list-style: decimal; padding-left: 20px;">
+                <li>/speckit.analyze - Assess current coverage and gaps</li>
+                <li>/speckit.clarify - Define acceptance criteria for untested code</li>
+                <li>/speckit.plan - Create test backfill strategy</li>
+                <li>/speckit.tasks - Prioritize test additions by risk</li>
+                <li>/speckit.implement - Generate missing tests</li>
+                <li>Validate - Run coverage analysis and iterate</li>
+            </ol>
+            <div class="success-box" style="margin-top: 10px;">
+                <strong>Result:</strong> Coverage increased from 30-40% to 70-80% in hours, not weeks.
+            </div>
+        </div>
+
+        <h3>Scenario 3: Refactoring Existing Microservice</h3>
+        <div class="card">
+            <h4>Workflow</h4>
+            <ol style="list-style: decimal; padding-left: 20px;">
+                <li>/speckit.analyze - Document current behavior as specifications</li>
+                <li>/speckit.plan - Generate comprehensive test suite for current behavior</li>
+                <li>/speckit.implement - Create characterization tests</li>
+                <li>Refactor - Modify code with confidence (tests catch regressions)</li>
+                <li>/speckit.plan - Generate tests for new architecture</li>
+                <li>/speckit.implement - Implement refactored code to pass new tests</li>
+            </ol>
+            <div class="success-box" style="margin-top: 10px;">
+                <strong>Result:</strong> Safe refactoring with comprehensive test coverage preventing regressions.
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Best Practices for Maintaining Coverage</h2>
+
+        <div class="grid-2">
+            <div class="card">
+                <h4>1. Coverage as a Gate</h4>
+                <p>Configure CI/CD to enforce minimum thresholds:</p>
+                <div class="code-block" style="font-size: 0.85em; margin-top: 8px;"># .github/workflows/test.yml
+                    - name: Test with coverage
+                    run: dotnet test /p:CollectCoverage=true
+
+                    - name: Enforce coverage threshold
+                    run: |
+                    if [ $COVERAGE -lt 70 ]; then
+                    echo "Coverage below 70%"
+                    exit 1
+                    fi</div>
+            </div>
+            <div class="card">
+                <h4>2. Coverage Trending</h4>
+                <p>Track coverage over time to prevent degradation:</p>
+                <ul style="margin-top: 8px;">
+                    <li>Store coverage reports in artifacts</li>
+                    <li>Generate trend graphs</li>
+                    <li>Alert on coverage drops</li>
+                    <li>Celebrate coverage improvements</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="grid-2" style="margin-top: 15px;">
+            <div class="card">
+                <h4>3. Mutation Testing</h4>
+                <p>Validate test quality, not just coverage:</p>
+                <div class="code-block" style="font-size: 0.85em; margin-top: 8px;"># Install Stryker.NET
+                    dotnet tool install -g dotnet-stryker
+
+                    # Run mutation testing
+                    dotnet stryker
+
+                    # Ensures tests actually catch bugs</div>
+            </div>
+            <div class="card">
+                <h4>4. Regular Test Audits</h4>
+                <p>Periodically review test suite health:</p>
+                <ul style="margin-top: 8px;">
+                    <li>Remove obsolete tests</li>
+                    <li>Refactor brittle tests</li>
+                    <li>Update tests for new requirements</li>
+                    <li>Identify flaky tests and fix them</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>ROI: Time and Cost Comparison</h2>
+
+        <div class="comparison">
+            <div class="comparison-col before">
+                <h4>Manual Test Writing</h4>
+                <table style="margin-top: 10px;">
+                    <tr>
+                        <td>Analyze code</td>
+                        <td>4 hours</td>
+                    </tr>
+                    <tr>
+                        <td>Design test cases</td>
+                        <td>6 hours</td>
+                    </tr>
+                    <tr>
+                        <td>Write tests</td>
+                        <td>16 hours</td>
+                    </tr>
+                    <tr>
+                        <td>Debug and fix</td>
+                        <td>6 hours</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Total</strong></td>
+                        <td><strong>32 hours (4 days)</strong></td>
+                    </tr>
+                </table>
+                <div class="metric" style="margin-top: 15px;">
+                    <div class="metric-value" style="color: #e74c3c;">60%</div>
+                    <div class="metric-label">Typical Final Coverage</div>
+                </div>
+            </div>
+            <div class="comparison-col after">
+                <h4>Spec-Kit Approach</h4>
+                <table style="margin-top: 10px;">
+                    <tr>
+                        <td>/speckit.analyze</td>
+                        <td>5 minutes</td>
+                    </tr>
+                    <tr>
+                        <td>/speckit.clarify</td>
+                        <td>10 minutes</td>
+                    </tr>
+                    <tr>
+                        <td>/speckit.plan</td>
+                        <td>5 minutes</td>
+                    </tr>
+                    <tr>
+                        <td>/speckit.tasks</td>
+                        <td>5 minutes</td>
+                    </tr>
+                    <tr>
+                        <td>/speckit.implement</td>
+                        <td>30 minutes</td>
+                    </tr>
+                    <tr>
+                        <td>Review and refine</td>
+                        <td>15 minutes</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Total</strong></td>
+                        <td><strong>70 minutes</strong></td>
+                    </tr>
+                </table>
+                <div class="metric" style="margin-top: 15px;">
+                    <div class="metric-value">78%</div>
+                    <div class="metric-label">Achieved Coverage</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="success-box" style="margin-top: 20px;">
+            <strong>Time Savings:</strong> 27x faster (70 minutes vs. 32 hours)<br>
+            <strong>Coverage Improvement:</strong> 30% higher coverage (78% vs. 60%)<br>
+            <strong>Cost Savings:</strong> $3,200 saved per microservice (assuming $100/hour developer cost)
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Common Challenges and Solutions</h2>
+
+        <table>
+            <thead>
+            <tr>
+                <th>Challenge</th>
+                <th>Spec-Kit Solution</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td>Developers resist writing tests</td>
+                <td>Tests generated automatically from specifications</td>
+            </tr>
+            <tr>
+                <td>Tests written after code are incomplete</td>
+                <td>Constitutional enforcement: tests before implementation</td>
+            </tr>
+            <tr>
+                <td>Hard to test legacy code</td>
+                <td>/speckit.analyze generates characterization tests</td>
+            </tr>
+            <tr>
+                <td>Don't know what to test</td>
+                <td>Test scenarios derived from acceptance criteria</td>
+            </tr>
+            <tr>
+                <td>Tests are brittle and break often</td>
+                <td>Integration-first testing validates real behavior</td>
+            </tr>
+            <tr>
+                <td>Coverage drops over time</td>
+                <td>CI/CD gates prevent merges below threshold</td>
+            </tr>
+            <tr>
+                <td>Time pressure leads to skipped tests</td>
+                <td>Tests generated in minutes, not hours</td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Key Takeaways</h2>
+
+        <div class="grid-3">
+            <div class="card">
+                <h4>Test-First is Built-In</h4>
+                <p>Article III makes tests non-negotiable. Coverage is a natural outcome, not an afterthought.</p>
+            </div>
+            <div class="card">
+                <h4>Specifications Drive Tests</h4>
+                <p>Tests validate business requirements, not code structure. This ensures meaningful coverage.</p>
+            </div>
+            <div class="card">
+                <h4>Integration Over Unit</h4>
+                <p>Article IX prioritizes integration tests that validate real behavior with actual dependencies.</p>
+            </div>
+        </div>
+
+        <div class="success-box" style="margin-top: 20px;">
+            <strong>Bottom Line:</strong> Spec-Kit makes 70-80% test coverage the default outcome by generating tests from specifications before implementation. What traditionally takes days happens in minutes, with higher quality and better coverage.
+        </div>
+    </div>
+</div>
+</body>
+</html>

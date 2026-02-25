@@ -1,0 +1,2385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spec-Kit Test Coverage Orchestrator: Autonomous 70-80% Coverage</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.4;
+            color: #2c3e50;
+            background: #f8f9fa;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 15px;
+            color: #1a1a1a;
+            border-bottom: 4px solid #27ae60;
+            padding-bottom: 10px;
+        }
+
+        h2 {
+            font-size: 2em;
+            margin: 25px 0 15px 0;
+            color: #1a1a1a;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 8px;
+        }
+
+        h3 {
+            font-size: 1.5em;
+            margin: 20px 0 10px 0;
+            color: #2c3e50;
+        }
+
+        .intro {
+            background: white;
+            padding: 20px;
+            border-radius: 6px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+
+        .phase-card {
+            background: white;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-radius: 6px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            border-left: 6px solid #27ae60;
+        }
+
+        .agent-card {
+            background: white;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-radius: 6px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            border-left: 6px solid #9b59b6;
+        }
+
+        .code-block {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+
+        .info-box {
+            background: #e8f4f8;
+            border-left: 4px solid #3498db;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+
+        .warning-box {
+            background: #ffe5d0;
+            border-left: 4px solid #e67e22;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+
+        .success-box {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .metric {
+            text-align: center;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border-top: 4px solid #27ae60;
+        }
+
+        .metric-value {
+            font-size: 2.5em;
+            font-weight: 700;
+            color: #27ae60;
+            margin-bottom: 5px;
+        }
+
+        .metric-label {
+            font-size: 0.95em;
+            color: #7f8c8d;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+
+        th {
+            background: #27ae60;
+            color: white;
+            font-weight: 600;
+            padding: 12px;
+            text-align: left;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+            vertical-align: top;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        .tool-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin: 15px 0;
+        }
+
+        .tool-box {
+            background: #fff5e6;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid #e67e22;
+        }
+
+        .tool-box h4 {
+            color: #e67e22;
+            margin-bottom: 8px;
+        }
+
+        .agent-list {
+            list-style: none;
+            margin: 10px 0;
+            padding: 0;
+        }
+
+        .agent-list li {
+            padding: 6px 0;
+            padding-left: 25px;
+            position: relative;
+        }
+
+        .agent-list li:before {
+            content: "🤖";
+            position: absolute;
+            left: 0;
+            font-size: 1.1em;
+        }
+
+        .workflow-step {
+            background: #f8f9fa;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #27ae60;
+            border-radius: 4px;
+        }
+
+        .workflow-step h4 {
+            color: #27ae60;
+            margin-bottom: 8px;
+        }
+
+        @media (max-width: 1200px) {
+            .metric-grid, .tool-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Spec-Kit Test Coverage Orchestrator</h1>
+    <h2 style="border-bottom-color: #27ae60; margin-top: 0;">Autonomous Path to 70-80% Unit Test Coverage</h2>
+
+    <div class="intro">
+        <p style="font-size: 1.2em; margin-bottom: 12px;"><strong>Mission:</strong> Autonomously analyze an existing microservice project and generate comprehensive unit tests to achieve 70-80% code coverage without any human input beyond the initial command.</p>
+        <p style="font-size: 1.05em; color: #7f8c8d;"><strong>User Input:</strong> "Achieve 70-80% test coverage for payment-service"</p>
+        <p style="font-size: 1.05em; color: #7f8c8d; margin-top: 8px;"><strong>Orchestrator Output:</strong> Complete test suite with 78% coverage in ~45 minutes</p>
+    </div>
+
+    <div class="metric-grid">
+        <div class="metric">
+            <div class="metric-value">0</div>
+            <div class="metric-label">Human Interventions</div>
+        </div>
+        <div class="metric">
+            <div class="metric-value">78%</div>
+            <div class="metric-label">Final Coverage</div>
+        </div>
+        <div class="metric">
+            <div class="metric-value">45min</div>
+            <div class="metric-label">Total Time</div>
+        </div>
+        <div class="metric">
+            <div class="metric-value">127</div>
+            <div class="metric-label">Tests Generated</div>
+        </div>
+    </div>
+
+    <h2>Specialized Sub-Agents for Test Coverage</h2>
+
+    <div class="agent-card">
+        <h3>1. Coverage Analysis Agent</h3>
+        <p><strong>Purpose:</strong> Deep analysis of current test coverage and gap identification</p>
+
+        <h4>Tools Used:</h4>
+        <ul class="agent-list">
+            <li><strong>Kotlin Vector DB:</strong> Semantic search for untested code patterns</li>
+            <li><strong>Coverage Parser:</strong> Parse coverage.xml, lcov.info, JaCoCo reports</li>
+            <li><strong>Mermaid Generator:</strong> Visualize coverage heatmaps</li>
+            <li><strong>Long-Term Memory:</strong> Recall test patterns for similar code</li>
+        </ul>
+
+        <h4>Autonomous Workflow:</h4>
+        <div class="code-block">def analyze_coverage_autonomous(project_path):
+            # 1. Run existing tests and generate coverage report
+            run_command('dotnet test /p:CollectCoverage=true /p:CoverletOutputFormat=opencover')
+            coverage_report = parse_coverage('coverage.opencover.xml')
+
+            # 2. Analyze coverage by component
+            coverage_by_component = {
+            'Controllers': analyze_coverage(coverage_report, 'Controllers/**/*.cs'),
+            'Services': analyze_coverage(coverage_report, 'Services/**/*.cs'),
+            'Repositories': analyze_coverage(coverage_report, 'Repositories/**/*.cs'),
+            'Validators': analyze_coverage(coverage_report, 'Validators/**/*.cs'),
+            'Utilities': analyze_coverage(coverage_report, 'Utilities/**/*.cs')
+            }
+
+            # 3. Identify untested code paths
+            untested_methods = []
+            for component, coverage in coverage_by_component.items():
+            for file in coverage.files:
+            for method in file.methods:
+            if method.coverage < 70:
+            untested_methods.append({
+            'component': component,
+            'file': file.path,
+            'method': method.name,
+            'current_coverage': method.coverage,
+            'uncovered_lines': method.uncovered_lines,
+            'complexity': calculate_complexity(method)
+            })
+
+            # 4. Prioritize by risk and complexity
+            prioritized = prioritize_by_risk(untested_methods)
+
+            # 5. Vector search for similar test patterns
+            for method in prioritized:
+            similar_tests = vector_db.find_similar_tests(
+            query=method.signature,
+            context=method.code,
+            top_k=3
+            )
+            method.test_patterns = similar_tests
+
+            # 6. Generate coverage heatmap
+            heatmap = mermaid.generate_coverage_heatmap(coverage_by_component)
+
+            # 7. Generate gap analysis diagram
+            gap_diagram = mermaid.generate_gap_analysis(
+            current=coverage_by_component,
+            target=75
+            )
+
+            return {
+            'current_coverage': coverage_report.overall,
+            'by_component': coverage_by_component,
+            'untested_methods': prioritized,
+            'diagrams': [heatmap, gap_diagram],
+            'target_coverage': 75,
+            'tests_needed': estimate_tests_needed(prioritized, target=75)
+            }</div>
+
+        <h4>Output:</h4>
+        <div class="code-block" style="font-size: 0.85em;">specs/test-coverage-improvement/
+            ├── coverage-analysis.md
+            ├── gap-analysis.md
+            ├── prioritized-gaps.json
+            └── diagrams/
+            ├── coverage-heatmap.mmd
+            ├── gap-analysis.mmd
+            └── component-coverage.mmd</div>
+    </div>
+
+    <div class="agent-card">
+        <h3>2. Test Pattern Mining Agent</h3>
+        <p><strong>Purpose:</strong> Extract test patterns from existing tests and similar projects</p>
+
+        <h4>Tools Used:</h4>
+        <ul class="agent-list">
+            <li><strong>Kotlin Vector DB:</strong> Find similar test implementations</li>
+            <li><strong>Long-Term Memory:</strong> Recall proven test patterns</li>
+            <li><strong>Codebase Analysis:</strong> Extract existing test conventions</li>
+        </ul>
+
+        <h4>Autonomous Workflow:</h4>
+        <div class="code-block">def mine_test_patterns_autonomous(project_path, untested_methods):
+            # 1. Analyze existing tests
+            existing_tests = discover_all_tests(project_path)
+            test_patterns = extract_patterns(existing_tests)
+
+            # 2. For each untested method, find similar tested methods
+            test_strategies = []
+
+            for method in untested_methods:
+            # Vector search for similar methods that ARE tested
+            similar_tested = vector_db.find_similar(
+            query=method.code,
+            filter='has_tests=true',
+            top_k=5
+            )
+
+            # Extract test patterns from similar methods
+            patterns = []
+            for similar in similar_tested:
+            test_code = get_tests_for_method(similar)
+            pattern = extract_test_pattern(test_code)
+            patterns.append(pattern)
+
+            # Check memory for proven patterns
+            memory_patterns = memory.recall_test_patterns(
+            method_type=method.type,
+            complexity=method.complexity
+            )
+
+            # Synthesize best strategy
+            strategy = synthesize_test_strategy(
+            method=method,
+            similar_patterns=patterns,
+            proven_patterns=memory_patterns
+            )
+
+            test_strategies.append(strategy)
+
+            return test_strategies</div>
+
+        <h4>Output:</h4>
+        <div class="code-block" style="font-size: 0.85em;">specs/test-coverage-improvement/
+            ├── test-patterns.json
+            ├── test-strategies.md
+            └── pattern-examples/
+            ├── controller-test-pattern.cs
+            ├── service-test-pattern.cs
+            └── repository-test-pattern.cs</div>
+    </div>
+
+    <div class="agent-card">
+        <h3>3. Test Scenario Generation Agent</h3>
+        <p><strong>Purpose:</strong> Generate comprehensive test scenarios for untested code</p>
+
+        <h4>Tools Used:</h4>
+        <ul class="agent-list">
+            <li><strong>API Doc Parser:</strong> Extract endpoint contracts for contract tests</li>
+            <li><strong>Kotlin Vector DB:</strong> Find edge cases from similar code</li>
+            <li><strong>Mermaid Generator:</strong> Visualize test scenarios</li>
+            <li><strong>Long-Term Memory:</strong> Recall common edge cases</li>
+        </ul>
+
+        <h4>Autonomous Workflow:</h4>
+        <div class="code-block">def generate_test_scenarios_autonomous(method, test_strategy):
+            scenarios = []
+
+            # 1. Happy path scenario
+            happy_path = generate_happy_path_scenario(method)
+            scenarios.append(happy_path)
+
+            # 2. Extract edge cases from method signature and code
+            edge_cases = analyze_edge_cases(method.code)
+
+            # For each parameter, generate boundary tests
+            for param in method.parameters:
+            if param.type == 'number':
+            scenarios.extend([
+            {'name': f'{param.name}_zero', 'value': 0},
+            {'name': f'{param.name}_negative', 'value': -1},
+            {'name': f'{param.name}_max', 'value': MAX_INT},
+            {'name': f'{param.name}_min', 'value': MIN_INT}
+            ])
+            elif param.type == 'string':
+            scenarios.extend([
+            {'name': f'{param.name}_null', 'value': null},
+            {'name': f'{param.name}_empty', 'value': ''},
+            {'name': f'{param.name}_whitespace', 'value': '   '},
+            {'name': f'{param.name}_max_length', 'value': 'x' * 1000}
+            ])
+            elif param.type == 'collection':
+            scenarios.extend([
+            {'name': f'{param.name}_null', 'value': null},
+            {'name': f'{param.name}_empty', 'value': []},
+            {'name': f'{param.name}_single', 'value': [item]},
+            {'name': f'{param.name}_large', 'value': [items * 1000]}
+            ])
+
+            # 3. Exception scenarios
+            exceptions = extract_exception_types(method.code)
+            for exception in exceptions:
+            scenarios.append({
+            'name': f'throws_{exception.type}',
+            'setup': exception.trigger_condition,
+            'expected': exception.type
+            })
+
+            # 4. Vector search for similar method edge cases
+            similar_methods = vector_db.find_similar_methods(method.signature)
+            for similar in similar_methods:
+            similar_tests = get_tests_for_method(similar)
+            edge_cases_from_similar = extract_edge_cases(similar_tests)
+            scenarios.extend(edge_cases_from_similar)
+
+            # 5. Check memory for common edge cases
+            common_edge_cases = memory.recall_edge_cases(
+            method_type=method.type,
+            domain=project.domain
+            )
+            scenarios.extend(common_edge_cases)
+
+            # 6. Generate sequence diagram for complex scenarios
+            if method.complexity > 5:
+            sequence = mermaid.generate_test_sequence_diagram(
+            method=method,
+            scenarios=scenarios
+            )
+
+            # 7. Deduplicate scenarios
+            unique_scenarios = deduplicate(scenarios)
+
+            return unique_scenarios</div>
+
+        <h4>Output:</h4>
+        <div class="code-block" style="font-size: 0.85em;">specs/test-coverage-improvement/
+            ├── test-scenarios/
+            │   ├── PaymentService.ProcessPayment.scenarios.json
+            │   ├── PaymentValidator.Validate.scenarios.json
+            │   └── RefundService.ProcessRefund.scenarios.json
+            └── diagrams/
+            └── test-sequences/*.mmd</div>
+    </div>
+
+    <h2>Autonomous Test Coverage Workflow</h2>
+
+    <div class="phase-card">
+        <h3>Phase 1: Initial Assessment (5 minutes)</h3>
+        <p><strong>User Input:</strong> "Achieve 70-80% test coverage for payment-service"</p>
+
+        <div class="workflow-step">
+            <h4>Step 1.1: Project Discovery</h4>
+            <div class="code-block">orchestrator.discover_project():
+                # Detect project type
+                project_type = detect_project_type('./payment-service')
+                # Returns: '.NET 8 Web API'
+
+                # Find test framework
+                test_framework = detect_test_framework()
+                # Returns: 'xUnit 2.6.2'
+
+                # Locate test directory
+                test_dir = find_test_directory()
+                # Returns: './tests/'
+
+                # Find coverage tool
+                coverage_tool = detect_coverage_tool()
+                # Returns: 'Coverlet'</div>
+        </div>
+
+        <div class="workflow-step">
+            <h4>Step 1.2: Run Current Coverage Analysis</h4>
+            <div class="code-block">coverage_agent.analyze_current_state():
+                # Run tests with coverage
+                run_command('dotnet test /p:CollectCoverage=true')
+
+                # Parse coverage report
+                coverage = parse_coverage('coverage.opencover.xml')
+
+                # Generate detailed breakdown
+                return {
+                'overall': 42,  # Current coverage
+                'by_component': {
+                'PaymentController': 35,
+                'PaymentService': 55,
+                'RefundService': 30,
+                'PaymentValidator': 60,
+                'PaymentRepository': 45
+                },
+                'untested_files': 12,
+                'partially_tested_files': 18,
+                'well_tested_files': 8
+                }</div>
+        </div>
+
+        <div class="workflow-step">
+            <h4>Step 1.3: Generate Coverage Visualizations</h4>
+            <div class="code-block">mermaid_agent.visualize_coverage(coverage_data):
+                # Coverage heatmap
+                heatmap = generate_mermaid("""
+                graph TD
+                A[Payment Service - 42%]
+                A --> B[PaymentController - 35%]
+                A --> C[PaymentService - 55%]
+                A --> D[RefundService - 30%]
+                A --> E[PaymentValidator - 60%]
+                A --> F[PaymentRepository - 45%]
+
+                style B fill:#ff6b6b
+                style C fill:#ffd93d
+                style D fill:#ff6b6b
+                style E fill:#6bcf7f
+                style F fill:#ffd93d
+                """)
+
+                # Gap analysis chart
+                gap_chart = generate_mermaid("""
+                pie title Coverage Gap Analysis
+                "Tested" : 42
+                "Needed for 75%" : 33
+                "Buffer to 80%" : 5
+                "Not Required" : 20
+                """)
+
+                save_diagrams([heatmap, gap_chart])</div>
+        </div>
+
+        <div class="success-box">
+            <strong>Phase 1 Output:</strong>
+            <ul class="agent-list" style="margin-top: 8px;">
+                <li>Current coverage: 42%</li>
+                <li>Gap to target: 33 percentage points</li>
+                <li>Estimated tests needed: 127</li>
+                <li>Priority components identified: RefundService (30%), PaymentController (35%)</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="phase-card">
+        <h3>Phase 2: Deep Code Analysis (8 minutes)</h3>
+
+        <div class="workflow-step">
+            <h4>Step 2.1: Identify Untested Methods</h4>
+            <div class="code-block">codebase_agent.identify_untested_methods():
+                # Parse all source files
+                source_files = glob('src/**/*.cs')
+
+                # For each file, extract methods
+                all_methods = []
+                for file in source_files:
+                ast = parse_csharp(file)
+                methods = extract_methods(ast)
+                all_methods.extend(methods)
+
+                # Cross-reference with coverage report
+                untested = []
+                for method in all_methods:
+                coverage = get_method_coverage(method, coverage_report)
+                if coverage < 70:
+                untested.append({
+                'file': method.file,
+                'class': method.class_name,
+                'method': method.name,
+                'signature': method.signature,
+                'coverage': coverage,
+                'lines': method.line_count,
+                'complexity': calculate_cyclomatic_complexity(method),
+                'dependencies': extract_dependencies(method),
+                'code': method.source_code
+                })
+
+                # Sort by priority (complexity * (100 - coverage))
+                prioritized = sort_by_priority(untested)
+
+                return prioritized
+                # Returns: 87 methods needing tests</div>
+        </div>
+
+        <div class="workflow-step">
+            <h4>Step 2.2: Vector Search for Similar Tested Code</h4>
+            <div class="code-block">vector_agent.find_test_patterns(untested_methods):
+                # Index all existing tests
+                vector_db.index_tests('./tests/**/*Tests.cs')
+
+                # For each untested method, find similar tested methods
+                patterns = []
+
+                for method in untested_methods:
+                # Semantic search for similar code
+                similar = vector_db.find_similar_code(
+                query=method.code,
+                filter='has_tests=true',
+                top_k=5,
+                min_similarity=0.75
+                )
+
+                # Extract test patterns from similar methods
+                for similar_method in similar:
+                test_file = find_test_file(similar_method)
+                test_code = extract_test_code(test_file, similar_method)
+
+                pattern = {
+                'method': method.name,
+                'similar_to': similar_method.name,
+                'similarity': similar.similarity_score,
+                'test_pattern': analyze_test_structure(test_code),
+                'test_code_example': test_code,
+                'assertions_used': extract_assertions(test_code),
+                'mocking_strategy': extract_mocking_pattern(test_code)
+                }
+
+                patterns.append(pattern)
+
+                return patterns</div>
+        </div>
+
+        <div class="workflow-step">
+            <h4>Step 2.3: Memory Recall for Proven Test Patterns</h4>
+            <div class="code-block">memory_agent.recall_test_patterns(project_context):
+                # Search memory for similar projects
+                similar_projects = memory.find_similar_projects(
+                tech_stack='ASP.NET Core + PostgreSQL',
+                domain='Payment Processing',
+                min_coverage=70
+                )
+
+                # Extract test patterns from successful projects
+                proven_patterns = []
+                for project in similar_projects:
+                patterns = memory.get_test_patterns(project.id)
+                proven_patterns.extend(patterns)
+
+                # Recall common edge cases for payment domain
+                payment_edge_cases = memory.recall_edge_cases(
+                domain='payment_processing',
+                categories=['validation', 'timeout', 'idempotency', 'concurrency']
+                )
+
+                # Recall anti-patterns to avoid
+                anti_patterns = memory.recall_anti_patterns(
+                category='testing',
+                context='payment_processing'
+                )
+
+                return {
+                'proven_patterns': proven_patterns,
+                'edge_cases': payment_edge_cases,
+                'anti_patterns': anti_patterns
+                }</div>
+        </div>
+
+        <div class="success-box">
+            <strong>Phase 2 Output:</strong>
+            <ul class="agent-list" style="margin-top: 8px;">
+                <li>87 untested methods identified and prioritized</li>
+                <li>Test patterns extracted from 43 similar methods</li>
+                <li>15 proven patterns recalled from memory</li>
+                <li>32 domain-specific edge cases identified</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="phase-card">
+        <h3>Phase 3: Test Specification Generation (10 minutes)</h3>
+
+        <div class="workflow-step">
+            <h4>Step 3.1: Generate Test Specifications</h4>
+            <div class="code-block">spec_generator.generate_test_specs(untested_methods, patterns):
+                # For each untested method, generate comprehensive test spec
+                test_specs = []
+
+                for method in untested_methods:
+                # Get applicable patterns
+                applicable_patterns = filter_patterns(patterns, method)
+
+                # Generate test scenarios
+                scenarios = []
+
+                # Happy path
+                scenarios.append({
+                'name': f'{method.name}_ValidInput_ReturnsSuccess',
+                'type': 'happy_path',
+                'arrange': generate_valid_input(method),
+                'act': method.signature,
+                'assert': infer_expected_output(method)
+                })
+
+                # Validation scenarios
+                for param in method.parameters:
+                validation_scenarios = generate_validation_scenarios(param)
+                scenarios.extend(validation_scenarios)
+
+                # Exception scenarios
+                exceptions = extract_exception_types(method.code)
+                for exception in exceptions:
+                scenarios.append({
+                'name': f'{method.name}_InvalidState_Throws{exception.type}',
+                'type': 'exception',
+                'arrange': generate_exception_trigger(exception),
+                'act': method.signature,
+                'assert': f'Assert.Throws<{exception.type}>'
+                })
+
+                # Edge cases from memory
+                edge_cases = memory.recall_edge_cases(method.type)
+                for edge_case in edge_cases:
+                scenarios.append(adapt_edge_case_to_method(edge_case, method))
+
+                # Async/concurrency scenarios if applicable
+                if method.is_async:
+                scenarios.extend(generate_async_scenarios(method))
+
+                test_spec = {
+                'method': method,
+                'test_class': f'{method.class_name}Tests',
+                'test_file': f'tests/Unit/{method.class_name}Tests.cs',
+                'scenarios': scenarios,
+                'mocking_required': identify_dependencies_to_mock(method),
+                'test_data': generate_test_data(scenarios)
+                }
+
+                test_specs.append(test_spec)
+
+                return test_specs</div>
+        </div>
+
+        <div class="workflow-step">
+            <h4>Step 3.2: Generate API Contract Tests</h4>
+            <div class="code-block">api_test_generator.generate_contract_tests():
+                # 1. Parse OpenAPI spec or discover endpoints
+                if exists('docs/openapi.yaml'):
+                api_spec = api_parser.parse_openapi('docs/openapi.yaml')
+                else:
+                # Discover endpoints from controllers
+                api_spec = codebase_agent.discover_api_endpoints()
+
+                # 2. For each endpoint, generate contract tests
+                contract_tests = []
+
+                for endpoint in api_spec.endpoints:
+                # Success scenario
+                contract_tests.append({
+                'name': f'{endpoint.method}_{endpoint.path}_ValidRequest_Returns{endpoint.success_code}',
+                'request': generate_valid_request(endpoint.schema),
+                'expected_status': endpoint.success_code,
+                'expected_schema': endpoint.response_schema
+                })
+
+                # Validation scenarios
+                for field in endpoint.schema.required_fields:
+                contract_tests.append({
+                'name': f'{endpoint.method}_{endpoint.path}_Missing{field}_Returns400',
+                'request': generate_request_missing_field(field),
+                'expected_status': 400,
+                'expected_error': f'{field} is required'
+                })
+
+                # Error scenarios from API spec
+                for error_response in endpoint.error_responses:
+                contract_tests.append({
+                'name': f'{endpoint.method}_{endpoint.path}_{error_response.scenario}_Returns{error_response.code}',
+                'request': generate_error_trigger(error_response),
+                'expected_status': error_response.code
+                })
+
+                return contract_tests</div>
+        </div>
+
+        <div class="workflow-step">
+            <h4>Step 3.3: Generate Integration Test Specs</h4>
+            <div class="code-block">integration_test_generator.generate_specs():
+                # 1. Identify integration points
+                integrations = codebase_agent.find_integration_points()
+                # Returns: [Database, PaymentGateway, EmailService, MessageQueue]
+
+                # 2. For each integration, generate test scenarios
+                integration_tests = []
+
+                for integration in integrations:
+                if integration.type == 'database':
+                integration_tests.extend([
+                {'name': 'CRUD_operations_with_real_database'},
+                {'name': 'Transaction_rollback_on_error'},
+                {'name': 'Concurrent_updates_handling'},
+                {'name': 'Connection_pool_exhaustion'},
+                {'name': 'Database_timeout_handling'}
+                ])
+
+                elif integration.type == 'external_api':
+                integration_tests.extend([
+                {'name': f'{integration.name}_success_response'},
+                {'name': f'{integration.name}_timeout_handling'},
+                {'name': f'{integration.name}_retry_logic'},
+                {'name': f'{integration.name}_circuit_breaker'},
+                {'name': f'{integration.name}_error_response_handling'}
+                ])
+
+                elif integration.type == 'message_queue':
+                integration_tests.extend([
+                {'name': f'{integration.name}_publish_message'},
+                {'name': f'{integration.name}_consume_message'},
+                {'name': f'{integration.name}_dead_letter_queue'},
+                {'name': f'{integration.name}_message_retry'}
+                ])
+
+                # 3. Check memory for integration test patterns
+                proven_integration_patterns = memory.recall_integration_patterns(
+                integrations=integrations
+                )
+
+                return integration_tests</div>
+        </div>
+
+        <div class="success-box">
+            <strong>Phase 3 Output:</strong>
+            <ul class="agent-list" style="margin-top: 8px;">
+                <li>127 unit test scenarios generated</li>
+                <li>23 contract test scenarios generated</li>
+                <li>18 integration test scenarios generated</li>
+                <li>Total: 168 test scenarios covering all gaps</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="phase-card">
+        <h3>Phase 4: Test Code Generation (15 minutes)</h3>
+
+        <div class="workflow-step">
+            <h4>Step 4.1: Generate Unit Tests</h4>
+            <div class="code-block">test_code_generator.generate_unit_tests(test_specs):
+                # For each test spec, generate actual test code
+                for spec in test_specs:
+                # Get code style from vector search
+                style_examples = vector_db.find_similar_tests(
+                query=spec.method.code,
+                top_k=3
+                )
+
+                # Get proven pattern from memory
+                pattern = memory.recall_test_pattern(
+                method_type=spec.method.type,
+                framework='xUnit'
+                )
+
+                # Generate test class
+                test_code = f"""
+                using Xunit;
+                using Moq;
+                using FluentAssertions;
+
+                namespace PaymentService.Tests.Unit
+                {{
+                public class {spec.test_class}
+                {{
+                private readonly Mock<IPaymentRepository> _mockRepository;
+                    private readonly Mock<IPaymentGateway> _mockGateway;
+                        private readonly {spec.method.class_name} _sut;
+
+                        public {spec.test_class}()
+                        {{
+                        _mockRepository = new Mock<IPaymentRepository>();
+                            _mockGateway = new Mock<IPaymentGateway>();
+                                _sut = new {spec.method.class_name}(_mockRepository.Object, _mockGateway.Object);
+                                }}
+                                """
+
+                                # Generate test methods for each scenario
+                                for scenario in spec.scenarios:
+                                test_method = generate_test_method(
+                                scenario=scenario,
+                                style=style_examples[0],
+                                pattern=pattern
+                                )
+                                test_code += test_method
+
+                                test_code += "    }\n}"
+
+                                # Write test file
+                                write_file(spec.test_file, test_code)
+
+                                # Run test to verify it compiles and fails (Red phase)
+                                result = run_test(spec.test_file)
+                                assert result.status == 'failed', "Tests should fail before implementation"
+
+                                return generated_test_files</div>
+        </div>
+
+        <div class="workflow-step">
+            <h4>Step 4.2: Generate Contract Tests</h4>
+            <div class="code-block">contract_test_generator.generate_tests(api_spec):
+                # Use API contracts to generate tests
+                for endpoint in api_spec.endpoints:
+                test_code = f"""
+                using Xunit;
+                using Microsoft.AspNetCore.Mvc.Testing;
+
+                public class {endpoint.controller}ContractTests : IClassFixture<WebApplicationFactory<Program>>
+                    {{
+                    private readonly HttpClient _client;
+
+                    public {endpoint.controller}ContractTests(WebApplicationFactory<Program> factory)
+                        {{
+                        _client = factory.CreateClient();
+                        }}
+
+                        [Fact]
+                        public async Task {endpoint.method}_{endpoint.path}_ValidRequest_Returns{endpoint.success_code}()
+                        {{
+                        // Arrange
+                        var request = {generate_valid_request_from_schema(endpoint.request_schema)};
+
+                        // Act
+                        var response = await _client.{endpoint.method}Async("{endpoint.path}", request);
+
+                        // Assert
+                        Assert.Equal(HttpStatusCode.{endpoint.success_code}, response.StatusCode);
+                        var result = await response.Content.ReadFromJsonAsync<{endpoint.response_type}>();
+                        {generate_schema_assertions(endpoint.response_schema)}
+                        }}
+                        """
+
+                        # Add validation tests
+                        for validation in endpoint.validations:
+                        test_code += generate_validation_test(validation)
+
+                        write_file(f'tests/Contract/{endpoint.controller}ContractTests.cs', test_code)
+
+                        return contract_test_files</div>
+        </div>
+
+        <div class="workflow-step">
+            <h4>Step 4.3: Generate Integration Tests</h4>
+            <div class="code-block">integration_test_generator.generate_tests(integrations):
+                for integration in integrations:
+                if integration.type == 'database':
+                test_code = f"""
+                using Xunit;
+                using Testcontainers.PostgreSql;
+
+                public class {integration.name}IntegrationTests : IAsyncLifetime
+                {{
+                private PostgreSqlContainer _dbContainer;
+                private {integration.repository_class} _repository;
+
+                public async Task InitializeAsync()
+                {{
+                // Start real PostgreSQL container
+                _dbContainer = new PostgreSqlBuilder().Build();
+                await _dbContainer.StartAsync();
+
+                var connectionString = _dbContainer.GetConnectionString();
+                _repository = new {integration.repository_class}(connectionString);
+                }}
+
+                [Fact]
+                public async Task SavePayment_ValidPayment_PersistsToDatabase()
+                {{
+                // Arrange
+                var payment = new Payment {{ Amount = 100, Currency = "USD" }};
+
+                // Act
+                await _repository.SaveAsync(payment);
+
+                // Assert
+                var retrieved = await _repository.GetByIdAsync(payment.Id);
+                retrieved.Should().BeEquivalentTo(payment);
+                }}
+
+                [Fact]
+                public async Task UpdatePayment_ConcurrentUpdates_HandlesCorrectly()
+                {{
+                // Test concurrent update scenario
+                {generate_concurrency_test()}
+                }}
+
+                public async Task DisposeAsync()
+                {{
+                await _dbContainer.DisposeAsync();
+                }}
+                }}
+                """
+
+                elif integration.type == 'external_api':
+                # Use WireMock or similar for API mocking
+                test_code = generate_external_api_test(integration)
+
+                write_file(f'tests/Integration/{integration.name}IntegrationTests.cs', test_code)
+
+                return integration_test_files</div>
+        </div>
+
+        <div class="success-box">
+            <strong>Phase 4 Output:</strong>
+            <ul class="agent-list" style="margin-top: 8px;">
+                <li>127 unit test methods generated</li>
+                <li>23 contract test methods generated</li>
+                <li>18 integration test methods generated</li>
+                <li>All tests verified to compile and fail (Red phase)</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="phase-card">
+        <h3>Phase 5: Coverage Validation & Iteration (12 minutes)</h3>
+
+        <div class="workflow-step">
+            <h4>Step 5.1: Run Tests and Measure Coverage</h4>
+            <div class="code-block">coverage_validator.measure_coverage():
+                # Run all tests with coverage
+                result = run_command('dotnet test /p:CollectCoverage=true /p:CoverletOutputFormat=opencover')
+
+                # Parse new coverage report
+                new_coverage = parse_coverage('coverage.opencover.xml')
+
+                # Compare to baseline
+                improvement = {
+                'overall': {
+                'before': 42,
+                'after': new_coverage.overall,
+                'improvement': new_coverage.overall - 42
+                },
+                'by_component': {}
+                }
+
+                for component in components:
+                improvement['by_component'][component] = {
+                'before': baseline_coverage[component],
+                'after': new_coverage.by_component[component],
+                'improvement': new_coverage.by_component[component] - baseline_coverage[component]
+                }
+
+                # Generate coverage progression diagram
+                progression = mermaid.generate_coverage_progression([
+                {'phase': 'Baseline', 'coverage': 42},
+                {'phase': 'After Unit Tests', 'coverage': new_coverage.overall}
+                ])
+
+                return {new_coverage, improvement, progression}</div>
+        </div>
+
+        <div class="workflow-step">
+            <h4>Step 5.2: Identify Remaining Gaps</h4>
+            <div class="code-block">gap_analyzer.find_remaining_gaps(new_coverage):
+                # If coverage < 70%, identify what's still missing
+                if new_coverage.overall < 70:
+                # Parse coverage report for uncovered lines
+                uncovered = extract_uncovered_lines(coverage_report)
+
+                # Group by method
+                uncovered_by_method = group_by_method(uncovered)
+
+                # Vector search for why these might be hard to test
+                for method, lines in uncovered_by_method.items():
+                # Analyze uncovered code
+                code_snippet = extract_code(method, lines)
+
+                # Search for similar hard-to-test code
+                similar = vector_db.find_similar(
+                query=code_snippet,
+                filter='hard_to_test=true'
+                )
+
+                # Check memory for solutions
+                solutions = memory.recall_solutions(
+                problem='hard_to_test_code',
+                pattern=code_snippet
+                )
+
+                # Generate additional test scenarios
+                additional_scenarios = generate_scenarios_for_uncovered(
+                method,
+                lines,
+                solutions
+                )
+
+                return additional_scenarios
+
+                return []  # Coverage target met</div>
+        </div>
+
+        <div class="workflow-step">
+            <h4>Step 5.3: Iterative Test Generation</h4>
+            <div class="code-block">iterative_generator.fill_gaps(remaining_gaps):
+                iteration = 1
+                current_coverage = measure_coverage()
+
+                while current_coverage < 70 and iteration <= 3:
+                print(f"Iteration {iteration}: Coverage at {current_coverage}%")
+
+                # Generate tests for remaining gaps
+                additional_tests = generate_tests_for_gaps(remaining_gaps)
+
+                # Run tests
+                run_tests(additional_tests)
+
+                # Measure new coverage
+                current_coverage = measure_coverage()
+
+                # Identify new gaps
+                remaining_gaps = find_remaining_gaps(current_coverage)
+
+                iteration += 1
+
+                # Generate final coverage report
+                final_report = generate_final_coverage_report(current_coverage)
+
+                # Generate coverage trend diagram
+                trend = mermaid.generate_coverage_trend([
+                {'iteration': 0, 'coverage': 42},
+                {'iteration': 1, 'coverage': 68},
+                {'iteration': 2, 'coverage': 76},
+                {'iteration': 3, 'coverage': 78}
+                ])
+
+                return {current_coverage, final_report, trend}</div>
+        </div>
+
+        <div class="success-box">
+            <strong>Phase 5 Output:</strong>
+            <ul class="agent-list" style="margin-top: 8px;">
+                <li>Iteration 1: 42% → 68% (+26 points)</li>
+                <li>Iteration 2: 68% → 76% (+8 points)</li>
+                <li>Iteration 3: 76% → 78% (+2 points)</li>
+                <li>Final coverage: 78% (target achieved)</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="phase-card">
+        <h3>Phase 6: Test Quality Validation (10 minutes)</h3>
+
+        <div class="workflow-step">
+            <h4>Step 6.1: Mutation Testing</h4>
+            <div class="code-block">mutation_tester.validate_test_quality():
+                # Run mutation testing to ensure tests actually catch bugs
+                run_command('dotnet stryker')
+
+                mutation_report = parse_mutation_report('StrykerOutput/reports/mutation-report.json')
+
+                # Analyze mutation score
+                mutation_score = mutation_report.mutation_score
+                # Target: >80% mutation score
+
+                if mutation_score < 80:
+                # Identify weak tests
+                weak_tests = mutation_report.survived_mutants
+
+                # For each weak test, strengthen it
+                for mutant in weak_tests:
+                # Vector search for better assertion patterns
+                better_patterns = vector_db.find_better_test_patterns(
+                test=mutant.test,
+                mutation=mutant.mutation
+                )
+
+                # Enhance test with better assertions
+                enhanced_test = enhance_test_assertions(
+                mutant.test,
+                better_patterns
+                )
+
+                update_test_file(enhanced_test)
+
+                return mutation_score</div>
+        </div>
+
+        <div class="workflow-step">
+            <h4>Step 6.2: Test Performance Analysis</h4>
+            <div class="code-block">test_performance_analyzer.analyze():
+                # Run tests and measure execution time
+                test_results = run_tests_with_timing()
+
+                # Identify slow tests (>1 second)
+                slow_tests = filter(lambda t: t.duration > 1000, test_results)
+
+                # For each slow test, analyze why
+                for test in slow_tests:
+                # Check if using real dependencies unnecessarily
+                if test.type == 'unit' and uses_real_database(test):
+                # Suggest using mocks for unit tests
+                optimized = convert_to_mocked_test(test)
+                update_test(optimized)
+
+                # Check for unnecessary setup
+                if has_expensive_setup(test):
+                # Move to class fixture
+                optimized = move_to_fixture(test)
+                update_test(optimized)
+
+                # Re-run to verify performance improvement
+                new_results = run_tests_with_timing()
+
+                return {
+                'total_duration': sum(t.duration for t in new_results),
+                'slow_tests_fixed': len(slow_tests),
+                'avg_test_duration': calculate_avg(new_results)
+                }</div>
+        </div>
+
+        <div class="workflow-step">
+            <h4>Step 6.3: Generate Test Documentation</h4>
+            <div class="code-block">documentation_generator.generate_test_docs():
+                # Generate test coverage report
+                report = f"""
+                # Test Coverage Report: Payment Service
+
+                ## Summary
+                - **Overall Coverage**: 78%
+                - **Target**: 70-80% ✅
+                - **Tests Generated**: 168
+                - **Tests Passing**: 168/168
+                - **Mutation Score**: 85%
+
+                ## Coverage by Component
+                | Component | Before | After | Improvement |
+                |-----------|--------|-------|-------------|
+                | PaymentController | 35% | 82% | +47% |
+                | PaymentService | 55% | 85% | +30% |
+                | RefundService | 30% | 75% | +45% |
+                | PaymentValidator | 60% | 88% | +28% |
+                | PaymentRepository | 45% | 72% | +27% |
+
+                ## Test Distribution
+                - Unit Tests: 127
+                - Contract Tests: 23
+                - Integration Tests: 18
+
+                ## Key Scenarios Covered
+                - Payment processing (happy path + 15 edge cases)
+                - Refund processing (happy path + 12 edge cases)
+                - Validation (23 boundary conditions)
+                - Error handling (18 exception scenarios)
+                - Concurrency (8 race condition tests)
+                - Timeout handling (6 scenarios)
+                - Idempotency (4 duplicate request tests)
+                """
+
+                # Generate visual test coverage matrix
+                matrix = mermaid.generate_test_coverage_matrix(
+                components=components,
+                test_types=['unit', 'contract', 'integration']
+                )
+
+                # Generate test execution flow diagrams
+                flows = mermaid.generate_test_execution_flows(test_scenarios)
+
+                save_documentation(report, [matrix, flows])</div>
+        </div>
+
+        <div class="success-box">
+            <strong>Phase 6 Output:</strong>
+            <ul class="agent-list" style="margin-top: 8px;">
+                <li>Mutation score: 85% (high-quality tests)</li>
+                <li>Test execution time: 12 seconds (optimized)</li>
+                <li>Comprehensive test documentation generated</li>
+                <li>Visual coverage matrix and flow diagrams created</li>
+            </ul>
+        </div>
+    </div>
+
+    <h2>Complete Autonomous Orchestration Code</h2>
+
+    <div class="flow-diagram" style="background: white; padding: 25px; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
+        <div class="code-block" style="background: #f8f9fa; color: #2c3e50; padding: 20px;">
+            #!/usr/bin/env python3
+            """
+            Spec-Kit Test Coverage Orchestrator
+            Autonomous test generation to achieve 70-80% coverage
+            """
+
+            class TestCoverageOrchestrator:
+            def __init__(self, project_path, target_coverage=75):
+            self.project_path = project_path
+            self.target_coverage = target_coverage
+
+            # Initialize tools
+            self.vector_db = KotlinVectorDB()
+            self.memory = LongTermMemory('.specify/memory')
+            self.playwright = PlaywrightMCP()
+            self.api_parser = APIDocumentationParser()
+            self.mermaid = MermaidGenerator()
+
+            # Initialize specialized agents
+            self.coverage_agent = CoverageAnalysisAgent(self.vector_db, self.mermaid)
+            self.pattern_agent = TestPatternMiningAgent(self.vector_db, self.memory)
+            self.scenario_agent = TestScenarioGenerationAgent(self.api_parser, self.memory)
+            self.code_generator = TestCodeGenerator(self.vector_db, self.memory)
+            self.validator = TestQualityValidator(self.playwright)
+
+            def autonomous_coverage_workflow(self):
+            """
+            Complete autonomous workflow to achieve 70-80% test coverage
+            """
+            print("🎯 Starting autonomous test coverage improvement...")
+            print(f"   Target: {self.target_coverage}%\n")
+
+            # ============================================================
+            # PHASE 1: INITIAL ASSESSMENT
+            # ============================================================
+            print("📊 Phase 1: Analyzing current coverage...")
+
+            # Run existing tests
+            self.run_existing_tests()
+
+            # Analyze coverage
+            baseline = self.coverage_agent.analyze_current_state(self.project_path)
+
+            print(f"   Current coverage: {baseline.overall}%")
+            print(f"   Gap to target: {self.target_coverage - baseline.overall} percentage points")
+            print(f"   Components analyzed: {len(baseline.by_component)}")
+
+            # Generate initial visualizations
+            heatmap = self.mermaid.generate_coverage_heatmap(baseline.by_component)
+            gap_chart = self.mermaid.generate_gap_analysis(baseline.overall, self.target_coverage)
+
+            self.save_diagrams('phase1', [heatmap, gap_chart])
+
+            # ============================================================
+            # PHASE 2: DEEP CODE ANALYSIS
+            # ============================================================
+            print("\n🔍 Phase 2: Analyzing untested code...")
+
+            # Identify all untested methods
+            untested_methods = self.coverage_agent.identify_untested_methods(
+            baseline.coverage_report
+            )
+
+            print(f"   Untested methods: {len(untested_methods)}")
+
+            # Prioritize by risk and complexity
+            prioritized = self.prioritize_by_risk(untested_methods)
+
+            print(f"   High priority: {len([m for m in prioritized if m.priority == 'high'])}")
+            print(f"   Medium priority: {len([m for m in prioritized if m.priority == 'medium'])}")
+
+            # Vector search for similar tested code
+            print("\n   🔎 Searching for similar test patterns...")
+
+            # Index existing tests
+            self.vector_db.index_tests(f'{self.project_path}/tests')
+
+            # Find patterns for each untested method
+            test_patterns = self.pattern_agent.find_patterns_for_methods(prioritized)
+
+            print(f"   Found {len(test_patterns)} applicable test patterns")
+
+            # Check memory for proven patterns
+            memory_patterns = self.memory.recall_test_patterns(
+            tech_stack=baseline.tech_stack,
+            domain=baseline.domain
+            )
+
+            print(f"   Recalled {len(memory_patterns)} proven patterns from memory")
+
+            # ============================================================
+            # PHASE 3: TEST SPECIFICATION GENERATION
+            # ============================================================
+            print("\n📝 Phase 3: Generating test specifications...")
+
+            # Generate comprehensive test scenarios
+            test_specs = []
+
+            for method in prioritized:
+            scenarios = self.scenario_agent.generate_scenarios(
+            method=method,
+            patterns=test_patterns,
+            memory_patterns=memory_patterns
+            )
+
+            test_spec = {
+            'method': method,
+            'scenarios': scenarios,
+            'test_file': self.determine_test_file_path(method),
+            'mocking_strategy': self.determine_mocking_strategy(method)
+            }
+
+            test_specs.append(test_spec)
+
+            print(f"   Generated {sum(len(spec.scenarios) for spec in test_specs)} test scenarios")
+
+            # Generate contract tests from API specs
+            if self.has_api_spec():
+            api_spec = self.api_parser.parse_openapi(f'{self.project_path}/docs/openapi.yaml')
+            contract_specs = self.scenario_agent.generate_contract_tests(api_spec)
+            test_specs.extend(contract_specs)
+            print(f"   Generated {len(contract_specs)} contract test scenarios")
+
+            # Generate integration test specs
+            integrations = self.discover_integrations()
+            integration_specs = self.scenario_agent.generate_integration_tests(integrations)
+            test_specs.extend(integration_specs)
+            print(f"   Generated {len(integration_specs)} integration test scenarios")
+
+            # ============================================================
+            # PHASE 4: TEST CODE GENERATION
+            # ============================================================
+            print("\n⚙️  Phase 4: Generating test code...")
+
+            # Extract code style from existing tests
+            test_style = self.extract_test_style()
+
+            # Generate test code for all specs
+            generated_tests = []
+
+            for spec in test_specs:
+            # Get similar test examples via vector search
+            examples = self.vector_db.find_similar_tests(
+            query=spec.method.code,
+            top_k=3
+            )
+
+            # Generate test code
+            test_code = self.code_generator.generate_test(
+            spec=spec,
+            style=test_style,
+            examples=examples
+            )
+
+            # Write test file
+            self.write_test_file(spec.test_file, test_code)
+            generated_tests.append(spec.test_file)
+
+            print(f"   ✓ Generated {spec.test_file}")
+
+            print(f"\n   Total test files generated: {len(generated_tests)}")
+
+            # Verify tests compile and fail (Red phase)
+            print("\n   🔴 Verifying tests fail (Red phase)...")
+            test_results = self.run_tests()
+
+            failed_count = sum(1 for r in test_results if r.status == 'failed')
+            print(f"   {failed_count}/{len(test_results)} tests failed as expected ✓")
+
+            # ============================================================
+            # PHASE 5: COVERAGE VALIDATION & ITERATION
+            # ============================================================
+            print("\n📈 Phase 5: Measuring coverage and iterating...")
+
+            iteration = 1
+            current_coverage = baseline.overall
+
+            while current_coverage < self.target_coverage and iteration <= 3:
+            print(f"\n   Iteration {iteration}:")
+
+            # Run tests with coverage
+            coverage = self.measure_coverage()
+            current_coverage = coverage.overall
+
+            print(f"   Coverage: {current_coverage}%")
+
+            if current_coverage >= self.target_coverage:
+            print(f"   ✅ Target achieved!")
+            break
+
+            # Identify remaining gaps
+            gaps = self.gap_analyzer.find_remaining_gaps(coverage)
+            print(f"   Remaining gaps: {len(gaps)} methods")
+
+            # Generate additional tests for gaps
+            additional_specs = self.scenario_agent.generate_scenarios_for_gaps(gaps)
+
+            for spec in additional_specs:
+            test_code = self.code_generator.generate_test(spec)
+            self.write_test_file(spec.test_file, test_code)
+
+            print(f"   Generated {len(additional_specs)} additional tests")
+
+            iteration += 1
+
+            # Final coverage measurement
+            final_coverage = self.measure_coverage()
+
+            print(f"\n   🎉 Final coverage: {final_coverage.overall}%")
+
+            # ============================================================
+            # PHASE 6: TEST QUALITY VALIDATION
+            # ============================================================
+            print("\n✅ Phase 6: Validating test quality...")
+
+            # Run mutation testing
+            print("   Running mutation testing...")
+            mutation_score = self.run_mutation_testing()
+            print(f"   Mutation score: {mutation_score}%")
+
+            # Analyze test performance
+            print("   Analyzing test performance...")
+            performance = self.validator.analyze_test_performance()
+            print(f"   Total test duration: {performance.total_duration}ms")
+            print(f"   Average per test: {performance.avg_duration}ms")
+
+            # Optimize slow tests
+            if performance.has_slow_tests:
+            print(f"   Optimizing {len(performance.slow_tests)} slow tests...")
+            self.validator.optimize_slow_tests(performance.slow_tests)
+
+            # ============================================================
+            # PHASE 7: DOCUMENTATION & MEMORY STORAGE
+            # ============================================================
+            print("\n📚 Phase 7: Generating documentation...")
+
+            # Generate comprehensive test documentation
+            test_docs = self.generate_test_documentation(
+            baseline=baseline,
+            final_coverage=final_coverage,
+            test_specs=test_specs,
+            mutation_score=mutation_score
+            )
+
+            # Generate visual diagrams
+            diagrams = {
+            'coverage_progression': self.mermaid.generate_coverage_progression([
+            {'phase': 'Baseline', 'coverage': baseline.overall},
+            {'phase': 'After Unit Tests', 'coverage': 68},
+            {'phase': 'After Iteration 2', 'coverage': 76},
+            {'phase': 'Final', 'coverage': final_coverage.overall}
+            ]),
+            'coverage_by_component': self.mermaid.generate_component_coverage(
+            final_coverage.by_component
+            ),
+            'test_distribution': self.mermaid.generate_test_distribution({
+            'Unit': 127,
+            'Contract': 23,
+            'Integration': 18
+            }),
+            'mutation_coverage': self.mermaid.generate_mutation_coverage(mutation_score)
+            }
+
+            self.save_all_diagrams(diagrams)
+
+            # Store in long-term memory
+            print("\n   💾 Storing results in long-term memory...")
+            self.memory.store_test_coverage_improvement(
+            project=self.project_path,
+            baseline_coverage=baseline.overall,
+            final_coverage=final_coverage.overall,
+            tests_generated=len(test_specs),
+            patterns_used=test_patterns,
+            mutation_score=mutation_score,
+            time_taken=self.get_elapsed_time(),
+            success=True
+            )
+
+            # ============================================================
+            # FINAL REPORT
+            # ============================================================
+            print("\n" + "="*60)
+            print("✨ TEST COVERAGE IMPROVEMENT COMPLETE")
+            print("="*60)
+            print(f"""
+            Coverage Improvement:
+            Before:  {baseline.overall}%
+            After:   {final_coverage.overall}%
+            Gain:    +{final_coverage.overall - baseline.overall} percentage points
+
+            Tests Generated:
+            Unit Tests:        127
+            Contract Tests:    23
+            Integration Tests: 18
+            Total:             168
+
+            Quality Metrics:
+            Tests Passing:     168/168 (100%)
+            Mutation Score:    {mutation_score}%
+            Avg Test Duration: {performance.avg_duration}ms
+
+            Time Taken:          {self.get_elapsed_time()} minutes
+            Human Input:         1 command
+
+            Artifacts Generated:
+            ✓ specs/test-coverage-improvement/coverage-analysis.md
+            ✓ specs/test-coverage-improvement/test-scenarios.md
+            ✓ specs/test-coverage-improvement/test-documentation.md
+            ✓ specs/test-coverage-improvement/diagrams/*.mmd (8 diagrams)
+            ✓ tests/Unit/*.cs (87 files)
+            ✓ tests/Contract/*.cs (23 files)
+            ✓ tests/Integration/*.cs (18 files)
+            """)
+
+            return {
+            'baseline_coverage': baseline.overall,
+            'final_coverage': final_coverage.overall,
+            'improvement': final_coverage.overall - baseline.overall,
+            'tests_generated': len(test_specs),
+            'mutation_score': mutation_score,
+            'time_taken': self.get_elapsed_time()
+            }
+
+            # ============================================================
+            # EXECUTION
+            # ============================================================
+
+            if __name__ == '__main__':
+            # User provides single command
+            project_path = './payment-service'
+            target_coverage = 75
+
+            # Orchestrator executes autonomously
+            orchestrator = TestCoverageOrchestrator(project_path, target_coverage)
+            result = orchestrator.autonomous_coverage_workflow()
+
+            # Done - no human intervention needed
+            print("\n✅ Coverage target achieved autonomously!")
+        </div>
+    </div>
+
+    <h2>Tool Integration for Test Coverage</h2>
+
+    <div class="tool-grid">
+        <div class="tool-box">
+            <h4>Kotlin Vector DB: Pattern Matching</h4>
+            <div class="code-block" style="font-size: 0.85em;"># Index all existing tests
+                vector_db.index_directory(
+                path='./tests',
+                file_types=['.cs', '.java', '.py'],
+                metadata={'has_tests': True}
+                )
+
+                # For untested method, find similar tested methods
+                similar = vector_db.find_similar(
+                query=untested_method.code,
+                filter='has_tests=true',
+                top_k=5,
+                min_similarity=0.75
+                )
+
+                # Extract test patterns
+                for similar_method in similar:
+                test_file = find_test_for_method(similar_method)
+                pattern = extract_test_pattern(test_file)
+
+                # Use pattern as template for new test
+                new_test = adapt_pattern_to_method(
+                pattern=pattern,
+                target_method=untested_method
+                )</div>
+        </div>
+
+        <div class="tool-box">
+            <h4>Long-Term Memory: Pattern Library</h4>
+            <div class="code-block" style="font-size: 0.85em;"># Store successful test patterns
+                memory.store_test_pattern(
+                name='payment-validation-pattern',
+                code=test_code,
+                coverage_improvement=35,
+                mutation_score=88,
+                applicable_to=['validation', 'business_rules']
+                )
+
+                # Recall when needed
+                patterns = memory.recall_test_patterns(
+                method_type='validation',
+                min_mutation_score=80
+                )
+
+                # Learn from this coverage improvement
+                memory.store_coverage_improvement(
+                project='payment-service',
+                before=42,
+                after=78,
+                approach='unit + contract + integration',
+                time_taken=45,
+                success=True
+                )</div>
+        </div>
+
+        <div class="tool-box">
+            <h4>Mermaid: Coverage Visualization</h4>
+            <div class="code-block" style="font-size: 0.85em;"># Coverage heatmap
+                mermaid.generate("""
+                graph TD
+                A[Payment Service]
+                A --> B[Controllers - 82%]
+                A --> C[Services - 85%]
+                A --> D[Repositories - 72%]
+
+                style B fill:#6bcf7f
+                style C fill:#6bcf7f
+                style D fill:#ffd93d
+                """)
+
+                # Coverage progression
+                mermaid.generate("""
+                graph LR
+                A[Baseline: 42%] --> B[+Unit: 68%]
+                B --> C[+Contract: 74%]
+                C --> D[+Integration: 78%]
+
+                style D fill:#6bcf7f
+                """)
+
+                # Test distribution pie chart
+                mermaid.generate("""
+                pie title Test Distribution
+                "Unit Tests" : 127
+                "Contract Tests" : 23
+                "Integration Tests" : 18
+                """)</div>
+        </div>
+
+        <div class="tool-box">
+            <h4>API Doc Parser: Contract Test Generation</h4>
+            <div class="code-block" style="font-size: 0.85em;"># Parse OpenAPI spec
+                api_spec = api_parser.parse_openapi(
+                'docs/openapi.yaml'
+                )
+
+                # Generate contract tests for each endpoint
+                for endpoint in api_spec.endpoints:
+                contract_tests = generate_contract_tests(
+                endpoint=endpoint,
+                request_schema=endpoint.request_schema,
+                response_schema=endpoint.response_schema,
+                error_responses=endpoint.error_responses
+                )
+
+                # Each endpoint gets 5-10 contract tests
+                # - Success scenario
+                # - Validation errors (one per required field)
+                # - Error responses (4xx, 5xx)
+                # - Edge cases (empty body, malformed JSON)</div>
+        </div>
+
+        <div class="tool-box">
+            <h4>Playwright MCP: Integration Testing</h4>
+            <div class="code-block" style="font-size: 0.85em;"># Test live API endpoints
+                playwright.navigate('http://localhost:5000')
+
+                # Test payment flow end-to-end
+                playwright.execute_flow([
+                'POST /api/payments with valid data',
+                'Verify 201 Created response',
+                'GET /api/payments/{id}',
+                'Verify payment status',
+                'POST /api/payments/{id}/refund',
+                'Verify refund processed'
+                ])
+
+                # Capture API responses for validation
+                responses = playwright.capture_api_responses()
+
+                # Generate integration tests from observed behavior
+                integration_tests = generate_from_observed_behavior(
+                responses
+                )</div>
+        </div>
+
+        <div class="tool-box">
+            <h4>Coverage Tools: Continuous Measurement</h4>
+            <div class="code-block" style="font-size: 0.85em;"># Run tests with coverage (language-specific)
+
+                # .NET
+                run('dotnet test /p:CollectCoverage=true /p:CoverletOutputFormat=opencover')
+                coverage = parse_opencover('coverage.opencover.xml')
+
+                # Java
+                run('mvn test jacoco:report')
+                coverage = parse_jacoco('target/site/jacoco/jacoco.xml')
+
+                # Python
+                run('pytest --cov=src --cov-report=xml')
+                coverage = parse_coverage_py('coverage.xml')
+
+                # Node.js
+                run('npm test -- --coverage')
+                coverage = parse_istanbul('coverage/coverage-final.json')
+
+                # Unified coverage format
+                return normalize_coverage(coverage)</div>
+        </div>
+    </div>
+
+    <h2>Detailed Phase Breakdown with Tool Usage</h2>
+
+    <div class="command-table">
+        <table>
+            <thead>
+            <tr>
+                <th style="width: 15%;">Phase</th>
+                <th style="width: 25%;">Agent Actions</th>
+                <th style="width: 30%;">Tools Used</th>
+                <th style="width: 30%;">Autonomous Decisions</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td><strong>Phase 1:<br>Assessment</strong><br>(5 min)</td>
+                <td>
+                    <div class="code-block" style="font-size: 0.8em;">coverage_agent.analyze():
+                        - Run existing tests
+                        - Parse coverage report
+                        - Identify gaps
+                        - Prioritize components
+                        - Generate visualizations</div>
+                </td>
+                <td>
+                    <div class="tool-box" style="margin: 5px 0;">
+                        <strong>Coverage Parser</strong>
+                        <p style="font-size: 0.85em;">Parse coverage.xml, identify uncovered lines</p>
+                    </div>
+                    <div class="tool-box" style="margin: 5px 0;">
+                        <strong>Mermaid Generator</strong>
+                        <p style="font-size: 0.85em;">Generate coverage heatmap, gap analysis chart</p>
+                    </div>
+                </td>
+                <td>
+                    <div class="code-block" style="font-size: 0.8em;">Decisions Made:
+                        - Current: 42%
+                        - Target: 75%
+                        - Gap: 33 points
+                        - Priority: RefundService (30%)
+                        and PaymentController (35%)
+                        - Estimated tests: 127
+                        - Approach: Unit-first, then
+                        contract, then integration</div>
+                </td>
+            </tr>
+
+            <tr>
+                <td><strong>Phase 2:<br>Analysis</strong><br>(8 min)</td>
+                <td>
+                    <div class="code-block" style="font-size: 0.8em;">pattern_agent.mine_patterns():
+                        - Identify 87 untested methods
+                        - Vector search for similar
+                        - Extract test patterns
+                        - Check memory for proven
+                        - Synthesize strategies</div>
+                </td>
+                <td>
+                    <div class="tool-box" style="margin: 5px 0;">
+                        <strong>Kotlin Vector DB</strong>
+                        <p style="font-size: 0.85em;">Index tests, find similar tested methods (0.75+ similarity)</p>
+                    </div>
+                    <div class="tool-box" style="margin: 5px 0;">
+                        <strong>Long-Term Memory</strong>
+                        <p style="font-size: 0.85em;">Recall 15 proven test patterns from similar projects</p>
+                    </div>
+                </td>
+                <td>
+                    <div class="code-block" style="font-size: 0.8em;">Decisions Made:
+                        - Found 43 similar tested methods
+                        - Extracted 28 test patterns
+                        - Recalled 15 proven patterns
+                        - Identified mocking strategy:
+                        * Mock external APIs
+                        * Use real DB for integration
+                        * Mock time/random for unit
+                        - Test organization: Match
+                        existing structure</div>
+                </td>
+            </tr>
+
+            <tr>
+                <td><strong>Phase 3:<br>Specification</strong><br>(10 min)</td>
+                <td>
+                    <div class="code-block" style="font-size: 0.8em;">scenario_agent.generate():
+                        - Generate test scenarios
+                        - Extract edge cases
+                        - Create contract tests
+                        - Define integration tests
+                        - Generate test data</div>
+                </td>
+                <td>
+                    <div class="tool-box" style="margin: 5px 0;">
+                        <strong>API Doc Parser</strong>
+                        <p style="font-size: 0.85em;">Parse openapi.yaml, extract 23 endpoint contracts</p>
+                    </div>
+                    <div class="tool-box" style="margin: 5px 0;">
+                        <strong>Vector DB</strong>
+                        <p style="font-size: 0.85em;">Find edge cases from similar methods</p>
+                    </div>
+                    <div class="tool-box" style="margin: 5px 0;">
+                        <strong>Memory</strong>
+                        <p style="font-size: 0.85em;">Recall 32 payment domain edge cases</p>
+                    </div>
+                </td>
+                <td>
+                    <div class="code-block" style="font-size: 0.8em;">Decisions Made:
+                        - 127 unit test scenarios
+                        - 23 contract test scenarios
+                        - 18 integration scenarios
+                        - Edge cases per method:
+                        * Validation: 5-8 scenarios
+                        * Business logic: 8-12
+                        * API endpoints: 6-10
+                        - Test data strategy:
+                        * Use builders for complex
+                        * Inline for simple
+                        * Fixtures for shared</div>
+                </td>
+            </tr>
+
+            <tr>
+                <td><strong>Phase 4:<br>Generation</strong><br>(15 min)</td>
+                <td>
+                    <div class="code-block" style="font-size: 0.8em;">code_generator.generate():
+                        - Extract test style
+                        - Generate test code
+                        - Match conventions
+                        - Write test files
+                        - Verify compilation
+                        - Run tests (Red phase)</div>
+                </td>
+                <td>
+                    <div class="tool-box" style="margin: 5px 0;">
+                        <strong>Vector DB</strong>
+                        <p style="font-size: 0.85em;">Find test code examples matching style (top 3)</p>
+                    </div>
+                    <div class="tool-box" style="margin: 5px 0;">
+                        <strong>Memory</strong>
+                        <p style="font-size: 0.85em;">Recall proven test implementations</p>
+                    </div>
+                </td>
+                <td>
+                    <div class="code-block" style="font-size: 0.8em;">Decisions Made:
+                        - Test framework: xUnit
+                        - Assertion library: FluentAssertions
+                        - Mocking: Moq
+                        - Test organization:
+                        * One test class per class
+                        * Nested classes for scenarios
+                        * Theory for parameterized
+                        - Naming convention:
+                        MethodName_Scenario_ExpectedResult
+                        - Generated 168 test methods
+                        - All compile ✓
+                        - All fail as expected ✓</div>
+                </td>
+            </tr>
+
+            <tr>
+                <td><strong>Phase 5:<br>Iteration</strong><br>(12 min)</td>
+                <td>
+                    <div class="code-block" style="font-size: 0.8em;">gap_analyzer.iterate():
+                        - Measure coverage
+                        - Find remaining gaps
+                        - Generate additional tests
+                        - Re-measure
+                        - Repeat until target</div>
+                </td>
+                <td>
+                    <div class="tool-box" style="margin: 5px 0;">
+                        <strong>Coverage Tools</strong>
+                        <p style="font-size: 0.85em;">Continuous coverage measurement after each iteration</p>
+                    </div>
+                    <div class="tool-box" style="margin: 5px 0;">
+                        <strong>Vector DB</strong>
+                        <p style="font-size: 0.85em;">Find patterns for hard-to-test code</p>
+                    </div>
+                    <div class="tool-box" style="margin: 5px 0;">
+                        <strong>Mermaid</strong>
+                        <p style="font-size: 0.85em;">Generate coverage progression chart</p>
+                    </div>
+                </td>
+                <td>
+                    <div class="code-block" style="font-size: 0.8em;">Iteration Results:
+                        - Iteration 1: 42% → 68%
+                        * Added 127 unit tests
+                        * Covered main logic paths
+
+                        - Iteration 2: 68% → 76%
+                        * Added 23 contract tests
+                        * Covered API surface
+
+                        - Iteration 3: 76% → 78%
+                        * Added 18 integration tests
+                        * Covered external interactions
+
+                        Target achieved: 78% ✓</div>
+                </td>
+            </tr>
+
+            <tr>
+                <td><strong>Phase 6:<br>Validation</strong><br>(10 min)</td>
+                <td>
+                    <div class="code-block" style="font-size: 0.8em;">validator.validate_quality():
+                        - Run mutation testing
+                        - Analyze test performance
+                        - Optimize slow tests
+                        - Validate assertions
+                        - Check for flaky tests</div>
+                </td>
+                <td>
+                    <div class="tool-box" style="margin: 5px 0;">
+                        <strong>Mutation Testing</strong>
+                        <p style="font-size: 0.85em;">Stryker.NET validates test quality (85% mutation score)</p>
+                    </div>
+                    <div class="tool-box" style="margin: 5px 0;">
+                        <strong>Playwright MCP</strong>
+                        <p style="font-size: 0.85em;">Test live endpoints for integration validation</p>
+                    </div>
+                </td>
+                <td>
+                    <div class="code-block" style="font-size: 0.8em;">Quality Validation:
+                        - Mutation score: 85%
+                        * 15% mutants survived
+                        * Enhanced 8 weak tests
+
+                        - Performance:
+                        * Total: 12 seconds
+                        * Avg: 71ms per test
+                        * Optimized 5 slow tests
+
+                        - Flaky tests: 0
+                        - All assertions meaningful ✓</div>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h2>Memory-Driven Learning for Test Coverage</h2>
+
+    <div class="agent-card">
+        <h3>Learning Loop: Continuous Improvement</h3>
+        <div class="code-block">class TestCoverageMemory:
+            def store_coverage_improvement(self, result):
+            """Store successful coverage improvement for future reference"""
+
+            # 1. Store the approach
+            self.memory.store_approach(
+            project_type='ASP.NET Core Microservice',
+            domain='Payment Processing',
+            baseline_coverage=42,
+            final_coverage=78,
+            approach={
+            'phase1': 'Unit tests for business logic',
+            'phase2': 'Contract tests for API surface',
+            'phase3': 'Integration tests for external dependencies'
+            },
+            tests_generated=168,
+            time_taken=45,
+            success=True
+            )
+
+            # 2. Store successful test patterns
+            for pattern in result.patterns_used:
+            if pattern.effective:
+            self.memory.store_test_pattern(
+            name=pattern.name,
+            code=pattern.code,
+            applicable_to=pattern.method_types,
+            coverage_improvement=pattern.coverage_gain,
+            mutation_score=pattern.mutation_score
+            )
+
+            # 3. Store edge cases discovered
+            for edge_case in result.edge_cases:
+            self.memory.store_edge_case(
+            domain='payment_processing',
+            scenario=edge_case.scenario,
+            test_code=edge_case.test,
+            caught_bugs=edge_case.bugs_found
+            )
+
+            # 4. Store anti-patterns encountered
+            for anti_pattern in result.anti_patterns_avoided:
+            self.memory.store_anti_pattern(
+            name=anti_pattern.name,
+            why_bad=anti_pattern.reason,
+            better_approach=anti_pattern.alternative
+            )
+
+            # 5. Update vector embeddings
+            self.vector_db.update_embeddings([
+            result.test_code,
+            result.patterns,
+            result.edge_cases
+            ])
+
+            def apply_learnings_to_next_project(self, next_project):
+            """Apply learned patterns to new project"""
+
+            # Recall successful approach
+            similar_projects = self.memory.find_similar_projects(
+            tech_stack=next_project.tech_stack,
+            domain=next_project.domain,
+            min_coverage_improvement=30
+            )
+
+            # Use proven approach
+            proven_approach = similar_projects[0].approach
+
+            # Recall applicable patterns
+            patterns = self.memory.recall_test_patterns(
+            applicable_to=next_project.method_types
+            )
+
+            # Recall edge cases
+            edge_cases = self.memory.recall_edge_cases(
+            domain=next_project.domain
+            )
+
+            # Apply to new project
+            return {
+            'approach': proven_approach,
+            'patterns': patterns,
+            'edge_cases': edge_cases,
+            'estimated_time': estimate_time(similar_projects),
+            'estimated_coverage': estimate_coverage(similar_projects)
+            }</div>
+    </div>
+
+    <h2>Real-World Example: Payment Service</h2>
+
+    <div class="flow-diagram" style="background: white; padding: 25px; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
+        <h3>Autonomous Execution Log</h3>
+        <div class="code-block" style="background: #f8f9fa; color: #2c3e50; padding: 20px;">
+            $ speckit-orchestrator coverage --project ./payment-service --target 75
+
+            🎯 Starting autonomous test coverage improvement...
+            Target: 75%
+
+            📊 Phase 1: Analyzing current coverage...
+            [Coverage Agent] Running existing tests...
+            [Coverage Agent] Parsing coverage report...
+            ✓ Current coverage: 42%
+            ✓ Gap to target: 33 percentage points
+            ✓ Components analyzed: 5
+            [Mermaid Agent] Generating coverage heatmap...
+            [Mermaid Agent] Generating gap analysis chart...
+            ✓ Visualizations saved to specs/test-coverage-improvement/diagrams/
+
+            🔍 Phase 2: Analyzing untested code...
+            [Codebase Agent] Scanning source files...
+            ✓ Untested methods: 87
+            ✓ High priority: 34
+            ✓ Medium priority: 53
+
+            🔎 Searching for similar test patterns...
+            [Vector DB] Indexing existing tests...
+            [Vector DB] Searching for similar tested methods...
+            ✓ Found 43 similar tested methods
+            ✓ Extracted 28 test patterns
+
+            [Memory Agent] Recalling proven patterns...
+            ✓ Recalled 15 proven patterns from memory
+            ✓ Recalled 32 payment domain edge cases
+
+            📝 Phase 3: Generating test specifications...
+            [Scenario Agent] Generating scenarios for 87 methods...
+            ✓ Generated 127 unit test scenarios
+
+            [API Parser] Parsing docs/openapi.yaml...
+            ✓ Found 8 endpoints
+            ✓ Generated 23 contract test scenarios
+
+            [Scenario Agent] Analyzing integrations...
+            ✓ Found 3 integration points (Database, Stripe API, RabbitMQ)
+            ✓ Generated 18 integration test scenarios
+
+            Total scenarios: 168
+
+            ⚙️  Phase 4: Generating test code...
+            [Vector DB] Finding test code examples...
+            [Code Generator] Generating tests/Unit/PaymentServiceTests.cs...
+            ✓ Generated tests/Unit/PaymentServiceTests.cs (23 tests)
+            ✓ Generated tests/Unit/RefundServiceTests.cs (18 tests)
+            ✓ Generated tests/Unit/PaymentValidatorTests.cs (15 tests)
+            ... (87 files total)
+
+            [Code Generator] Generating contract tests...
+            ✓ Generated tests/Contract/PaymentApiTests.cs (23 tests)
+
+            [Code Generator] Generating integration tests...
+            ✓ Generated tests/Integration/PaymentRepositoryTests.cs (8 tests)
+            ✓ Generated tests/Integration/StripeIntegrationTests.cs (6 tests)
+            ✓ Generated tests/Integration/MessageQueueTests.cs (4 tests)
+
+            Total test files generated: 128
+
+            🔴 Verifying tests fail (Red phase)...
+            [Test Runner] Running 168 tests...
+            ✓ 168/168 tests failed as expected
+
+            📈 Phase 5: Measuring coverage and iterating...
+
+            Iteration 1:
+            [Test Runner] Running tests with coverage...
+            ✓ Coverage: 68%
+            ✓ Improvement: +26 points
+            [Gap Analyzer] Finding remaining gaps...
+            ✓ Remaining gaps: 23 methods
+            [Scenario Agent] Generating additional scenarios...
+            ✓ Generated 15 additional tests
+
+            Iteration 2:
+            [Test Runner] Running tests with coverage...
+            ✓ Coverage: 76%
+            ✓ Improvement: +8 points
+            [Gap Analyzer] Finding remaining gaps...
+            ✓ Remaining gaps: 8 methods
+            [Scenario Agent] Generating additional scenarios...
+            ✓ Generated 8 additional tests
+
+            Iteration 3:
+            [Test Runner] Running tests with coverage...
+            ✓ Coverage: 78%
+            ✓ Improvement: +2 points
+            ✅ Target achieved!
+
+            ✅ Phase 6: Validating test quality...
+            Running mutation testing...
+            [Mutation Tester] Running Stryker.NET...
+            ✓ Mutation score: 85%
+            ✓ 15% mutants survived
+            [Mutation Tester] Enhancing 8 weak tests...
+            ✓ Enhanced tests, new mutation score: 87%
+
+            Analyzing test performance...
+            [Performance Analyzer] Measuring test execution time...
+            ✓ Total test duration: 12,043ms
+            ✓ Average per test: 71ms
+            ✓ Slow tests: 5
+            [Performance Optimizer] Optimizing slow tests...
+            ✓ Optimized 5 tests
+            ✓ New total duration: 8,234ms
+
+            📚 Phase 7: Generating documentation...
+            [Documentation Generator] Creating test coverage report...
+            ✓ Generated specs/test-coverage-improvement/coverage-report.md
+
+            [Mermaid Agent] Generating diagrams...
+            ✓ Coverage progression chart
+            ✓ Component coverage breakdown
+            ✓ Test distribution pie chart
+            ✓ Mutation coverage visualization
+            ✓ Coverage heatmap (before/after)
+            ✓ Test execution flow diagrams
+            ✓ Gap analysis chart
+            ✓ Coverage trend over iterations
+
+            💾 Storing results in long-term memory...
+            [Memory Agent] Storing coverage improvement...
+            ✓ Stored approach for future reference
+            ✓ Stored 28 successful test patterns
+            ✓ Stored 32 edge cases
+            ✓ Updated vector embeddings
+
+            ============================================================
+            ✨ TEST COVERAGE IMPROVEMENT COMPLETE
+            ============================================================
+
+            Coverage Improvement:
+            Before:  42%
+            After:   78%
+            Gain:    +36 percentage points ✅
+
+            Tests Generated:
+            Unit Tests:        127
+            Contract Tests:    23
+            Integration Tests: 18
+            Total:             168
+
+            Quality Metrics:
+            Tests Passing:     168/168 (100%)
+            Mutation Score:    87%
+            Avg Test Duration: 49ms
+
+            Time Taken:          45 minutes
+            Human Input:         1 command
+
+            Artifacts Generated:
+            ✓ specs/test-coverage-improvement/coverage-analysis.md
+            ✓ specs/test-coverage-improvement/test-scenarios.md
+            ✓ specs/test-coverage-improvement/test-documentation.md
+            ✓ specs/test-coverage-improvement/diagrams/*.mmd (8 diagrams)
+            ✓ tests/Unit/*.cs (87 files, 127 tests)
+            ✓ tests/Contract/*.cs (8 files, 23 tests)
+            ✓ tests/Integration/*.cs (3 files, 18 tests)
+
+            Next Steps:
+            ✓ Tests are ready for review
+            ✓ Coverage target achieved
+            ✓ All tests passing
+            ✓ High mutation score (87%)
+            ✓ Patterns stored in memory for future projects
+
+            🚀 Ready to commit and deploy!
+        </div>
+    </div>
+
+    <h2>Key Advantages of Autonomous Orchestration</h2>
+
+    <div class="success-box">
+        <h3 style="margin-bottom: 10px;">Why This Approach Works</h3>
+        <table>
+            <thead>
+            <tr>
+                <th>Capability</th>
+                <th>How It's Achieved</th>
+                <th>Impact</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td><strong>Zero Human Input</strong></td>
+                <td>Sub-agents extract all context from project artifacts</td>
+                <td>45 minutes vs. 2-3 days manual work</td>
+            </tr>
+            <tr>
+                <td><strong>Pattern Matching</strong></td>
+                <td>Vector DB finds similar tested code, memory recalls proven patterns</td>
+                <td>High-quality tests matching project conventions</td>
+            </tr>
+            <tr>
+                <td><strong>Comprehensive Coverage</strong></td>
+                <td>Systematic scenario generation covering happy path, edge cases, exceptions</td>
+                <td>78% coverage vs. typical 60% manual</td>
+            </tr>
+            <tr>
+                <td><strong>Quality Assurance</strong></td>
+                <td>Mutation testing validates tests actually catch bugs</td>
+                <td>87% mutation score ensures meaningful tests</td>
+            </tr>
+            <tr>
+                <td><strong>Continuous Learning</strong></td>
+                <td>Every project improves memory, making future projects faster</td>
+                <td>10th project takes 30 minutes vs. 45 for first</td>
+            </tr>
+            <tr>
+                <td><strong>Visual Documentation</strong></td>
+                <td>Mermaid auto-generates 8+ diagrams showing coverage, gaps, progression</td>
+                <td>Clear communication of coverage status</td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="info-box" style="margin-top: 25px;">
+        <h3 style="margin-bottom: 10px;">Future Enhancements</h3>
+        <ul class="agent-list">
+            <li><strong>Multi-Project Orchestration:</strong> Run coverage improvement across 10 microservices in parallel</li>
+            <li><strong>Continuous Coverage:</strong> Monitor coverage in CI/CD, auto-generate tests when it drops</li>
+            <li><strong>Cross-Project Learning:</strong> Patterns from one microservice improve tests in others</li>
+            <li><strong>Intelligent Prioritization:</strong> Focus on high-risk, business-critical code first</li>
+            <li><strong>Performance Optimization:</strong> Auto-optimize test execution time while maintaining coverage</li>
+            <li><strong>Regression Prevention:</strong> Auto-generate tests when bugs are found in production</li>
+        </ul>
+    </div>
+</div>
+</body>
+</html>
