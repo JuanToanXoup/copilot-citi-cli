@@ -8,6 +8,8 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.startup.StartupActivity
 import com.speckit.plugin.tools.SpeckitAnalyzeProject
 import com.speckit.plugin.tools.SpeckitListAgents
+import com.speckit.plugin.tools.SpeckitParseCoverage
+import com.speckit.plugin.tools.SpeckitRunTests
 import com.speckit.plugin.tools.SpeckitListSpecs
 import com.speckit.plugin.tools.SpeckitListTemplates
 import com.speckit.plugin.tools.SpeckitReadAgent
@@ -26,6 +28,7 @@ import com.speckit.plugin.tools.agents.SpeckitImplementAgent
 import com.speckit.plugin.tools.agents.SpeckitPlanAgent
 import com.speckit.plugin.tools.agents.SpeckitSpecifyAgent
 import com.speckit.plugin.tools.agents.SpeckitTasksAgent
+import com.speckit.plugin.tools.agents.SpeckitCoverageAgent
 import com.speckit.plugin.tools.agents.SpeckitTasksToIssuesAgent
 
 class SpeckitPluginInstaller : StartupActivity.DumbAware {
@@ -60,11 +63,16 @@ class SpeckitPluginInstaller : StartupActivity.DumbAware {
             SpeckitChecklistAgent(basePath),
             SpeckitImplementAgent(basePath),
             SpeckitTasksToIssuesAgent(basePath),
+            // Coverage orchestrator
+            SpeckitCoverageAgent(basePath),
             // Script wrappers (direct access to bash scripts)
             SpeckitAnalyzeProject(basePath),
             SpeckitSetupPlan(basePath),
             SpeckitSetupFeature(basePath),
             SpeckitUpdateAgents(basePath),
+            // Coverage tools
+            SpeckitRunTests(basePath),
+            SpeckitParseCoverage(basePath),
             // File access tools
             SpeckitListAgents(basePath),
             SpeckitReadAgent(basePath),
