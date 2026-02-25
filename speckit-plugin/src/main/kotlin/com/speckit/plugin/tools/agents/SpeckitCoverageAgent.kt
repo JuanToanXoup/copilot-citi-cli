@@ -4,14 +4,13 @@ import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelTool
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelToolResult
 import com.github.copilot.chat.conversation.agent.tool.LanguageModelToolRegistration
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
-import com.speckit.plugin.tools.ScriptRunner
 import java.io.File
 
 class SpeckitCoverageAgent(private val basePath: String) : LanguageModelToolRegistration {
 
     override val toolDefinition = LanguageModelTool(
         "speckit_coverage",
-        "Autonomous coverage orchestrator. Drives the full speckit pipeline to bring the current project's unit test coverage to 80%+. Detects build system, measures baseline, generates tests in batches, self-heals failures, loops until target is met.",
+        "Autonomous coverage orchestrator. Runs discovery first to understand the project, then drives the speckit pipeline to bring unit test coverage to 80%+. No hardcoded assumptions — learns the project before writing a single test.",
         mapOf(
             "type" to "object",
             "properties" to mapOf(
@@ -32,7 +31,6 @@ class SpeckitCoverageAgent(private val basePath: String) : LanguageModelToolRegi
         val target = request.input?.get("target")?.asInt ?: 80
         val path = request.input?.get("path")?.asString ?: "."
         val batchSize = request.input?.get("batch_size")?.asInt ?: 5
-        val workDir = if (path == ".") basePath else "$basePath/$path"
 
         val context = buildString {
             appendLine("# Spec-Kit Coverage Orchestrator")
@@ -40,26 +38,6 @@ class SpeckitCoverageAgent(private val basePath: String) : LanguageModelToolRegi
             appendLine("**Target**: ${target}% line coverage")
             appendLine("**Project path**: $path")
             appendLine("**Batch size**: $batchSize files per iteration")
-            appendLine()
-
-            // Detect build system
-            appendLine("## Project Detection")
-            val buildSystem = detectBuildSystem(workDir)
-            if (buildSystem != null) {
-                appendLine("Build system: ${buildSystem.name}")
-                appendLine("Test command: ${buildSystem.testCommand}")
-                appendLine("Coverage command: ${buildSystem.coverageCommand}")
-                appendLine("Test framework: ${buildSystem.testFramework}")
-                appendLine()
-            } else {
-                appendLine("WARNING: No build system auto-detected. You will need to determine the test command manually.")
-                appendLine()
-            }
-
-            // Detect existing test patterns
-            appendLine("## Existing Test Structure")
-            val testInfo = detectTestStructure(workDir)
-            appendLine(testInfo)
             appendLine()
 
             // Constitution
@@ -71,72 +49,13 @@ class SpeckitCoverageAgent(private val basePath: String) : LanguageModelToolRegi
             }
 
             // Orchestrator instructions
-            appendLine(ORCHESTRATOR_PROMPT.replace("{{TARGET}}", target.toString()).replace("{{BATCH_SIZE}}", batchSize.toString()))
+            appendLine(ORCHESTRATOR_PROMPT
+                .replace("{{TARGET}}", target.toString())
+                .replace("{{BATCH_SIZE}}", batchSize.toString())
+                .replace("{{PATH}}", path))
         }
 
         return LanguageModelToolResult.Companion.success(context)
-    }
-
-    private data class BuildSystem(
-        val name: String,
-        val testCommand: String,
-        val coverageCommand: String,
-        val testFramework: String
-    )
-
-    private fun detectBuildSystem(dir: String): BuildSystem? {
-        val d = File(dir)
-        return when {
-            d.resolve("build.gradle.kts").exists() || d.resolve("build.gradle").exists() ->
-                BuildSystem("Gradle", "./gradlew test", "./gradlew test jacocoTestReport", "JUnit/JaCoCo")
-            d.resolve("pom.xml").exists() ->
-                BuildSystem("Maven", "mvn test", "mvn test jacoco:report", "JUnit/JaCoCo")
-            d.resolve("package.json").exists() ->
-                BuildSystem("npm", "npm test", "npm test -- --coverage", "Jest/Istanbul")
-            d.resolve("pyproject.toml").exists() || d.resolve("setup.py").exists() ->
-                BuildSystem("Python", "pytest", "pytest --cov --cov-report=json --cov-report=term", "pytest/pytest-cov")
-            d.resolve("go.mod").exists() ->
-                BuildSystem("Go", "go test ./...", "go test -coverprofile=coverage.out -covermode=atomic ./...", "go test/go cover")
-            else -> null
-        }
-    }
-
-    private fun detectTestStructure(dir: String): String {
-        val d = File(dir)
-        val result = buildString {
-            // Find test directories
-            val testDirs = mutableListOf<String>()
-            val candidates = listOf("src/test", "test", "tests", "__tests__", "spec", "*_test.go")
-            for (candidate in candidates) {
-                if (d.resolve(candidate).exists()) testDirs.add(candidate)
-            }
-
-            if (testDirs.isNotEmpty()) {
-                appendLine("Test directories found: ${testDirs.joinToString(", ")}")
-            } else {
-                appendLine("No standard test directories found.")
-            }
-
-            // Count test files
-            val testPatterns = listOf("*Test.kt", "*Test.java", "*.test.ts", "*.test.js", "*.spec.ts", "*.spec.js", "test_*.py", "*_test.py", "*_test.go")
-            val countResult = ScriptRunner.exec(
-                listOf("bash", "-c", "find . -name '*Test*' -o -name '*test*' -o -name '*spec*' | grep -E '\\.(kt|java|ts|js|py|go)\$' | wc -l"),
-                dir
-            )
-            if (countResult.success) {
-                appendLine("Approximate test file count: ${countResult.output.trim()}")
-            }
-
-            // Count source files
-            val srcResult = ScriptRunner.exec(
-                listOf("bash", "-c", "find . -name '*.kt' -o -name '*.java' -o -name '*.ts' -o -name '*.js' -o -name '*.py' -o -name '*.go' | grep -v test | grep -v Test | grep -v spec | grep -v node_modules | grep -v build | grep -v target | grep -v dist | wc -l"),
-                dir
-            )
-            if (srcResult.success) {
-                appendLine("Approximate source file count: ${srcResult.output.trim()}")
-            }
-        }
-        return result
     }
 
     companion object {
@@ -145,92 +64,120 @@ class SpeckitCoverageAgent(private val basePath: String) : LanguageModelToolRegi
 
 You are the Spec-Kit Coverage Orchestrator. Your goal is to autonomously bring this project's unit test coverage to **{{TARGET}}%+** with zero manual test authoring.
 
-### Available Tools
+**CRITICAL: You must discover the project first. Do not assume anything about the build system, test framework, or project structure.**
 
-You have access to these tools — use them throughout the process:
+### Available Tools
 
 | Tool | Purpose |
 |------|---------|
-| `speckit_run_tests` | Run tests with coverage collection |
-| `speckit_parse_coverage` | Read and analyze coverage reports |
+| `speckit_discover` | **START HERE.** Scans the project to detect language, framework, build system, test framework, mock patterns, DI, conventions, and coverage state |
+| `speckit_run_tests` | Run tests with coverage. Supports auto-detection OR explicit `command` override |
+| `speckit_parse_coverage` | Find and read coverage reports. Supports auto-detection OR explicit `report_path` |
 | `speckit_constitution` | Establish testing standards for this project |
 | `speckit_specify` | Analyze coverage gaps and create a spec |
+| `speckit_clarify` | Resolve mock strategies, edge cases, framework decisions |
 | `speckit_plan` | Design the test architecture |
 | `speckit_tasks` | Break down into individual test tasks |
 | `speckit_analyze` | Validate completeness before implementation |
 | `speckit_implement` | Execute the test generation plan |
 | `speckit_read_memory` | Read project memory (constitution, patterns) |
 | `speckit_write_memory` | Save learned patterns for future runs |
-| `speckit_list_agents` | List available agent definitions |
-| `speckit_read_agent` | Read a specific agent's instructions |
 
 ### Execution Pipeline
 
-Follow this exact sequence:
+#### Phase 0 — Discovery (MANDATORY, DO NOT SKIP)
+1. Call `speckit_discover` with `path="{{PATH}}"` to scan the project
+2. Read the discovery report carefully. It tells you:
+   - Build system and language
+   - Test framework and mock libraries
+   - DI approach
+   - Existing test conventions (naming, patterns, assertion style)
+   - Source structure (where source and test files live)
+   - Coverage state (existing reports or none)
+   - CI configuration
+   - Open questions that need answers
+3. **Answer the open questions** by reading project files (build configs, existing tests, source code)
+4. Save the discovery findings to memory via `speckit_write_memory` with name `discovery-report.md`
 
 #### Phase 1 — Baseline
-1. Call `speckit_run_tests` with `coverage=true` to get the current coverage baseline
-2. Call `speckit_parse_coverage` to read the report and identify the current percentage
-3. If already at {{TARGET}}%+, report success and stop
-4. Record the baseline number
+5. Based on discovery, run tests with coverage:
+   - If build system was detected, call `speckit_run_tests` with `path="{{PATH}}"` and `coverage=true`
+   - If build system was NOT detected, read the build file to determine the correct test command, then call `speckit_run_tests` with an explicit `command` parameter
+6. Call `speckit_parse_coverage` to read the report
+   - If no report found, check if coverage tooling needs to be configured first
+7. If already at {{TARGET}}%+, report success and stop
+8. Record the baseline number
 
-#### Phase 2 — Standards (speckit.constitution)
-5. Call `speckit_constitution` to establish or load testing standards
-6. Learn the project's existing test conventions:
-   - Test file naming patterns (e.g., `*Test.kt`, `*.test.ts`)
-   - Test framework and assertion style
-   - Mock patterns (what's mocked, what's real)
-   - Test organization (mirrors source structure or flat)
-7. Save conventions to memory via `speckit_write_memory`
+#### Phase 2 — Standards
+9. Call `speckit_constitution` to establish testing standards
+10. From the discovery report, document the project's actual test conventions:
+    - Test file naming (e.g., `*Test.java`, `*Spec.kt`)
+    - Assertion library (AssertJ, Hamcrest, JUnit assertions, etc.)
+    - Mock approach (Mockito, MockK, WireMock, manual stubs)
+    - Test data strategy (builders, fixtures, hardcoded)
+    - Test organization (mirrors source tree, flat, by feature)
+11. Save conventions to memory via `speckit_write_memory` with name `test-conventions.md`
 
-#### Phase 3 — Analysis (speckit.specify)
-8. From the coverage report, identify files below {{TARGET}}% coverage
-9. Rank by impact: business logic > controllers > utilities
-10. Call `speckit_specify` to create a coverage improvement spec
+#### Phase 3 — Gap Analysis
+12. From the coverage report, identify files below {{TARGET}}% coverage
+13. Rank by impact:
+    - **CRITICAL**: Service layer, business logic, domain models
+    - **HIGH**: Controllers, API handlers, validation logic
+    - **MEDIUM**: Utilities, helpers, configuration
+    - **LOW**: DTOs, constants, generated code
+14. Call `speckit_specify` to create a coverage improvement spec
 
-#### Phase 4 — Strategy (speckit.clarify + speckit.plan)
-11. Call `speckit_clarify` to resolve mock strategies, edge cases, framework decisions
-12. Call `speckit_plan` to design the test architecture:
-    - Shared fixtures and helpers
-    - Execution order (leaf dependencies first)
-    - Coverage prediction per batch
+#### Phase 4 — Test Design Decisions
+15. For each class/package in scope, resolve:
+    - How to isolate from external dependencies (DB, HTTP, messaging)
+    - How to handle DI in tests (Spring context, manual wiring, constructor injection)
+    - How to test async operations synchronously
+    - How to manage test data (factories, builders, fixtures)
+    - How to handle serialization/deserialization testing
+    - How to override configuration per test
+16. Call `speckit_clarify` to formally resolve ambiguities
+17. Call `speckit_plan` to design the test architecture
 
-#### Phase 5 — Task Breakdown (speckit.tasks + speckit.analyze)
-13. Call `speckit_tasks` to generate individual test tasks
-14. Call `speckit_analyze` to validate completeness — every gap has a task
+#### Phase 5 — Task Breakdown
+18. Call `speckit_tasks` to generate individual test tasks
+19. Each task should specify:
+    - Source file to test
+    - Test file path (following project conventions)
+    - Scenarios: happy path, edge cases, error handling, boundary values
+    - Mock setup needed
+    - Assertions to verify
+20. Call `speckit_analyze` to validate completeness
 
 #### Phase 6 — Implementation Loop
-15. Process source files in batches of {{BATCH_SIZE}}:
-    a. For each file in the batch:
-       - Read the source file to understand what needs testing
-       - Read any existing tests for this file
-       - Write unit tests following the project's conventions
-       - Ensure tests cover: happy path, validation failures, exception paths, edge cases
+21. Process in batches of {{BATCH_SIZE}} source files:
+    a. For each file:
+       - Read the source code
+       - Read existing tests (if any)
+       - Write unit tests **matching the project's actual conventions** from Phase 2
+       - Cover: happy path, validation failures, exception paths, edge cases
     b. After each batch:
        - Run `speckit_run_tests` with `coverage=true`
-       - Call `speckit_parse_coverage` to measure progress
-       - Report: "Batch N complete: coverage now X% (was Y%, target {{TARGET}}%)"
-    c. If any tests fail:
-       - Read the error output
-       - Fix the failing tests (self-heal)
-       - Re-run until all pass
+       - Call `speckit_parse_coverage` to measure
+       - Report: "Batch N: coverage X% (was Y%, target {{TARGET}}%)"
+    c. Self-heal any test failures before proceeding
     d. If coverage >= {{TARGET}}%: **STOP** and report success
-    e. If coverage didn't improve after a batch: analyze why, adjust strategy
+    e. If no improvement: analyze why, read the coverage report for missed areas, adjust
 
 #### Phase 7 — Completion
-16. Final `speckit_run_tests` with `coverage=true` to confirm
-17. Report final coverage breakdown per file/package
-18. Save learned patterns to memory via `speckit_write_memory`
+22. Final coverage run to confirm
+23. Report breakdown by file/package
+24. Save learned patterns to memory via `speckit_write_memory`
 
 ### Rules
 
-- **Never skip the baseline measurement** — always know where you start
-- **Learn before you write** — read existing tests to match conventions
-- **Batch and measure** — don't write all tests at once, measure after each batch
-- **Self-heal** — if a test fails to compile or run, fix it immediately
-- **Stop at target** — once {{TARGET}}%+ is reached, stop generating. Don't over-test
-- **Report progress** — after every batch, show current vs target coverage
-- **Save patterns** — write successful mock strategies and patterns to memory for future runs
+- **Discover first, assume nothing** — always run `speckit_discover` before any other action
+- **Match conventions** — generated tests must look like the project's existing tests
+- **Use explicit commands when needed** — if auto-detection fails, provide the command directly
+- **Batch and measure** — never write all tests at once
+- **Self-heal** — fix failing tests immediately, don't move on with broken tests
+- **Stop at target** — once {{TARGET}}%+ is reached, stop. Don't over-test
+- **Report progress** — show current vs target after every batch
+- **Save patterns** — write working mock strategies and conventions to memory
 """.trimIndent()
     }
 }

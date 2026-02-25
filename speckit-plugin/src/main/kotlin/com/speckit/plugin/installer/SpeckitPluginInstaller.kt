@@ -7,6 +7,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.startup.StartupActivity
 import com.speckit.plugin.tools.SpeckitAnalyzeProject
+import com.speckit.plugin.tools.SpeckitDiscover
 import com.speckit.plugin.tools.SpeckitListAgents
 import com.speckit.plugin.tools.SpeckitParseCoverage
 import com.speckit.plugin.tools.SpeckitRunTests
@@ -70,7 +71,8 @@ class SpeckitPluginInstaller : StartupActivity.DumbAware {
             SpeckitSetupPlan(basePath),
             SpeckitSetupFeature(basePath),
             SpeckitUpdateAgents(basePath),
-            // Coverage tools
+            // Discovery and coverage tools
+            SpeckitDiscover(basePath),
             SpeckitRunTests(basePath),
             SpeckitParseCoverage(basePath),
             // File access tools
