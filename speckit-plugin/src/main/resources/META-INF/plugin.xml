@@ -1,0 +1,18 @@
+<idea-plugin>
+    <id>com.speckit.plugin</id>
+    <name>Spec-Kit Plugin</name>
+    <version>0.1.0</version>
+    <vendor>speckit</vendor>
+    <description>
+        Registers Spec-Kit workflow tools (scripts, agents, templates, specs, memory)
+        as in-process tools on the GitHub Copilot Chat LSP client.
+    </description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.github.copilot</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <postStartupActivity
+            implementation="com.speckit.plugin.installer.SpeckitPluginInstaller"/>
+    </extensions>
+</idea-plugin>
