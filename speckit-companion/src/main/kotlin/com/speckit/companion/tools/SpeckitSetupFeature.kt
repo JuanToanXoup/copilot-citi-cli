@@ -13,7 +13,9 @@ class SpeckitSetupFeature(private val basePath: String) : LanguageModelToolRegis
         mapOf(
             "type" to "object",
             "properties" to mapOf(
-                "description" to mapOf("type" to "string", "description" to "Short feature description for branch naming")
+                "description" to mapOf("type" to "string", "description" to "Short feature description for branch naming"),
+                "short_name" to mapOf("type" to "string", "description" to "Optional custom short name (2-4 words) for the branch"),
+                "number" to mapOf("type" to "integer", "description" to "Optional branch number (overrides auto-detection)")
             ),
             "required" to listOf("description")
         ),
@@ -27,10 +29,17 @@ class SpeckitSetupFeature(private val basePath: String) : LanguageModelToolRegis
     ): LanguageModelToolResult {
         val description = request.input?.get("description")?.asString
             ?: return LanguageModelToolResult.Companion.error("Missing required parameter: description")
+        val shortName = request.input?.get("short_name")?.asString
+        val number = request.input?.get("number")?.asInt
+
+        val args = mutableListOf("--json")
+        if (shortName != null) args.addAll(listOf("--short-name", shortName))
+        if (number != null) args.addAll(listOf("--number", number.toString()))
+        args.add(description)
 
         val result = ScriptRunner.execScript(
             "$basePath/.specify/scripts/bash/create-new-feature.sh",
-            listOf(description),
+            args,
             basePath
         )
 
