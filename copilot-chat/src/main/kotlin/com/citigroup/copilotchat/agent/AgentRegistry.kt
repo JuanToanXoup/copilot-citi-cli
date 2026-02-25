@@ -34,6 +34,7 @@ object AgentRegistry : AgentConfigRepository {
         "strict-lead.agent.md",
         "strict-lead-v2.agent.md",
         "speckit-lead.agent.md",
+        "speckit-coverage-lead.agent.md",
     )
 
     /** Default system prompt template for the built-in lead agent (used as fallback by AgentService). */

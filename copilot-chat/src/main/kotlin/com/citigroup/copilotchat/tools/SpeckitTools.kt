@@ -3,7 +3,7 @@ package com.citigroup.copilotchat.tools
 import com.citigroup.copilotchat.tools.BuiltInToolUtils.OUTPUT_LIMIT
 import com.citigroup.copilotchat.tools.BuiltInToolUtils.runCommand
 import com.citigroup.copilotchat.tools.BuiltInToolUtils.str
-import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.*
 import java.io.File
 
 /**
@@ -49,6 +49,12 @@ object SpeckitTools : ToolGroup {
 
         // speckit_get_feature_dir: resolve the current feature directory
         """{"name":"speckit_get_feature_dir","description":"Resolve the current SpecKit feature directory from the active git branch. Returns the absolute path to the feature's specs/ directory, or an error if not on a feature branch.","inputSchema":{"type":"object","properties":{},"required":[]}}""",
+
+        // speckit_analyze_project: analyze project for coverage planning
+        """{"name":"speckit_analyze_project","description":"Analyze the current project to detect build system, test framework, source layout, and existing test patterns. Returns structured JSON for coverage planning.","inputSchema":{"type":"object","properties":{},"required":[]}}""",
+
+        // speckit_run_tests: run tests with coverage
+        """{"name":"speckit_run_tests","description":"Run the project's test suite with coverage enabled. Auto-detects build system and coverage tool. Returns JSON with pass/fail, coverage percentage, and per-package breakdown. Timeout: 5 minutes.","inputSchema":{"type":"object","properties":{"package_filter":{"type":"string","description":"Optional: only run tests for this package/path. If omitted, runs all tests."}},"required":[]}}""",
     )
 
     override val executors: Map<String, (JsonObject, String) -> String> = mapOf(
@@ -62,6 +68,8 @@ object SpeckitTools : ToolGroup {
         "speckit_read_artifact" to ::executeReadArtifact,
         "speckit_write_artifact" to ::executeWriteArtifact,
         "speckit_get_feature_dir" to ::executeGetFeatureDir,
+        "speckit_analyze_project" to ::executeAnalyzeProject,
+        "speckit_run_tests" to ::executeRunTests,
     )
 
     // -- Tool implementations --
@@ -261,5 +269,307 @@ object SpeckitTools : ToolGroup {
             }
         }
         return if (artifacts.isEmpty()) "none" else artifacts.joinToString(", ")
+    }
+
+    // -- Coverage analysis tools --
+
+    private fun executeAnalyzeProject(input: JsonObject, ws: String): String {
+        val buildSystem = detectBuildSystem(ws)
+        val language = detectLanguage(ws, buildSystem)
+        val testFramework = detectTestFramework(ws, buildSystem)
+        val (coverageTool, configured) = detectCoverageTool(ws, buildSystem)
+        val (sourceRoot, testRoot) = detectSourceLayout(ws, buildSystem)
+        val exts = sourceExtensions(language)
+        val sourcePackages = listPackages(File(ws, sourceRoot), exts)
+        val testPackages = listPackages(File(ws, testRoot), exts)
+        val untestedPackages = sourcePackages - testPackages.toSet()
+
+        return buildJsonObject {
+            put("build_system", buildSystem)
+            put("language", language)
+            put("test_framework", testFramework)
+            put("coverage_tool", coverageTool)
+            put("coverage_tool_configured", configured)
+            put("source_root", sourceRoot)
+            put("test_root", testRoot)
+            putJsonArray("source_packages") { sourcePackages.forEach { add(it) } }
+            putJsonArray("test_packages") { testPackages.forEach { add(it) } }
+            putJsonArray("untested_packages") { untestedPackages.forEach { add(it) } }
+            put("source_file_count", countFiles(File(ws, sourceRoot), exts))
+            put("test_file_count", countFiles(File(ws, testRoot), exts))
+        }.toString()
+    }
+
+    private fun executeRunTests(input: JsonObject, ws: String): String {
+        val packageFilter = input.str("package_filter")
+        val buildSystem = detectBuildSystem(ws)
+        val cmd = buildTestCommand(buildSystem, packageFilter, ws)
+            ?: return buildJsonObject {
+                put("status", "error")
+                put("error", "Unsupported or unrecognized build system: $buildSystem")
+                put("coverage_percent", -1)
+            }.toString()
+
+        // Run tests with 5-minute timeout
+        val output = runCommand(cmd, workingDir = ws, timeout = 300)
+
+        // Parse exit code appended by the shell wrapper
+        val exitCodeMatch = Regex("EXIT_CODE=(\\d+)").find(output)
+        val exitCode = exitCodeMatch?.groupValues?.get(1)?.toIntOrNull() ?: -1
+        val testOutput = output.substringBefore("EXIT_CODE=").trim()
+
+        val status = if (exitCode == 0) "pass" else "fail"
+
+        // Parse coverage report from disk
+        val coverage = parseCoverageReport(buildSystem, ws)
+        val coveragePercent = coverage["percent"] as? Double ?: -1.0
+        @Suppress("UNCHECKED_CAST")
+        val byPackage = coverage["by_package"] as? Map<String, Double> ?: emptyMap()
+        @Suppress("UNCHECKED_CAST")
+        val uncoveredPkgs = coverage["uncovered_packages"] as? List<String> ?: emptyList()
+
+        return buildJsonObject {
+            put("status", status)
+            put("exit_code", exitCode)
+            put("coverage_percent", coveragePercent)
+            putJsonObject("coverage_by_package") {
+                byPackage.forEach { (pkg, pct) -> put(pkg, pct) }
+            }
+            putJsonArray("uncovered_packages") { uncoveredPkgs.forEach { add(it) } }
+            put("output_tail", testOutput.takeLast(500))
+        }.toString()
+    }
+
+    // -- Coverage detection helpers --
+
+    private fun detectBuildSystem(ws: String): String = when {
+        File(ws, "build.gradle.kts").exists() || File(ws, "build.gradle").exists() -> "gradle"
+        File(ws, "pom.xml").exists() -> "maven"
+        File(ws, "package.json").exists() -> "npm"
+        File(ws, "pyproject.toml").exists() || File(ws, "setup.py").exists() -> "python"
+        File(ws, "Cargo.toml").exists() -> "rust"
+        File(ws, "go.mod").exists() -> "go"
+        else -> "unknown"
+    }
+
+    private fun detectLanguage(ws: String, buildSystem: String): String = when (buildSystem) {
+        "gradle" -> if (File(ws, "src/main/kotlin").isDirectory || File(ws, "build.gradle.kts").exists()) "kotlin" else "java"
+        "maven" -> if (File(ws, "src/main/kotlin").isDirectory) "kotlin" else "java"
+        "npm" -> if (File(ws, "tsconfig.json").exists()) "typescript" else "javascript"
+        "python" -> "python"
+        "rust" -> "rust"
+        "go" -> "go"
+        else -> "unknown"
+    }
+
+    private fun detectTestFramework(ws: String, buildSystem: String): String {
+        val content = when (buildSystem) {
+            "gradle" -> (File(ws, "build.gradle.kts").takeIf { it.exists() }
+                ?: File(ws, "build.gradle").takeIf { it.exists() })?.readText() ?: ""
+            "maven" -> File(ws, "pom.xml").takeIf { it.exists() }?.readText() ?: ""
+            "npm" -> File(ws, "package.json").takeIf { it.exists() }?.readText() ?: ""
+            "python" -> File(ws, "pyproject.toml").takeIf { it.exists() }?.readText() ?: ""
+            else -> ""
+        }
+        return when (buildSystem) {
+            "gradle", "maven" -> when {
+                content.contains("junit-jupiter") || content.contains("org.junit.jupiter") -> "junit5"
+                content.contains("spock") || content.contains("org.spockframework") -> "spock"
+                content.contains("testng") || content.contains("org.testng") -> "testng"
+                content.contains("kotest") -> "kotest"
+                content.contains("junit") -> "junit4"
+                else -> "junit5"
+            }
+            "npm" -> when {
+                content.contains("vitest") -> "vitest"
+                content.contains("jest") -> "jest"
+                content.contains("mocha") -> "mocha"
+                else -> "jest"
+            }
+            "python" -> if (content.contains("pytest")) "pytest" else "unittest"
+            "go" -> "go-test"
+            "rust" -> "cargo-test"
+            else -> "unknown"
+        }
+    }
+
+    private fun detectCoverageTool(ws: String, buildSystem: String): Pair<String, Boolean> {
+        val content = when (buildSystem) {
+            "gradle" -> (File(ws, "build.gradle.kts").takeIf { it.exists() }
+                ?: File(ws, "build.gradle").takeIf { it.exists() })?.readText() ?: ""
+            "maven" -> File(ws, "pom.xml").takeIf { it.exists() }?.readText() ?: ""
+            "npm" -> File(ws, "package.json").takeIf { it.exists() }?.readText() ?: ""
+            "python" -> (File(ws, "pyproject.toml").takeIf { it.exists() }?.readText() ?: "") +
+                (File(ws, "requirements.txt").takeIf { it.exists() }?.readText() ?: "")
+            else -> ""
+        }
+        return when (buildSystem) {
+            "gradle", "maven" -> "jacoco" to content.contains("jacoco")
+            "npm" -> when {
+                content.contains("c8") -> "c8" to true
+                content.contains("istanbul") || content.contains("nyc") -> "istanbul" to true
+                content.contains("jest") -> "jest-coverage" to true
+                content.contains("vitest") -> "vitest-coverage" to true
+                else -> "unknown" to false
+            }
+            "python" -> "pytest-cov" to content.contains("pytest-cov")
+            "go" -> "go-cover" to true
+            "rust" -> "tarpaulin" to false
+            else -> "unknown" to false
+        }
+    }
+
+    private fun detectSourceLayout(ws: String, buildSystem: String): Pair<String, String> = when (buildSystem) {
+        "gradle", "maven" -> {
+            val src = if (File(ws, "src/main/kotlin").isDirectory) "src/main/kotlin" else "src/main/java"
+            val test = if (File(ws, "src/test/kotlin").isDirectory) "src/test/kotlin" else "src/test/java"
+            src to test
+        }
+        "npm" -> {
+            val src = listOf("src", "lib", "app").firstOrNull { File(ws, it).isDirectory } ?: "src"
+            val test = listOf("__tests__", "test", "tests").firstOrNull { File(ws, it).isDirectory } ?: "test"
+            src to test
+        }
+        "python" -> {
+            val src = listOf("src", "lib").firstOrNull { File(ws, it).isDirectory } ?: "."
+            val test = listOf("tests", "test").firstOrNull { File(ws, it).isDirectory } ?: "tests"
+            src to test
+        }
+        "go", "rust" -> "." to "."
+        else -> "src" to "test"
+    }
+
+    private fun sourceExtensions(language: String): Set<String> = when (language) {
+        "kotlin" -> setOf("kt", "kts")
+        "java" -> setOf("java")
+        "typescript" -> setOf("ts", "tsx")
+        "javascript" -> setOf("js", "jsx")
+        "python" -> setOf("py")
+        "go" -> setOf("go")
+        "rust" -> setOf("rs")
+        else -> setOf("kt", "java", "ts", "js", "py", "go", "rs")
+    }
+
+    private fun listPackages(root: File, extensions: Set<String>): List<String> {
+        if (!root.isDirectory) return emptyList()
+        val packages = mutableSetOf<String>()
+        root.walkTopDown()
+            .filter { it.isFile && it.extension in extensions }
+            .forEach { file ->
+                val rel = file.parentFile.toRelativeString(root)
+                if (rel.isNotBlank()) {
+                    packages.add(rel.replace(File.separatorChar, '.'))
+                }
+            }
+        return packages.sorted()
+    }
+
+    private fun countFiles(root: File, extensions: Set<String>): Int {
+        if (!root.isDirectory) return 0
+        return root.walkTopDown().count { it.isFile && it.extension in extensions }
+    }
+
+    private fun buildTestCommand(buildSystem: String, packageFilter: String?, ws: String): List<String>? {
+        return when (buildSystem) {
+            "gradle" -> {
+                val wrapper = if (File(ws, "gradlew").exists()) "./gradlew" else "gradle"
+                val filter = if (packageFilter != null) " --tests \"${packageFilter}.*\"" else ""
+                listOf("bash", "-c", "$wrapper test jacocoTestReport --no-daemon -q$filter 2>&1; echo EXIT_CODE=\$?")
+            }
+            "maven" -> {
+                val filter = if (packageFilter != null) " -Dtest=\"${packageFilter}.*\"" else ""
+                listOf("bash", "-c", "mvn test$filter -q 2>&1; echo EXIT_CODE=\$?")
+            }
+            "npm" -> {
+                val filter = if (packageFilter != null) " $packageFilter" else ""
+                listOf("bash", "-c", "npx jest --coverage$filter 2>&1; echo EXIT_CODE=\$?")
+            }
+            "python" -> {
+                val filter = if (packageFilter != null) " $packageFilter" else ""
+                listOf("bash", "-c", "python -m pytest --cov --cov-report=json -q$filter 2>&1; echo EXIT_CODE=\$?")
+            }
+            "go" -> {
+                val pkg = packageFilter ?: "./..."
+                listOf("bash", "-c", "go test -coverprofile=coverage.out $pkg 2>&1; echo EXIT_CODE=\$?")
+            }
+            else -> null
+        }
+    }
+
+    // -- Coverage report parsers --
+
+    private fun parseCoverageReport(buildSystem: String, ws: String): Map<String, Any> = when (buildSystem) {
+        "gradle", "maven" -> parseJacocoCoverage(ws)
+        "npm" -> parseJestCoverage(ws)
+        "python" -> parsePytestCoverage(ws)
+        else -> mapOf("percent" to -1.0)
+    }
+
+    private fun parseJacocoCoverage(ws: String): Map<String, Any> {
+        val reportPaths = listOf(
+            "build/reports/jacoco/test/jacocoTestReport.xml",
+            "build/reports/jacoco/jacocoTestReport.xml",
+            "target/site/jacoco/jacoco.xml",
+        )
+        val reportFile = reportPaths.map { File(ws, it) }.firstOrNull { it.exists() }
+            ?: return mapOf("percent" to -1.0, "error" to "JaCoCo report not found")
+
+        val content = reportFile.readText()
+        val counterRegex = Regex("""<counter type="LINE" missed="(\d+)" covered="(\d+)"/>""")
+        val allMatches = counterRegex.findAll(content).toList()
+        if (allMatches.isEmpty()) return mapOf("percent" to -1.0, "error" to "No LINE counters in report")
+
+        // Last match is the report-level total
+        val last = allMatches.last()
+        val missed = last.groupValues[1].toDouble()
+        val covered = last.groupValues[2].toDouble()
+        val total = missed + covered
+        val percent = if (total > 0) "%.1f".format(covered / total * 100).toDouble() else 0.0
+
+        // Per-package breakdown
+        val pkgRegex = Regex("""<package name="([^"]+)">(.*?)</package>""", RegexOption.DOT_MATCHES_ALL)
+        val byPackage = mutableMapOf<String, Double>()
+        val uncovered = mutableListOf<String>()
+        for (m in pkgRegex.findAll(content)) {
+            val pkgName = m.groupValues[1].replace('/', '.')
+            val pkgContent = m.groupValues[2]
+            val pkgLine = counterRegex.findAll(pkgContent).lastOrNull() ?: continue
+            val pm = pkgLine.groupValues[1].toDouble()
+            val pc = pkgLine.groupValues[2].toDouble()
+            val pt = pm + pc
+            val pp = if (pt > 0) "%.1f".format(pc / pt * 100).toDouble() else 0.0
+            byPackage[pkgName] = pp
+            if (pp < 50.0) uncovered.add(pkgName)
+        }
+
+        return mapOf("percent" to percent, "by_package" to byPackage, "uncovered_packages" to uncovered)
+    }
+
+    private fun parseJestCoverage(ws: String): Map<String, Any> {
+        val reportFile = File(ws, "coverage/coverage-summary.json")
+        if (!reportFile.exists()) return mapOf("percent" to -1.0, "error" to "Jest coverage report not found")
+        return try {
+            val j = Json { ignoreUnknownKeys = true }
+            val root = j.parseToJsonElement(reportFile.readText()).jsonObject
+            val pct = root["total"]?.jsonObject?.get("lines")?.jsonObject
+                ?.get("pct")?.jsonPrimitive?.doubleOrNull ?: -1.0
+            mapOf("percent" to pct)
+        } catch (e: Exception) {
+            mapOf("percent" to -1.0, "error" to "Failed to parse Jest coverage: ${e.message}")
+        }
+    }
+
+    private fun parsePytestCoverage(ws: String): Map<String, Any> {
+        val reportFile = File(ws, "coverage.json")
+        if (!reportFile.exists()) return mapOf("percent" to -1.0, "error" to "pytest-cov report not found")
+        return try {
+            val j = Json { ignoreUnknownKeys = true }
+            val root = j.parseToJsonElement(reportFile.readText()).jsonObject
+            val pct = root["totals"]?.jsonObject?.get("percent_covered")
+                ?.jsonPrimitive?.doubleOrNull ?: -1.0
+            mapOf("percent" to pct)
+        } catch (e: Exception) {
+            mapOf("percent" to -1.0, "error" to "Failed to parse pytest-cov: ${e.message}")
+        }
     }
 }

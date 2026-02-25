@@ -176,6 +176,7 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
                     }
 
                     // Wait for streaming to complete, with subagent collection loop
+                    var coverageGateRetries = 0
                     val startTime = System.currentTimeMillis()
                     while (System.currentTimeMillis() - startTime < 300_000) {
                         delay(100)
@@ -197,6 +198,45 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
 
                                 isStreaming = true
                                 sendFollowUpTurn(workDoneToken, resultContext, useModel, rootUri)
+                            } else if (leadAgent?.agentType == "speckit-coverage-lead"
+                                && leadConversationId != null
+                                && coverageGateRetries < 10
+                            ) {
+                                // Coverage gate: check if target coverage is met before stopping
+                                log.info("AgentService: coverage lead stopped — checking coverage gate")
+                                _events.tryEmit(LeadEvent.Delta("\n\n*Checking coverage...*\n"))
+
+                                val ws = project.basePath ?: "/tmp"
+                                val coverageResult = withContext(Dispatchers.IO) {
+                                    com.citigroup.copilotchat.tools.BuiltInTools.execute(
+                                        "speckit_run_tests", JsonObject(emptyMap()), ws
+                                    )
+                                }
+                                val coveragePercent = parseCoveragePercent(coverageResult)
+
+                                if (coveragePercent in 0.0..<80.0) {
+                                    coverageGateRetries++
+                                    log.info("AgentService: coverage at $coveragePercent% < 80% — sending follow-up (retry $coverageGateRetries)")
+                                    _events.tryEmit(LeadEvent.Delta("Coverage at $coveragePercent%. Continuing...\n"))
+
+                                    lspClient.removeProgressListener(workDoneToken)
+                                    workDoneToken = "agent-lead-${UUID.randomUUID().toString().take(8)}"
+                                    currentWorkDoneToken = workDoneToken
+                                    lspClient.registerProgressListener(workDoneToken) { value ->
+                                        handleLeadProgress(value, replyParts)
+                                    }
+
+                                    isStreaming = true
+                                    sendFollowUpTurn(
+                                        workDoneToken,
+                                        "Coverage gate check: current coverage is $coveragePercent%. " +
+                                            "Target is 80%. Continue with the next uncovered package group.",
+                                        useModel, rootUri
+                                    )
+                                } else {
+                                    log.info("AgentService: coverage at $coveragePercent% — target met or unavailable, stopping")
+                                    break
+                                }
                             } else {
                                 break // Truly done
                             }
@@ -437,6 +477,20 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Parse coverage_percent from a speckit_run_tests JSON result string.
+     * Returns -1.0 if parsing fails.
+     */
+    private fun parseCoveragePercent(result: String): Double {
+        return try {
+            val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+            val obj = json.parseToJsonElement(result).jsonObject
+            obj["coverage_percent"]?.jsonPrimitive?.doubleOrNull ?: -1.0
+        } catch (_: Exception) {
+            -1.0
         }
     }
 
