@@ -20,9 +20,9 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Outline
 
-1. **Setup**: Run `.specify/scripts/bash/setup-plan.sh --json` from repo root and parse JSON for FEATURE_SPEC, IMPL_PLAN, SPECS_DIR, BRANCH. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
+1. **Setup**: Call the `speckit_setup_plan` tool. It returns the current branch, feature directory, plan file path, and plan template content. Use `run_in_terminal` to create the feature directory if needed, then `create_file` to write the plan template to the plan file path.
 
-2. **Load context**: Read FEATURE_SPEC and `.specify/memory/constitution.md`. Load IMPL_PLAN template (already copied).
+2. **Load context**: Read FEATURE_SPEC and load the constitution using `speckit_read_memory` with `key: "constitution"`. Load IMPL_PLAN template (already copied).
 
 3. **Execute plan workflow**: Follow the structure in IMPL_PLAN template to:
    - Fill Technical Context (mark unknowns as "NEEDS CLARIFICATION")
@@ -76,11 +76,11 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Skip if project is purely internal (build scripts, one-off tools, etc.)
 
 3. **Agent context update**:
-   - Run `.specify/scripts/bash/update-agent-context.sh copilot`
-   - These scripts detect which AI agent is in use
-   - Update the appropriate agent-specific context file
-   - Add only new technology from current plan
-   - Preserve manual additions between markers
+   - Call the `speckit_update_agents` tool (optionally with `agent_type` parameter)
+   - The tool detects which agent context files exist and generates updated content
+   - Follow its "Next Steps" to write each file using `create_file` or `insert_edit_into_file`
+   - Adds only new technology from current plan
+   - Preserves manual additions between markers
 
 **Output**: data-model.md, /contracts/*, quickstart.md, agent-specific file
 

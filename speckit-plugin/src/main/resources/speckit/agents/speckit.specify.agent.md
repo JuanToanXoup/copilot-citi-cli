@@ -36,39 +36,23 @@ Given that feature description, do this:
      - "Create a dashboard for analytics" → "analytics-dashboard"
      - "Fix payment processing timeout bug" → "fix-payment-timeout"
 
-2. **Check for existing branches before creating new one**:
+2. **Create the feature branch and spec scaffold**:
 
-   a. First, fetch all remote branches to ensure we have the latest information:
+   Call the `speckit_setup_feature` tool with:
+   - `description`: The feature description from the user
+   - `short_name`: The short name you generated in step 1
 
-      ```bash
-      git fetch --all --prune
-      ```
+   The tool auto-detects the next available feature number from local branches and specs directories. It returns:
+   - **Branch name** (e.g. `005-user-auth`)
+   - **Spec directory and file paths**
+   - **Spec template content**
 
-   b. Find the highest feature number across all sources for the short-name:
-      - Remote branches: `git ls-remote --heads origin | grep -E 'refs/heads/[0-9]+-<short-name>$'`
-      - Local branches: `git branch | grep -E '^[* ]*[0-9]+-<short-name>$'`
-      - Specs directories: Check for directories matching `specs/[0-9]+-<short-name>`
+   Then follow the tool's "Next Steps" instructions:
+   - Use `run_in_terminal` to create the git branch
+   - Use `run_in_terminal` to create the spec directory
+   - Use `create_file` to write the spec file with the template content
 
-   c. Determine the next available number:
-      - Extract all numbers from all three sources
-      - Find the highest number N
-      - Use N+1 for the new branch number
-
-   d. Run the script `.specify/scripts/bash/create-new-feature.sh --json "$ARGUMENTS"` with the calculated number and short-name:
-      - Pass `--number N+1` and `--short-name "your-short-name"` along with the feature description
-      - Bash example: `.specify/scripts/bash/create-new-feature.sh --json "$ARGUMENTS" --json --number 5 --short-name "user-auth" "Add user authentication"`
-      - PowerShell example: `.specify/scripts/bash/create-new-feature.sh --json "$ARGUMENTS" -Json -Number 5 -ShortName "user-auth" "Add user authentication"`
-
-   **IMPORTANT**:
-   - Check all three sources (remote branches, local branches, specs directories) to find the highest number
-   - Only match branches/directories with the exact short-name pattern
-   - If no existing branches/directories found with this short-name, start with number 1
-   - You must only ever run this script once per feature
-   - The JSON is provided in the terminal as output - always refer to it to get the actual content you're looking for
-   - The JSON output will contain BRANCH_NAME and SPEC_FILE paths
-   - For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot")
-
-3. Load `.specify/templates/spec-template.md` to understand required sections.
+3. Use the spec template content returned by `speckit_setup_feature` to understand required sections.
 
 4. Follow this execution flow:
 
@@ -192,7 +176,7 @@ Given that feature description, do this:
 
 7. Report completion with branch name, spec file path, checklist results, and readiness for the next phase (`/speckit.clarify` or `/speckit.plan`).
 
-**NOTE:** The script creates and checks out the new branch and initializes the spec file before writing.
+**NOTE:** Use `speckit_setup_feature` to resolve paths and templates, then use Copilot's built-in tools (`run_in_terminal`, `create_file`) to create the branch and write the spec.
 
 ## General Guidelines
 

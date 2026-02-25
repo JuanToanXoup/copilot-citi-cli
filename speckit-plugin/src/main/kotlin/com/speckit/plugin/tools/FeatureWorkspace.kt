@@ -1,9 +1,5 @@
 package com.speckit.plugin.tools
 
-import com.github.copilot.chat.conversation.agent.tool.ToolInvocationManager
-import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
-import com.intellij.openapi.project.Project
-import com.intellij.openapi.vfs.LocalFileSystem
 import java.io.File
 
 // Kotlin reimplementation of .specify/scripts/bash/common.sh
@@ -111,9 +107,8 @@ object FeatureWorkspace {
             }
         }
 
-        // Check git branches (local + remote)
+        // Check git branches (local only — no network calls in a resolver)
         try {
-            ScriptRunner.exec(listOf("git", "fetch", "--all", "--prune"), basePath, 30)
             val result = ScriptRunner.exec(listOf("git", "branch", "-a"), basePath, 10)
             if (result.success) {
                 for (line in result.output.lines()) {
@@ -158,21 +153,4 @@ object FeatureWorkspace {
             .replace(Regex("-+"), "-")
             .trim('-')
 
-    // Resolve the current Project from a tool invocation (Copilot plugin pattern)
-    suspend fun findProject(request: ToolInvocationRequest): Project? {
-        return try {
-            ToolInvocationManager().findProjectForInvocation(request.identifier)
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    // Refresh the IntelliJ VFS so the IDE picks up newly created files
-    fun refreshVfs(project: Project?, vararg paths: String) {
-        if (project == null || project.isDisposed) return
-        val lfs = LocalFileSystem.getInstance()
-        for (path in paths) {
-            lfs.refreshAndFindFileByPath(path)
-        }
-    }
 }

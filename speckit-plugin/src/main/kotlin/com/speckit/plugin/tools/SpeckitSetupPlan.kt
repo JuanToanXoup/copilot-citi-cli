@@ -4,7 +4,6 @@ import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelTool
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelToolResult
 import com.github.copilot.chat.conversation.agent.tool.LanguageModelToolRegistration
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
-import java.io.File
 
 class SpeckitSetupPlan(
     private val basePath: String
@@ -12,12 +11,10 @@ class SpeckitSetupPlan(
 
     override val toolDefinition = LanguageModelTool(
         "speckit_setup_plan",
-        "Copy the plan template into the current feature's spec directory. Must be on a feature branch.",
+        "Resolve the plan template path for the current feature. Returns the target file path and template content — use create_file to write the plan.",
         mapOf(
             "type" to "object",
-            "properties" to mapOf(
-                "json" to mapOf("type" to "boolean", "description" to "Return JSON output (default: true)")
-            ),
+            "properties" to mapOf<String, Any>(),
             "required" to listOf<String>()
         ),
         null,
@@ -28,7 +25,6 @@ class SpeckitSetupPlan(
     override suspend fun handleInvocation(
         request: ToolInvocationRequest
     ): LanguageModelToolResult {
-        val project = FeatureWorkspace.findProject(request)
         val paths = FeatureWorkspace.getFeaturePaths(basePath)
 
         // Validate feature branch
@@ -39,28 +35,29 @@ class SpeckitSetupPlan(
             )
         }
 
-        // Create feature directory if needed
-        val featureDir = File(paths.featureDir)
-        if (!featureDir.isDirectory) {
-            featureDir.mkdirs()
-        }
-
-        // Copy plan template (project-first, bundled-fallback via ResourceLoader)
+        // Load plan template (project-first, bundled-fallback)
         val templateContent = ResourceLoader.readTemplate(basePath, "plan-template.md")
-        val planFile = File(paths.implPlan)
 
-        if (templateContent != null) {
-            planFile.writeText(templateContent)
-        } else {
-            // No template found anywhere — create empty file
-            planFile.createNewFile()
+        val output = buildString {
+            appendLine("## Plan Setup")
+            appendLine("- **Branch**: ${paths.currentBranch}")
+            appendLine("- **Feature directory**: ${paths.featureDir}")
+            appendLine("- **Plan file path**: ${paths.implPlan}")
+            appendLine()
+            appendLine("## Next Steps")
+            appendLine("1. Create the feature directory if it doesn't exist: run `mkdir -p ${paths.featureDir}` using `run_in_terminal`")
+            if (templateContent != null) {
+                appendLine("2. Create `${paths.implPlan}` using `create_file` with the template content below")
+                appendLine()
+                appendLine("## Plan Template Content")
+                appendLine("```")
+                appendLine(templateContent)
+                appendLine("```")
+            } else {
+                appendLine("2. Create an empty `${paths.implPlan}` using `create_file`")
+            }
         }
 
-        // Refresh VFS so IntelliJ sees the new files immediately
-        FeatureWorkspace.refreshVfs(project, paths.featureDir, paths.implPlan)
-
-        return LanguageModelToolResult.Companion.success(
-            """{"FEATURE_SPEC":"${paths.featureSpec}","IMPL_PLAN":"${paths.implPlan}","SPECS_DIR":"${paths.featureDir}","BRANCH":"${paths.currentBranch}","HAS_GIT":"${paths.hasGit}"}"""
-        )
+        return LanguageModelToolResult.Companion.success(output)
     }
 }

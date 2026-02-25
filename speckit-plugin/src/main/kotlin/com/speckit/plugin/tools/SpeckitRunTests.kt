@@ -10,13 +10,12 @@ class SpeckitRunTests(private val basePath: String) : LanguageModelToolRegistrat
 
     override val toolDefinition = LanguageModelTool(
         "speckit_run_tests",
-        "Run tests with coverage collection. Auto-detects build system (Gradle/Maven/npm/pytest/Go) and coverage tooling. Returns test output and coverage report location.",
+        "Detect the test command and coverage report location for a project. Auto-detects build system (Gradle/Maven/npm/pytest/Go) and coverage tooling. Returns the command to run — use run_in_terminal to execute it.",
         mapOf(
             "type" to "object",
             "properties" to mapOf(
                 "path" to mapOf("type" to "string", "description" to "Service directory relative to project root (default: '.')"),
-                "coverage" to mapOf("type" to "boolean", "description" to "Collect coverage data (default: true)"),
-                "command" to mapOf("type" to "string", "description" to "Override: provide an explicit test command instead of auto-detection")
+                "coverage" to mapOf("type" to "boolean", "description" to "Include coverage flags in the command (default: true)")
             ),
             "required" to listOf<String>()
         ),
@@ -30,47 +29,46 @@ class SpeckitRunTests(private val basePath: String) : LanguageModelToolRegistrat
     ): LanguageModelToolResult {
         val path = request.input?.get("path")?.asString ?: "."
         val coverage = request.input?.get("coverage")?.asBoolean ?: true
-        val explicitCommand = request.input?.get("command")?.asString
         val workDir = if (path == ".") basePath else "$basePath/$path"
 
-        val command = explicitCommand
-            ?: detectTestCommand(workDir, coverage)
+        val command = detectTestCommand(workDir, coverage)
             ?: return LanguageModelToolResult.Companion.error(
                 "No build system detected in '$path'. Looked for: build.gradle.kts, build.gradle, pom.xml, package.json, pyproject.toml, setup.py, go.mod. " +
-                "Use the 'command' parameter to provide an explicit test command."
+                "Provide the test command directly to run_in_terminal."
             )
 
-        val result = ScriptRunner.exec(listOf("bash", "-c", command), workDir, timeoutSeconds = 300)
+        val existingReport = findCoverageReport(workDir)
 
-        val reportPath = if (coverage) findCoverageReport(workDir) else null
         val output = buildString {
-            appendLine(result.output)
-            if (reportPath != null) {
-                appendLine()
-                appendLine("Coverage report found: $reportPath")
+            appendLine("## Detected Test Configuration")
+            appendLine("- **Working directory**: $workDir")
+            appendLine("- **Command**: `$command`")
+            appendLine("- **Coverage enabled**: $coverage")
+            if (existingReport != null) {
+                appendLine("- **Existing coverage report**: $existingReport")
             }
+            appendLine()
+            appendLine("## Next Steps")
+            appendLine("1. Run the command using `run_in_terminal`")
+            appendLine("2. After tests complete, use `speckit_parse_coverage` to analyze the report")
         }
 
-        return if (result.success) {
-            LanguageModelToolResult.Companion.success(output)
-        } else {
-            LanguageModelToolResult.Companion.error(output)
-        }
+        return LanguageModelToolResult.Companion.success(output)
     }
 
     private fun detectTestCommand(dir: String, coverage: Boolean): String? {
         val d = File(dir)
         return when {
             d.resolve("build.gradle.kts").exists() || d.resolve("build.gradle").exists() ->
-                if (coverage) "./gradlew test jacocoTestReport 2>&1" else "./gradlew test 2>&1"
+                if (coverage) "./gradlew test jacocoTestReport" else "./gradlew test"
             d.resolve("pom.xml").exists() ->
-                if (coverage) "mvn test jacoco:report 2>&1" else "mvn test 2>&1"
+                if (coverage) "mvn test jacoco:report" else "mvn test"
             d.resolve("package.json").exists() ->
-                if (coverage) "npm test -- --coverage 2>&1" else "npm test 2>&1"
+                if (coverage) "npm test -- --coverage" else "npm test"
             d.resolve("pyproject.toml").exists() || d.resolve("setup.py").exists() ->
-                if (coverage) "pytest --cov --cov-report=json --cov-report=term 2>&1" else "pytest 2>&1"
+                if (coverage) "pytest --cov --cov-report=json --cov-report=term" else "pytest"
             d.resolve("go.mod").exists() ->
-                if (coverage) "go test -coverprofile=coverage.out -covermode=atomic ./... 2>&1" else "go test ./... 2>&1"
+                if (coverage) "go test -coverprofile=coverage.out -covermode=atomic ./..." else "go test ./..."
             else -> null
         }
     }
