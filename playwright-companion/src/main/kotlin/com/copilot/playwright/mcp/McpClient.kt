@@ -143,13 +143,51 @@ class McpClient private constructor(
     }
 
     companion object {
+        private val log = Logger.getInstance(McpClient::class.java)
+
+        /**
+         * Resolve a command name to an absolute path using the user's
+         * login shell, which has the full PATH (nvm, homebrew, etc.).
+         * Falls back to the bare command name if resolution fails.
+         */
+        private fun resolveCommand(command: String): String {
+            if (command.startsWith("/")) return command
+
+            return try {
+                // Use login shell so nvm/homebrew/volta paths are included
+                val shell = System.getenv("SHELL") ?: "/bin/zsh"
+                val proc = ProcessBuilder(shell, "-lc", "which $command")
+                    .redirectErrorStream(true)
+                    .start()
+                val path = proc.inputStream.bufferedReader().readText().trim()
+                proc.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)
+                if (proc.exitValue() == 0 && path.startsWith("/")) {
+                    log.info("Resolved '$command' to '$path'")
+                    path
+                } else {
+                    log.warn("'which $command' failed, using as-is")
+                    command
+                }
+            } catch (e: Exception) {
+                log.warn("Failed to resolve '$command': ${e.message}")
+                command
+            }
+        }
+
         fun start(
             command: String,
             args: List<String> = emptyList(),
             env: Map<String, String> = emptyMap()
         ): McpClient {
-            val pb = ProcessBuilder(listOf(command) + args)
+            val resolvedCommand = resolveCommand(command)
+            val pb = ProcessBuilder(listOf(resolvedCommand) + args)
                 .redirectErrorStream(false)
+            // Ensure node/npx directories are on PATH for child process
+            val currentPath = pb.environment()["PATH"] ?: ""
+            val resolvedDir = java.io.File(resolvedCommand).parent
+            if (resolvedDir != null && !currentPath.contains(resolvedDir)) {
+                pb.environment()["PATH"] = "$resolvedDir:$currentPath"
+            }
             pb.environment().putAll(env)
 
             val process = pb.start()

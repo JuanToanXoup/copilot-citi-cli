@@ -5,6 +5,7 @@ import com.copilot.playwright.mcp.McpToolBridge
 import com.github.copilot.chat.conversation.agent.tool.ConversationToolService
 import com.github.copilot.chat.conversation.agent.tool.ToolRegistryImpl
 import com.github.copilot.chat.conversation.agent.tool.ToolRegistryProvider
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.startup.StartupActivity
@@ -13,16 +14,21 @@ import com.intellij.openapi.startup.StartupActivity
  * Spawns the Playwright MCP server at IDE startup, discovers its tools,
  * bridges each one into Copilot's ToolRegistry, and pushes the full
  * tool list to the LSP server via ConversationToolService.
+ *
+ * The MCP server spawn runs on a background thread to avoid blocking
+ * IDE startup (npx can take several seconds on first run).
  */
 class PlaywrightToolInstaller : StartupActivity.DumbAware {
 
     private val log = Logger.getInstance(PlaywrightToolInstaller::class.java)
 
     override fun runActivity(project: Project) {
-        try {
-            registerPlaywrightTools()
-        } catch (e: Exception) {
-            log.warn("Playwright tool registration failed — Copilot Chat may not be ready yet", e)
+        ApplicationManager.getApplication().executeOnPooledThread {
+            try {
+                registerPlaywrightTools()
+            } catch (e: Exception) {
+                log.warn("Playwright tool registration failed", e)
+            }
         }
     }
 
