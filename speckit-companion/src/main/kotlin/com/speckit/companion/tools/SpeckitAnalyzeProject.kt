@@ -9,13 +9,19 @@ class SpeckitAnalyzeProject(private val basePath: String) : LanguageModelToolReg
 
     override val toolDefinition = LanguageModelTool(
         "speckit_analyze_project",
-        "Detect build system, test framework, and coverage tooling for a service directory.",
+        "Check spec-driven workflow prerequisites: feature directory, plan.md, tasks.md, available docs. Must be on a feature branch (NNN-name). Returns feature paths and available documents.",
         mapOf(
             "type" to "object",
             "properties" to mapOf(
-                "path" to mapOf("type" to "string", "description" to "Service directory relative to project root")
+                "mode" to mapOf(
+                    "type" to "string",
+                    "description" to "Output mode",
+                    "enum" to listOf("json", "paths-only", "full")
+                ),
+                "require_tasks" to mapOf("type" to "boolean", "description" to "Require tasks.md to exist (for implementation phase)"),
+                "include_tasks" to mapOf("type" to "boolean", "description" to "Include tasks.md in available docs list")
             ),
-            "required" to listOf("path")
+            "required" to emptyList<String>()
         ),
         null,
         "function",
@@ -25,11 +31,22 @@ class SpeckitAnalyzeProject(private val basePath: String) : LanguageModelToolReg
     override suspend fun handleInvocation(
         request: ToolInvocationRequest
     ): LanguageModelToolResult {
-        val path = request.input?.get("path")?.asString ?: "."
+        val mode = request.input?.get("mode")?.asString ?: "json"
+        val requireTasks = request.input?.get("require_tasks")?.asBoolean ?: false
+        val includeTasks = request.input?.get("include_tasks")?.asBoolean ?: false
+
+        val args = mutableListOf<String>()
+        when (mode) {
+            "json" -> args.add("--json")
+            "paths-only" -> args.addAll(listOf("--paths-only", "--json"))
+            "full" -> args.add("--json")
+        }
+        if (requireTasks) args.add("--require-tasks")
+        if (includeTasks) args.add("--include-tasks")
 
         val result = ScriptRunner.execScript(
             "$basePath/.specify/scripts/bash/check-prerequisites.sh",
-            listOf("--json", path),
+            args,
             basePath
         )
 
