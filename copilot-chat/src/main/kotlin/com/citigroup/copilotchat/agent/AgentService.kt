@@ -71,12 +71,25 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
     private var currentWorkDoneToken: String? = null
     private lateinit var toolRouter: ToolRouter
 
+    /** Set when an AUTONOMOUS_TOOLS tool is invoked — enables auto-continue without a lead agent. */
+    @Volatile
+    private var toolTriggeredMaxTurns: Int = 0
+
     companion object {
         fun getInstance(project: Project): AgentService =
             project.getService(AgentService::class.java)
 
         /** Default maxTurns for non-autonomous agents. Agents with maxTurns > this get auto-continue. */
         private const val DEFAULT_MAX_TURNS = 30
+
+        /**
+         * Tools that trigger autonomous mode when invoked during a conversation.
+         * Maps tool name → maxTurns for auto-continue. This allows orchestrator tools
+         * to get auto-continue without requiring a lead agent definition.
+         */
+        private val AUTONOMOUS_TOOLS = mapOf(
+            "speckit_coverage" to 200,
+        )
 
         /**
          * Stop signals that indicate an autonomous agent has completed its pipeline.
@@ -193,12 +206,11 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
 
                     // Wait for streaming to complete, with subagent collection + auto-continue loop
                     var autoContinueTurns = 0
-                    val isAutonomous = leadAgent != null && leadAgent.maxTurns > DEFAULT_MAX_TURNS
-                    val maxContinuations = leadAgent?.maxTurns ?: DEFAULT_MAX_TURNS
-                    // Autonomous agents get a longer timeout: 5min per allowed turn, capped at 2 hours
-                    val timeoutMs = if (isAutonomous) {
-                        minOf(maxContinuations.toLong() * 300_000L, 7_200_000L)
-                    } else 300_000L
+                    val leadMaxTurns = leadAgent?.maxTurns ?: DEFAULT_MAX_TURNS
+                    // Timeout uses a generous upper bound; actual continuation is gated by maxContinuations
+                    val timeoutMs = minOf(
+                        maxOf(leadMaxTurns.toLong(), 200L) * 300_000L, 7_200_000L
+                    )
 
                     val startTime = System.currentTimeMillis()
                     while (System.currentTimeMillis() - startTime < timeoutMs) {
@@ -221,10 +233,10 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
 
                                 isStreaming = true
                                 sendFollowUpTurn(workDoneToken, resultContext, useModel, rootUri)
-                            } else if (isAutonomous
-                                && leadConversationId != null
-                                && autoContinueTurns < maxContinuations
-                            ) {
+                            } else if (leadConversationId != null && run {
+                                val maxCont = maxOf(leadMaxTurns, toolTriggeredMaxTurns)
+                                maxCont > DEFAULT_MAX_TURNS && autoContinueTurns < maxCont
+                            }) {
                                 // Auto-continue: check if the agent signaled completion
                                 val accumulatedText = synchronized(replyParts) { replyParts.joinToString("") }
                                 val hasStopSignal = STOP_SIGNALS.any { accumulatedText.contains(it, ignoreCase = false) }
@@ -239,7 +251,7 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
                                 }
 
                                 autoContinueTurns++
-                                log.info("AgentService: auto-continue turn $autoContinueTurns/$maxContinuations")
+                                log.info("AgentService: auto-continue turn $autoContinueTurns/${maxOf(leadMaxTurns, toolTriggeredMaxTurns)}")
                                 _events.tryEmit(LeadEvent.Delta("\n\n*Continuing pipeline (turn $autoContinueTurns)...*\n"))
 
                                 lspClient.removeProgressListener(workDoneToken)
@@ -314,6 +326,14 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
      */
     suspend fun handleToolCall(id: Int, name: String, input: JsonObject, conversationId: String?) {
         log.info("AgentService: received tool call '$name' for conversation=$conversationId")
+
+        // Activate autonomous mode if this tool is in AUTONOMOUS_TOOLS
+        AUTONOMOUS_TOOLS[name]?.let { turns ->
+            if (turns > toolTriggeredMaxTurns) {
+                toolTriggeredMaxTurns = turns
+                log.info("AgentService: tool '$name' activated autonomous mode (maxTurns=$turns)")
+            }
+        }
 
         // Intercept run_in_terminal calls that are actually delegation commands.
         // The Copilot language server only forwards tool names on its internal allowlist,
@@ -662,6 +682,7 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
         cancel()
         leadConversationId = null
         pendingLeadCreate = false
+        toolTriggeredMaxTurns = 0
         agents = emptyList()
     }
 
