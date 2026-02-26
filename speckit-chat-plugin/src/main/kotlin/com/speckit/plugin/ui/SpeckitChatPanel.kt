@@ -18,7 +18,10 @@ import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Component
 import java.awt.Dimension
+import java.awt.FlowLayout
 import java.awt.event.KeyEvent
+import javax.swing.BorderFactory
+import javax.swing.BoxLayout
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.text.SimpleDateFormat
@@ -59,31 +62,55 @@ class SpeckitChatPanel(
         argField = JBTextArea(3, 0).apply {
             lineWrap = true
             wrapStyleWord = true
+            margin = java.awt.Insets(6, 8, 6, 8)
         }
         sendButton = JButton(com.intellij.icons.AllIcons.Actions.Execute)
         refreshButton = JButton(com.intellij.icons.AllIcons.Actions.Refresh)
 
-        // Agent bar: label + dropdown (fills width) + refresh icon
-        val agentBar = JPanel(BorderLayout(4, 0))
-        agentBar.add(JLabel("Agent:"), BorderLayout.WEST)
-        agentBar.add(agentCombo, BorderLayout.CENTER)
-        agentBar.add(refreshButton, BorderLayout.EAST)
-
-        // Prompt bar: text area + send icon
-        val argScrollPane = JBScrollPane(argField).apply {
-            preferredSize = Dimension(0, 60)
+        // Agent bar: dropdown (fills width) + refresh + send icons
+        val buttonsPanel = JPanel(FlowLayout(FlowLayout.LEFT, 2, 0)).apply {
+            add(refreshButton)
+            add(sendButton)
         }
-        val promptBar = JPanel(BorderLayout(4, 0))
-        promptBar.add(argScrollPane, BorderLayout.CENTER)
-        promptBar.add(sendButton, BorderLayout.EAST)
+        val agentBar = JPanel(BorderLayout(4, 0))
+        agentBar.add(agentCombo, BorderLayout.CENTER)
+        agentBar.add(buttonsPanel, BorderLayout.EAST)
 
-        val topPanel = JPanel(BorderLayout(0, 4))
+        // Prompt area: grows with content up to 10 lines, then scrolls
+        val lineHeight = argField.getFontMetrics(argField.font).height
+        val padding = argField.margin.top + argField.margin.bottom + argField.insets.top + argField.insets.bottom
+        val minHeight = lineHeight + padding
+        val maxHeight = lineHeight * 10 + padding
+        val promptPanel = JBScrollPane(argField).apply {
+            preferredSize = Dimension(0, minHeight)
+            verticalScrollBarPolicy = javax.swing.ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED
+        }
+        argField.document.addDocumentListener(object : javax.swing.event.DocumentListener {
+            override fun insertUpdate(e: javax.swing.event.DocumentEvent) = resize()
+            override fun removeUpdate(e: javax.swing.event.DocumentEvent) = resize()
+            override fun changedUpdate(e: javax.swing.event.DocumentEvent) = resize()
+            private fun resize() {
+                invokeLater {
+                    val textHeight = argField.preferredSize.height
+                    val newHeight = textHeight.coerceIn(minHeight, maxHeight)
+                    if (promptPanel.preferredSize.height != newHeight) {
+                        promptPanel.preferredSize = Dimension(0, newHeight)
+                        promptPanel.revalidate()
+                        this@SpeckitChatPanel.revalidate()
+                    }
+                }
+            }
+        })
+
+        val topPanel = JPanel(BorderLayout(0, 4)).apply {
+            border = BorderFactory.createEmptyBorder(8, 8, 4, 8)
+        }
         topPanel.add(agentBar, BorderLayout.NORTH)
-        topPanel.add(promptBar, BorderLayout.SOUTH)
+        topPanel.add(promptPanel, BorderLayout.SOUTH)
 
         // Table setup
         table.setShowGrid(false)
-        table.autoResizeMode = JBTable.AUTO_RESIZE_ALL_COLUMNS
+        table.autoResizeMode = JBTable.AUTO_RESIZE_OFF
         table.setAutoCreateColumnsFromModel(true)
         val leftAligned = DefaultTableCellRenderer().apply {
             horizontalAlignment = SwingConstants.LEFT
@@ -99,6 +126,8 @@ class SpeckitChatPanel(
             horizontalAlignment = SwingConstants.LEFT
         }
 
+        tableModel.addTableModelListener { packColumns() }
+
         // Double-click to activate session in Copilot Chat
         table.addMouseListener(object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {
@@ -109,8 +138,12 @@ class SpeckitChatPanel(
             }
         })
 
+        val tableScrollPane = JBScrollPane(table).apply {
+            border = BorderFactory.createEmptyBorder(0, 8, 8, 8)
+        }
+
         add(topPanel, BorderLayout.NORTH)
-        add(JBScrollPane(table), BorderLayout.CENTER)
+        add(tableScrollPane, BorderLayout.CENTER)
 
         sendButton.addActionListener { sendMessage() }
         val ctrlEnter = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, KeyEvent.CTRL_DOWN_MASK)
@@ -205,6 +238,22 @@ class SpeckitChatPanel(
                     tableModel.fireTableDataChanged()
                 }
             }
+        }
+    }
+
+    private fun packColumns() {
+        val spacing = 12
+        for (col in 0 until table.columnCount) {
+            val column = table.columnModel.getColumn(col)
+            var width = table.tableHeader.defaultRenderer
+                .getTableCellRendererComponent(table, column.headerValue, false, false, -1, col)
+                .preferredSize.width
+            for (row in 0 until table.rowCount) {
+                val renderer = table.getCellRenderer(row, col)
+                val comp = table.prepareRenderer(renderer, row, col)
+                width = maxOf(width, comp.preferredSize.width)
+            }
+            column.preferredWidth = width + spacing
         }
     }
 
