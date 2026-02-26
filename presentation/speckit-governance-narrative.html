@@ -1,0 +1,1289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SpecKit — Discipline That Scales</title>
+<style>
+  /* ── Reset & Base ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: #FFFFFF;
+    color: #2D3748;
+    line-height: 1.7;
+    overflow-x: hidden;
+  }
+
+  /* ── Citi Color Palette ── */
+  :root {
+    --citi-blue: #003DA5;
+    --citi-blue-light: #00BDF2;
+    --citi-blue-pale: #E8F4FD;
+    --citi-red: #E21836;
+    --citi-bg: #FFFFFF;
+    --citi-bg-alt: #F5F7FA;
+    --citi-text: #1A1A2E;
+    --citi-text-muted: #4A5568;
+    --citi-text-light: #718096;
+    --citi-border: #E2E8F0;
+    --citi-card-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+    --citi-card-shadow-hover: 0 4px 12px rgba(0,0,0,0.1);
+    --citi-code-bg: #F0F4F8;
+    --citi-green: #0B8457;
+    --citi-green-bg: #F0FFF4;
+    --citi-amber: #B7791F;
+    --citi-amber-bg: #FFFFF0;
+  }
+
+  /* ── Typography ── */
+  h1, h2, h3, h4 { color: var(--citi-text); font-weight: 700; line-height: 1.2; }
+  h1 { font-size: clamp(2rem, 5vw, 3.5rem); letter-spacing: -1px; }
+  h2 { font-size: clamp(1.5rem, 3.5vw, 2.5rem); letter-spacing: -0.5px; }
+  h3 { font-size: clamp(1.1rem, 2.5vw, 1.5rem); }
+  h4 {
+    font-size: 0.8rem;
+    color: var(--citi-text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  code {
+    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+    font-size: 0.85em;
+    background: var(--citi-code-bg);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--citi-blue);
+  }
+  blockquote {
+    font-size: clamp(1.3rem, 3vw, 2rem);
+    color: var(--citi-text);
+    font-weight: 600;
+    font-style: italic;
+    border-left: 4px solid var(--citi-blue);
+    padding: 0.5em 0 0.5em 1.2em;
+    margin: 1.5em 0;
+    line-height: 1.4;
+  }
+  strong { color: var(--citi-text); }
+
+  /* ── Layout ── */
+  .section {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6rem 2rem;
+    position: relative;
+  }
+  .section-alt { background: var(--citi-bg-alt); }
+  .section-inner {
+    max-width: 860px;
+    width: 100%;
+  }
+  .section-divider {
+    width: 60px;
+    height: 3px;
+    background: linear-gradient(90deg, var(--citi-blue), var(--citi-blue-light));
+    border-radius: 2px;
+    margin: 2rem 0;
+  }
+
+  /* ── Hero ── */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 4rem 2rem;
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(180deg, #FFFFFF 0%, var(--citi-bg-alt) 100%);
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(ellipse at 50% 40%, rgba(0,61,165,0.04) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  .hero-subtitle {
+    font-size: 0.85rem;
+    color: var(--citi-blue);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    margin-bottom: 1rem;
+    font-weight: 700;
+  }
+  .hero h1 { margin-bottom: 1.5rem; color: var(--citi-text); }
+  .hero h1 .gradient {
+    background: linear-gradient(135deg, var(--citi-blue), var(--citi-blue-light));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero-tagline {
+    font-size: clamp(1rem, 2vw, 1.2rem);
+    color: var(--citi-text-muted);
+    max-width: 620px;
+    margin-bottom: 3rem;
+  }
+  .hero-stats {
+    display: flex;
+    gap: 3rem;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .hero-stat { text-align: center; }
+  .hero-stat .num {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: var(--citi-blue);
+    line-height: 1;
+  }
+  .hero-stat .label {
+    font-size: 0.8rem;
+    color: var(--citi-text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-top: 0.25rem;
+  }
+  .scroll-hint {
+    position: absolute;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--citi-text-light);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    animation: float 2s ease-in-out infinite;
+  }
+  .scroll-hint .arrow { font-size: 1.2rem; }
+  @keyframes float {
+    0%, 100% { transform: translateX(-50%) translateY(0); }
+    50% { transform: translateX(-50%) translateY(8px); }
+  }
+
+  /* ── Animate-in system ── */
+  .reveal {
+    opacity: 0;
+    transform: translateY(40px);
+    transition: opacity 0.8s cubic-bezier(0.22, 1, 0.36, 1),
+                transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .reveal-delay-1 { transition-delay: 0.1s; }
+  .reveal-delay-2 { transition-delay: 0.2s; }
+  .reveal-delay-3 { transition-delay: 0.3s; }
+  .reveal-delay-4 { transition-delay: 0.4s; }
+  .reveal-delay-5 { transition-delay: 0.5s; }
+  .reveal-delay-6 { transition-delay: 0.6s; }
+  .reveal-delay-7 { transition-delay: 0.7s; }
+
+  /* ── Movement badge ── */
+  .movement-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--citi-blue);
+    margin-bottom: 1rem;
+  }
+  .movement-badge .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--citi-blue);
+  }
+
+  /* ── Question bullets ── */
+  .question-list {
+    list-style: none;
+    padding: 0;
+    margin: 1.5rem 0;
+  }
+  .question-list li {
+    position: relative;
+    padding: 0.6rem 0 0.6rem 2rem;
+    font-size: 1.05rem;
+    color: var(--citi-text-muted);
+  }
+  .question-list li::before {
+    content: '?';
+    position: absolute;
+    left: 0;
+    top: 0.55rem;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--citi-blue-pale);
+    color: var(--citi-blue);
+    font-size: 0.75rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ── Pipeline / Phase timeline ── */
+  .pipeline {
+    position: relative;
+    padding-left: 3rem;
+    margin: 2rem 0;
+  }
+  .pipeline::before {
+    content: '';
+    position: absolute;
+    left: 11px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--citi-border);
+  }
+  .phase {
+    position: relative;
+    margin-bottom: 3rem;
+    padding: 1.5rem;
+    background: var(--citi-bg);
+    border: 1px solid var(--citi-border);
+    border-radius: 12px;
+    box-shadow: var(--citi-card-shadow);
+    transition: box-shadow 0.3s ease;
+  }
+  .phase:hover { box-shadow: var(--citi-card-shadow-hover); }
+  .phase::before {
+    content: '';
+    position: absolute;
+    left: -2.38rem;
+    top: 1.8rem;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--citi-border);
+    border: 3px solid var(--citi-bg-alt);
+    transition: background 0.5s ease, box-shadow 0.5s ease;
+    z-index: 1;
+  }
+  .phase.lit::before {
+    background: var(--citi-blue);
+    box-shadow: 0 0 12px rgba(0,61,165,0.35);
+  }
+  .phase-num {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--citi-blue);
+    margin-bottom: 0.5rem;
+  }
+  .phase h3 { margin-bottom: 0.25rem; }
+  .phase .narrator {
+    font-size: 1.05rem;
+    color: var(--citi-text-muted);
+    font-style: italic;
+    margin: 0.75rem 0;
+    padding-left: 1rem;
+    border-left: 3px solid var(--citi-border);
+  }
+  .phase-content { margin-top: 1rem; }
+
+  /* ── Tables ── */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.85rem;
+  }
+  .data-table th {
+    text-align: left;
+    padding: 0.6rem 1rem;
+    background: var(--citi-bg-alt);
+    color: var(--citi-text-muted);
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-bottom: 2px solid var(--citi-border);
+  }
+  .data-table td {
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid var(--citi-border);
+    color: var(--citi-text);
+  }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table tr:hover td { background: rgba(0,61,165,0.02); }
+
+  /* ── Code block ── */
+  .code-block {
+    background: var(--citi-code-bg);
+    border: 1px solid var(--citi-border);
+    border-radius: 8px;
+    padding: 1.2rem;
+    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+    font-size: 0.8rem;
+    line-height: 1.8;
+    overflow-x: auto;
+    margin: 1rem 0;
+  }
+  .code-block .task-id { color: var(--citi-blue); font-weight: 600; }
+  .code-block .task-method { color: #6B21A8; }
+  .code-block .task-desc { color: var(--citi-text-muted); }
+  .code-block .task-arrow { color: var(--citi-green); }
+
+  /* ── Validation checklist ── */
+  .validation-list {
+    list-style: none;
+    padding: 0;
+    margin: 1rem 0;
+  }
+  .validation-list li {
+    padding: 0.5rem 0 0.5rem 2rem;
+    position: relative;
+    color: var(--citi-text-muted);
+    font-size: 0.9rem;
+  }
+  .validation-list li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.7rem;
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    border: 2px solid var(--citi-border);
+    transition: all 0.4s ease;
+  }
+  .validation-list li.checked::before {
+    background: var(--citi-green);
+    border-color: var(--citi-green);
+  }
+  .validation-list li.checked::after {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 0.8rem;
+    width: 8px;
+    height: 4px;
+    border-left: 2px solid #fff;
+    border-bottom: 2px solid #fff;
+    transform: rotate(-45deg);
+  }
+
+  /* ── Implementation steps ── */
+  .impl-steps {
+    list-style: none;
+    padding: 0;
+    counter-reset: step;
+    margin: 1rem 0;
+  }
+  .impl-steps li {
+    counter-increment: step;
+    position: relative;
+    padding: 0.6rem 0 0.6rem 2.5rem;
+    color: var(--citi-text-muted);
+    font-size: 0.9rem;
+  }
+  .impl-steps li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: 0.5rem;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--citi-blue-pale);
+    color: var(--citi-blue);
+    font-size: 0.7rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ── Framing table (avoid/use) ── */
+  .framing-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.5rem 0;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: var(--citi-card-shadow);
+  }
+  .framing-table th {
+    text-align: left;
+    padding: 0.75rem 1rem;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+  }
+  .framing-table th.avoid-col {
+    color: var(--citi-red);
+    background: #FFF5F5;
+    border-bottom: 2px solid rgba(226,24,54,0.2);
+  }
+  .framing-table th.use-col {
+    color: var(--citi-green);
+    background: var(--citi-green-bg);
+    border-bottom: 2px solid rgba(11,132,87,0.2);
+  }
+  .framing-table td {
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+    border-bottom: 1px solid var(--citi-border);
+    vertical-align: top;
+    background: var(--citi-bg);
+  }
+  .framing-table td.avoid-cell {
+    color: var(--citi-text-light);
+    text-decoration: line-through;
+    text-decoration-color: rgba(226,24,54,0.3);
+  }
+  .framing-table td.use-cell { color: var(--citi-text); }
+
+  /* ── Artifact chain ── */
+  .artifact-chain {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 2rem 0;
+  }
+  .artifact-card {
+    display: flex;
+    align-items: stretch;
+    background: var(--citi-bg);
+    border: 1px solid var(--citi-border);
+    overflow: hidden;
+    margin-bottom: -1px;
+  }
+  .artifact-card:first-child { border-radius: 8px 8px 0 0; }
+  .artifact-card:last-child { border-radius: 0 0 8px 8px; margin-bottom: 0; }
+  .artifact-icon {
+    width: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+    background: var(--citi-blue-pale);
+    border-right: 1px solid var(--citi-border);
+    color: var(--citi-blue);
+    font-weight: 700;
+  }
+  .artifact-body {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  .artifact-name {
+    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+    font-size: 0.8rem;
+    color: var(--citi-blue);
+    font-weight: 600;
+  }
+  .artifact-proves {
+    font-size: 0.8rem;
+    color: var(--citi-text-muted);
+    text-align: right;
+    flex: 1;
+  }
+  .artifact-connector {
+    width: 56px;
+    height: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .artifact-connector::before {
+    content: '';
+    width: 2px;
+    height: 100%;
+    background: linear-gradient(180deg, var(--citi-blue), var(--citi-blue-light));
+    opacity: 0.3;
+  }
+
+  /* ── Big three cards ── */
+  .big-three {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1.5rem;
+    margin: 2rem 0;
+  }
+  .big-three-card {
+    background: var(--citi-bg);
+    border: 1px solid var(--citi-border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: var(--citi-card-shadow);
+    border-top: 3px solid;
+    transition: box-shadow 0.3s ease;
+  }
+  .big-three-card:hover { box-shadow: var(--citi-card-shadow-hover); }
+  .big-three-card:nth-child(1) { border-top-color: var(--citi-blue); }
+  .big-three-card:nth-child(2) { border-top-color: #6B21A8; }
+  .big-three-card:nth-child(3) { border-top-color: var(--citi-green); }
+  .big-three-card h3 { font-size: 1rem; margin-bottom: 0.5rem; }
+  .big-three-card p { font-size: 0.85rem; color: var(--citi-text-muted); }
+  .big-three-card .equals {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--citi-text-light);
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+  }
+
+  /* ── Discovery stats ── */
+  .discovery-stats {
+    list-style: none;
+    padding: 0;
+    margin: 1rem 0;
+  }
+  .discovery-stats li {
+    padding: 0.5rem 0;
+    font-size: 0.9rem;
+    color: var(--citi-text-muted);
+    border-bottom: 1px solid var(--citi-border);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .discovery-stats li:last-child { border-bottom: none; }
+  .discovery-stats .stat-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    font-weight: 700;
+    flex-shrink: 0;
+    background: var(--citi-blue-pale);
+    color: var(--citi-blue);
+  }
+
+  /* ── Callout ── */
+  .callout {
+    background: var(--citi-blue-pale);
+    border: 1px solid rgba(0,61,165,0.12);
+    border-left: 4px solid var(--citi-blue);
+    border-radius: 0 8px 8px 0;
+    padding: 1rem 1.2rem;
+    margin: 1.5rem 0;
+    font-size: 0.95rem;
+    color: var(--citi-text);
+  }
+  .callout.green {
+    background: var(--citi-green-bg);
+    border-color: rgba(11,132,87,0.12);
+    border-left-color: var(--citi-green);
+  }
+  .callout strong { color: var(--citi-text); }
+
+  /* ── Coverage bar ── */
+  .coverage-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--citi-border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 0.5rem 0;
+  }
+  .coverage-bar .fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 1.5s cubic-bezier(0.22, 1, 0.36, 1);
+    width: 0;
+  }
+  .coverage-bar .fill.green { background: linear-gradient(90deg, var(--citi-green), #38A169); }
+
+  /* ── Severity badges ── */
+  .severity {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+  .severity-critical { background: #FFF5F5; color: var(--citi-red); border: 1px solid rgba(226,24,54,0.2); }
+
+  /* ── Closing ── */
+  .closing {
+    padding: 4rem 0 0;
+  }
+  .closing blockquote {
+    border-left: none;
+    text-align: center;
+    max-width: 700px;
+    margin: 0 auto;
+  }
+
+  /* ── Nav dots ── */
+  .nav-dots {
+    position: fixed;
+    right: 2rem;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    z-index: 100;
+  }
+  .nav-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--citi-border);
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    padding: 0;
+    position: relative;
+  }
+  .nav-dot:hover { background: var(--citi-text-light); }
+  .nav-dot.active {
+    background: var(--citi-blue);
+    box-shadow: 0 0 8px rgba(0,61,165,0.3);
+  }
+  .nav-dot .tooltip {
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--citi-text);
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+  .nav-dot:hover .tooltip { opacity: 1; }
+
+  /* ── Pipeline flow diagram ── */
+  .pipeline-flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    flex-wrap: wrap;
+    margin: 1.5rem 0;
+    padding: 1.2rem;
+    background: var(--citi-code-bg);
+    border-radius: 8px;
+    border: 1px solid var(--citi-border);
+  }
+  .flow-node {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: var(--citi-blue-pale);
+    color: var(--citi-blue);
+    white-space: nowrap;
+  }
+  .flow-arrow {
+    color: var(--citi-text-light);
+    font-size: 0.9rem;
+    margin: 0 0.3rem;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .section { padding: 4rem 1.5rem; }
+    .pipeline { padding-left: 2rem; }
+    .pipeline::before { left: 7px; }
+    .phase::before { left: -1.72rem; width: 12px; height: 12px; }
+    .hero-stats { gap: 2rem; }
+    .nav-dots { right: 1rem; }
+    .big-three { grid-template-columns: 1fr; }
+    blockquote { font-size: 1.2rem; }
+    .artifact-body { flex-direction: column; align-items: flex-start; gap: 0.25rem; }
+    .artifact-proves { text-align: left; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Navigation dots -->
+<nav class="nav-dots" aria-label="Section navigation">
+  <button class="nav-dot active" data-target="hero"><span class="tooltip">Start</span></button>
+  <button class="nav-dot" data-target="movement-1"><span class="tooltip">False Confidence</span></button>
+  <button class="nav-dot" data-target="movement-2"><span class="tooltip">The Question</span></button>
+  <button class="nav-dot" data-target="movement-3"><span class="tooltip">The Pipeline</span></button>
+  <button class="nav-dot" data-target="movement-4"><span class="tooltip">The Reframe</span></button>
+  <button class="nav-dot" data-target="movement-5"><span class="tooltip">The New Question</span></button>
+  <button class="nav-dot" data-target="closing"><span class="tooltip">Takeaways</span></button>
+</nav>
+
+<!-- ============================================ -->
+<!-- HERO                                         -->
+<!-- ============================================ -->
+<section class="hero" id="hero">
+  <div class="hero-subtitle reveal">SpecKit Governed Pipeline</div>
+  <h1 class="reveal reveal-delay-1">
+    <span class="gradient">Discipline That Scales</span>
+  </h1>
+  <p class="hero-tagline reveal reveal-delay-2">
+    How 9 agents deliver auditable test coverage&mdash;with a complete governance trail at every phase.
+  </p>
+
+  <div class="pipeline-flow reveal reveal-delay-3">
+    <span class="flow-node">constitution</span>
+    <span class="flow-arrow">&rarr;</span>
+    <span class="flow-node">specify</span>
+    <span class="flow-arrow">&rarr;</span>
+    <span class="flow-node">clarify</span>
+    <span class="flow-arrow">&rarr;</span>
+    <span class="flow-node">plan</span>
+    <span class="flow-arrow">&rarr;</span>
+    <span class="flow-node">tasks</span>
+    <span class="flow-arrow">&rarr;</span>
+    <span class="flow-node">analyze</span>
+    <span class="flow-arrow">&rarr;</span>
+    <span class="flow-node">implement</span>
+  </div>
+
+  <div class="hero-stats" style="margin-top: 2rem;">
+    <div class="hero-stat reveal reveal-delay-4">
+      <div class="num">9</div>
+      <div class="label">Agents</div>
+    </div>
+    <div class="hero-stat reveal reveal-delay-5">
+      <div class="num">7</div>
+      <div class="label">Pipeline Phases</div>
+    </div>
+    <div class="hero-stat reveal reveal-delay-6">
+      <div class="num">10+</div>
+      <div class="label">Artifacts</div>
+    </div>
+    <div class="hero-stat reveal reveal-delay-7">
+      <div class="num">1</div>
+      <div class="label">Audit Trail</div>
+    </div>
+  </div>
+  <div class="scroll-hint">
+    <span>Scroll to begin</span>
+    <span class="arrow">&darr;</span>
+  </div>
+</section>
+
+
+<!-- ============================================ -->
+<!-- MOVEMENT 1 — FALSE CONFIDENCE                -->
+<!-- ============================================ -->
+<section class="section section-alt" id="movement-1">
+  <div class="section-inner">
+    <div class="movement-badge reveal"><span class="dot"></span> Movement 1</div>
+    <h2 class="reveal reveal-delay-1">False Confidence</h2>
+    <div class="section-divider reveal reveal-delay-2"></div>
+
+    <blockquote class="reveal reveal-delay-2">
+      "We test our code."
+    </blockquote>
+
+    <p class="reveal reveal-delay-3" style="font-size:1.05rem; margin-bottom:1rem;">
+      Everyone nods. The coverage dashboard says 62%. Green enough. Ship it.
+    </p>
+
+    <p class="reveal reveal-delay-4" style="color: var(--citi-text-light); font-size:0.95rem;">
+      This is the comfortable consensus. The number exists, so the problem must be solved. Nobody questions it&mdash;because the question that matters hasn't been asked yet.
+    </p>
+
+    <div class="callout reveal reveal-delay-5">
+      <strong>62% coverage with no traceability is just a number.</strong><br>
+      It tells you something ran. It doesn't tell you anything was verified.
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================ -->
+<!-- MOVEMENT 2 — THE QUESTION                    -->
+<!-- ============================================ -->
+<section class="section" id="movement-2">
+  <div class="section-inner">
+    <div class="movement-badge reveal"><span class="dot"></span> Movement 2</div>
+    <h2 class="reveal reveal-delay-1">The Question That Creates Doubt</h2>
+    <div class="section-divider reveal reveal-delay-2"></div>
+
+    <blockquote class="reveal reveal-delay-2">
+      "Show me how you know."
+    </blockquote>
+
+    <p class="reveal reveal-delay-3" style="font-size:1rem; margin-bottom:1.5rem;">
+      Not "show me the number." Show me <em>how</em>:
+    </p>
+
+    <ul class="question-list">
+      <li class="reveal reveal-delay-3">Who wrote the tests? Against what standard?</li>
+      <li class="reveal reveal-delay-4">Can you trace any test back to a requirement?</li>
+      <li class="reveal reveal-delay-5">How do you know the tests test the <em>right things</em>?</li>
+      <li class="reveal reveal-delay-6">If an auditor asks "why does this test exist?"&mdash;can you answer?</li>
+    </ul>
+
+    <div class="callout reveal reveal-delay-7">
+      <strong>The problem isn't test coverage.</strong> It's that coverage without governance is just a number.
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================ -->
+<!-- MOVEMENT 3 — THE PIPELINE                    -->
+<!-- ============================================ -->
+<section class="section section-alt" id="movement-3" style="min-height: auto; padding-top: 6rem; padding-bottom: 2rem;">
+  <div class="section-inner">
+    <div class="movement-badge reveal"><span class="dot"></span> Movement 3</div>
+    <h2 class="reveal reveal-delay-1">Here's What Rigor Actually Looks Like</h2>
+    <div class="section-divider reveal reveal-delay-2"></div>
+
+    <p class="reveal reveal-delay-3" style="font-size:1.05rem; margin-bottom:2rem;">
+      Watch the pipeline run. Every step you see is a <strong>governance behavior</strong>&mdash;not a tech feature.
+    </p>
+
+    <div class="pipeline">
+
+      <!-- Phase 1: Constitution -->
+      <div class="phase reveal" data-phase="1">
+        <div class="phase-num">Phase 1 &middot; speckit_constitution</div>
+        <h3>The Testing Constitution</h3>
+        <div class="narrator">"First, before a single spec is written, it creates a testing constitution&mdash;the standard every test must follow."</div>
+        <div class="phase-content">
+          <p style="margin-bottom:0.75rem; color:var(--citi-text-muted);">
+            The <code>speckit_constitution</code> agent creates a versioned, enforceable document at <code>.specify/memory/constitution.md</code>. It reads existing test patterns and codifies them into rules.
+          </p>
+          <table class="data-table">
+            <thead>
+              <tr><th>Rule</th><th>Derived From</th><th>Enforced As</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>*Test.java</code></td>
+                <td>80% of existing tests</td>
+                <td>All generated tests follow this naming</td>
+              </tr>
+              <tr>
+                <td>AssertJ <code>assertThat()</code></td>
+                <td>Existing imports</td>
+                <td>No <code>assertEquals</code>&mdash;only <code>assertThat</code></td>
+              </tr>
+              <tr>
+                <td><code>@Mock</code> + <code>@InjectMocks</code></td>
+                <td>Mockito annotation pattern</td>
+                <td>No manual <code>Mockito.mock()</code></td>
+              </tr>
+              <tr>
+                <td>Builder pattern</td>
+                <td><code>TestDataBuilder</code> usage</td>
+                <td>No hardcoded inline test data</td>
+              </tr>
+              <tr>
+                <td>PII: anonymized</td>
+                <td>Compliance constraint</td>
+                <td>No real names, emails, or account numbers</td>
+              </tr>
+            </tbody>
+          </table>
+          <p style="font-size:0.85rem; color:var(--citi-text-light); margin-top:0.5rem;">
+            Versioned with semantic versioning (MAJOR.MINOR.PATCH). Downstream violations are <span class="severity severity-critical">CRITICAL</span>&mdash;the pipeline stops.
+          </p>
+          <div class="callout green" style="font-size:0.85rem;">
+            <strong>Governance value:</strong> The answer to "against what standard were these tests written?"&mdash;versioned, auditable, derived from the project's own patterns.
+          </div>
+        </div>
+      </div>
+
+      <!-- Phase 2: Specify + Clarify -->
+      <div class="phase reveal" data-phase="2">
+        <div class="phase-num">Phase 2 &middot; speckit_specify + speckit_clarify</div>
+        <h3>Specification &amp; Clarification</h3>
+        <div class="narrator">"Then it builds a feature spec and resolves every ambiguity&mdash;before any planning begins."</div>
+        <div class="phase-content">
+          <p style="margin-bottom:0.75rem; color:var(--citi-text-muted);">
+            <code>speckit_specify</code> creates a structured feature spec (<code>spec.md</code>) with functional and non-functional requirements, scope, and success criteria. Then <code>speckit_clarify</code> scans across 9 ambiguity categories and asks up to 5 sequential questions&mdash;encoding answers directly into the spec.
+          </p>
+          <h4 style="margin-top:1rem;">9 Ambiguity Categories Scanned</h4>
+          <ul class="discovery-stats" style="font-size:0.85rem;">
+            <li><span class="stat-icon">1</span> Functional scope &amp; behavior</li>
+            <li><span class="stat-icon">2</span> Domain &amp; data model</li>
+            <li><span class="stat-icon">3</span> Interaction &amp; UX flow</li>
+            <li><span class="stat-icon">4</span> Non-functional quality attributes</li>
+            <li><span class="stat-icon">5</span> Integrations &amp; dependencies</li>
+            <li><span class="stat-icon">6</span> Edge cases &amp; error handling</li>
+            <li><span class="stat-icon">7</span> Constraints &amp; assumptions</li>
+            <li><span class="stat-icon">8</span> Terminology alignment</li>
+            <li><span class="stat-icon">9</span> Completion signals</li>
+          </ul>
+          <table class="data-table" style="margin-top:1rem;">
+            <thead>
+              <tr><th>Clarification Example</th><th>Resolution</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>How to isolate the database?</td><td>Mock via <code>@Mock</code> (not H2, not Testcontainers)</td></tr>
+              <tr><td>How to handle async operations?</td><td><code>CompletableFuture.join()</code> (not Awaitility)</td></tr>
+              <tr><td>What failure modes exist?</td><td>Specific exceptions enumerated per method</td></tr>
+            </tbody>
+          </table>
+          <div class="callout green" style="font-size:0.85rem;">
+            <strong>Governance value:</strong> Every decision is resolved and recorded in the spec before planning begins. No ambiguity, no guessing.
+          </div>
+        </div>
+      </div>
+
+      <!-- Phase 3: Plan -->
+      <div class="phase reveal" data-phase="3">
+        <div class="phase-num">Phase 3 &middot; speckit_plan</div>
+        <h3>Technical Planning</h3>
+        <div class="narrator">"Then it researches unknowns and designs the technical architecture."</div>
+        <div class="phase-content">
+          <p style="margin-bottom:0.75rem; color:var(--citi-text-muted);">
+            <code>speckit_plan</code> runs two phases&mdash;Phase 0: Research (resolve technical unknowns) &rarr; Phase 1: Design (generate artifacts).
+          </p>
+          <h4 style="margin-top:1rem;">Artifacts Produced</h4>
+          <ul class="discovery-stats" style="font-size:0.85rem;">
+            <li><span class="stat-icon">P</span> <code>plan.md</code>&mdash;phased implementation strategy with dependencies</li>
+            <li><span class="stat-icon">D</span> <code>data-model.md</code>&mdash;entity relationships and schema</li>
+            <li><span class="stat-icon">R</span> <code>research.md</code>&mdash;technical decisions documented with rationale</li>
+            <li><span class="stat-icon">C</span> <code>contracts/</code>&mdash;API and interface specifications</li>
+            <li><span class="stat-icon">Q</span> <code>quickstart.md</code>&mdash;integration scenarios</li>
+          </ul>
+          <div class="callout green" style="font-size:0.85rem;">
+            <strong>Governance value:</strong> The plan answers "why were tests generated in this order?" and "what architectural decisions were made?"&mdash;a deliberate strategy, not a firehose.
+          </div>
+        </div>
+      </div>
+
+      <!-- Phase 4: Tasks + Analyze -->
+      <div class="phase reveal" data-phase="4">
+        <div class="phase-num">Phase 4 &middot; speckit_tasks + speckit_analyze</div>
+        <h3>Task Breakdown &amp; Validation</h3>
+        <div class="narrator">"Then it breaks the plan into atomic tasks and validates completeness&mdash;before a single test is written."</div>
+        <div class="phase-content">
+          <p style="margin-bottom:0.75rem; color:var(--citi-text-muted);">
+            <code>speckit_tasks</code> generates dependency-ordered <code>tasks.md</code> across 5 phases: Setup &rarr; Foundational &rarr; User Stories (P1, P2, P3...) &rarr; Polish. Each task follows the format:
+          </p>
+          <div class="code-block">
+            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T001]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span style="color:var(--citi-text-light);">[Story1]</span> <span class="task-method">OrderService.createOrder</span> <span class="task-desc">&mdash; happy path: valid order</span> <span class="task-arrow">&rarr; saved, event published</span><br>
+            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T002]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span style="color:var(--citi-text-light);">[Story1]</span> <span class="task-method">OrderService.createOrder</span> <span class="task-desc">&mdash; null input</span> <span class="task-arrow">&rarr; IllegalArgumentException</span><br>
+            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T003]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span style="color:var(--citi-text-light);">[Story1]</span> <span class="task-method">OrderService.createOrder</span> <span class="task-desc">&mdash; duplicate order</span> <span class="task-arrow">&rarr; DuplicateOrderException</span><br>
+            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T004]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span style="color:var(--citi-text-light);">[Story1]</span> <span class="task-method">OrderService.createOrder</span> <span class="task-desc">&mdash; payment declined</span> <span class="task-arrow">&rarr; PaymentDeclinedException</span>
+          </div>
+          <p style="font-size:0.85rem; color:var(--citi-text-muted); margin-bottom:0.75rem;">
+            Then <code>speckit_analyze</code> runs a <strong>read-only</strong> cross-artifact consistency check&mdash;6 detection passes, 4 severity levels, max 50 findings:
+          </p>
+          <ol class="validation-list" id="validation-checks">
+            <li>Duplication detection&mdash;near-duplicate requirements flagged</li>
+            <li>Ambiguity detection&mdash;vague terms without measurable criteria</li>
+            <li>Underspecification&mdash;missing objects, outcomes, or acceptance criteria</li>
+            <li>Constitution alignment&mdash;conflicts with MUST principles are <span class="severity severity-critical">CRITICAL</span></li>
+            <li>Coverage gaps&mdash;requirements with zero tasks, tasks with no requirement</li>
+            <li>Inconsistency&mdash;terminology drift across artifacts</li>
+          </ol>
+          <div class="callout green" style="font-size:0.85rem;">
+            <strong>Governance value:</strong> The task manifest is the most granular audit layer. Any test &rarr; task ID &rarr; spec &rarr; constitution. The analyze agent validates completeness <em>before implementation begins</em>.
+          </div>
+        </div>
+      </div>
+
+      <!-- Phase 5: Implement -->
+      <div class="phase reveal" data-phase="5">
+        <div class="phase-num">Phase 5 &middot; speckit_implement</div>
+        <h3>Verified Implementation</h3>
+        <div class="narrator">"Then, and only then, it implements&mdash;and verifies every test compiles, passes, and moves coverage."</div>
+        <div class="phase-content">
+          <p style="margin-bottom:0.75rem; color:var(--citi-text-muted);">
+            <code>speckit_implement</code> is the only phase that writes code. It executes tasks phase-by-phase in dependency order, respecting [P] parallel markers, and marks each task complete.
+          </p>
+          <ol class="impl-steps">
+            <li>Generate test following constitution conventions</li>
+            <li>Compile&mdash;if failure, classify error and fix</li>
+            <li>Run&mdash;if failure, classify error and fix</li>
+            <li>Retry up to <strong>3 times</strong> with targeted fixes</li>
+            <li>Measure coverage after each batch</li>
+            <li><strong>Stop the moment the target is reached</strong></li>
+          </ol>
+          <div style="margin-top:1rem;">
+            <p style="font-size:0.8rem; color:var(--citi-text-light); margin-bottom:0.25rem;">Coverage Progress</p>
+            <div class="coverage-bar"><div class="fill green" data-width="100"></div></div>
+            <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--citi-text-light);">
+              <span>38%</span>
+              <span>100%</span>
+            </div>
+          </div>
+          <div class="callout green" style="font-size:0.85rem; margin-top:1rem;">
+            <strong>Governance value:</strong> Tests aren't dumped and abandoned. Every test compiles, passes, and is measured. Failed tests are diagnosed and fixed. The pipeline has explicit stopping conditions.
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /.pipeline -->
+  </div>
+</section>
+
+
+<!-- ============================================ -->
+<!-- MOVEMENT 4 — THE REFRAME                     -->
+<!-- ============================================ -->
+<section class="section" id="movement-4">
+  <div class="section-inner">
+    <div class="movement-badge reveal"><span class="dot"></span> Movement 4</div>
+    <h2 class="reveal reveal-delay-1">The Empowering Reframe</h2>
+    <div class="section-divider reveal reveal-delay-2"></div>
+
+    <blockquote class="reveal reveal-delay-2">
+      "Your teams already know the right way to do this. SpecKit makes the right way the easy way."
+    </blockquote>
+
+    <p class="reveal reveal-delay-3" style="font-size:1.05rem; margin-bottom:1rem;">
+      Every developer <em>wants</em> to write well-governed tests. But under delivery pressure with hundreds of microservices and sprint deadlines, the choice between "thorough tests with full documentation" and "ship the feature" is a <strong>rational tradeoff</strong>.
+    </p>
+
+    <p class="reveal reveal-delay-4" style="color:var(--citi-text-muted); margin-bottom:2rem;">
+      The governance steps are cut not because teams don't care, but because there literally aren't enough hours. <strong>SpecKit doesn't fix a people problem. It removes a constraint.</strong>
+    </p>
+
+    <table class="framing-table reveal reveal-delay-5">
+      <thead>
+        <tr>
+          <th class="avoid-col" style="width:50%;">Avoid Saying</th>
+          <th class="use-col">Say Instead</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="avoid-cell">"Developers skip governance steps"</td>
+          <td class="use-cell">"Governance at this rigor doesn't scale manually"</td>
+        </tr>
+        <tr>
+          <td class="avoid-cell">"Human teams are inconsistent"</td>
+          <td class="use-cell">"Consistency across hundreds of services requires automation"</td>
+        </tr>
+        <tr>
+          <td class="avoid-cell">"Tests are written without standards"</td>
+          <td class="use-cell">"Standards exist but enforcing them per-service is unsustainable"</td>
+        </tr>
+        <tr>
+          <td class="avoid-cell">"SpecKit enforces what teams don't do"</td>
+          <td class="use-cell">"SpecKit makes the thorough approach the default"</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout green reveal reveal-delay-6">
+      <strong>The rigor was always desired&mdash;it was never feasible to sustain manually at scale.</strong><br>
+      SpecKit makes the governance your teams already want actually happen, on every service, every time.
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================ -->
+<!-- MOVEMENT 5 — THE NEW QUESTION                -->
+<!-- ============================================ -->
+<section class="section section-alt" id="movement-5">
+  <div class="section-inner">
+    <div class="movement-badge reveal"><span class="dot"></span> Movement 5</div>
+    <h2 class="reveal reveal-delay-1">The New Question</h2>
+    <div class="section-divider reveal reveal-delay-2"></div>
+
+    <blockquote class="reveal reveal-delay-2">
+      "The question isn't whether AI can write tests. It's whether your testing process&mdash;human or AI&mdash;is governed."
+    </blockquote>
+
+    <p class="reveal reveal-delay-3" style="font-size:1.05rem; margin-bottom:2rem;">
+      When the auditor comes, you don't hand over a coverage number. You hand over the <code>.specify/</code> folder:
+    </p>
+
+    <div class="artifact-chain">
+      <div class="artifact-card reveal reveal-delay-1">
+        <div class="artifact-icon">C</div>
+        <div class="artifact-body">
+          <span class="artifact-name">constitution.md <span style="color:var(--citi-text-light); font-weight:400;">v1.0.0</span></span>
+          <span class="artifact-proves">What standards governed test generation</span>
+        </div>
+      </div>
+      <div class="artifact-connector reveal reveal-delay-1"></div>
+      <div class="artifact-card reveal reveal-delay-2">
+        <div class="artifact-icon">S</div>
+        <div class="artifact-body">
+          <span class="artifact-name">spec.md</span>
+          <span class="artifact-proves">What needed tests, with all clarifications resolved</span>
+        </div>
+      </div>
+      <div class="artifact-connector reveal reveal-delay-2"></div>
+      <div class="artifact-card reveal reveal-delay-3">
+        <div class="artifact-icon">P</div>
+        <div class="artifact-body">
+          <span class="artifact-name">plan.md + research.md + data-model.md</span>
+          <span class="artifact-proves">What strategy was chosen and why</span>
+        </div>
+      </div>
+      <div class="artifact-connector reveal reveal-delay-3"></div>
+      <div class="artifact-card reveal reveal-delay-4">
+        <div class="artifact-icon">T</div>
+        <div class="artifact-body">
+          <span class="artifact-name">tasks.md</span>
+          <span class="artifact-proves">What specific scenarios were tested, per method</span>
+        </div>
+      </div>
+      <div class="artifact-connector reveal reveal-delay-4"></div>
+      <div class="artifact-card reveal reveal-delay-5">
+        <div class="artifact-icon">A</div>
+        <div class="artifact-body">
+          <span class="artifact-name">analyze report</span>
+          <span class="artifact-proves">That completeness was validated before implementation</span>
+        </div>
+      </div>
+      <div class="artifact-connector reveal reveal-delay-5"></div>
+      <div class="artifact-card reveal reveal-delay-6">
+        <div class="artifact-icon" style="background: rgba(11,132,87,0.1); color: var(--citi-green);">I</div>
+        <div class="artifact-body">
+          <span class="artifact-name" style="color: var(--citi-green);">test files + coverage report</span>
+          <span class="artifact-proves">Every test traceable to task &rarr; spec &rarr; constitution</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout reveal" style="margin-top: 2rem; text-align:center; font-size:1.1rem; border-left-color: #6B21A8; background: #FAF5FF; border-color: rgba(107,33,168,0.12);">
+      <strong>The audit trail is the product. The tests are a side effect.</strong>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================ -->
+<!-- CLOSING — THREE TAKEAWAYS                    -->
+<!-- ============================================ -->
+<section class="section" id="closing" style="padding-bottom: 8rem;">
+  <div class="section-inner">
+    <h2 class="reveal" style="text-align:center; margin-bottom:0.5rem;">Three Things to Remember</h2>
+    <p class="reveal reveal-delay-1" style="text-align:center; color:var(--citi-text-light); margin-bottom:2.5rem;">What business leaders need to hear</p>
+
+    <div class="big-three">
+      <div class="big-three-card reveal reveal-delay-2">
+        <div class="equals">Constitution =</div>
+        <h3 style="color:var(--citi-blue);">Policy Enforcement</h3>
+        <p>A versioned document that gates every downstream decision. Violations are <span class="severity severity-critical">CRITICAL</span>&mdash;the pipeline stops.</p>
+      </div>
+      <div class="big-three-card reveal reveal-delay-3">
+        <div class="equals">Artifact Chain =</div>
+        <h3 style="color:#6B21A8;">Due Diligence</h3>
+        <p>Every answer is derived from code&mdash;parsed from the project, scanned from source, read from existing patterns. Not hallucinated.</p>
+      </div>
+      <div class="big-three-card reveal reveal-delay-4">
+        <div class="equals">9 Agents =</div>
+        <h3 style="color:var(--citi-green);">Audit Trail</h3>
+        <p>Constitution &rarr; spec &rarr; plan &rarr; tasks &rarr; analysis &rarr; tests. Each phase produces an artifact. Each artifact feeds the next. The chain is unbroken and inspectable.</p>
+      </div>
+    </div>
+
+    <div class="closing">
+      <blockquote class="reveal" style="border-left:none; text-align:center; max-width:700px; margin:0 auto;">
+        "Your teams already know the right way to do this.<br>SpecKit makes the right way the easy way&mdash;so the governance you want actually happens, on every service, every time."
+      </blockquote>
+    </div>
+  </div>
+</section>
+
+
+<script>
+// ── Intersection Observer for scroll-triggered animations ──
+const observerOptions = {
+  threshold: 0.15,
+  rootMargin: '0px 0px -50px 0px'
+};
+
+const revealObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+
+      // Light up phase nodes
+      if (entry.target.classList.contains('phase')) {
+        entry.target.classList.add('lit');
+      }
+
+      // Animate coverage bar
+      const bar = entry.target.querySelector('.coverage-bar .fill');
+      if (bar) {
+        const width = bar.dataset.width || 100;
+        setTimeout(() => { bar.style.width = width + '%'; }, 300);
+      }
+    }
+  });
+}, observerOptions);
+
+document.querySelectorAll('.reveal').forEach(el => {
+  revealObserver.observe(el);
+});
+
+// ── Navigation dots ──
+const sections = document.querySelectorAll('section[id]');
+const navDots = document.querySelectorAll('.nav-dot');
+
+navDots.forEach(dot => {
+  dot.addEventListener('click', () => {
+    const target = document.getElementById(dot.dataset.target);
+    if (target) target.scrollIntoView({ behavior: 'smooth' });
+  });
+});
+
+const sectionObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const id = entry.target.id;
+      navDots.forEach(dot => {
+        dot.classList.toggle('active', dot.dataset.target === id);
+      });
+    }
+  });
+}, { threshold: 0.3 });
+
+sections.forEach(section => sectionObserver.observe(section));
+
+// ── Progressive validation checkmarks ──
+const validationObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const items = entry.target.querySelectorAll('.validation-list li');
+      items.forEach((item, i) => {
+        setTimeout(() => item.classList.add('checked'), 200 + i * 250);
+      });
+      validationObserver.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.5 });
+
+document.querySelectorAll('.phase[data-phase="4"]').forEach(el => {
+  validationObserver.observe(el);
+});
+</script>
+
+</body>
+</html>
