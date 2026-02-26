@@ -1,0 +1,21 @@
+<idea-plugin>
+    <id>com.speckit.chat</id>
+    <name>Speckit Chat</name>
+    <version>0.1.0</version>
+    <vendor>speckit</vendor>
+    <description>
+        Agent launcher for GitHub Copilot Chat. Select an agent from a dropdown,
+        enter arguments, and send prompts to Copilot Chat in Agent mode.
+    </description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.github.copilot</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow id="Speckit Chat"
+                    anchor="bottom"
+                    icon="AllIcons.Actions.Execute"
+                    factoryClass="com.speckit.plugin.ui.SubagentConsoleFactory"
+                    canCloseContents="false"/>
+    </extensions>
+</idea-plugin>
