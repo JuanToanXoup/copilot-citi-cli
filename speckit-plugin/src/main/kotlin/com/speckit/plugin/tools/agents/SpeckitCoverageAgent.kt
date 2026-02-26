@@ -10,11 +10,11 @@ class SpeckitCoverageAgent(private val basePath: String) : LanguageModelToolRegi
 
     override val toolDefinition = LanguageModelTool(
         "speckit_coverage",
-        "Autonomous coverage orchestrator. Runs discovery first to understand the project, then drives the speckit pipeline to bring unit test coverage to 80%+. No hardcoded assumptions — learns the project before writing a single test.",
+        "Autonomous coverage orchestrator. Runs discovery first to understand the project, then drives the speckit pipeline to bring unit test coverage to 100%. No hardcoded assumptions — learns the project before writing a single test.",
         mapOf(
             "type" to "object",
             "properties" to mapOf(
-                "target" to mapOf("type" to "integer", "description" to "Coverage target percentage (default: 80)"),
+                "target" to mapOf("type" to "integer", "description" to "Coverage target percentage (default: 100)"),
                 "path" to mapOf("type" to "string", "description" to "Service directory — absolute path or relative to project root (default: '.')"),
                 "batch_size" to mapOf("type" to "integer", "description" to "Number of source files to cover per batch (default: 5)")
             ),
@@ -28,7 +28,7 @@ class SpeckitCoverageAgent(private val basePath: String) : LanguageModelToolRegi
     override suspend fun handleInvocation(
         request: ToolInvocationRequest
     ): LanguageModelToolResult {
-        val target = request.input?.get("target")?.asInt ?: 80
+        val target = request.input?.get("target")?.asInt ?: 100
         val path = request.input?.get("path")?.asString ?: "."
         val batchSize = request.input?.get("batch_size")?.asInt ?: 5
 
