@@ -171,7 +171,7 @@ abstract class SubagentTool(
                         log.info("[$toolName] Progress value is null")
                         return@JsonRpcNotificationListener false
                     }
-                    log.info("[$toolName] Progress kind=${value.kind}, reply=${value.reply?.take(80)}, steps=${value.steps?.size ?: 0}")
+                    log.info("[$toolName] Progress kind=${value.kind}, reply=${value.reply?.take(80)}, steps=${value.steps?.size ?: 0}, raw=${message.toString().take(300)}")
                     if (value.isReport()) {
                         // Capture streaming text reply
                         value.reply?.let {
