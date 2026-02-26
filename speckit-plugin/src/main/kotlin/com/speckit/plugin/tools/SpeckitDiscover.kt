@@ -75,8 +75,8 @@ class SpeckitDiscover(private val basePath: String) : LanguageModelToolRegistrat
             appendLine(detectCIConfig(d))
             appendLine()
 
-            // 7. Questions that still need answers
-            appendLine("## Open Questions")
+            // 7. Items to resolve from source code (not from the user)
+            appendLine("## To Resolve (read project files, do NOT ask user)")
             appendLine(generateOpenQuestions(d))
         }
 
@@ -460,30 +460,23 @@ class SpeckitDiscover(private val basePath: String) : LanguageModelToolRegistrat
 
     private fun generateOpenQuestions(d: File): String {
         return buildString {
-            appendLine("The following questions should be answered before generating tests:")
+            appendLine("Resolve the following by reading project files (do NOT ask the user):")
             appendLine()
 
-            // Check what we couldn't auto-detect
-            val hasPom = d.resolve("pom.xml").exists()
-            val hasGradle = d.resolve("build.gradle.kts").exists() || d.resolve("build.gradle").exists()
             val hasTests = listOf("src/test", "test", "tests").any { d.resolve(it).isDirectory }
 
-            appendLine("### Must Answer")
-            appendLine("- [ ] What classes/packages are in scope for unit testing? (service layer, domain logic, utilities)")
-            appendLine("- [ ] What is the target coverage percentage?")
-            appendLine("- [ ] How should external dependencies be mocked? (HTTP clients, databases, message brokers)")
-            appendLine("- [ ] How should test data be managed? (hardcoded, fixtures, builders/factories)")
+            appendLine("### Resolve from build file and source code")
+            appendLine("- Scope: Read source directories to identify service layer, domain logic, and utility packages")
+            appendLine("- Mock strategy: Check existing test imports for mock libraries and patterns already in use")
+            appendLine("- Test data: Check existing tests for builder patterns, fixture files, or hardcoded values")
+            appendLine("- Async: Scan source files for CompletableFuture, @Async, coroutines, callbacks")
+            appendLine("- Config overrides: Scan for @Value, @ConfigurationProperties, environment variable reads")
             appendLine()
 
-            appendLine("### Verify")
             if (!hasTests) {
-                appendLine("- [ ] No existing tests found — confirm this is correct and tests should be created from scratch")
+                appendLine("### Note")
+                appendLine("- No existing tests found — tests will be created from scratch using framework defaults")
             }
-            appendLine("- [ ] Are tests run locally, in CI, or both?")
-            appendLine("- [ ] Should a failing test block PR merges?")
-            appendLine("- [ ] Are there any async operations that need synchronous test strategies?")
-            appendLine("- [ ] How should configuration (feature flags, URLs) be overridden in tests?")
-            appendLine("- [ ] Are there shared domain models/DTOs that should be tested independently?")
         }
     }
 }
