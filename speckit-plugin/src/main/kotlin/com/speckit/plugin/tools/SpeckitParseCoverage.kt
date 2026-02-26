@@ -42,12 +42,12 @@ class SpeckitParseCoverage(private val basePath: String) : LanguageModelToolRegi
             )
             f
         } else {
-            findCoverageReport(workDir)
+            // Try discovery memory first for the known report path
+            findFromDiscoveryMemory(workDir)
+                ?: findCoverageReport(workDir)
                 ?: return LanguageModelToolResult.Companion.error(
                     "No coverage report found in '$workDir'. Run speckit_run_tests with coverage=true first.\n" +
-                    "Checked static paths: build/reports/jacoco/test/jacocoTestReport.xml, target/site/jacoco/jacoco.xml, " +
-                    "coverage/lcov.info, coverage/coverage-final.json, coverage/clover.xml, htmlcov/coverage.json, coverage.out\n" +
-                    "Also searched recursively for: jacocoTestReport.xml, jacoco.xml, lcov.info, coverage-final.json, coverage.out\n" +
+                    "Checked discovery memory, static paths, and recursive search.\n" +
                     "Tip: use report_path parameter to specify the exact file location."
                 )
         }
@@ -58,6 +58,24 @@ class SpeckitParseCoverage(private val basePath: String) : LanguageModelToolRegi
         return LanguageModelToolResult.Companion.success(
             "Coverage report: ${reportFile.absolutePath}\nFormat: $format\nSize: ${content.length} chars\n\n$content"
         )
+    }
+
+    private fun findFromDiscoveryMemory(workDir: String): File? {
+        val candidates = listOf(
+            File(workDir, ".specify/memory/discovery-report.md"),
+            File(basePath, ".specify/memory/discovery-report.md")
+        )
+        val memoryFile = candidates.firstOrNull { it.exists() } ?: return null
+        val content = memoryFile.readText()
+
+        // Extract coverage report path from the discovery report
+        val regex = Regex("""\*\*Coverage report path\*\*:\s*\[?(.+?)\]?\s*$""", RegexOption.MULTILINE)
+        val match = regex.find(content) ?: return null
+        val reportPath = match.groupValues[1].trim()
+        if (reportPath.startsWith("e.g.,") || reportPath == "UNKNOWN" || reportPath.isEmpty()) return null
+
+        val f = File(if (reportPath.startsWith("/")) reportPath else "$workDir/$reportPath")
+        return if (f.exists()) f else null
     }
 
     private fun findCoverageReport(dir: String): File? {

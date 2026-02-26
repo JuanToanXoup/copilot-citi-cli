@@ -78,6 +78,14 @@ class SpeckitDiscover(private val basePath: String) : LanguageModelToolRegistrat
             // 7. Items to resolve from source code (not from the user)
             appendLine("## To Resolve (read project files, do NOT ask user)")
             appendLine(generateOpenQuestions(d))
+
+            // 8. Save instructions
+            appendLine("## Next Step — Save Discovery")
+            appendLine("1. Call `speckit_read_template` with name `discovery-template.md` to get the template")
+            appendLine("2. Fill in ALL fields using the data above + what you resolve from source files")
+            appendLine("3. For **Test command** and **Coverage command**: read the actual build file to determine the correct commands — do NOT guess")
+            appendLine("4. Call `speckit_write_memory` with name `discovery-report.md` and the filled-in template")
+            appendLine("5. This saved report will be used by `speckit_run_tests` and `speckit_parse_coverage`")
         }
 
         return LanguageModelToolResult.Companion.success(report)

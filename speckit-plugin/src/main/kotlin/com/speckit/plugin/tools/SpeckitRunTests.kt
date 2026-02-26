@@ -35,21 +35,37 @@ class SpeckitRunTests(private val basePath: String) : LanguageModelToolRegistrat
             else -> "$basePath/$path"
         }
 
-        val command = detectTestCommand(workDir, coverage)
+        // Check discovery memory first
+        val discovery = readDiscoveryMemory(workDir)
+        val memoryCommand = if (coverage) discovery?.coverageCommand else discovery?.testCommand
+
+        val command = memoryCommand
+            ?: detectTestCommand(workDir, coverage)
             ?: return LanguageModelToolResult.Companion.error(
                 "No build system detected in '$workDir' (path='$path'). Looked for: build.gradle.kts, build.gradle, pom.xml, package.json, pyproject.toml, setup.py, go.mod. " +
-                "Provide the test command directly to run_in_terminal."
+                "Run speckit_discover first, or provide the test command directly to run_in_terminal."
             )
 
-        val existingReport = findCoverageReport(workDir)
+        val reportPath = discovery?.coverageReportPath
+        val existingReport = if (reportPath != null) {
+            val f = File(if (reportPath.startsWith("/")) reportPath else "$workDir/$reportPath")
+            if (f.exists()) f.absolutePath else null
+        } else null
+            ?: findCoverageReport(workDir)
+
+        val source = if (memoryCommand != null) "discovery memory" else "auto-detect"
 
         val output = buildString {
             appendLine("## Detected Test Configuration")
             appendLine("- **Working directory**: $workDir")
             appendLine("- **Command**: `$command`")
+            appendLine("- **Source**: $source")
             appendLine("- **Coverage enabled**: $coverage")
             if (existingReport != null) {
                 appendLine("- **Existing coverage report**: $existingReport")
+            }
+            if (discovery?.coverageReportPath != null) {
+                appendLine("- **Expected report path**: ${discovery.coverageReportPath}")
             }
             appendLine()
             appendLine("## Next Steps")
@@ -59,6 +75,44 @@ class SpeckitRunTests(private val basePath: String) : LanguageModelToolRegistrat
 
         return LanguageModelToolResult.Companion.success(output)
     }
+
+    private fun readDiscoveryMemory(workDir: String): DiscoveryConfig? {
+        // Check both the workDir and basePath for the memory file
+        val candidates = listOf(
+            File(workDir, ".specify/memory/discovery-report.md"),
+            File(basePath, ".specify/memory/discovery-report.md")
+        )
+        val memoryFile = candidates.firstOrNull { it.exists() } ?: return null
+        return parseDiscoveryReport(memoryFile.readText())
+    }
+
+    private fun parseDiscoveryReport(content: String): DiscoveryConfig? {
+        fun extractField(label: String): String? {
+            val regex = Regex("""\*\*$label\*\*:\s*\[?(.+?)\]?\s*$""", RegexOption.MULTILINE)
+            val match = regex.find(content) ?: return null
+            val value = match.groupValues[1].trim()
+            // Skip unfilled template placeholders
+            if (value.startsWith("e.g.,") || value == "UNKNOWN" || value.isEmpty()) return null
+            return value
+        }
+
+        val testCommand = extractField("Test command")
+        val coverageCommand = extractField("Coverage command")
+        val coverageReportPath = extractField("Coverage report path")
+        val coverageReportFormat = extractField("Coverage report format")
+
+        // Only return if at least one useful field was found
+        if (testCommand == null && coverageCommand == null && coverageReportPath == null) return null
+
+        return DiscoveryConfig(testCommand, coverageCommand, coverageReportPath, coverageReportFormat)
+    }
+
+    private data class DiscoveryConfig(
+        val testCommand: String?,
+        val coverageCommand: String?,
+        val coverageReportPath: String?,
+        val coverageReportFormat: String?
+    )
 
     private fun detectTestCommand(dir: String, coverage: Boolean): String? {
         val d = File(dir)
