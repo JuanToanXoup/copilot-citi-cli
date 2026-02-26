@@ -105,10 +105,8 @@ class SpeckitUpdateAgents : LanguageModelToolRegistration {
                 }
             }
             if (!foundAgent) {
-                return LanguageModelToolResult.Companion.error(
-                    "No existing agent config files found in the project. " +
-                    "Specify an agent_type explicitly (e.g. claude, copilot, cursor-agent)."
-                )
+                val copilotConfig = agentConfigs["copilot"]!!
+                filesToWrite.add(generateFileAction(basePath, copilotConfig, planData, paths.currentBranch, currentDate))
             }
         }
 
