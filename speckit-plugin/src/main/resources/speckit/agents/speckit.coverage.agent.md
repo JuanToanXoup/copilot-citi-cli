@@ -55,17 +55,6 @@ You produce exactly two kinds of files:
 
 Nothing else.
 
-## PIPELINE CONTINUATION RULE
-
-**You MUST NOT stop between phases.** Each phase ends by saving its output to a memory file, then immediately invoking the next phase. The only valid stopping conditions are:
-
-1. Coverage has reached or exceeded the target percentage
-2. All feature specs are DONE or SKIPPED after 2 re-scope cycles
-
-Do not summarize, do not ask for confirmation, do not pause. When a phase is complete, proceed.
-
 ## What To Do Now
 
-The **Current State** section above tells you which phase to execute. It includes the detailed steps for that phase and any relevant context from previous phases.
-
-**Execute that phase now. Save the results to memory. Then immediately continue to the next phase — do not stop or report back.**
+The **Current State** section above tells you which phase to execute. Execute that phase now, save the results to memory, then call `speckit_coverage` again to continue. See the **CRITICAL** section below for the continuation rule.

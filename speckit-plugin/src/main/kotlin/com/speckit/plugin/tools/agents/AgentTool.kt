@@ -83,12 +83,20 @@ abstract class AgentTool(
 
             appendLine("## Agent Instructions")
             appendLine(agentInstructions)
+
+            val suffix = getPromptSuffix(request, basePath)
+            if (suffix.isNotEmpty()) {
+                appendLine()
+                appendLine(suffix)
+            }
         }
 
         return LanguageModelToolResult.Companion.success(context)
     }
 
     protected open fun gatherExtraContext(request: ToolInvocationRequest, basePath: String): String = ""
+
+    protected open fun getPromptSuffix(request: ToolInvocationRequest, basePath: String): String = ""
 
     /**
      * Read a file from the project, falling back to bundled resources for

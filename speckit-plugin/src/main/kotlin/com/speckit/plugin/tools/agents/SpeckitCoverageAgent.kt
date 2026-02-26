@@ -59,7 +59,7 @@ class SpeckitCoverageAgent : AgentTool(
                     appendLine("3. If any details are unclear, read project files (build.gradle, pom.xml, package.json, etc.) to confirm")
                     appendLine("4. Save everything you learned: call `speckit_write_memory` with name `discovery-report.md`")
                     appendLine()
-                    appendLine("**When done:** Proceed immediately to Phase 1 — measure the baseline coverage.")
+                    appendLine("**When done:** Call `speckit_coverage` to proceed to Phase 1.")
                 }
                 baselineCoverage == null -> {
                     appendLine("**YOU ARE AT: Phase 1 — Baseline**")
@@ -75,7 +75,7 @@ class SpeckitCoverageAgent : AgentTool(
                     appendLine("5. Otherwise, list every file below ${target}% with its coverage % and missed line ranges")
                     appendLine("6. Save the full breakdown: call `speckit_write_memory` with name `baseline-coverage.md`")
                     appendLine()
-                    appendLine("**When done:** Proceed to Phase 2 — establish testing conventions.")
+                    appendLine("**When done:** Call `speckit_coverage` to proceed to Phase 2.")
                     appendLine()
                     appendLine("### Discovery Report (from memory)")
                     appendLine(discoveryReport)
@@ -94,7 +94,7 @@ class SpeckitCoverageAgent : AgentTool(
                     appendLine("4. Document the conventions you found (naming, assertions, mocks, DI, test data, organization)")
                     appendLine("5. Save: call `speckit_write_memory` with name `test-conventions.md`")
                     appendLine()
-                    appendLine("**When done:** Proceed to Phase 3 — scope the uncovered files into feature specs.")
+                    appendLine("**When done:** Call `speckit_coverage` to proceed to Phase 3.")
                     appendLine()
                     appendLine("### Discovery Report (from memory)")
                     appendLine(discoveryReport)
@@ -121,7 +121,7 @@ class SpeckitCoverageAgent : AgentTool(
                     appendLine("6. Save as a table with columns: spec name, files, impact tier, estimated gain, status=PENDING")
                     appendLine("   Call `speckit_write_memory` with name `scoping-plan.md`")
                     appendLine()
-                    appendLine("**When done:** Proceed to Phase 4 — start the feature spec pipeline.")
+                    appendLine("**When done:** Call `speckit_coverage` to proceed to Phase 4.")
                     appendLine()
                     appendLine("### Baseline Coverage (from memory)")
                     appendLine(baselineCoverage)
@@ -172,6 +172,21 @@ class SpeckitCoverageAgent : AgentTool(
                     }
                 }
             }
+        }
+    }
+
+    override fun getPromptSuffix(request: ToolInvocationRequest, basePath: String): String {
+        return buildString {
+            appendLine("## CRITICAL — DO NOT STOP")
+            appendLine()
+            appendLine("You have just read the phase instructions above. Now execute that phase,")
+            appendLine("save the results to memory, and **immediately call `speckit_coverage` again**")
+            appendLine("to continue to the next phase. Do not summarize. Do not report back.")
+            appendLine("Do not say \"the next step is...\". Just do it.")
+            appendLine()
+            appendLine("The only reasons to stop are:")
+            appendLine("1. Coverage has reached or exceeded the target percentage")
+            appendLine("2. All feature specs are DONE or SKIPPED after 2 re-scope cycles")
         }
     }
 
