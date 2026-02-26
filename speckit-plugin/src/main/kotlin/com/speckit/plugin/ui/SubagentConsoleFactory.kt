@@ -10,11 +10,19 @@ import com.intellij.ui.content.ContentFactory
 class SubagentConsoleFactory : ToolWindowFactory, DumbAware {
 
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
-        val panel = AgentRunPanel(project, toolWindow.disposable)
-        project.service<SubagentConsole>().panel = panel
-        val content = ContentFactory.getInstance()
-            .createContent(panel, "Agents", false)
-        content.isCloseable = false
-        toolWindow.contentManager.addContent(content)
+        val contentFactory = ContentFactory.getInstance()
+
+        // Agents tab
+        val agentPanel = AgentRunPanel(project, toolWindow.disposable)
+        project.service<SubagentConsole>().panel = agentPanel
+        val agentContent = contentFactory.createContent(agentPanel, "Agents", false)
+        agentContent.isCloseable = false
+        toolWindow.contentManager.addContent(agentContent)
+
+        // Chat tab
+        val chatPanel = SpeckitChatPanel(project, toolWindow.disposable)
+        val chatContent = contentFactory.createContent(chatPanel, "Chat", false)
+        chatContent.isCloseable = false
+        toolWindow.contentManager.addContent(chatContent)
     }
 }
