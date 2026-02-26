@@ -30,17 +30,39 @@ fun findCopilotPlugin(): String {
         "${System.getenv("APPDATA") ?: "$home/AppData/Roaming"}/JetBrains",
     )
     val idePatterns = listOf("IntelliJIdea*", "IdeaIC*")
+    val versionRegex = Regex("""github-copilot-intellij-(\d+\.\d+\.\d+)-\d+\.jar""")
+
+    // Collect all Copilot plugin dirs with their version
+    data class CopilotCandidate(val dir: String, val version: List<Int>)
+    val found = mutableListOf<CopilotCandidate>()
+
     for (base in candidates) {
         val baseDir = file(base)
         if (!baseDir.isDirectory) continue
         for (pattern in idePatterns) {
             baseDir.listFiles { f -> f.isDirectory && f.name.matches(Regex(pattern.replace("*", ".*"))) }
-                ?.sortedByDescending { it.name }
                 ?.forEach { ideDir ->
                     val copilotDir = file("${ideDir.absolutePath}/plugins/github-copilot-intellij")
-                    if (copilotDir.isDirectory) return copilotDir.absolutePath
+                    if (!copilotDir.isDirectory) return@forEach
+                    val libDir = file("${copilotDir.absolutePath}/lib")
+                    if (!libDir.isDirectory) return@forEach
+                    val versionParts = libDir.listFiles()
+                        ?.mapNotNull { jar -> versionRegex.find(jar.name)?.groupValues?.get(1) }
+                        ?.firstOrNull()
+                        ?.split(".")
+                        ?.map { it.toIntOrNull() ?: 0 }
+                        ?: return@forEach
+                    found.add(CopilotCandidate(copilotDir.absolutePath, versionParts))
                 }
         }
+    }
+
+    if (found.isNotEmpty()) {
+        val best = found.sortedWith(compareByDescending<CopilotCandidate> { it.version.getOrElse(0) { 0 } }
+            .thenByDescending { it.version.getOrElse(1) { 0 } }
+            .thenByDescending { it.version.getOrElse(2) { 0 } }).first()
+        logger.lifecycle("Using Copilot plugin ${best.version.joinToString(".")} from ${best.dir}")
+        return best.dir
     }
 
     error("""
