@@ -15,7 +15,7 @@ class SpeckitCoverageAgent(private val basePath: String) : LanguageModelToolRegi
             "type" to "object",
             "properties" to mapOf(
                 "target" to mapOf("type" to "integer", "description" to "Coverage target percentage (default: 80)"),
-                "path" to mapOf("type" to "string", "description" to "Service directory relative to project root (default: '.')"),
+                "path" to mapOf("type" to "string", "description" to "Service directory — absolute path or relative to project root (default: '.')"),
                 "batch_size" to mapOf("type" to "integer", "description" to "Number of source files to cover per batch (default: 5)")
             ),
             "required" to listOf<String>()

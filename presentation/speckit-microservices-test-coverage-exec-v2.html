@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speckit &mdash; Closing the Test Coverage Gap in Microservices</title>
+    <style>
+        :root {
+            --bg: #0f1117;
+            --surface: #181b23;
+            --surface-2: #1e2230;
+            --surface-3: #262a38;
+            --border: #2d3348;
+            --text: #e2e4ea;
+            --text-dim: #8b90a0;
+            --text-bright: #ffffff;
+            --accent: #34d399;
+            --accent-dim: rgba(52,211,153,.12);
+            --accent-2: #3b82f6;
+            --accent-2-dim: rgba(59,130,246,.12);
+            --orange: #f59e0b;
+            --orange-dim: rgba(245,158,11,.12);
+            --red: #ef4444;
+            --red-dim: rgba(239,68,68,.12);
+            --purple: #a78bfa;
+            --purple-dim: rgba(167,139,250,.12);
+            --radius: 10px;
+            --radius-sm: 6px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.65;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ── NAV ──────────────────────────────────── */
+        nav {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+            background: rgba(15,17,23,.82);
+            backdrop-filter: blur(16px) saturate(1.4);
+            -webkit-backdrop-filter: blur(16px) saturate(1.4);
+            border-bottom: 1px solid var(--border);
+            padding: 0 32px;
+        }
+        nav .inner {
+            max-width: 1280px; margin: 0 auto;
+            display: flex; align-items: center; gap: 28px;
+            height: 56px; overflow-x: auto;
+        }
+        nav .logo {
+            font-weight: 700; font-size: .95rem; color: var(--accent);
+            white-space: nowrap; letter-spacing: -.02em;
+        }
+        nav a {
+            font-size: .82rem; color: var(--text-dim); text-decoration: none;
+            white-space: nowrap; transition: color .15s;
+        }
+        nav a:hover { color: var(--text-bright); }
+
+        /* ── HERO ──────────────────────────────────── */
+        .hero {
+            padding: 120px 32px 72px;
+            background: linear-gradient(165deg, #0f1117 0%, #14201e 40%, #0f1117 100%);
+            border-bottom: 1px solid var(--border);
+        }
+        .hero .inner { max-width: 900px; margin: 0 auto; }
+        .hero h1 {
+            font-size: clamp(2rem, 4.5vw, 3.2rem);
+            font-weight: 800; letter-spacing: -.04em;
+            color: var(--text-bright); line-height: 1.15;
+            margin-bottom: 20px;
+        }
+        .hero h1 span { color: var(--accent); }
+        .hero p { font-size: 1.1rem; color: var(--text-dim); max-width: 680px; margin-bottom: 28px; }
+        .hero .stats {
+            display: flex; gap: 32px; flex-wrap: wrap; margin-top: 36px;
+        }
+        .hero .stat { text-align: left; }
+        .hero .stat-val { font-size: 2rem; font-weight: 800; color: var(--accent); line-height: 1; }
+        .hero .stat-label { font-size: .78rem; color: var(--text-dim); margin-top: 4px; text-transform: uppercase; letter-spacing: .06em; }
+
+        /* ── COVERAGE BAR ──────────────────────────── */
+        .coverage-bar-wrap { margin-top: 40px; }
+        .coverage-bar-labels { display: flex; justify-content: space-between; font-size: .75rem; color: var(--text-dim); margin-bottom: 6px; }
+        .coverage-bar {
+            height: 14px; border-radius: 7px; background: var(--surface-3);
+            position: relative; overflow: visible;
+        }
+        .coverage-bar .fill {
+            height: 100%; border-radius: 7px;
+            background: linear-gradient(90deg, var(--red) 0%, var(--orange) 35%, var(--accent) 70%);
+            width: 0%; transition: width 1.5s cubic-bezier(.22,1,.36,1);
+        }
+        .coverage-bar .target {
+            position: absolute; left: 90%; top: -6px; bottom: -6px;
+            width: 2px; background: var(--text-bright);
+            border-radius: 1px;
+        }
+        .coverage-bar .target::after {
+            content: '90% target'; position: absolute; top: -20px; left: 50%;
+            transform: translateX(-50%); font-size: .68rem; color: var(--text-dim);
+            white-space: nowrap;
+        }
+
+        /* ── MAIN ──────────────────────────────────── */
+        main { max-width: 1280px; margin: 0 auto; padding: 0 32px; }
+
+        /* ── SECTION ───────────────────────────────── */
+        section { padding: 64px 0; border-bottom: 1px solid var(--border); }
+        section:last-child { border-bottom: none; }
+
+        .section-label {
+            font-size: .72rem; text-transform: uppercase; letter-spacing: .1em;
+            color: var(--accent); font-weight: 600; margin-bottom: 8px;
+        }
+        .section-title {
+            font-size: 1.7rem; font-weight: 700; color: var(--text-bright);
+            letter-spacing: -.03em; margin-bottom: 12px;
+        }
+        .section-desc { color: var(--text-dim); max-width: 700px; margin-bottom: 36px; }
+
+        /* ── CARDS ──────────────────────────────────── */
+        .card-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 16px;
+        }
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 28px;
+            transition: border-color .2s, box-shadow .2s;
+        }
+        .card:hover {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 1px var(--accent), 0 8px 32px rgba(52,211,153,.06);
+        }
+        .card-icon {
+            width: 40px; height: 40px; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.1rem; margin-bottom: 16px; font-weight: 700;
+        }
+        .card-icon.green { background: var(--accent-dim); color: var(--accent); }
+        .card-icon.blue { background: var(--accent-2-dim); color: var(--accent-2); }
+        .card-icon.orange { background: var(--orange-dim); color: var(--orange); }
+        .card-icon.red { background: var(--red-dim); color: var(--red); }
+        .card-icon.purple { background: var(--purple-dim); color: var(--purple); }
+
+        .card h3 { font-size: 1.05rem; font-weight: 650; color: var(--text-bright); margin-bottom: 8px; }
+        .card p { font-size: .88rem; color: var(--text-dim); line-height: 1.6; }
+        .card .stat-inline {
+            font-size: 1.6rem; font-weight: 800; color: var(--accent);
+            margin-bottom: 6px; line-height: 1;
+        }
+        .card .stat-inline.red { color: var(--red); }
+        .card .stat-inline.orange { color: var(--orange); }
+
+        /* ── CALLOUTS ──────────────────────────────── */
+        .callout {
+            border-radius: var(--radius);
+            padding: 20px 24px;
+            margin: 20px 0;
+        }
+        .callout.blue { background: var(--accent-2-dim); border: 1px solid rgba(59,130,246,.2); }
+        .callout.green { background: var(--accent-dim); border: 1px solid rgba(52,211,153,.2); }
+        .callout h4 { font-size: .9rem; font-weight: 650; margin-bottom: 8px; }
+        .callout.blue h4 { color: var(--accent-2); }
+        .callout.green h4 { color: var(--accent); }
+        .callout p { font-size: .85rem; color: var(--text); }
+
+        /* ── TIMELINE ──────────────────────────────── */
+        .timeline { position: relative; padding-left: 32px; }
+        .timeline::before {
+            content: ''; position: absolute; left: 11px; top: 0; bottom: 0;
+            width: 2px; background: var(--border);
+        }
+        .tl-item { position: relative; padding-bottom: 28px; }
+        .tl-item:last-child { padding-bottom: 0; }
+        .tl-dot {
+            position: absolute; left: -32px; top: 4px;
+            width: 22px; height: 22px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: .65rem; font-weight: 700; color: var(--bg);
+        }
+        .tl-dot.green { background: var(--accent); }
+        .tl-dot.blue { background: var(--accent-2); }
+        .tl-dot.orange { background: var(--orange); }
+        .tl-dot.purple { background: var(--purple); }
+        .tl-title { font-size: .95rem; font-weight: 600; color: var(--text-bright); margin-bottom: 4px; }
+        .tl-body { font-size: .85rem; color: var(--text-dim); line-height: 1.6; }
+
+        /* ── RESULTS ──────────────────────────────── */
+        .results-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+        }
+        .result-box {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 24px;
+        }
+        .result-box h4 { font-size: .88rem; font-weight: 650; color: var(--text-bright); margin-bottom: 14px; }
+        .result-table { width: 100%; font-size: .85rem; border-collapse: collapse; }
+        .result-table th {
+            text-align: left; padding: 10px 12px;
+            background: var(--surface-3); color: var(--text-dim);
+            font-weight: 600; font-size: .72rem; text-transform: uppercase; letter-spacing: .06em;
+        }
+        .result-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--text); }
+        .result-table tr:last-child td { border-bottom: none; font-weight: 700; }
+        .result-table td:nth-child(2), .result-table td:nth-child(3) { text-align: center; }
+        .result-table th:nth-child(2), .result-table th:nth-child(3) { text-align: center; }
+
+        .badge {
+            font-size: .72rem; padding: 3px 10px; border-radius: 3px; font-weight: 600;
+        }
+        .badge-green { background: var(--accent-dim); color: var(--accent); }
+        .badge-red { background: var(--red-dim); color: var(--red); }
+
+        /* ── PIPELINE ──────────────────────────────── */
+        .pipeline {
+            display: flex; gap: 4px; align-items: stretch; margin: 28px 0;
+            overflow-x: auto; padding-bottom: 4px;
+        }
+        .pipe-step {
+            flex: 1; min-width: 120px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 16px 10px;
+            text-align: center;
+            position: relative;
+        }
+        .pipe-step::after {
+            content: ''; position: absolute; right: -8px; top: 50%;
+            transform: translateY(-50%);
+            border: 5px solid transparent; border-left: 6px solid var(--border);
+            z-index: 1;
+        }
+        .pipe-step:last-child::after { display: none; }
+        .pipe-num { font-size: .65rem; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+        .pipe-cmd {
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: .62rem; font-weight: 600; color: var(--accent-2);
+            margin-bottom: 2px;
+        }
+        .pipe-label { font-size: .75rem; color: var(--text-bright); font-weight: 600; }
+        .pipe-desc { font-size: .68rem; color: var(--text-dim); margin-top: 4px; }
+        .pipe-questions { font-size: .62rem; color: var(--accent); margin-top: 4px; font-weight: 600; }
+
+        /* ── TOOL ROW ────────────────────────────── */
+        .agent-row {
+            display: grid;
+            grid-template-columns: 40px 1fr auto;
+            align-items: center; gap: 16px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px 24px;
+            margin-bottom: 12px;
+            transition: border-color .2s;
+        }
+        .agent-row:hover { border-color: rgba(255,255,255,.12); }
+        .agent-row-icon {
+            width: 40px; height: 40px; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: .9rem; font-weight: 700;
+        }
+        .agent-row-info h4 {
+            font-size: .95rem; font-weight: 600; color: var(--text-bright);
+            margin-bottom: 3px;
+        }
+        .agent-row-info p {
+            font-size: .82rem; color: var(--text-dim); line-height: 1.5;
+        }
+        .agent-row-tag {
+            font-size: .68rem; padding: 3px 12px; border-radius: 20px;
+            font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+            white-space: nowrap;
+        }
+
+        /* ── WORKFLOW ACCORDION ────────────────────── */
+        .wf-step {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            margin-bottom: 12px;
+            overflow: hidden;
+        }
+        .wf-step-header {
+            padding: 18px 24px;
+            display: grid;
+            grid-template-columns: 40px 1fr auto;
+            align-items: center;
+            gap: 16px;
+            cursor: pointer;
+            transition: background .15s;
+        }
+        .wf-step-header:hover { background: var(--surface-2); }
+        .wf-step-num {
+            font-size: 1.2rem; font-weight: 800; color: var(--accent);
+            text-align: center;
+        }
+        .wf-step-cmd {
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: .72rem; font-weight: 600; color: var(--accent-2);
+            margin-bottom: 2px;
+        }
+        .wf-step-title { font-size: .92rem; color: var(--text-bright); font-weight: 600; }
+        .wf-step-desc { font-size: .8rem; color: var(--text-dim); margin-top: 2px; }
+        .wf-step-chevron {
+            width: 18px; height: 18px; color: var(--text-dim);
+            transition: transform .25s;
+        }
+        .wf-step.open .wf-step-chevron { transform: rotate(180deg); }
+        .wf-step-body {
+            max-height: 0; overflow: hidden;
+            transition: max-height .4s cubic-bezier(.22,1,.36,1);
+        }
+        .wf-step.open .wf-step-body { max-height: 2000px; }
+        .wf-step-body-inner {
+            padding: 0 24px 24px 80px;
+        }
+        .wf-detail { font-size: .85rem; color: var(--text-dim); line-height: 1.7; }
+        .wf-detail strong { color: var(--text); }
+        .wf-detail ul { list-style: none; padding: 0; margin: 8px 0; }
+        .wf-detail ul li { padding: 3px 0 3px 18px; position: relative; }
+        .wf-detail ul li::before {
+            content: ''; position: absolute; left: 0; top: 12px;
+            width: 5px; height: 5px; border-radius: 50%; background: var(--border);
+        }
+
+        /* ── DECISION TABLE ──────────────────────── */
+        .decision-table { width: 100%; font-size: .85rem; border-collapse: collapse; margin-top: 20px; }
+        .decision-table th {
+            text-align: left; padding: 10px 14px;
+            background: var(--surface-3); color: var(--text-dim);
+            font-weight: 600; font-size: .72rem; text-transform: uppercase; letter-spacing: .06em;
+        }
+        .decision-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: top; }
+        .decision-table td:first-child { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: .78rem; color: var(--accent-2); white-space: nowrap; }
+        .decision-table tr:last-child td { border-bottom: none; }
+
+        /* ── DATA FLOW ───────────────────────────── */
+        .dataflow {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 32px;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: .75rem;
+            line-height: 1.9;
+            color: var(--text-dim);
+            overflow-x: auto;
+            white-space: pre;
+        }
+        .dataflow .tool { color: var(--accent-2); font-weight: 600; }
+        .dataflow .artifact { color: var(--accent); font-weight: 600; }
+        .dataflow .arrow { color: var(--text-dim); }
+
+        /* ── RESPONSIVE ────────────────────────────── */
+        @media (max-width: 900px) {
+            .card-grid { grid-template-columns: 1fr; }
+            .results-grid { grid-template-columns: 1fr; }
+            .hero .stats { gap: 20px; }
+            .pipeline { flex-direction: column; }
+            .pipe-step::after { display: none; }
+            .agent-row { grid-template-columns: 40px 1fr; }
+            .agent-row-tag { display: none; }
+            nav .inner { gap: 16px; }
+            .wf-step-body-inner { padding-left: 24px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+    <div class="inner">
+        <div class="logo">speckit</div>
+        <a href="#problem">The Problem</a>
+        <a href="#how">How It Works</a>
+        <a href="#tools">Tools</a>
+        <a href="#workflow">Deep Dive</a>
+        <a href="#decisions">Decisions</a>
+        <a href="#dataflow">Data Flow</a>
+    </div>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+    <div class="inner">
+        <h1>Closing the <span>Test Coverage Gap</span> in Microservices</h1>
+        <p>One command. <code style="color:var(--accent); font-size:.95rem; font-weight:700;">speckit</code> &mdash; an 8-phase autonomous pipeline driven by 88 atomic questions &mdash; discovers your project, measures baseline coverage, resolves every ambiguity, and writes production-quality unit tests to reach 90%+ coverage. No manual test authoring. No guessing.</p>
+
+        <div class="coverage-bar-wrap">
+            <div class="coverage-bar-labels">
+                <span>0%</span><span>100%</span>
+            </div>
+            <div class="coverage-bar">
+                <div class="fill" id="heroBar"></div>
+                <div class="target"></div>
+            </div>
+        </div>
+
+        <div class="stats">
+            <div class="stat"><div class="stat-val">88</div><div class="stat-label">Atomic Questions</div></div>
+            <div class="stat"><div class="stat-val">8</div><div class="stat-label">Pipeline Phases</div></div>
+            <div class="stat"><div class="stat-val">90%+</div><div class="stat-label">Coverage Target</div></div>
+            <div class="stat"><div class="stat-val">Zero</div><div class="stat-label">Manual Test Authoring</div></div>
+        </div>
+    </div>
+</div>
+
+<main>
+
+<!-- THE PROBLEM -->
+<section id="problem">
+    <div class="section-label">The Challenge</div>
+    <div class="section-title">Why Microservices Have a Test Coverage Problem</div>
+    <div class="section-desc">Most organizations know they need higher test coverage. In microservices architectures, getting there is harder than it looks.</div>
+
+    <div class="card-grid" style="grid-template-columns: repeat(3, 1fr);">
+        <div class="card">
+            <div class="stat-inline red">40%</div>
+            <h3>Average Coverage in Enterprise Microservices</h3>
+            <p>Most teams ship microservices well below the 90% threshold that industry standards and audit requirements call for. The gap persists because closing it is expensive.</p>
+        </div>
+        <div class="card">
+            <div class="stat-inline orange">5x</div>
+            <h3>More Complex Than Monoliths</h3>
+            <p>Each service has its own dependencies, state machines, API contracts, and inter-service calls. Testing one service means mocking the others &mdash; multiplying the effort.</p>
+        </div>
+        <div class="card">
+            <div class="stat-inline">2&ndash;4 weeks</div>
+            <h3>Developer Time Per Service</h3>
+            <p>A skilled developer needs 2&ndash;4 weeks to write comprehensive unit tests for a single microservice. Across five services, that is months of engineering capacity.</p>
+        </div>
+    </div>
+
+    <div style="margin-top: 32px;">
+        <div class="card-grid" style="grid-template-columns: repeat(2, 1fr);">
+            <div class="card">
+                <h3>The Business Risk</h3>
+                <p>Low test coverage means production bugs, slower release cycles, and compliance exposure. Every untested code path is a potential incident &mdash; and every incident erodes customer trust, triggers audit findings, and costs engineering time in firefighting instead of building features.</p>
+            </div>
+            <div class="card">
+                <h3>The Opportunity</h3>
+                <p>What if a structured AI framework could do the work of a senior developer writing tests &mdash; understanding service boundaries, mocking dependencies correctly, testing every branch &mdash; and deliver 90%+ coverage autonomously? That is what <strong style="color:var(--accent);">speckit</strong> delivers.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how">
+    <div class="section-label">The Solution</div>
+    <div class="section-title">From Whatever You Have to 90%+, Autonomously</div>
+    <div class="section-desc">The <strong style="color:var(--accent);">speckit</strong> pipeline &mdash; 8 phases from <code style="color:var(--accent-2); font-size:.85rem;">speckit_discover</code> through <code style="color:var(--accent-2); font-size:.85rem;">speckit_implement</code> &mdash; handles everything from detecting your build system to writing tests. Each phase answers a specific set of questions, produces artifacts consumed by the next, and includes decision points that can loop back or stop early. No step is skipped.</div>
+
+    <div class="pipeline">
+        <div class="pipe-step"><div class="pipe-num">PHASE 0</div><div class="pipe-cmd">speckit_discover</div><div class="pipe-label">Discovery</div><div class="pipe-desc">Detect toolchain</div><div class="pipe-questions">21 questions</div></div>
+        <div class="pipe-step"><div class="pipe-num">PHASE 1</div><div class="pipe-cmd">speckit_run_tests</div><div class="pipe-label">Baseline</div><div class="pipe-desc">Measure coverage</div><div class="pipe-questions">5 questions</div></div>
+        <div class="pipe-step"><div class="pipe-num">PHASE 2</div><div class="pipe-cmd">speckit_constitution</div><div class="pipe-label">Standards</div><div class="pipe-desc">Define rules</div><div class="pipe-questions">10 questions</div></div>
+        <div class="pipe-step"><div class="pipe-num">PHASE 3</div><div class="pipe-cmd">speckit_specify</div><div class="pipe-label">Gap Analysis</div><div class="pipe-desc">Rank by impact</div><div class="pipe-questions">9 questions</div></div>
+        <div class="pipe-step"><div class="pipe-num">PHASE 4</div><div class="pipe-cmd">speckit_clarify</div><div class="pipe-label">Decisions</div><div class="pipe-desc">Resolve ambiguity</div><div class="pipe-questions">10 questions</div></div>
+        <div class="pipe-step"><div class="pipe-num">PHASE 5</div><div class="pipe-cmd">speckit_plan</div><div class="pipe-label">Architecture</div><div class="pipe-desc">Design execution</div><div class="pipe-questions">8 questions</div></div>
+        <div class="pipe-step"><div class="pipe-num">PHASE 6</div><div class="pipe-cmd">speckit_tasks<br>speckit_analyze</div><div class="pipe-label">Tasks + Validate</div><div class="pipe-desc">Plan &amp; verify</div><div class="pipe-questions">15 questions</div></div>
+        <div class="pipe-step"><div class="pipe-num">PHASE 7</div><div class="pipe-cmd">speckit_implement</div><div class="pipe-label">Generation</div><div class="pipe-desc">Write &amp; measure</div><div class="pipe-questions">10 questions</div></div>
+    </div>
+
+    <div class="timeline" style="margin-top: 40px;">
+        <div class="tl-item">
+            <div class="tl-dot green">0</div>
+            <div class="tl-title">Discover Project</div>
+            <div class="tl-body">Detect language, build system, test framework, DI approach, existing test conventions, and build a source-to-test file mapping. 21 questions answered by reading project files &mdash; no user prompts.</div>
+        </div>
+
+        <div class="tl-item">
+            <div class="tl-dot blue">1</div>
+            <div class="tl-title">Measure Baseline Coverage</div>
+            <div class="tl-body">Run the test suite with coverage enabled, parse the report, and record per-file line coverage. If coverage already meets the target, the pipeline stops immediately.</div>
+        </div>
+
+        <div class="tl-item">
+            <div class="tl-dot green">2</div>
+            <div class="tl-title">Establish Test Standards</div>
+            <div class="tl-body">Generate a test constitution: naming conventions, assertion library, mock approach, test data strategy, flaky test handling, and PII rules &mdash; all derived from existing project patterns.</div>
+        </div>
+
+        <div class="tl-item">
+            <div class="tl-dot orange">3</div>
+            <div class="tl-title">Analyze Coverage Gaps</div>
+            <div class="tl-body">Filter files below target, classify by layer (service, controller, utility, DTO), rank by impact tier, calculate per-file line gaps, and estimate effort.</div>
+        </div>
+
+        <div class="tl-item">
+            <div class="tl-dot blue">4</div>
+            <div class="tl-title">Resolve All Ambiguities</div>
+            <div class="tl-body">For every in-scope file: determine how to isolate each dependency (DB, HTTP, messaging), handle async operations, override config, and catalog boundary values and failure modes.</div>
+        </div>
+
+        <div class="tl-item">
+            <div class="tl-dot purple">5</div>
+            <div class="tl-title">Design Test Architecture</div>
+            <div class="tl-body">Build a dependency graph, determine execution order (leaves first), plan shared fixtures and base test classes, group files into batches, and predict coverage per batch.</div>
+        </div>
+
+        <div class="tl-item">
+            <div class="tl-dot orange">6</div>
+            <div class="tl-title">Break Down &amp; Validate Tasks</div>
+            <div class="tl-body">Generate per-method test scenarios (happy path, edge cases, error paths) with equivalence partitioning and branch tracing. Then validate: every gap has a task, every method has a test, every error path is covered. Gaps loop back automatically.</div>
+        </div>
+
+        <div class="tl-item">
+            <div class="tl-dot green">7</div>
+            <div class="tl-title">Generate, Self-Heal, Measure</div>
+            <div class="tl-body">Write tests batch-by-batch, compile and run after each file, self-heal failures (max 3 retries), and measure coverage incrementally. Stop when 90%+ is reached. If stuck, loop back to gap analysis with updated data.</div>
+        </div>
+    </div>
+
+    <!-- RESULTS -->
+    <div class="results-grid" style="margin-top: 40px;">
+        <div class="result-box">
+            <h4>Phase-by-Phase Coverage Build</h4>
+            <table class="result-table">
+                <thead><tr><th>Batch Order</th><th>What Gets Tested</th><th>Coverage Impact</th></tr></thead>
+                <tbody>
+                    <tr><td>Shared fixtures</td><td>Test data factories, base test classes, mock configs</td><td>Foundation established</td></tr>
+                    <tr><td>Leaf services</td><td>Services with no internal dependencies</td><td>Foundation layer covered</td></tr>
+                    <tr><td>Core services</td><td>Business logic with mocked dependencies</td><td>Majority of branches covered</td></tr>
+                    <tr><td>Complex services</td><td>Orchestration layers with multiple dependencies</td><td>Cross-service logic covered</td></tr>
+                    <tr><td>Controllers</td><td>API endpoints and request validation</td><td>Entry points covered</td></tr>
+                    <tr><td>Error handling</td><td>Exception handlers, edge cases, resilience paths</td><td>Resilience paths covered</td></tr>
+                    <tr><td><strong>Result</strong></td><td><strong>All files individually &ge; target</strong></td><td><span class="badge badge-green">90%+ total</span></td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="result-box">
+            <h4>What Teams Get</h4>
+            <div style="font-size: .88rem; color: var(--text-dim); line-height: 2.2;">
+                <div style="margin-bottom: 12px;"><strong style="color: var(--text-bright);">Full unit test suites</strong> across all services</div>
+                <div style="margin-bottom: 12px;"><strong style="color: var(--text-bright);">Shared test fixture factories</strong> for reusable test data</div>
+                <div style="margin-bottom: 12px;"><strong style="color: var(--text-bright);">All tests passing</strong> &mdash; failures self-healed (max 3 retries per file)</div>
+                <div style="margin-bottom: 12px;"><strong style="color: var(--text-bright);">Every file &ge; target</strong> individual coverage</div>
+                <div style="margin-bottom: 12px;"><strong style="color: var(--text-bright);">Convention-matched</strong> &mdash; tests follow the project's existing naming, assertions, and mock style</div>
+                <div><strong style="color: var(--text-bright);">Persistent artifacts</strong> &mdash; constitution, spec, plan, and tasks saved for future runs</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card-grid" style="grid-template-columns: repeat(3, 1fr); margin-top: 32px;">
+        <div class="card">
+            <h3>Question-Driven</h3>
+            <p>Every phase must answer a specific set of questions before it can proceed. 88 questions total &mdash; answered by reading project files, not by prompting the user. Nothing is guessed.</p>
+        </div>
+        <div class="card">
+            <h3>Artifact Chain</h3>
+            <p>Each phase produces artifacts consumed by the next: discovery report, baseline coverage, constitution, spec, plan, tasks, and finally unit test files. No phase runs without its inputs.</p>
+        </div>
+        <div class="card">
+            <h3>Decision Points</h3>
+            <p>8 decision points control flow: early stop if coverage is already met, loop-back if ambiguities remain or tasks have gaps, self-heal on test failures, and reassess if coverage stalls.</p>
+        </div>
+    </div>
+
+    <div class="callout green" style="margin-top: 32px;">
+        <h4>Why Speckit, Not Generic AI</h4>
+        <p>Generic AI code generation writes tests one file at a time with no architectural awareness. <strong>Speckit</strong> uses a structured 8-phase pipeline (<code style="color:var(--accent); font-size:.82rem;">speckit_discover &rarr; speckit_run_tests &rarr; speckit_constitution &rarr; speckit_specify &rarr; speckit_clarify &rarr; speckit_plan &rarr; speckit_tasks/analyze &rarr; speckit_implement</code>) that forces the system to detect the project's toolchain, measure current state, resolve every ambiguity, and validate completeness &mdash; before writing a single test.</p>
+    </div>
+</section>
+
+<!-- THE TOOLS -->
+<section id="tools">
+    <div class="section-label">Speckit Tools</div>
+    <div class="section-title">10 Tools Across 8 Phases</div>
+    <div class="section-desc">Each <code style="color:var(--accent-2); font-size:.85rem;">speckit_*</code> tool is responsible for a specific phase of the pipeline. Tools produce artifacts that feed into downstream phases.</div>
+
+    <div class="agent-row">
+        <div class="agent-row-icon" style="background: var(--accent-dim); color: var(--accent);">0</div>
+        <div class="agent-row-info">
+            <h4>speckit_discover</h4>
+            <p>Detects language, build system, framework, test dependencies, DI approach, source/test file structure, existing test conventions (naming, assertions, mocks), source-to-test file mapping, per-file test depth, and coverage tooling state. 21 questions.</p>
+        </div>
+        <span class="agent-row-tag" style="background: var(--accent-dim); color: var(--accent);">Discovery</span>
+    </div>
+
+    <div class="agent-row">
+        <div class="agent-row-icon" style="background: var(--accent-2-dim); color: var(--accent-2);">1a</div>
+        <div class="agent-row-info">
+            <h4>speckit_run_tests</h4>
+            <p>Derives the correct test command from the discovery report (Maven, Gradle, npm, pytest, go test), executes it with coverage enabled, and locates the coverage report.</p>
+        </div>
+        <span class="agent-row-tag" style="background: var(--accent-2-dim); color: var(--accent-2);">Baseline</span>
+    </div>
+
+    <div class="agent-row">
+        <div class="agent-row-icon" style="background: var(--accent-2-dim); color: var(--accent-2);">1b</div>
+        <div class="agent-row-info">
+            <h4>speckit_parse_coverage</h4>
+            <p>Parses the coverage report (JaCoCo XML, LCOV, Istanbul JSON, Cobertura, Go coverage profile) and extracts per-file line coverage: file path, lines covered, lines missed, coverage percentage.</p>
+        </div>
+        <span class="agent-row-tag" style="background: var(--accent-2-dim); color: var(--accent-2);">Baseline</span>
+    </div>
+
+    <div class="agent-row">
+        <div class="agent-row-icon" style="background: var(--orange-dim); color: var(--orange);">2</div>
+        <div class="agent-row-info">
+            <h4>speckit_constitution</h4>
+            <p>Generates a test constitution from project patterns: naming conventions, assertion library, assertion density, mock approach, test data strategy, test organization, method naming, flaky test handling, and PII rules. 10 questions.</p>
+        </div>
+        <span class="agent-row-tag" style="background: var(--orange-dim); color: var(--orange);">Standards</span>
+    </div>
+
+    <div class="agent-row">
+        <div class="agent-row-icon" style="background: var(--red-dim); color: var(--red);">3</div>
+        <div class="agent-row-info">
+            <h4>speckit_specify</h4>
+            <p>Filters files below target, classifies each by layer (service, controller, utility, DTO), calculates absolute line gaps, estimates effort per file (method count, dependency count), identifies exclusions (generated code, Lombok, protobuf). 9 questions.</p>
+        </div>
+        <span class="agent-row-tag" style="background: var(--red-dim); color: var(--red);">Gap Analysis</span>
+    </div>
+
+    <div class="agent-row">
+        <div class="agent-row-icon" style="background: var(--accent-2-dim); color: var(--accent-2);">4</div>
+        <div class="agent-row-info">
+            <h4>speckit_clarify</h4>
+            <p>For each in-scope file: resolves dependency isolation (DB, HTTP, messaging), DI test approach, stateful component handling, async test patterns, serialization testing, config overrides, service/transport isolation, shared domain models, boundary values, and failure modes. 10 questions.</p>
+        </div>
+        <span class="agent-row-tag" style="background: var(--accent-2-dim); color: var(--accent-2);">Decisions</span>
+    </div>
+
+    <div class="agent-row">
+        <div class="agent-row-icon" style="background: var(--purple-dim); color: var(--purple);">5</div>
+        <div class="agent-row-info">
+            <h4>speckit_plan</h4>
+            <p>Builds dependency graph, determines execution order (leaves first), identifies shared fixtures and base test classes, groups files into batches, predicts coverage per batch, identifies parallel execution opportunities, and resolves remaining research needs. 8 questions.</p>
+        </div>
+        <span class="agent-row-tag" style="background: var(--purple-dim); color: var(--purple);">Architecture</span>
+    </div>
+
+    <div class="agent-row">
+        <div class="agent-row-icon" style="background: var(--orange-dim); color: var(--orange);">6a</div>
+        <div class="agent-row-info">
+            <h4>speckit_tasks</h4>
+            <p>For each source file: lists public methods, identifies happy path, edge cases, error paths, and boundary values per method. Applies equivalence partitioning to reduce redundant cases. Traces code paths to ensure every branch has a test. 9 questions.</p>
+        </div>
+        <span class="agent-row-tag" style="background: var(--orange-dim); color: var(--orange);">Breakdown</span>
+    </div>
+
+    <div class="agent-row">
+        <div class="agent-row-icon" style="background: var(--accent-dim); color: var(--accent);">6b</div>
+        <div class="agent-row-info">
+            <h4>speckit_analyze</h4>
+            <p>Cross-references spec, plan, and tasks to validate completeness: every file has tasks, every method has a happy path test, every error path is covered, no orphan tasks, no dependency conflicts, and all tasks follow constitution conventions. 6 questions. Gaps loop back to speckit_tasks.</p>
+        </div>
+        <span class="agent-row-tag" style="background: var(--accent-dim); color: var(--accent);">Validation</span>
+    </div>
+
+    <div class="agent-row">
+        <div class="agent-row-icon" style="background: var(--accent-dim); color: var(--accent);">7</div>
+        <div class="agent-row-info">
+            <h4>speckit_implement</h4>
+            <p>Writes tests batch-by-batch: reads source, loads tasks, generates test file (imports, mocks, setup, test methods), compiles and runs, self-heals failures (max 3 retries, classified by error type), measures coverage incrementally. Stops at target or loops back to speckit_specify if stuck. 10 questions.</p>
+        </div>
+        <span class="agent-row-tag" style="background: var(--accent-dim); color: var(--accent);">Generation</span>
+    </div>
+</section>
+
+<!-- DEEP DIVE: WORKFLOW -->
+<section id="workflow">
+    <div class="section-label">Deep Dive</div>
+    <div class="section-title">The Speckit 8-Phase Pipeline</div>
+    <div class="section-desc">Each phase maps to one or more <code style="color:var(--accent-2); font-size:.85rem;">speckit_*</code> tools. Every phase lists its questions, actions, artifacts, and decision points. Click any phase to expand.</div>
+
+    <!-- Phase 0: Discover -->
+    <div class="wf-step">
+        <div class="wf-step-header" onclick="this.parentElement.classList.toggle('open')">
+            <div class="wf-step-num">0</div>
+            <div>
+                <div class="wf-step-cmd">speckit_discover</div>
+                <div class="wf-step-title">Discover Project</div>
+                <div class="wf-step-desc">21 questions &mdash; Detect toolchain, conventions, and existing test depth</div>
+            </div>
+            <svg class="wf-step-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <div class="wf-step-body"><div class="wf-step-body-inner">
+            <div class="wf-detail">
+                <strong>Receives:</strong> project path<br>
+                <strong>Questions answered (21):</strong>
+                <ul>
+                    <li>What language and build system? (read pom.xml, build.gradle, package.json, etc.)</li>
+                    <li>What framework? (Spring Boot, Express, FastAPI, etc.)</li>
+                    <li>What test framework and mock libraries? (JUnit, Mockito, Jest, pytest, etc.)</li>
+                    <li>Does the project use dependency injection? (Spring, Guice, NestJS, manual)</li>
+                    <li>Where do source and test files live? How many of each?</li>
+                    <li>What naming convention do existing tests follow? (*Test, *Spec, test_*)</li>
+                    <li>What assertion and mock patterns do existing tests use?</li>
+                    <li>Is coverage tooling configured? Do existing reports exist?</li>
+                    <li>What CI system is configured?</li>
+                    <li>Is this a multi-module project?</li>
+                    <li>Which source files have a corresponding test file? Which don't?</li>
+                    <li>For tested files, which methods are covered? What scenarios?</li>
+                    <li>What is the overall test depth? (Shallow/Deep)</li>
+                </ul>
+                <strong>Produces:</strong> <code>discovery-report.md</code> &mdash; build system, framework, test dependencies, DI approach, source structure, test conventions, source-to-test mapping, per-file test depth, coverage state, CI config, open questions.<br>
+                <strong>Decision:</strong> Build system detected? Yes &rarr; proceed. No &rarr; flag for manual command override.
+            </div>
+        </div></div>
+    </div>
+
+    <!-- Phase 1: Baseline -->
+    <div class="wf-step">
+        <div class="wf-step-header" onclick="this.parentElement.classList.toggle('open')">
+            <div class="wf-step-num">1</div>
+            <div>
+                <div class="wf-step-cmd">speckit_run_tests + speckit_parse_coverage</div>
+                <div class="wf-step-title">Measure Baseline Coverage</div>
+                <div class="wf-step-desc">5 questions &mdash; Run tests, parse reports, record per-file line coverage</div>
+            </div>
+            <svg class="wf-step-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <div class="wf-step-body"><div class="wf-step-body-inner">
+            <div class="wf-detail">
+                <strong>Receives:</strong> discovery report<br>
+                <strong>Questions answered (5):</strong>
+                <ul>
+                    <li>What command runs the test suite with coverage? (derive from discovery: mvn test jacoco:report, ./gradlew test jacocoTestReport, npm test -- --coverage, pytest --cov, go test -coverprofile)</li>
+                    <li>Does the build system need coverage tooling added first? (JaCoCo plugin, c8/istanbul, pytest-cov)</li>
+                    <li>Where will the coverage report be written? (target/site/jacoco/, coverage/, htmlcov/)</li>
+                    <li>What format is the coverage report? (JaCoCo XML, LCOV, Istanbul JSON, Cobertura, Go coverage)</li>
+                    <li>What is the current line coverage percentage per file?</li>
+                </ul>
+                <strong>Produces:</strong> Baseline coverage percentage, per-file coverage data (path, lines covered, lines missed, %), report location and format.<br>
+                <strong>Decision:</strong> Coverage &ge; target? Yes &rarr; <strong>STOP</strong>, report success. No &rarr; record baseline, continue.
+            </div>
+        </div></div>
+    </div>
+
+    <!-- Phase 2: Constitution -->
+    <div class="wf-step">
+        <div class="wf-step-header" onclick="this.parentElement.classList.toggle('open')">
+            <div class="wf-step-num">2</div>
+            <div>
+                <div class="wf-step-cmd">speckit_constitution</div>
+                <div class="wf-step-title">Establish Test Standards</div>
+                <div class="wf-step-desc">10 questions &mdash; Define conventions derived from project patterns</div>
+            </div>
+            <svg class="wf-step-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <div class="wf-step-body"><div class="wf-step-body-inner">
+            <div class="wf-detail">
+                <strong>Receives:</strong> discovery report, existing test samples, constitution template<br>
+                <strong>Questions answered (10):</strong>
+                <ul>
+                    <li>What test file naming convention? (*Test.java, *.test.ts, test_*.py)</li>
+                    <li>What assertion library? (AssertJ, Jest expect, pytest assert)</li>
+                    <li>Single assertion per test or multiple?</li>
+                    <li>What mock approach? (@Mock/@InjectMocks, jest.mock, unittest.mock.patch)</li>
+                    <li>How should test data be managed? (builders, fixtures, hardcoded, Faker)</li>
+                    <li>How should tests be organized? (mirror source tree, flat by feature, colocated)</li>
+                    <li>What test method naming convention? (shouldVerb_when, testMethod_condition, given_when_then)</li>
+                    <li>Are there existing non-negotiable project rules?</li>
+                    <li>How will flaky or non-deterministic behavior be handled? (fixed seeds, deterministic clocks, retry annotations)</li>
+                    <li>How will PII/sensitive data be handled in test inputs? (anonymized, Faker, synthetic constants)</li>
+                </ul>
+                <strong>Produces:</strong> <code>constitution.md</code> (non-negotiable testing standards), <code>test-conventions.md</code> (naming, assertions, mocks, data strategy, organization).
+            </div>
+        </div></div>
+    </div>
+
+    <!-- Phase 3: Specify -->
+    <div class="wf-step">
+        <div class="wf-step-header" onclick="this.parentElement.classList.toggle('open')">
+            <div class="wf-step-num">3</div>
+            <div>
+                <div class="wf-step-cmd">speckit_specify</div>
+                <div class="wf-step-title">Analyze Coverage Gaps</div>
+                <div class="wf-step-desc">9 questions &mdash; Classify files by layer, rank by impact, calculate line gaps</div>
+            </div>
+            <svg class="wf-step-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <div class="wf-step-body"><div class="wf-step-body-inner">
+            <div class="wf-detail">
+                <strong>Receives:</strong> per-file coverage data (from baseline), discovery report, constitution, source file list<br>
+                <strong>Questions answered (9):</strong>
+                <ul>
+                    <li>Which files are below the coverage target?</li>
+                    <li>Which contain service layer / business logic?</li>
+                    <li>Which contain controllers or API handlers?</li>
+                    <li>Which are utilities or helpers?</li>
+                    <li>Which are DTOs, constants, or generated code?</li>
+                    <li>For each file, what is the coverage gap in absolute lines?</li>
+                    <li>What is the estimated effort per file? (method count, dependency count)</li>
+                    <li>Will test cases come from code, requirements, or both?</li>
+                    <li>Are there files to exclude? (@Generated, Lombok, protobuf, config classes)</li>
+                </ul>
+                <strong>Impact tiers:</strong> CRITICAL (services, domain) &rarr; HIGH (controllers, validation) &rarr; MEDIUM (utilities) &rarr; LOW (DTOs, constants)<br>
+                <strong>Produces:</strong> <code>spec.md</code> &mdash; files below target grouped by impact tier, per-file coverage %, gap, method count, dependency count, exclusion list.
+            </div>
+        </div></div>
+    </div>
+
+    <!-- Phase 4: Clarify -->
+    <div class="wf-step">
+        <div class="wf-step-header" onclick="this.parentElement.classList.toggle('open')">
+            <div class="wf-step-num">4</div>
+            <div>
+                <div class="wf-step-cmd">speckit_clarify</div>
+                <div class="wf-step-title">Resolve Ambiguities</div>
+                <div class="wf-step-desc">10 questions &mdash; Dependency isolation, async, config, edge cases, failure modes</div>
+            </div>
+            <svg class="wf-step-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <div class="wf-step-body"><div class="wf-step-body-inner">
+            <div class="wf-detail">
+                <strong>Receives:</strong> spec.md, discovery report, architecture info<br>
+                <strong>Questions answered (10):</strong>
+                <ul>
+                    <li>How will each external dependency be isolated? (DB &rarr; mock Repository, HTTP &rarr; WireMock or mock client, Messaging &rarr; mock producer)</li>
+                    <li>How will DI be handled in tests? (@ExtendWith(MockitoExtension), @SpringBootTest, manual construction)</li>
+                    <li>Are there stateful components needing setup/teardown? (caches, connection pools, singletons, thread-locals)</li>
+                    <li>How will async operations be tested synchronously? (CompletableFuture.join, runBlocking, Awaitility, CountDownLatch)</li>
+                    <li>How will serialization/deserialization be tested? (ObjectMapper round-trip, @JsonTest, schema validation)</li>
+                    <li>How will service configuration be overridden per test? (@TestPropertySource, application-test.yml, ReflectionTestUtils)</li>
+                    <li>How is the service layer isolated from the transport layer? (thin controllers vs business logic in controllers)</li>
+                    <li>Are there shared domain models or DTOs needing independent tests? (@Valid annotations, custom equals/hashCode, mappers)</li>
+                    <li>What boundary values and edge cases per method? (null, empty, max, zero, Unicode)</li>
+                    <li>What failure modes per method? (IllegalArgumentException, NotFoundException, timeout, concurrent modification)</li>
+                </ul>
+                <strong>Produces:</strong> Updated <code>spec.md</code> with Clarifications section &mdash; per-dependency mock strategy, DI approach, async patterns, config overrides, boundary values, failure modes.<br>
+                <strong>Decision:</strong> Ambiguities remain? Yes &rarr; loop back, read more source files. No &rarr; proceed.
+            </div>
+        </div></div>
+    </div>
+
+    <!-- Phase 5: Plan -->
+    <div class="wf-step">
+        <div class="wf-step-header" onclick="this.parentElement.classList.toggle('open')">
+            <div class="wf-step-num">5</div>
+            <div>
+                <div class="wf-step-cmd">speckit_plan</div>
+                <div class="wf-step-title">Design Test Architecture</div>
+                <div class="wf-step-desc">8 questions &mdash; Execution order, batching, fixtures, coverage prediction</div>
+            </div>
+            <svg class="wf-step-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <div class="wf-step-body"><div class="wf-step-body-inner">
+            <div class="wf-detail">
+                <strong>Receives:</strong> clarified spec.md, constitution, plan template<br>
+                <strong>Questions answered (8):</strong>
+                <ul>
+                    <li>What is the test execution order? (dependency graph: entities &rarr; repositories &rarr; services &rarr; controllers)</li>
+                    <li>Are there shared test fixtures or utilities needed? (mock factory, test data builders, base test class)</li>
+                    <li>What test base classes or helper methods are needed?</li>
+                    <li>What is the predicted coverage after all planned tests?</li>
+                    <li>Which files can be tested in parallel? (no shared mutable state)</li>
+                    <li>What batch size balances speed vs feedback? (3&ndash;5 default, 1&ndash;2 if coupled, 5&ndash;10 if independent)</li>
+                    <li>Are there integration-level dependencies between test files?</li>
+                    <li>What research is needed before writing tests? (third-party API behavior, undocumented rules)</li>
+                </ul>
+                <strong>Produces:</strong> <code>plan.md</code> (execution order, batch groupings, fixture strategy, coverage prediction per batch), <code>data-model.md</code> (entities and relationships), <code>research.md</code> (resolved technical decisions).
+            </div>
+        </div></div>
+    </div>
+
+    <!-- Phase 6: Tasks + Analyze -->
+    <div class="wf-step">
+        <div class="wf-step-header" onclick="this.parentElement.classList.toggle('open')">
+            <div class="wf-step-num">6</div>
+            <div>
+                <div class="wf-step-cmd">speckit_tasks + speckit_analyze</div>
+                <div class="wf-step-title">Break Down &amp; Validate Tasks</div>
+                <div class="wf-step-desc">15 questions (9 + 6) &mdash; Per-method scenarios, then cross-check for completeness</div>
+            </div>
+            <svg class="wf-step-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <div class="wf-step-body"><div class="wf-step-body-inner">
+            <div class="wf-detail">
+                <strong>Receives:</strong> plan.md, spec.md, data-model.md<br>
+                <strong>speckit_tasks &mdash; 9 questions:</strong>
+                <ul>
+                    <li>For each source file, what test file should be created?</li>
+                    <li>What are the happy path scenarios per method?</li>
+                    <li>What are the edge case scenarios? (null, empty, zero, max, duplicates)</li>
+                    <li>What are the error handling scenarios? (catch blocks, validation failures, thrown exceptions)</li>
+                    <li>What mocks are needed per file? (constructor params, injected fields)</li>
+                    <li>What assertions verify correctness per scenario? (return value, mock interaction, exception)</li>
+                    <li>How will equivalence partitioning reduce redundant cases?</li>
+                    <li>How will negative test cases be systematically identified? (one test per guard clause)</li>
+                    <li>Will code paths be traced to ensure every branch has a test? (if/else: 2 tests, switch/N: N+1 tests)</li>
+                </ul>
+                <strong>speckit_analyze &mdash; 6 questions:</strong>
+                <ul>
+                    <li>Does every in-scope source file have at least one test task?</li>
+                    <li>Does every public method have a happy path test?</li>
+                    <li>Does every error handling path have a test?</li>
+                    <li>Are there tasks referencing files not in the spec? (orphans)</li>
+                    <li>Do tasks follow the constitution conventions?</li>
+                    <li>Are there dependency conflicts in the task ordering?</li>
+                </ul>
+                <strong>Produces:</strong> <code>tasks.md</code> (per-file test tasks in checklist format: scenario, mocks, assertions), analysis report (coverage %, gaps, orphans, validation results).<br>
+                <strong>Decision:</strong> Tasks complete (no gaps, no orphans, no ordering issues)? Yes &rarr; proceed. No &rarr; loop back to speckit_tasks with gap list.
+            </div>
+        </div></div>
+    </div>
+
+    <!-- Phase 7: Implement -->
+    <div class="wf-step">
+        <div class="wf-step-header" onclick="this.parentElement.classList.toggle('open')">
+            <div class="wf-step-num">7</div>
+            <div>
+                <div class="wf-step-cmd">speckit_implement</div>
+                <div class="wf-step-title">Generate Tests &amp; Measure</div>
+                <div class="wf-step-desc">10 questions per batch &mdash; Write, compile, self-heal, measure coverage</div>
+            </div>
+            <svg class="wf-step-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <div class="wf-step-body"><div class="wf-step-body-inner">
+            <div class="wf-detail">
+                <strong>Receives:</strong> tasks.md (current batch), plan.md, conventions, source files<br>
+                <strong>Questions answered per batch (10):</strong>
+                <ul>
+                    <li>What does the source file under test do? (CRUD, validation, transformation, state machine)</li>
+                    <li>Do existing tests already cover any scenarios?</li>
+                    <li>What imports are needed for the test file?</li>
+                    <li>What mock setup is needed before each test?</li>
+                    <li>What is the exact test method body for each scenario? (arrange, act, assert)</li>
+                    <li>Does the test compile?</li>
+                    <li>Does the test pass?</li>
+                    <li>If it fails, what is the root cause? (compilation, assertion, mock misconfiguration, NPE, timeout)</li>
+                    <li>What is the new coverage after this batch?</li>
+                    <li>Has coverage improved compared to the previous batch?</li>
+                </ul>
+                <strong>Self-heal protocol:</strong> On failure &rarr; read error output &rarr; classify error type &rarr; fix (imports, expected values, mock stubs, null handling) &rarr; re-run. Max 3 retries per file.<br>
+                <strong>Produces:</strong> Unit test files, updated tasks.md with completed tasks checked off, updated coverage data.<br>
+                <strong>Decisions:</strong>
+                <ul>
+                    <li>Tests compile and pass? No &rarr; self-heal (max 3 attempts)</li>
+                    <li>Coverage &ge; target? Yes &rarr; <strong>STOP</strong>. Save learned patterns to memory.</li>
+                    <li>More batches remaining? Yes &rarr; process next batch</li>
+                    <li>No batches left, coverage not improving? &rarr; return to speckit_specify with updated data</li>
+                    <li>No batches left, diminishing returns? &rarr; report partial result</li>
+                </ul>
+            </div>
+        </div></div>
+    </div>
+</section>
+
+<!-- DECISION POINTS -->
+<section id="decisions">
+    <div class="section-label">Control Flow</div>
+    <div class="section-title">8 Decision Points</div>
+    <div class="section-desc">The pipeline is not linear. Decision points control early stops, loop-backs, and self-healing.</div>
+
+    <div class="result-box">
+        <table class="decision-table">
+            <thead><tr><th>After Phase</th><th>Condition</th><th>Action</th></tr></thead>
+            <tbody>
+                <tr>
+                    <td>speckit_discover</td>
+                    <td>Build system not detected</td>
+                    <td>Flag for manual command override</td>
+                </tr>
+                <tr>
+                    <td>speckit_parse_coverage</td>
+                    <td>Coverage already &ge; target</td>
+                    <td><strong>STOP</strong> &mdash; report success, no work needed</td>
+                </tr>
+                <tr>
+                    <td>speckit_clarify</td>
+                    <td>Ambiguities remain after analysis</td>
+                    <td>Loop back &mdash; read more source files to resolve</td>
+                </tr>
+                <tr>
+                    <td>speckit_analyze</td>
+                    <td>Tasks incomplete or have gaps</td>
+                    <td>Loop back to speckit_tasks with gap list</td>
+                </tr>
+                <tr>
+                    <td>speckit_implement</td>
+                    <td>Tests fail (compilation, assertion, mock, NPE)</td>
+                    <td>Self-heal &mdash; classify error, fix, retry (max 3 attempts)</td>
+                </tr>
+                <tr>
+                    <td>speckit_implement</td>
+                    <td>Coverage &ge; target</td>
+                    <td><strong>STOP</strong> &mdash; save learned patterns, report success</td>
+                </tr>
+                <tr>
+                    <td>speckit_implement</td>
+                    <td>More batches remaining</td>
+                    <td>Process next batch</td>
+                </tr>
+                <tr>
+                    <td>speckit_implement</td>
+                    <td>No batches left, coverage not improving</td>
+                    <td>Reassess &mdash; return to speckit_specify with updated coverage data</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- DATA FLOW -->
+<section id="dataflow">
+    <div class="section-label">Artifact Chain</div>
+    <div class="section-title">Data Flow Between Phases</div>
+    <div class="section-desc">Each phase produces artifacts consumed by the next. No phase runs without its inputs.</div>
+
+    <div class="dataflow"><span class="artifact">project path</span>
+    <span class="arrow">|</span>
+    <span class="arrow">v</span>
+<span class="tool">speckit_discover</span> <span class="arrow">-------></span> <span class="artifact">discovery-report.md</span>
+    <span class="arrow">|</span>                     (language, build, framework, test deps,
+    <span class="arrow">|</span>                      DI, conventions, source-to-test mapping,
+    <span class="arrow">|</span>                      per-file test depth, coverage state, CI)
+    <span class="arrow">v</span>
+<span class="tool">speckit_run_tests</span> <span class="arrow">-----></span> <span class="artifact">baseline coverage %</span>
+<span class="tool">speckit_parse_coverage</span>    <span class="artifact">per-file coverage data</span>
+    <span class="arrow">|</span>
+    <span class="arrow">v</span>
+<span class="tool">speckit_constitution</span> <span class="arrow">--></span> <span class="artifact">constitution.md</span>
+    <span class="arrow">|</span>                     <span class="artifact">test-conventions.md</span>
+    <span class="arrow">v</span>
+<span class="tool">speckit_specify</span> <span class="arrow">-------></span> <span class="artifact">spec.md</span>
+    <span class="arrow">|</span>                     (gap inventory by impact tier,
+    <span class="arrow">|</span>                      per-file: coverage %, gap, methods, deps)
+    <span class="arrow">v</span>
+<span class="tool">speckit_clarify</span> <span class="arrow">-------></span> <span class="artifact">updated spec.md</span>
+    <span class="arrow">|</span>                     (mock strategies, DI approach, async,
+    <span class="arrow">|</span>                      config, edge cases, failure modes)
+    <span class="arrow">v</span>
+<span class="tool">speckit_plan</span> <span class="arrow">----------></span> <span class="artifact">plan.md</span>, <span class="artifact">data-model.md</span>, <span class="artifact">research.md</span>
+    <span class="arrow">|</span>                     (execution order, batch groupings,
+    <span class="arrow">|</span>                      fixtures, coverage prediction)
+    <span class="arrow">v</span>
+<span class="tool">speckit_tasks</span> <span class="arrow">---------></span> <span class="artifact">tasks.md</span>
+<span class="tool">speckit_analyze</span>           (per-file: scenarios, mocks, assertions,
+    <span class="arrow">|</span>                      validated for completeness)
+    <span class="arrow">v</span>
+<span class="tool">speckit_implement</span> <span class="arrow">-----></span> <span class="artifact">unit test files</span>
+    <span class="arrow">|</span>                     (batched, self-healed, coverage-measured)
+    <span class="arrow">v</span>
+[loop until target or exhausted]</div>
+
+    <div class="results-grid" style="margin-top: 32px;">
+        <div class="result-box">
+            <h4>Questions Per Phase</h4>
+            <table class="result-table">
+                <thead><tr><th>Phase</th><th>Questions</th><th>Focus</th></tr></thead>
+                <tbody>
+                    <tr><td>speckit_discover</td><td style="text-align:center">21</td><td>Project structure, toolchain, existing patterns, source-to-test mapping</td></tr>
+                    <tr><td>speckit_run_tests</td><td style="text-align:center">5</td><td>Test command, report location, baseline data</td></tr>
+                    <tr><td>speckit_constitution</td><td style="text-align:center">10</td><td>Conventions, standards, rules</td></tr>
+                    <tr><td>speckit_specify</td><td style="text-align:center">9</td><td>Gap identification, impact ranking, exclusions</td></tr>
+                    <tr><td>speckit_clarify</td><td style="text-align:center">10</td><td>Dependency isolation, DI, async, config, edge cases</td></tr>
+                    <tr><td>speckit_plan</td><td style="text-align:center">8</td><td>Execution order, batching, fixtures, predictions</td></tr>
+                    <tr><td>speckit_tasks</td><td style="text-align:center">9</td><td>Per-method scenarios, mocks, assertions, partitioning</td></tr>
+                    <tr><td>speckit_analyze</td><td style="text-align:center">6</td><td>Completeness, coverage map, ordering validation</td></tr>
+                    <tr><td>speckit_implement</td><td style="text-align:center">10</td><td>Per-file generation, compilation, self-heal, coverage</td></tr>
+                    <tr><td><strong>Total</strong></td><td style="text-align:center"><strong>88</strong></td><td></td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="result-box">
+            <h4>Artifacts Produced</h4>
+            <div style="font-size: .88rem; color: var(--text-dim); line-height: 2.2;">
+                <div style="margin-bottom: 8px;"><strong style="color: var(--accent-2);">discovery-report.md</strong> &mdash; toolchain, conventions, file mapping</div>
+                <div style="margin-bottom: 8px;"><strong style="color: var(--accent-2);">baseline coverage data</strong> &mdash; per-file line coverage</div>
+                <div style="margin-bottom: 8px;"><strong style="color: var(--accent-2);">constitution.md</strong> &mdash; non-negotiable testing standards</div>
+                <div style="margin-bottom: 8px;"><strong style="color: var(--accent-2);">test-conventions.md</strong> &mdash; naming, assertions, mocks, data</div>
+                <div style="margin-bottom: 8px;"><strong style="color: var(--accent-2);">spec.md</strong> &mdash; gap inventory by impact tier</div>
+                <div style="margin-bottom: 8px;"><strong style="color: var(--accent-2);">plan.md</strong> &mdash; execution order, batches, predictions</div>
+                <div style="margin-bottom: 8px;"><strong style="color: var(--accent-2);">data-model.md</strong> &mdash; entities and relationships</div>
+                <div style="margin-bottom: 8px;"><strong style="color: var(--accent-2);">research.md</strong> &mdash; resolved technical decisions</div>
+                <div style="margin-bottom: 8px;"><strong style="color: var(--accent-2);">tasks.md</strong> &mdash; per-file test tasks in checklist format</div>
+                <div><strong style="color: var(--accent-2);">unit test files</strong> &mdash; production-quality, convention-matched</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+</main>
+
+<script>
+// Animate hero coverage bar on load
+setTimeout(() => { document.getElementById('heroBar').style.width = '94%'; }, 300);
+</script>
+</body>
+</html>

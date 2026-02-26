@@ -14,7 +14,7 @@ class SpeckitParseCoverage(private val basePath: String) : LanguageModelToolRegi
         mapOf(
             "type" to "object",
             "properties" to mapOf(
-                "path" to mapOf("type" to "string", "description" to "Service directory relative to project root (default: '.')"),
+                "path" to mapOf("type" to "string", "description" to "Service directory — absolute path or relative to project root (default: '.')"),
                 "report_path" to mapOf("type" to "string", "description" to "Override: explicit path to coverage report file")
             ),
             "required" to listOf<String>()
@@ -29,7 +29,11 @@ class SpeckitParseCoverage(private val basePath: String) : LanguageModelToolRegi
     ): LanguageModelToolResult {
         val path = request.input?.get("path")?.asString ?: "."
         val explicitReport = request.input?.get("report_path")?.asString
-        val workDir = if (path == ".") basePath else "$basePath/$path"
+        val workDir = when {
+            path == "." -> basePath
+            path.startsWith("/") -> path
+            else -> "$basePath/$path"
+        }
 
         val reportFile = if (explicitReport != null) {
             val f = File(if (explicitReport.startsWith("/")) explicitReport else "$workDir/$explicitReport")

@@ -14,7 +14,7 @@ class SpeckitDiscover(private val basePath: String) : LanguageModelToolRegistrat
         mapOf(
             "type" to "object",
             "properties" to mapOf(
-                "path" to mapOf("type" to "string", "description" to "Service directory relative to project root (default: '.')")
+                "path" to mapOf("type" to "string", "description" to "Service directory — absolute path or relative to project root (default: '.')")
             ),
             "required" to listOf<String>()
         ),
@@ -27,11 +27,17 @@ class SpeckitDiscover(private val basePath: String) : LanguageModelToolRegistrat
         request: ToolInvocationRequest
     ): LanguageModelToolResult {
         val path = request.input?.get("path")?.asString ?: "."
-        val workDir = if (path == ".") basePath else "$basePath/$path"
+        val workDir = when {
+            path == "." -> basePath
+            path.startsWith("/") -> path
+            else -> "$basePath/$path"
+        }
         val d = File(workDir)
 
         if (!d.isDirectory) {
-            return LanguageModelToolResult.Companion.error("Directory not found: $path")
+            return LanguageModelToolResult.Companion.error(
+                "Directory not found: $workDir (path='$path', basePath='$basePath')"
+            )
         }
 
         val report = buildString {

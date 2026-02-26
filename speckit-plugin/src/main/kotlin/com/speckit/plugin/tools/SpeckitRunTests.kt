@@ -14,7 +14,7 @@ class SpeckitRunTests(private val basePath: String) : LanguageModelToolRegistrat
         mapOf(
             "type" to "object",
             "properties" to mapOf(
-                "path" to mapOf("type" to "string", "description" to "Service directory relative to project root (default: '.')"),
+                "path" to mapOf("type" to "string", "description" to "Service directory — absolute path or relative to project root (default: '.')"),
                 "coverage" to mapOf("type" to "boolean", "description" to "Include coverage flags in the command (default: true)")
             ),
             "required" to listOf<String>()
@@ -29,7 +29,11 @@ class SpeckitRunTests(private val basePath: String) : LanguageModelToolRegistrat
     ): LanguageModelToolResult {
         val path = request.input?.get("path")?.asString ?: "."
         val coverage = request.input?.get("coverage")?.asBoolean ?: true
-        val workDir = if (path == ".") basePath else "$basePath/$path"
+        val workDir = when {
+            path == "." -> basePath
+            path.startsWith("/") -> path
+            else -> "$basePath/$path"
+        }
 
         val command = detectTestCommand(workDir, coverage)
             ?: return LanguageModelToolResult.Companion.error(
