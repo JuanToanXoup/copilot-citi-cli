@@ -45,7 +45,7 @@ class SpeckitReadSpec : LanguageModelToolRegistration {
         val file = LocalFileSystem.getInstance().findFileByIoFile(File(basePath, "specs/$feature/$fileName"))
 
         if (file == null || file.isDirectory) {
-            return LanguageModelToolResult.Companion.error("File not found: specs/$feature/$fileName")
+            return LanguageModelToolResult.Companion.error("File not found: $basePath/specs/$feature/$fileName")
         }
 
         return LanguageModelToolResult.Companion.success(VfsUtilCore.loadText(file))

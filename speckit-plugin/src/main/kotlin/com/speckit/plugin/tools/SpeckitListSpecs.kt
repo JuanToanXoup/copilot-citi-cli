@@ -49,10 +49,10 @@ class SpeckitListSpecs : LanguageModelToolRegistration {
         val output = buildString {
             appendLine("Feature specs (${features.size}):")
             for (feature in features) {
-                appendLine("- ${feature.name}/")
+                appendLine("- ${feature.path}/")
                 val files = feature.children.filter { !it.isDirectory }.sortedBy { it.name }
                 for (file in files) {
-                    appendLine("    ${file.name}")
+                    appendLine("    ${file.path}")
                 }
             }
         }

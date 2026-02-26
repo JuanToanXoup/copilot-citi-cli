@@ -49,9 +49,8 @@ class SpeckitReadMemory : LanguageModelToolRegistration {
             val files = memoryDir.children
                 .filter { !it.isDirectory }
                 .sortedBy { it.name }
-                .map { it.name }
             return LanguageModelToolResult.Companion.success(
-                "Memory files:\n${files.joinToString("\n") { "- $it" }}"
+                "Memory files (in ${memoryDir.path}/):\n${files.joinToString("\n") { "- ${it.path}" }}"
             )
         }
 
