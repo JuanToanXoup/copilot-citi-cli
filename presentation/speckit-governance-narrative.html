@@ -418,47 +418,6 @@
     justify-content: center;
   }
 
-  /* ── Framing table (avoid/use) ── */
-  .framing-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 1.5rem 0;
-    border-radius: 8px;
-    overflow: hidden;
-    box-shadow: var(--citi-card-shadow);
-  }
-  .framing-table th {
-    text-align: left;
-    padding: 0.75rem 1rem;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    font-weight: 700;
-  }
-  .framing-table th.avoid-col {
-    color: var(--citi-red);
-    background: #FFF5F5;
-    border-bottom: 2px solid rgba(226,24,54,0.2);
-  }
-  .framing-table th.use-col {
-    color: var(--citi-green);
-    background: var(--citi-green-bg);
-    border-bottom: 2px solid rgba(11,132,87,0.2);
-  }
-  .framing-table td {
-    padding: 0.75rem 1rem;
-    font-size: 0.9rem;
-    border-bottom: 1px solid var(--citi-border);
-    vertical-align: top;
-    background: var(--citi-bg);
-  }
-  .framing-table td.avoid-cell {
-    color: var(--citi-text-light);
-    text-decoration: line-through;
-    text-decoration-color: rgba(226,24,54,0.3);
-  }
-  .framing-table td.use-cell { color: var(--citi-text); }
-
   /* ── Artifact chain ── */
   .artifact-chain {
     display: flex;
@@ -873,7 +832,7 @@
       <div class="phase reveal" data-phase="1">
         <div class="phase-num">Phase 1 &middot; speckit_constitution</div>
         <h3>The Testing Constitution</h3>
-        <div class="narrator">"First, before a single spec is written, it creates a testing constitution&mdash;the standard every test must follow."</div>
+        <div class="narrator">Before a single spec is written, the pipeline creates a testing constitution&mdash;the standard every test must follow.</div>
         <div class="phase-content">
           <p style="margin-bottom:0.75rem; color:var(--citi-text-muted);">
             The <code>speckit_constitution</code> agent creates a versioned, enforceable document at <code>.specify/memory/constitution.md</code>. It reads existing test patterns and codifies them into rules.
@@ -923,7 +882,7 @@
       <div class="phase reveal" data-phase="2">
         <div class="phase-num">Phase 2 &middot; speckit_specify + speckit_clarify</div>
         <h3>Specification &amp; Clarification</h3>
-        <div class="narrator">"Then it builds a feature spec and resolves every ambiguity&mdash;before any planning begins."</div>
+        <div class="narrator">A structured feature spec is built and every ambiguity is resolved&mdash;before any planning begins.</div>
         <div class="phase-content">
           <p style="margin-bottom:0.75rem; color:var(--citi-text-muted);">
             <code>speckit_specify</code> creates a structured feature spec (<code>spec.md</code>) with functional and non-functional requirements, scope, and success criteria. Then <code>speckit_clarify</code> scans across 9 ambiguity categories and asks up to 5 sequential questions&mdash;encoding answers directly into the spec.
@@ -960,7 +919,7 @@
       <div class="phase reveal" data-phase="3">
         <div class="phase-num">Phase 3 &middot; speckit_plan</div>
         <h3>Technical Planning</h3>
-        <div class="narrator">"Then it researches unknowns and designs the technical architecture."</div>
+        <div class="narrator">Technical unknowns are researched and the architecture is designed before any code is touched.</div>
         <div class="phase-content">
           <p style="margin-bottom:0.75rem; color:var(--citi-text-muted);">
             <code>speckit_plan</code> runs two phases&mdash;Phase 0: Research (resolve technical unknowns) &rarr; Phase 1: Design (generate artifacts).
@@ -983,7 +942,7 @@
       <div class="phase reveal" data-phase="4">
         <div class="phase-num">Phase 4 &middot; speckit_tasks + speckit_analyze</div>
         <h3>Task Breakdown &amp; Validation</h3>
-        <div class="narrator">"Then it breaks the plan into atomic tasks and validates completeness&mdash;before a single test is written."</div>
+        <div class="narrator">The plan is broken into atomic, traceable tasks&mdash;then validated for completeness before a single test is written.</div>
         <div class="phase-content">
           <p style="margin-bottom:0.75rem; color:var(--citi-text-muted);">
             <code>speckit_tasks</code> generates dependency-ordered <code>tasks.md</code> across 5 phases: Setup &rarr; Foundational &rarr; User Stories (P1, P2, P3...) &rarr; Polish. Each task follows the format:
@@ -1015,7 +974,7 @@
       <div class="phase reveal" data-phase="5">
         <div class="phase-num">Phase 5 &middot; speckit_implement</div>
         <h3>Verified Implementation</h3>
-        <div class="narrator">"Then, and only then, it implements&mdash;and verifies every test compiles, passes, and moves coverage."</div>
+        <div class="narrator">Only after all validation passes does the pipeline write code&mdash;and every test is verified to compile, pass, and move coverage.</div>
         <div class="phase-content">
           <p style="margin-bottom:0.75rem; color:var(--citi-text-muted);">
             <code>speckit_implement</code> is the only phase that writes code. It executes tasks phase-by-phase in dependency order, respecting [P] parallel markers, and marks each task complete.
@@ -1053,51 +1012,23 @@
 <section class="section" id="movement-4">
   <div class="section-inner">
     <div class="movement-badge reveal"><span class="dot"></span> Movement 4</div>
-    <h2 class="reveal reveal-delay-1">The Empowering Reframe</h2>
+    <h2 class="reveal reveal-delay-1">The Rigorous Path and the Fast Path Are the Same Path</h2>
     <div class="section-divider reveal reveal-delay-2"></div>
 
     <blockquote class="reveal reveal-delay-2">
-      "Your teams already know the right way to do this. SpecKit makes the right way the easy way."
+      Every one of those governance steps&mdash;the constitution, the spec, the validation gate&mdash;is the work teams aspire to under ideal conditions. The constraint was never willingness. It was time.
     </blockquote>
 
-    <p class="reveal reveal-delay-3" style="font-size:1.05rem; margin-bottom:1rem;">
-      Every developer <em>wants</em> to write well-governed tests. But under delivery pressure with hundreds of microservices and sprint deadlines, the choice between "thorough tests with full documentation" and "ship the feature" is a <strong>rational tradeoff</strong>.
+    <p class="reveal reveal-delay-3" style="font-size:1.05rem; margin-bottom:1.5rem;">
+      Under delivery pressure with hundreds of microservices and sprint deadlines, the choice between "thorough tests with full documentation" and "ship the feature" is a rational tradeoff. The governance steps get cut&mdash;not from carelessness, but because there aren't enough hours.
     </p>
 
-    <p class="reveal reveal-delay-4" style="color:var(--citi-text-muted); margin-bottom:2rem;">
-      The governance steps are cut not because teams don't care, but because there literally aren't enough hours. <strong>SpecKit doesn't fix a people problem. It removes a constraint.</strong>
+    <p class="reveal reveal-delay-4" style="font-size:1.05rem; margin-bottom:1.5rem;">
+      SpecKit removes the tradeoff. The thorough approach becomes the default&mdash;not the exception. The same rigor that would take a team days of documentation, review, and validation runs in a single pipeline, every time, with no shortcuts.
     </p>
 
-    <table class="framing-table reveal reveal-delay-5">
-      <thead>
-        <tr>
-          <th class="avoid-col" style="width:50%;">Avoid Saying</th>
-          <th class="use-col">Say Instead</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td class="avoid-cell">"Developers skip governance steps"</td>
-          <td class="use-cell">"Governance at this rigor doesn't scale manually"</td>
-        </tr>
-        <tr>
-          <td class="avoid-cell">"Human teams are inconsistent"</td>
-          <td class="use-cell">"Consistency across hundreds of services requires automation"</td>
-        </tr>
-        <tr>
-          <td class="avoid-cell">"Tests are written without standards"</td>
-          <td class="use-cell">"Standards exist but enforcing them per-service is unsustainable"</td>
-        </tr>
-        <tr>
-          <td class="avoid-cell">"SpecKit enforces what teams don't do"</td>
-          <td class="use-cell">"SpecKit makes the thorough approach the default"</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <div class="callout green reveal reveal-delay-6">
-      <strong>The rigor was always desired&mdash;it was never feasible to sustain manually at scale.</strong><br>
-      SpecKit makes the governance your teams already want actually happen, on every service, every time.
+    <div class="callout green reveal reveal-delay-5" style="font-size:1.05rem;">
+      <strong>What changes:</strong> The governance every team already wants to do&mdash;the constitution, the specification, the validation gate, the audit trail&mdash;happens on every service, every time, without trading off against delivery.
     </div>
   </div>
 </section>
@@ -1183,7 +1114,7 @@
 <section class="section" id="closing" style="padding-bottom: 8rem;">
   <div class="section-inner">
     <h2 class="reveal" style="text-align:center; margin-bottom:0.5rem;">Three Things to Remember</h2>
-    <p class="reveal reveal-delay-1" style="text-align:center; color:var(--citi-text-light); margin-bottom:2.5rem;">What business leaders need to hear</p>
+    <p class="reveal reveal-delay-1" style="text-align:center; color:var(--citi-text-light); margin-bottom:2.5rem;">The governance framework behind every test</p>
 
     <div class="big-three">
       <div class="big-three-card reveal reveal-delay-2">
@@ -1205,7 +1136,7 @@
 
     <div class="closing">
       <blockquote class="reveal" style="border-left:none; text-align:center; max-width:700px; margin:0 auto;">
-        "Your teams already know the right way to do this.<br>SpecKit makes the right way the easy way&mdash;so the governance you want actually happens, on every service, every time."
+        The rigorous path and the fast path are the same path.<br>The governance happens on every service, every time&mdash;without trading off against delivery.
       </blockquote>
     </div>
   </div>
