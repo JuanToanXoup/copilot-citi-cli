@@ -122,7 +122,7 @@
   .hero-tagline {
     font-size: clamp(1rem, 2vw, 1.2rem);
     color: var(--citi-text-muted);
-    max-width: 620px;
+    max-width: 780px;
     margin-bottom: 3rem;
   }
   .hero-stats {
@@ -167,23 +167,18 @@
   }
 
   /* ── Animate-in system ── */
+  @keyframes reveal-up {
+    from { opacity: 0; transform: translateY(40px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
   .reveal {
-    opacity: 0;
-    transform: translateY(40px);
-    transition: opacity 0.8s cubic-bezier(0.22, 1, 0.36, 1),
-                transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+    animation: reveal-up linear both;
+    animation-timeline: view();
+    animation-range: entry 25% cover 25%;
   }
-  .reveal.visible {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  .reveal-delay-1 { transition-delay: 0.1s; }
-  .reveal-delay-2 { transition-delay: 0.2s; }
-  .reveal-delay-3 { transition-delay: 0.3s; }
-  .reveal-delay-4 { transition-delay: 0.4s; }
-  .reveal-delay-5 { transition-delay: 0.5s; }
-  .reveal-delay-6 { transition-delay: 0.6s; }
-  .reveal-delay-7 { transition-delay: 0.7s; }
+  .reveal-delay-1, .reveal-delay-2, .reveal-delay-3,
+  .reveal-delay-4, .reveal-delay-5, .reveal-delay-6,
+  .reveal-delay-7 { /* delays not needed — scroll-driven */ }
 
   /* ── Pipeline / Phase timeline ── */
   .pipeline {
@@ -214,7 +209,7 @@
   .phase::before {
     content: '';
     position: absolute;
-    left: -2.38rem;
+    left: calc(-3rem + 4px);
     top: 1.8rem;
     width: 14px;
     height: 14px;
@@ -224,9 +219,14 @@
     transition: background 0.5s ease, box-shadow 0.5s ease;
     z-index: 1;
   }
-  .phase.lit::before {
-    background: var(--citi-blue);
-    box-shadow: 0 0 12px rgba(0,61,165,0.35);
+  @keyframes phase-light {
+    from { background: var(--citi-bg-alt); box-shadow: none; }
+    to   { background: var(--citi-blue); box-shadow: 0 0 12px rgba(0,61,165,0.35); }
+  }
+  .phase::before {
+    animation: phase-light linear both;
+    animation-timeline: view();
+    animation-range: entry 25% cover 25%;
   }
   .phase-num {
     font-size: 0.7rem;
@@ -281,6 +281,23 @@
   .code-block .task-method { color: #6B21A8; }
   .code-block .task-desc { color: var(--citi-text-muted); }
   .code-block .task-arrow { color: var(--citi-green); }
+  .task-line {
+    display: block;
+  }
+  .task-line .task-checkbox {
+    color: var(--citi-text-light);
+  }
+  .task-line .task-x {
+    display: none;
+    color: var(--citi-green);
+    font-weight: 700;
+  }
+  .task-line.checked .task-checkbox {
+    display: none;
+  }
+  .task-line.checked .task-x {
+    display: inline;
+  }
 
   /* ── Validation checklist ── */
   .validation-list {
@@ -294,31 +311,42 @@
     color: var(--citi-text-muted);
     font-size: 0.9rem;
   }
+  @keyframes check-fill {
+    from { background: transparent; border-color: var(--citi-border); }
+    to   { background: var(--citi-green); border-color: var(--citi-green); }
+  }
+  @keyframes check-tick {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
   .validation-list li::before {
     content: '';
     position: absolute;
     left: 0;
-    top: 0.7rem;
+    top: 50%;
+    transform: translateY(-50%);
     width: 16px;
     height: 16px;
     border-radius: 4px;
     border: 2px solid var(--citi-border);
-    transition: all 0.4s ease;
+    animation: check-fill linear both;
+    animation-timeline: view();
+    animation-range: entry 25% cover 25%;
   }
-  .validation-list li.checked::before {
-    background: var(--citi-green);
-    border-color: var(--citi-green);
-  }
-  .validation-list li.checked::after {
+  .validation-list li::after {
     content: '';
     position: absolute;
     left: 4px;
-    top: 0.8rem;
+    top: 50%;
+    transform: translateY(-50%) rotate(-45deg);
+    margin-top: -1px;
     width: 8px;
     height: 4px;
     border-left: 2px solid #fff;
     border-bottom: 2px solid #fff;
-    transform: rotate(-45deg);
+    animation: check-tick linear both;
+    animation-timeline: view();
+    animation-range: entry 25% cover 25%;
   }
 
   /* ── Implementation steps ── */
@@ -496,11 +524,16 @@
     overflow: hidden;
     margin: 0.5rem 0;
   }
+  @keyframes fill-bar {
+    from { width: 0; }
+    to   { width: var(--fill-width, 100%); }
+  }
   .coverage-bar .fill {
     height: 100%;
     border-radius: 4px;
-    transition: width 1.5s cubic-bezier(0.22, 1, 0.36, 1);
-    width: 0;
+    animation: fill-bar linear both;
+    animation-timeline: view();
+    animation-range: entry 25% cover 25%;
   }
   .coverage-bar .fill.green { background: linear-gradient(90deg, var(--citi-green), #38A169); }
 
@@ -570,21 +603,35 @@
     padding: 1.2rem;
     background: var(--citi-code-bg);
     border-radius: 8px;
-    border: 1px solid var(--citi-border);
+    border: 2px solid var(--citi-border);
+    transition: border-color 1.2s ease;
+  }
+  .pipeline-flow.complete {
+    border-color: var(--citi-blue);
   }
   .flow-node {
-    padding: 4px 10px;
+    padding: 6px 14px;
     border-radius: 6px;
-    font-size: 0.75rem;
+    font-size: 0.9rem;
     font-weight: 600;
+    background: var(--citi-border);
+    color: var(--citi-text-light);
+    white-space: nowrap;
+    transition: background 0.4s ease, color 0.4s ease, box-shadow 0.4s ease;
+  }
+  .flow-node.lit {
     background: var(--citi-blue-pale);
     color: var(--citi-blue);
-    white-space: nowrap;
+    box-shadow: 0 0 0 1px var(--citi-blue);
   }
   .flow-arrow {
-    color: var(--citi-text-light);
+    color: var(--citi-border);
     font-size: 0.9rem;
     margin: 0 0.3rem;
+    transition: color 0.4s ease;
+  }
+  .flow-arrow.lit {
+    color: var(--citi-text-light);
   }
 
   /* ── Responsive ── */
@@ -624,7 +671,7 @@
     <span class="gradient">SpecKit Governance Pipeline</span>
   </h1>
   <p class="hero-tagline reveal reveal-delay-2">
-    Autonomous unit test coverage for microservices&mdash;governed by a 9-agent pipeline that produces a complete artifact trail from standard to test.
+    Autonomous unit test coverage for microservices&mdash;governed by a 7-agent pipeline that produces a complete artifact trail from standard to test.
   </p>
 
   <div class="pipeline-flow reveal reveal-delay-3">
@@ -645,7 +692,7 @@
 
   <div class="hero-stats" style="margin-top: 2rem;">
     <div class="hero-stat reveal reveal-delay-4">
-      <div class="num">9</div>
+      <div class="num">7</div>
       <div class="label">Agents</div>
     </div>
     <div class="hero-stat reveal reveal-delay-5">
@@ -848,15 +895,15 @@
             Generates dependency-ordered tasks traceable to specific methods and scenarios per microservice. Then runs a read-only consistency check before any code is written.
           </p>
           <div class="code-block">
-            <span style="color:var(--citi-text-light); font-weight:600;">// PaymentService &mdash; core domain</span><br>
-            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T001]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.processPayment</span> <span class="task-desc">&mdash; success</span> <span class="task-arrow">&rarr; charged, receipt generated</span><br>
-            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T002]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.processPayment</span> <span class="task-desc">&mdash; zero amount</span> <span class="task-arrow">&rarr; InvalidAmountException</span><br>
-            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T003]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.processPayment</span> <span class="task-desc">&mdash; exceeds limit</span> <span class="task-arrow">&rarr; LimitExceededException</span><br>
-            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T004]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.processPayment</span> <span class="task-desc">&mdash; idempotency check</span> <span class="task-arrow">&rarr; returns existing receipt</span><br>
-            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T005]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.retryPayment</span> <span class="task-desc">&mdash; succeeds on 2nd attempt</span> <span class="task-arrow">&rarr; charged after retry</span><br>
-            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T006]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.retryPayment</span> <span class="task-desc">&mdash; exhausted after max attempts</span> <span class="task-arrow">&rarr; RetryExhaustedException</span><br>
-            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T007]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.refund</span> <span class="task-desc">&mdash; success</span> <span class="task-arrow">&rarr; refunded, event published</span><br>
-            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T008]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.refund</span> <span class="task-desc">&mdash; already refunded</span> <span class="task-arrow">&rarr; DuplicateRefundException</span>
+            <span style="color:var(--citi-text-light); font-weight:600;">// PaymentService &mdash; core domain</span>
+            <div class="task-line"><span class="task-checkbox">- [ ]</span><span class="task-x">- [X]</span> <span class="task-id">[T001]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.processPayment</span> <span class="task-desc">&mdash; success</span> <span class="task-arrow">&rarr; charged, receipt generated</span></div>
+            <div class="task-line"><span class="task-checkbox">- [ ]</span><span class="task-x">- [X]</span> <span class="task-id">[T002]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.processPayment</span> <span class="task-desc">&mdash; zero amount</span> <span class="task-arrow">&rarr; InvalidAmountException</span></div>
+            <div class="task-line"><span class="task-checkbox">- [ ]</span><span class="task-x">- [X]</span> <span class="task-id">[T003]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.processPayment</span> <span class="task-desc">&mdash; exceeds limit</span> <span class="task-arrow">&rarr; LimitExceededException</span></div>
+            <div class="task-line"><span class="task-checkbox">- [ ]</span><span class="task-x">- [X]</span> <span class="task-id">[T004]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.processPayment</span> <span class="task-desc">&mdash; idempotency check</span> <span class="task-arrow">&rarr; returns existing receipt</span></div>
+            <div class="task-line"><span class="task-checkbox">- [ ]</span><span class="task-x">- [X]</span> <span class="task-id">[T005]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.retryPayment</span> <span class="task-desc">&mdash; succeeds on 2nd attempt</span> <span class="task-arrow">&rarr; charged after retry</span></div>
+            <div class="task-line"><span class="task-checkbox">- [ ]</span><span class="task-x">- [X]</span> <span class="task-id">[T006]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.retryPayment</span> <span class="task-desc">&mdash; exhausted after max attempts</span> <span class="task-arrow">&rarr; RetryExhaustedException</span></div>
+            <div class="task-line"><span class="task-checkbox">- [ ]</span><span class="task-x">- [X]</span> <span class="task-id">[T007]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.refund</span> <span class="task-desc">&mdash; success</span> <span class="task-arrow">&rarr; refunded, event published</span></div>
+            <div class="task-line"><span class="task-checkbox">- [ ]</span><span class="task-x">- [X]</span> <span class="task-id">[T008]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.refund</span> <span class="task-desc">&mdash; already refunded</span> <span class="task-arrow">&rarr; DuplicateRefundException</span></div>
           </div>
           <p style="font-size:0.85rem; color:var(--citi-text-muted); margin:0.75rem 0;">
             The <code>speckit_analyze</code> agent runs 6 detection passes:
@@ -1065,46 +1112,7 @@
 
 
 <script>
-// ── Intersection Observer for scroll-triggered animations ──
-const observerOptions = {
-  threshold: 0.15,
-  rootMargin: '0px 0px -50px 0px'
-};
-
-const revealObserver = new IntersectionObserver((entries) => {
-  entries.forEach(entry => {
-    if (entry.isIntersecting) {
-      entry.target.classList.add('visible');
-
-      // Light up phase nodes
-      if (entry.target.classList.contains('phase')) {
-        entry.target.classList.add('lit');
-      }
-
-      // Animate coverage bar
-      const bar = entry.target.querySelector('.coverage-bar .fill');
-      if (bar) {
-        const width = bar.dataset.width || 100;
-        setTimeout(() => { bar.style.width = width + '%'; }, 300);
-      }
-    } else {
-      entry.target.classList.remove('visible');
-
-      if (entry.target.classList.contains('phase')) {
-        entry.target.classList.remove('lit');
-      }
-
-      const bar = entry.target.querySelector('.coverage-bar .fill');
-      if (bar) {
-        bar.style.width = '0%';
-      }
-    }
-  });
-}, observerOptions);
-
-document.querySelectorAll('.reveal').forEach(el => {
-  revealObserver.observe(el);
-});
+// ── Scroll-driven animations handled by CSS animation-timeline: view() ──
 
 // ── Navigation dots ──
 const sections = document.querySelectorAll('section[id]');
@@ -1130,23 +1138,41 @@ const sectionObserver = new IntersectionObserver((entries) => {
 
 sections.forEach(section => sectionObserver.observe(section));
 
-// ── Progressive validation checkmarks ──
-const validationObserver = new IntersectionObserver((entries) => {
+// ── Pipeline flow light-up ──
+const flowObserver = new IntersectionObserver((entries) => {
   entries.forEach(entry => {
+    const children = entry.target.querySelectorAll('.flow-node, .flow-arrow');
     if (entry.isIntersecting) {
-      const items = entry.target.querySelectorAll('.validation-list li');
-      items.forEach((item, i) => {
-        setTimeout(() => item.classList.add('checked'), 200 + i * 250);
+      children.forEach((el, i) => {
+        setTimeout(() => el.classList.add('lit'), 400 + i * 500);
       });
+      setTimeout(() => entry.target.classList.add('complete'), 400 + children.length * 500);
     } else {
-      const items = entry.target.querySelectorAll('.validation-list li');
-      items.forEach(item => item.classList.remove('checked'));
+      children.forEach(el => el.classList.remove('lit'));
+      entry.target.classList.remove('complete');
     }
   });
 }, { threshold: 0.5 });
 
-document.querySelectorAll('.phase[data-phase="4"]').forEach(el => {
-  validationObserver.observe(el);
+document.querySelectorAll('.pipeline-flow').forEach(el => flowObserver.observe(el));
+
+// ── Task checkbox X marks ──
+const taskObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const lines = entry.target.querySelectorAll('.task-line');
+      lines.forEach((line, i) => {
+        setTimeout(() => line.classList.add('checked'), 300 + i * 500);
+      });
+    } else {
+      const lines = entry.target.querySelectorAll('.task-line');
+      lines.forEach(line => line.classList.remove('checked'));
+    }
+  });
+}, { threshold: 0.3 });
+
+document.querySelectorAll('.code-block').forEach(el => {
+  if (el.querySelector('.task-line')) taskObserver.observe(el);
 });
 </script>
 
