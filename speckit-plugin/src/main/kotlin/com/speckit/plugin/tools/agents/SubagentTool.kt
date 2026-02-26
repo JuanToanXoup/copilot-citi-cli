@@ -173,7 +173,7 @@ abstract class SubagentTool(
             workspaceFolderUri,     // workspaceFolder
             null,                   // workspaceFolders
             null,                   // userLanguage
-            null,                   // model
+            "gpt-4.1",              // model
             null,                   // modelProviderName
             "Agent",                // chatMode (ChatModeKind enum: Ask, Edit, Agent)
             chatModeSlug,           // customChatModeId
