@@ -74,6 +74,22 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
     companion object {
         fun getInstance(project: Project): AgentService =
             project.getService(AgentService::class.java)
+
+        /** Default maxTurns for non-autonomous agents. Agents with maxTurns > this get auto-continue. */
+        private const val DEFAULT_MAX_TURNS = 30
+
+        /**
+         * Stop signals that indicate an autonomous agent has completed its pipeline.
+         * If any of these appear in the accumulated output, auto-continue stops.
+         * Case-sensitive to avoid false positives from instruction echoing.
+         */
+        private val STOP_SIGNALS = listOf(
+            "## Test Coverage Summary",   // Phase 5 final output
+            "TARGET REACHED",             // Coverage target met
+            "PARTIAL —",                  // Completed but target not met
+            "STEP 5.4: STOP",            // Explicit stop step
+            "Do not take any further actions",  // Terminal instruction
+        )
     }
 
     /**
@@ -175,10 +191,17 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
                         lspClient.sendRequest("conversation/turn", params, timeoutMs = 300_000)
                     }
 
-                    // Wait for streaming to complete, with subagent collection loop
-                    var coverageGateRetries = 0
+                    // Wait for streaming to complete, with subagent collection + auto-continue loop
+                    var autoContinueTurns = 0
+                    val isAutonomous = leadAgent != null && leadAgent.maxTurns > DEFAULT_MAX_TURNS
+                    val maxContinuations = leadAgent?.maxTurns ?: DEFAULT_MAX_TURNS
+                    // Autonomous agents get a longer timeout: 5min per allowed turn, capped at 2 hours
+                    val timeoutMs = if (isAutonomous) {
+                        minOf(maxContinuations.toLong() * 300_000L, 7_200_000L)
+                    } else 300_000L
+
                     val startTime = System.currentTimeMillis()
-                    while (System.currentTimeMillis() - startTime < 300_000) {
+                    while (System.currentTimeMillis() - startTime < timeoutMs) {
                         delay(100)
                         if (!isStreaming) {
                             if (subagentManager.hasPending()) {
@@ -198,45 +221,36 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
 
                                 isStreaming = true
                                 sendFollowUpTurn(workDoneToken, resultContext, useModel, rootUri)
-                            } else if (leadAgent?.agentType == "speckit-coverage-lead"
+                            } else if (isAutonomous
                                 && leadConversationId != null
-                                && coverageGateRetries < 10
+                                && autoContinueTurns < maxContinuations
                             ) {
-                                // Coverage gate: check if target coverage is met before stopping
-                                log.info("AgentService: coverage lead stopped — checking coverage gate")
-                                _events.tryEmit(LeadEvent.Delta("\n\n*Checking coverage...*\n"))
-
-                                val ws = project.basePath ?: "/tmp"
-                                val coverageResult = withContext(Dispatchers.IO) {
-                                    com.citigroup.copilotchat.tools.BuiltInTools.execute(
-                                        "speckit_run_tests", JsonObject(emptyMap()), ws
-                                    )
+                                // Auto-continue: check if the agent signaled completion
+                                val accumulatedText = synchronized(replyParts) { replyParts.joinToString("") }
+                                val hasStopSignal = STOP_SIGNALS.any { accumulatedText.contains(it, ignoreCase = false) }
+                                val lastTurnEmpty = synchronized(replyParts) {
+                                    // If the last few parts are very short, the model had nothing to say
+                                    replyParts.takeLast(3).joinToString("").trim().length < 20
                                 }
-                                val coveragePercent = parseCoveragePercent(coverageResult)
 
-                                if (coveragePercent in 0.0..<80.0) {
-                                    coverageGateRetries++
-                                    log.info("AgentService: coverage at $coveragePercent% < 80% — sending follow-up (retry $coverageGateRetries)")
-                                    _events.tryEmit(LeadEvent.Delta("Coverage at $coveragePercent%. Continuing...\n"))
-
-                                    lspClient.removeProgressListener(workDoneToken)
-                                    workDoneToken = "agent-lead-${UUID.randomUUID().toString().take(8)}"
-                                    currentWorkDoneToken = workDoneToken
-                                    lspClient.registerProgressListener(workDoneToken) { value ->
-                                        handleLeadProgress(value, replyParts)
-                                    }
-
-                                    isStreaming = true
-                                    sendFollowUpTurn(
-                                        workDoneToken,
-                                        "Coverage gate check: current coverage is $coveragePercent%. " +
-                                            "Target is 80%. Continue with the next uncovered package group.",
-                                        useModel, rootUri
-                                    )
-                                } else {
-                                    log.info("AgentService: coverage at $coveragePercent% — target met or unavailable, stopping")
+                                if (hasStopSignal || lastTurnEmpty) {
+                                    log.info("AgentService: autonomous agent signaled completion (stopSignal=$hasStopSignal, emptyTurn=$lastTurnEmpty)")
                                     break
                                 }
+
+                                autoContinueTurns++
+                                log.info("AgentService: auto-continue turn $autoContinueTurns/$maxContinuations")
+                                _events.tryEmit(LeadEvent.Delta("\n\n*Continuing pipeline (turn $autoContinueTurns)...*\n"))
+
+                                lspClient.removeProgressListener(workDoneToken)
+                                workDoneToken = "agent-lead-${UUID.randomUUID().toString().take(8)}"
+                                currentWorkDoneToken = workDoneToken
+                                lspClient.registerProgressListener(workDoneToken) { value ->
+                                    handleLeadProgress(value, replyParts)
+                                }
+
+                                isStreaming = true
+                                sendContinueTurn(workDoneToken, useModel, rootUri)
                             } else {
                                 break // Truly done
                             }
@@ -409,6 +423,40 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
     }
 
     /**
+     * Send a continuation turn to an autonomous agent, prompting it to resume
+     * the pipeline from where it left off.
+     */
+    private suspend fun sendContinueTurn(
+        workDoneToken: String,
+        model: String,
+        rootUri: String,
+    ) {
+        val message = "Continue executing the pipeline from where you left off. " +
+            "Do not restart phases you have already completed. " +
+            "If you have finished all phases, output the final summary."
+
+        val params = buildJsonObject {
+            put("workDoneToken", workDoneToken)
+            put("conversationId", leadConversationId!!)
+            put("message", message)
+            put("source", "panel")
+            put("chatMode", "Agent")
+            put("needToolCallConfirmation", true)
+            if (model.isNotBlank()) put("model", model)
+            put("workspaceFolder", rootUri)
+            putJsonArray("workspaceFolders") {
+                addJsonObject {
+                    put("uri", rootUri)
+                    put("name", project.name)
+                }
+            }
+        }
+
+        log.info("AgentService: sending continuation turn to lead conversation")
+        lspClient.sendRequest("conversation/turn", params, timeoutMs = 300_000)
+    }
+
+    /**
      * Handle progress events from the lead agent's conversation.
      *
      * IMPORTANT: uses tryEmit() (non-suspending) instead of emit() to avoid
@@ -477,20 +525,6 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
                     }
                 }
             }
-        }
-    }
-
-    /**
-     * Parse coverage_percent from a speckit_run_tests JSON result string.
-     * Returns -1.0 if parsing fails.
-     */
-    private fun parseCoveragePercent(result: String): Double {
-        return try {
-            val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
-            val obj = json.parseToJsonElement(result).jsonObject
-            obj["coverage_percent"]?.jsonPrimitive?.doubleOrNull ?: -1.0
-        } catch (_: Exception) {
-            -1.0
         }
     }
 
