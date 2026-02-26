@@ -31,6 +31,14 @@ class SpeckitCoverageAgent : AgentTool(
             appendLine("- **Batch size**: $batchSize files per iteration")
             appendLine()
 
+            appendLine("## File Discovery Rules")
+            appendLine("- **NEVER construct file paths by guessing.** Always use `run_in_terminal` to locate files first.")
+            appendLine("- To find a source file: `find <source_root> -name \"ClassName.java\" -type f`")
+            appendLine("- To list all source files: `find <source_root> -type f -name \"*.java\" | sort`")
+            appendLine("- To find files by package: `find <source_root> -path \"*/package/name/*\" -type f`")
+            appendLine("- Only pass absolute paths from `find` output to `read_file`. Never assemble paths manually.")
+            appendLine()
+
             // Read memory files to determine current phase
             val discoveryReport = readMemoryFile(basePath, "discovery-report.md")
             val baselineCoverage = readMemoryFile(basePath, "baseline-coverage.md")

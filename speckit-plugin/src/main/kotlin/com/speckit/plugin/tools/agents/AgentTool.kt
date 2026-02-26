@@ -46,6 +46,12 @@ abstract class AgentTool(
             appendLine("# Agent: $toolName")
             appendLine()
 
+            appendLine("## File Discovery Rules")
+            appendLine("- **NEVER construct file paths by guessing.** Use `run_in_terminal` with `find` to locate files first.")
+            appendLine("- Example: `find ${basePath}/src -name \"ClassName.java\" -type f`")
+            appendLine("- Only pass absolute paths from `find` output to `read_file`.")
+            appendLine()
+
             // Project context from prerequisites (only if script exists)
             if (ResourceLoader.hasScript(basePath, "check-prerequisites.sh")) {
                 val prereqResult = ScriptRunner.execScript(

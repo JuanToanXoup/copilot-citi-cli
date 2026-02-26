@@ -497,10 +497,17 @@ class SpeckitDiscover : LanguageModelToolRegistration {
             appendLine("Resolve the following by reading project files (do NOT ask the user):")
             appendLine()
 
+            appendLine("### File Discovery")
+            appendLine("- **NEVER construct file paths by guessing.** Use `run_in_terminal` with `find` to locate files.")
+            appendLine("- To find source files: `find ${d.path}/src -type f -name \"*.java\" | sort`")
+            appendLine("- To find a specific class: `find ${d.path}/src -name \"ClassName.java\" -type f`")
+            appendLine("- Only pass absolute paths from `find` output to `read_file`.")
+            appendLine()
+
             val hasTests = listOf("src/test", "test", "tests").any { d.findFileByRelativePath(it)?.isDirectory == true }
 
             appendLine("### Resolve from build file and source code")
-            appendLine("- Scope: Read source directories to identify service layer, domain logic, and utility packages")
+            appendLine("- Scope: Use `find` to list source files, then read them to identify service layer, domain logic, and utility packages")
             appendLine("- Mock strategy: Check existing test imports for mock libraries and patterns already in use")
             appendLine("- Test data: Check existing tests for builder patterns, fixture files, or hardcoded values")
             appendLine("- Async: Scan source files for CompletableFuture, @Async, coroutines, callbacks")
