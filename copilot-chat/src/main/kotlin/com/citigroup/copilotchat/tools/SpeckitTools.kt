@@ -3,6 +3,8 @@ package com.citigroup.copilotchat.tools
 import com.citigroup.copilotchat.tools.BuiltInToolUtils.OUTPUT_LIMIT
 import com.citigroup.copilotchat.tools.BuiltInToolUtils.runCommand
 import com.citigroup.copilotchat.tools.BuiltInToolUtils.str
+import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VfsUtilCore
 import kotlinx.serialization.json.*
 import java.io.File
 
@@ -228,18 +230,22 @@ object SpeckitTools : ToolGroup {
         // Prevent path traversal
         if (name.contains("..") || name.contains("/")) return "Error: name must be a simple filename, not a path"
 
-        val file = File(ws, ".specify/memory/$name")
-        file.parentFile?.mkdirs()
-        file.writeText(content)
+        val ioFile = File(ws, ".specify/memory/$name")
+        ioFile.parentFile?.mkdirs()
+        ioFile.writeText(content)
 
-        return "Written ${content.length} chars to .specify/memory/$name (${file.absolutePath})"
+        // Sync VFS so IntelliJ's project tree sees the new/updated file
+        LocalFileSystem.getInstance().refreshAndFindFileByIoFile(ioFile)
+
+        return "Written ${content.length} chars to .specify/memory/$name (${ioFile.absolutePath})"
     }
 
     private fun executeReadMemory(input: JsonObject, ws: String): String {
         val name = input.str("name")
-        val memoryDir = File(ws, ".specify/memory")
+        val lfs = LocalFileSystem.getInstance()
+        val memoryDir = lfs.findFileByIoFile(File(ws, ".specify/memory"))
 
-        if (!memoryDir.isDirectory) {
+        if (memoryDir == null || !memoryDir.isDirectory) {
             return if (name == null) {
                 "No .specify/memory/ directory found. Memory will be created when speckit_write_memory is first used."
             } else {
@@ -248,10 +254,10 @@ object SpeckitTools : ToolGroup {
         }
 
         if (name == null) {
-            val files = memoryDir.listFiles { f -> f.isFile }
-                ?.sortedBy { it.name }
-                ?.map { it.name }
-                ?: emptyList()
+            val files = memoryDir.children
+                .filter { !it.isDirectory }
+                .sortedBy { it.name }
+                .map { it.name }
             return if (files.isEmpty()) {
                 "No memory files found in .specify/memory/"
             } else {
@@ -262,10 +268,10 @@ object SpeckitTools : ToolGroup {
         // Prevent path traversal
         if (name.contains("..") || name.contains("/")) return "Error: name must be a simple filename, not a path"
 
-        val file = File(memoryDir, name)
-        if (!file.exists()) return "Error: memory file not found: $name"
+        val vFile = memoryDir.findChild(name)
+        if (vFile == null || vFile.isDirectory) return "Error: memory file not found: $name"
 
-        return file.readText().take(OUTPUT_LIMIT)
+        return VfsUtilCore.loadText(vFile).take(OUTPUT_LIMIT)
     }
 
     private fun executeGetFeatureDir(input: JsonObject, ws: String): String {
