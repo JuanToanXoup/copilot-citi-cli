@@ -15,14 +15,7 @@
 
 ## Test Configuration
 
-<!--
-  CRITICAL: These fields drive speckit_run_tests and speckit_parse_coverage.
-  Read the actual build file to determine the correct commands — do NOT guess.
-  For Gradle: check available tasks with ./gradlew tasks | grep -i test
-  For Maven: check plugins in pom.xml
-  For npm: check scripts.test in package.json
-  For Python: check pyproject.toml [tool.pytest] section
--->
+<!-- These fields are pre-populated by speckit_discover. Do NOT read build files to fill them. -->
 
 - **Test framework**: [e.g., JUnit 5, TestNG, Jest, Mocha, pytest, go test]
 - **Test command**: [e.g., ./gradlew test, mvn test, npm test, pytest, go test ./...]
@@ -33,10 +26,7 @@
 
 ## Test Conventions
 
-<!--
-  Read 2-3 existing test files to extract these patterns.
-  If no tests exist, write NONE and note framework defaults.
--->
+<!-- Pre-populated from speckit_discover convention samples. -->
 
 - **Naming pattern**: [e.g., *Test.java, *Spec.kt, *.test.ts, test_*.py]
 - **Assertion style**: [e.g., AssertJ assertThat, JUnit assertEquals, Jest expect, pytest assert]
@@ -56,9 +46,7 @@
 
 ## Async & Config Patterns
 
-<!--
-  Scan source files for these patterns. Write NONE if not found.
--->
+<!-- Write NONE if not found in the speckit_discover output. -->
 
 - **Async patterns**: [e.g., CompletableFuture, @Async, coroutines, Mono/Flux, Promises, callbacks, or NONE]
 - **Config reads**: [e.g., @Value, @ConfigurationProperties, process.env, os.environ, viper, or NONE]

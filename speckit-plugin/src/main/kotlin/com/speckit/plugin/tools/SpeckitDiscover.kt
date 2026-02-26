@@ -91,13 +91,22 @@ class SpeckitDiscover : LanguageModelToolRegistration {
             appendLine("## To Resolve (read project files, do NOT ask user)")
             appendLine(generateOpenQuestions(d))
 
-            // 8. Save instructions
+            // 8. Test/coverage commands (pre-computed so the model doesn't need to read build files)
+            appendLine("## Test & Coverage Commands")
+            val testCmd = detectTestCommand(d, false)
+            val covCmd = detectTestCommand(d, true)
+            val reportPath = findCoverageReportPath(d)
+            if (testCmd != null) appendLine("- **Test command**: `$testCmd`")
+            if (covCmd != null) appendLine("- **Coverage command**: `$covCmd`")
+            if (reportPath != null) appendLine("- **Coverage report path**: $reportPath")
+            appendLine()
+
+            // 9. Save instructions
             appendLine("## Next Step — Save Discovery")
-            appendLine("1. Call `speckit_read_template` with name `discovery-template.md` to get the template")
-            appendLine("2. Fill in ALL fields using the data above + what you resolve from source files")
-            appendLine("3. For **Test command** and **Coverage command**: read the actual build file to determine the correct commands — do NOT guess")
-            appendLine("4. Call `speckit_write_memory` with name `discovery-report.md` and the filled-in template")
-            appendLine("5. This saved report will be used by `speckit_run_tests` and `speckit_parse_coverage`")
+            appendLine("1. Call `speckit_write_memory` with name `discovery-report.md`")
+            appendLine("2. Include ALL the data above — build system, language, framework, test deps, source structure, test conventions, and the test/coverage commands")
+            appendLine("3. Do NOT read the build file (pom.xml, build.gradle, etc.) — this report already extracted everything from it")
+            appendLine("4. This saved report will be used by `speckit_run_tests` and `speckit_parse_coverage`")
         }
 
         return LanguageModelToolResult.Companion.success(report)
@@ -489,6 +498,48 @@ class SpeckitDiscover : LanguageModelToolRegistration {
             if (!found && pipelineFiles.isEmpty()) {
                 appendLine("- No CI configuration detected")
             }
+        }
+    }
+
+    private fun detectTestCommand(d: VirtualFile, coverage: Boolean): String? {
+        return when {
+            d.findChild("build.gradle.kts") != null || d.findChild("build.gradle") != null ->
+                if (coverage) "./gradlew test jacocoTestReport --console=plain -q" else "./gradlew test --console=plain -q"
+            d.findChild("pom.xml") != null ->
+                if (coverage) "mvn test jacoco:report -B -q" else "mvn test -B -q"
+            d.findChild("package.json") != null ->
+                if (coverage) "npm test -- --coverage" else "npm test"
+            d.findChild("pyproject.toml") != null || d.findChild("setup.py") != null ->
+                if (coverage) "pytest --cov --cov-report=json --cov-report=term -q" else "pytest -q"
+            d.findChild("go.mod") != null ->
+                if (coverage) "go test -coverprofile=coverage.out -covermode=atomic ./..." else "go test ./..."
+            else -> null
+        }
+    }
+
+    private fun findCoverageReportPath(d: VirtualFile): String? {
+        val candidates = listOf(
+            "build/reports/jacoco/test/jacocoTestReport.xml",
+            "target/site/jacoco/jacoco.xml",
+            "coverage/lcov.info",
+            "coverage/coverage-final.json",
+            "htmlcov/coverage.json",
+            "coverage.out",
+        )
+        for (candidate in candidates) {
+            val vf = d.findFileByRelativePath(candidate)
+            if (vf != null && !vf.isDirectory) return candidate
+        }
+        // Return the expected path even if report doesn't exist yet
+        return when {
+            d.findChild("build.gradle.kts") != null || d.findChild("build.gradle") != null ->
+                "build/reports/jacoco/test/jacocoTestReport.xml"
+            d.findChild("pom.xml") != null ->
+                "target/site/jacoco/jacoco.xml"
+            d.findChild("package.json") != null -> "coverage/lcov.info"
+            d.findChild("pyproject.toml") != null -> "htmlcov/coverage.json"
+            d.findChild("go.mod") != null -> "coverage.out"
+            else -> null
         }
     }
 
