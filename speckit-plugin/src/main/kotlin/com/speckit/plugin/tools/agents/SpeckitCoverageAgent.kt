@@ -2,7 +2,6 @@ package com.speckit.plugin.tools.agents
 
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
 import com.intellij.openapi.vfs.LocalFileSystem
-import com.intellij.openapi.vfs.VfsUtilCore
 import java.io.File
 
 class SpeckitCoverageAgent : AgentTool(
@@ -33,19 +32,30 @@ class SpeckitCoverageAgent : AgentTool(
             appendLine("and generate test files — all without manual intervention. Process files in batches of $batchSize.")
             appendLine()
 
-
-            // Read memory files to determine current phase
-            val discoveryReport = readMemoryFile(basePath, "discovery-report.md")
-            val baselineCoverage = readMemoryFile(basePath, "baseline-coverage.md")
-            val testConventions = readMemoryFile(basePath, "test-conventions.md")
-            val scopingPlan = readMemoryFile(basePath, "scoping-plan.md")
-            val coverageProgression = readMemoryFile(basePath, "coverage-progression.md")
+            // Check which memory files exist to determine current phase
+            val hasDiscovery = hasMemoryFile(basePath, "discovery-report.md")
+            val hasBaseline = hasMemoryFile(basePath, "baseline-coverage.md")
+            val hasConventions = hasMemoryFile(basePath, "test-conventions.md")
+            val hasScoping = hasMemoryFile(basePath, "scoping-plan.md")
+            val hasCoverageProgression = hasMemoryFile(basePath, "coverage-progression.md")
 
             appendLine("## Current State")
             appendLine()
 
+            // List available memory files so the model knows what to read
+            val available = mutableListOf<String>()
+            if (hasDiscovery) available.add("discovery-report.md")
+            if (hasBaseline) available.add("baseline-coverage.md")
+            if (hasConventions) available.add("test-conventions.md")
+            if (hasScoping) available.add("scoping-plan.md")
+            if (hasCoverageProgression) available.add("coverage-progression.md")
+            if (available.isNotEmpty()) {
+                appendLine("**Available memory files** (read with `speckit_read_memory`): ${available.joinToString(", ") { "`$it`" }}")
+                appendLine()
+            }
+
             when {
-                discoveryReport == null -> {
+                !hasDiscovery -> {
                     appendLine("**YOU ARE AT: Phase 0 — Discovery**")
                     appendLine()
                     appendLine("You are starting from scratch. Before you can write any tests, you need to")
@@ -61,11 +71,13 @@ class SpeckitCoverageAgent : AgentTool(
                     appendLine()
                     appendLine("**When done:** Call `speckit_coverage` to proceed to Phase 1.")
                 }
-                baselineCoverage == null -> {
+                !hasBaseline -> {
                     appendLine("**YOU ARE AT: Phase 1 — Baseline**")
                     appendLine()
                     appendLine("Discovery is complete. Now you need to measure where coverage stands today")
                     appendLine("so you know how much work is needed to reach ${target}%.")
+                    appendLine()
+                    appendLine("**First:** Call `speckit_read_memory` with name `discovery-report.md` to review the project details.")
                     appendLine()
                     appendLine("**Steps:**")
                     appendLine("1. Call `speckit_run_tests` with `coverage=true` — this returns the shell command to run tests with coverage")
@@ -76,15 +88,14 @@ class SpeckitCoverageAgent : AgentTool(
                     appendLine("6. Save the full breakdown: call `speckit_write_memory` with name `baseline-coverage.md`")
                     appendLine()
                     appendLine("**When done:** Call `speckit_coverage` to proceed to Phase 2.")
-                    appendLine()
-                    appendLine("### Discovery Report (from memory)")
-                    appendLine(discoveryReport)
                 }
-                testConventions == null -> {
+                !hasConventions -> {
                     appendLine("**YOU ARE AT: Phase 2 — Constitution**")
                     appendLine()
                     appendLine("You know the project structure and its coverage gaps. Now establish the testing")
                     appendLine("conventions so every test you generate looks like it belongs in this codebase.")
+                    appendLine()
+                    appendLine("**First:** Call `speckit_read_memory` for `discovery-report.md` and `baseline-coverage.md` to review prior findings.")
                     appendLine()
                     appendLine("**Steps:**")
                     appendLine("1. Check the `## Constitution` section above in this prompt. If it is present, a constitution already exists — skip to step 3.")
@@ -95,18 +106,14 @@ class SpeckitCoverageAgent : AgentTool(
                     appendLine("5. Save: call `speckit_write_memory` with name `test-conventions.md`")
                     appendLine()
                     appendLine("**When done:** Call `speckit_coverage` to proceed to Phase 3.")
-                    appendLine()
-                    appendLine("### Discovery Report (from memory)")
-                    appendLine(discoveryReport)
-                    appendLine()
-                    appendLine("### Baseline Coverage (from memory)")
-                    appendLine(baselineCoverage)
                 }
-                scopingPlan == null -> {
+                !hasScoping -> {
                     appendLine("**YOU ARE AT: Phase 3 — Scope Feature Specs**")
                     appendLine()
                     appendLine("You have conventions established. Now group the uncovered files into manageable")
                     appendLine("feature specs (3-8 files each, grouped by package) so you can tackle them systematically.")
+                    appendLine()
+                    appendLine("**First:** Call `speckit_read_memory` for `baseline-coverage.md` and `test-conventions.md` to review prior findings.")
                     appendLine()
                     appendLine("**Steps:**")
                     appendLine("1. From the baseline coverage data, identify all files below ${target}%")
@@ -122,18 +129,17 @@ class SpeckitCoverageAgent : AgentTool(
                     appendLine("   Call `speckit_write_memory` with name `scoping-plan.md`")
                     appendLine()
                     appendLine("**When done:** Call `speckit_coverage` to proceed to Phase 4.")
-                    appendLine()
-                    appendLine("### Baseline Coverage (from memory)")
-                    appendLine(baselineCoverage)
-                    appendLine()
-                    appendLine("### Test Conventions (from memory)")
-                    appendLine(testConventions)
                 }
                 else -> {
                     appendLine("**YOU ARE AT: Phase 4 — Feature Spec Pipeline**")
                     appendLine()
                     appendLine("You have a scoping plan with feature specs. Pick the first PENDING spec and")
                     appendLine("run the full test generation pipeline for it.")
+                    appendLine()
+                    appendLine("**First:** Call `speckit_read_memory` for `scoping-plan.md` and `test-conventions.md` to review the plan and conventions.")
+                    if (hasCoverageProgression) {
+                        appendLine("Also read `coverage-progression.md` to see progress so far.")
+                    }
                     appendLine()
                     appendLine("**Steps for this spec:**")
                     appendLine()
@@ -159,17 +165,6 @@ class SpeckitCoverageAgent : AgentTool(
                     appendLine("- If coverage < ${target}% but improved → pick next PENDING spec and repeat")
                     appendLine("- If coverage didn't improve → retry once with adjusted scenarios, then mark SKIPPED")
                     appendLine("- If all specs are DONE/SKIPPED → re-scope from fresh coverage data (max 2 re-scope cycles)")
-                    appendLine()
-                    appendLine("### Scoping Plan (from memory)")
-                    appendLine(scopingPlan)
-                    appendLine()
-                    appendLine("### Test Conventions (from memory)")
-                    appendLine(testConventions)
-                    if (coverageProgression != null) {
-                        appendLine()
-                        appendLine("### Coverage Progression (from memory)")
-                        appendLine(coverageProgression)
-                    }
                 }
             }
         }
@@ -190,9 +185,9 @@ class SpeckitCoverageAgent : AgentTool(
         }
     }
 
-    private fun readMemoryFile(basePath: String, name: String): String? {
+    private fun hasMemoryFile(basePath: String, name: String): Boolean {
         val file = LocalFileSystem.getInstance()
             .findFileByIoFile(File(basePath, ".specify/memory/$name"))
-        return if (file != null && !file.isDirectory) VfsUtilCore.loadText(file) else null
+        return file != null && !file.isDirectory
     }
 }
