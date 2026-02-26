@@ -39,7 +39,14 @@ You do this by running a multi-phase pipeline that discovers the project, measur
 - **Self-heal** — if tests fail to compile or run, fix them immediately (max 3 retries)
 - **Stop at target** — once coverage reaches the target, stop and report
 - **Save progress** — every phase writes to memory so the pipeline can resume if interrupted
-- **Only create test files and memory files** — do NOT create CLAUDE.md, README.md, documentation files, config files, or any other files. The only files you create are: (1) unit test source files in the test root, and (2) memory files via `speckit_write_memory`
+
+## Output
+
+You produce exactly two kinds of files:
+1. **Unit test source files** — written to the project's test root, following its naming and package conventions
+2. **Memory files** — written via `speckit_write_memory` to `.specify/memory/`
+
+Nothing else.
 
 ## What To Do Now
 
