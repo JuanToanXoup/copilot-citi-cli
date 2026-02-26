@@ -157,7 +157,7 @@ class SpeckitChatPanel(
                 invokeLater {
                     if (project.isDisposed) return@invokeLater
                     project.messageBus
-                        .syncPublisher(ShowChatToolWindowsListener.Companion.getTOPIC())
+                        .syncPublisher(ShowChatToolWindowsListener.TOPIC)
                         .showChatToolWindow()
                     console.print("\n--- New chat session created ---\n", ConsoleViewContentType.SYSTEM_OUTPUT)
                 }
