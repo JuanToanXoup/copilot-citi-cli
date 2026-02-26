@@ -40,13 +40,13 @@ class SpeckitPluginInstaller : StartupActivity.DumbAware {
         val basePath = project.basePath ?: return
 
         try {
-            registerTools(basePath)
+            registerTools(project, basePath)
         } catch (e: Exception) {
             log.warn("Spec-Kit plugin tool registration failed", e)
         }
     }
 
-    private fun registerTools(basePath: String) {
+    private fun registerTools(project: Project, basePath: String) {
         val registry = ToolRegistryProvider.getInstance()
         if (registry !is ToolRegistryImpl) {
             log.warn("ToolRegistry is not ToolRegistryImpl — cannot register tools")
@@ -83,7 +83,7 @@ class SpeckitPluginInstaller : StartupActivity.DumbAware {
             SpeckitListSpecs(basePath),
             SpeckitReadSpec(basePath),
             SpeckitReadMemory(basePath),
-            SpeckitWriteMemory(basePath),
+            SpeckitWriteMemory(project),
         )
 
         for (tool in tools) {

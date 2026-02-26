@@ -4,9 +4,18 @@ import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelTool
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelToolResult
 import com.github.copilot.chat.conversation.agent.tool.LanguageModelToolRegistration
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VfsUtil
 import java.io.File
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
 
-class SpeckitWriteMemory(private val basePath: String) : LanguageModelToolRegistration {
+class SpeckitWriteMemory(private val project: Project) : LanguageModelToolRegistration {
+
+    private val basePath = project.basePath ?: ""
 
     override val toolDefinition = LanguageModelTool(
         "speckit_write_memory",
@@ -32,14 +41,70 @@ class SpeckitWriteMemory(private val basePath: String) : LanguageModelToolRegist
         val content = request.input?.get("content")?.asString
             ?: return LanguageModelToolResult.Companion.error("Missing required parameter: content")
 
-        val memoryDir = File(basePath, ".specify/memory")
-        if (!memoryDir.isDirectory) {
-            memoryDir.mkdirs()
+        val filePath = "$basePath/.specify/memory/$name"
+        val ioFile = File(filePath)
+        val parentPath = ioFile.parent
+
+        if (project.isDisposed) {
+            return LanguageModelToolResult.Companion.error(
+                "Project is disposed — cannot write to $filePath"
+            )
         }
 
-        val file = File(memoryDir, name)
-        file.writeText(content)
+        val future = CompletableFuture<LanguageModelToolResult>()
 
-        return LanguageModelToolResult.Companion.success("Written ${content.length} chars to .specify/memory/$name")
+        ApplicationManager.getApplication().invokeLater {
+            if (project.isDisposed) {
+                future.complete(LanguageModelToolResult.Companion.error("Project disposed"))
+                return@invokeLater
+            }
+
+            try {
+                WriteCommandAction.runWriteCommandAction(project) {
+                    // Find or create parent directory via VFS
+                    var parentVFile = LocalFileSystem.getInstance()
+                        .findFileByIoFile(File(parentPath))
+                    if (parentVFile == null) {
+                        parentVFile = VfsUtil.createDirectories(parentPath)
+                    }
+                    if (parentVFile == null) {
+                        future.complete(LanguageModelToolResult.Companion.error(
+                            "Failed to create directory: $parentPath"
+                        ))
+                        return@runWriteCommandAction
+                    }
+
+                    parentVFile.refresh(false, false)
+
+                    val existingVFile = parentVFile.findChild(ioFile.name)
+                    if (existingVFile != null) {
+                        VfsUtil.saveText(existingVFile, content)
+                        future.complete(LanguageModelToolResult.Companion.success(
+                            "Updated ${content.length} chars in ${existingVFile.path}"
+                        ))
+                    } else {
+                        val vFile = parentVFile.createChildData(this@SpeckitWriteMemory, ioFile.name)
+                        VfsUtil.saveText(vFile, content)
+                        future.complete(LanguageModelToolResult.Companion.success(
+                            "Written ${content.length} chars to ${vFile.path}"
+                        ))
+                    }
+                }
+            } catch (e: Exception) {
+                if (!future.isDone) {
+                    future.complete(LanguageModelToolResult.Companion.error(
+                        "Failed to write .specify/memory/$name: ${e.message}"
+                    ))
+                }
+            }
+        }
+
+        return try {
+            future.get(30, TimeUnit.SECONDS)
+        } catch (e: Exception) {
+            LanguageModelToolResult.Companion.error(
+                "Timed out writing .specify/memory/$name: ${e.message}"
+            )
+        }
     }
 }
