@@ -1,12 +1,14 @@
 package com.speckit.plugin.tools
 
+import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VfsUtilCore
 import java.io.File
 
 /**
  * Resolves speckit resources with project-first, classpath-fallback semantics.
  *
  * Lookup order:
- *   1. Project filesystem (basePath + relativePath)
+ *   1. Project filesystem (basePath + relativePath) via IntelliJ VFS
  *   2. Plugin JAR classpath (/speckit/ + mapped path)
  *
  * This allows any project to work out of the box (using bundled defaults)
@@ -42,8 +44,8 @@ object ResourceLoader {
      * Checks .github/agents/ in the project first, then falls back to bundled.
      */
     fun readAgent(basePath: String, agentFileName: String): String? {
-        val projectFile = File(basePath, ".github/agents/$agentFileName")
-        if (projectFile.exists()) return projectFile.readText()
+        val vFile = LocalFileSystem.getInstance().findFileByIoFile(File(basePath, ".github/agents/$agentFileName"))
+        if (vFile != null && !vFile.isDirectory) return VfsUtilCore.loadText(vFile)
 
         return readClasspathResource("/speckit/agents/$agentFileName")
     }
@@ -53,8 +55,8 @@ object ResourceLoader {
      * Checks .specify/templates/ in the project first, then falls back to bundled.
      */
     fun readTemplate(basePath: String, templateName: String): String? {
-        val projectFile = File(basePath, ".specify/templates/$templateName")
-        if (projectFile.exists()) return projectFile.readText()
+        val vFile = LocalFileSystem.getInstance().findFileByIoFile(File(basePath, ".specify/templates/$templateName"))
+        if (vFile != null && !vFile.isDirectory) return VfsUtilCore.loadText(vFile)
 
         return readClasspathResource("/speckit/templates/$templateName")
     }
@@ -65,8 +67,8 @@ object ResourceLoader {
     //   .specify/templates/   -> /speckit/templates/
     //   .specify/memory/      -> project only (no bundled fallback)
     fun readFile(basePath: String, relativePath: String): String? {
-        val projectFile = File(basePath, relativePath)
-        if (projectFile.exists()) return projectFile.readText()
+        val vFile = LocalFileSystem.getInstance().findFileByIoFile(File(basePath, relativePath))
+        if (vFile != null && !vFile.isDirectory) return VfsUtilCore.loadText(vFile)
 
         // Map to classpath path for known resource directories
         val classpathPath = mapToClasspath(relativePath) ?: return null
@@ -78,11 +80,15 @@ object ResourceLoader {
      * Merges project .github/agents/ with bundled agents (project files take priority).
      */
     fun listAgents(basePath: String): List<String> {
-        val projectAgents = File(basePath, ".github/agents")
-            .listFiles { f -> f.isFile && f.name.endsWith(".agent.md") }
-            ?.map { it.name }
-            ?.toSet()
-            ?: emptySet()
+        val agentsDir = LocalFileSystem.getInstance().findFileByIoFile(File(basePath, ".github/agents"))
+        val projectAgents = if (agentsDir != null && agentsDir.isDirectory) {
+            agentsDir.children
+                .filter { !it.isDirectory && it.name.endsWith(".agent.md") }
+                .map { it.name }
+                .toSet()
+        } else {
+            emptySet()
+        }
 
         val bundled = BUNDLED_AGENTS.toSet()
 
@@ -94,11 +100,15 @@ object ResourceLoader {
      * Merges project .specify/templates/ with bundled templates.
      */
     fun listTemplates(basePath: String): List<String> {
-        val projectTemplates = File(basePath, ".specify/templates")
-            .listFiles { f -> f.isFile }
-            ?.map { it.name }
-            ?.toSet()
-            ?: emptySet()
+        val templatesDir = LocalFileSystem.getInstance().findFileByIoFile(File(basePath, ".specify/templates"))
+        val projectTemplates = if (templatesDir != null && templatesDir.isDirectory) {
+            templatesDir.children
+                .filter { !it.isDirectory }
+                .map { it.name }
+                .toSet()
+        } else {
+            emptySet()
+        }
 
         val bundled = BUNDLED_TEMPLATES.toSet()
 
@@ -109,7 +119,8 @@ object ResourceLoader {
      * Check if a script exists in the project's .specify/scripts/bash/ directory.
      */
     fun hasScript(basePath: String, scriptName: String): Boolean {
-        return File(basePath, ".specify/scripts/bash/$scriptName").exists()
+        val vFile = LocalFileSystem.getInstance().findFileByIoFile(File(basePath, ".specify/scripts/bash/$scriptName"))
+        return vFile != null && !vFile.isDirectory
     }
 
     private fun mapToClasspath(relativePath: String): String? {

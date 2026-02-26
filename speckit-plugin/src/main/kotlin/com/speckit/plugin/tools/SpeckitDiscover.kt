@@ -4,6 +4,10 @@ import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelTool
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelToolResult
 import com.github.copilot.chat.conversation.agent.tool.LanguageModelToolRegistration
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
+import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VfsUtil
+import com.intellij.openapi.vfs.VfsUtilCore
+import com.intellij.openapi.vfs.VirtualFile
 import java.io.File
 
 class SpeckitDiscover(private val basePath: String) : LanguageModelToolRegistration {
@@ -32,9 +36,9 @@ class SpeckitDiscover(private val basePath: String) : LanguageModelToolRegistrat
             path.startsWith("/") -> path
             else -> "$basePath/$path"
         }
-        val d = File(workDir)
+        val d = LocalFileSystem.getInstance().findFileByIoFile(File(workDir))
 
-        if (!d.isDirectory) {
+        if (d == null || !d.isDirectory) {
             return LanguageModelToolResult.Companion.error(
                 "Directory not found: $workDir (path='$path', basePath='$basePath')"
             )
@@ -91,13 +95,20 @@ class SpeckitDiscover(private val basePath: String) : LanguageModelToolRegistrat
         return LanguageModelToolResult.Companion.success(report)
     }
 
-    private fun detectBuildSystem(d: File): String {
+    private fun detectBuildSystem(d: VirtualFile): String {
         return buildString {
+            val pomXml = d.findChild("pom.xml")
+            val buildGradleKts = d.findChild("build.gradle.kts")
+            val buildGradle = d.findChild("build.gradle")
+            val packageJson = d.findChild("package.json")
+            val pyprojectToml = d.findChild("pyproject.toml")
+            val goMod = d.findChild("go.mod")
+
             when {
-                d.resolve("pom.xml").exists() -> {
+                pomXml != null -> {
                     appendLine("- **Build system**: Maven")
                     appendLine("- **Build file**: pom.xml")
-                    val pom = d.resolve("pom.xml").readText()
+                    val pom = VfsUtilCore.loadText(pomXml)
                     // Extract language from pom
                     val javaVersion = Regex("<java.version>(.*?)</java.version>").find(pom)?.groupValues?.get(1)
                         ?: Regex("<maven.compiler.source>(.*?)</maven.compiler.source>").find(pom)?.groupValues?.get(1)
@@ -120,28 +131,28 @@ class SpeckitDiscover(private val basePath: String) : LanguageModelToolRegistrat
                         appendLine("- **Coverage tool**: JaCoCo (configured in pom.xml)")
                     }
                 }
-                d.resolve("build.gradle.kts").exists() -> {
+                buildGradleKts != null -> {
                     appendLine("- **Build system**: Gradle (Kotlin DSL)")
                     appendLine("- **Build file**: build.gradle.kts")
-                    val gradle = d.resolve("build.gradle.kts").readText()
+                    val gradle = VfsUtilCore.loadText(buildGradleKts)
                     if (gradle.contains("org.jetbrains.kotlin")) appendLine("- **Language**: Kotlin")
                     else appendLine("- **Language**: Java")
                     if (gradle.contains("spring-boot")) appendLine("- **Framework**: Spring Boot")
                     if (gradle.contains("jacoco")) appendLine("- **Coverage tool**: JaCoCo")
                 }
-                d.resolve("build.gradle").exists() -> {
+                buildGradle != null -> {
                     appendLine("- **Build system**: Gradle (Groovy DSL)")
                     appendLine("- **Build file**: build.gradle")
-                    val gradle = d.resolve("build.gradle").readText()
+                    val gradle = VfsUtilCore.loadText(buildGradle)
                     if (gradle.contains("org.jetbrains.kotlin")) appendLine("- **Language**: Kotlin")
                     else appendLine("- **Language**: Java")
                     if (gradle.contains("spring-boot")) appendLine("- **Framework**: Spring Boot")
                     if (gradle.contains("jacoco")) appendLine("- **Coverage tool**: JaCoCo")
                 }
-                d.resolve("package.json").exists() -> {
+                packageJson != null -> {
                     appendLine("- **Build system**: npm")
                     appendLine("- **Build file**: package.json")
-                    val pkg = d.resolve("package.json").readText()
+                    val pkg = VfsUtilCore.loadText(packageJson)
                     if (pkg.contains("typescript")) appendLine("- **Language**: TypeScript")
                     else appendLine("- **Language**: JavaScript")
                     if (pkg.contains("express")) appendLine("- **Framework**: Express")
@@ -150,17 +161,17 @@ class SpeckitDiscover(private val basePath: String) : LanguageModelToolRegistrat
                     if (pkg.contains("mocha")) appendLine("- **Test framework**: Mocha")
                     if (pkg.contains("istanbul") || pkg.contains("nyc") || pkg.contains("c8")) appendLine("- **Coverage tool**: Istanbul/nyc")
                 }
-                d.resolve("pyproject.toml").exists() -> {
+                pyprojectToml != null -> {
                     appendLine("- **Build system**: Python (pyproject.toml)")
                     appendLine("- **Language**: Python")
-                    val toml = d.resolve("pyproject.toml").readText()
+                    val toml = VfsUtilCore.loadText(pyprojectToml)
                     if (toml.contains("pytest")) appendLine("- **Test framework**: pytest")
                     if (toml.contains("pytest-cov") || toml.contains("coverage")) appendLine("- **Coverage tool**: pytest-cov")
                     if (toml.contains("fastapi")) appendLine("- **Framework**: FastAPI")
                     if (toml.contains("flask")) appendLine("- **Framework**: Flask")
                     if (toml.contains("django")) appendLine("- **Framework**: Django")
                 }
-                d.resolve("go.mod").exists() -> {
+                goMod != null -> {
                     appendLine("- **Build system**: Go modules")
                     appendLine("- **Build file**: go.mod")
                     appendLine("- **Language**: Go")
@@ -171,18 +182,23 @@ class SpeckitDiscover(private val basePath: String) : LanguageModelToolRegistrat
                     appendLine("- **Build system**: NOT DETECTED")
                     appendLine("- Looked for: pom.xml, build.gradle.kts, build.gradle, package.json, pyproject.toml, go.mod")
                     // List what IS in the directory
-                    val files = d.listFiles()?.filter { it.isFile }?.map { it.name }?.take(20) ?: emptyList()
+                    val files = d.children.filter { !it.isDirectory }.map { it.name }.take(20)
                     appendLine("- Root files: ${files.joinToString(", ")}")
                 }
             }
         }
     }
 
-    private fun extractDependencies(d: File): String {
+    private fun extractDependencies(d: VirtualFile): String {
         return buildString {
+            val pomXml = d.findChild("pom.xml")
+            val buildGradleKts = d.findChild("build.gradle.kts")
+            val buildGradle = d.findChild("build.gradle")
+            val packageJson = d.findChild("package.json")
+
             when {
-                d.resolve("pom.xml").exists() -> {
-                    val pom = d.resolve("pom.xml").readText()
+                pomXml != null -> {
+                    val pom = VfsUtilCore.loadText(pomXml)
                     // Test dependencies
                     val testDeps = mutableListOf<String>()
                     if (pom.contains("junit-jupiter") || pom.contains("junit-vintage")) testDeps.add("JUnit 5")
@@ -225,8 +241,9 @@ class SpeckitDiscover(private val basePath: String) : LanguageModelToolRegistrat
                         modules.forEach { appendLine("- $it") }
                     }
                 }
-                d.resolve("build.gradle.kts").exists() || d.resolve("build.gradle").exists() -> {
-                    val gradle = (d.resolve("build.gradle.kts").takeIf { it.exists() } ?: d.resolve("build.gradle")).readText()
+                buildGradleKts != null || buildGradle != null -> {
+                    val gradleFile = buildGradleKts ?: buildGradle!!
+                    val gradle = VfsUtilCore.loadText(gradleFile)
                     val testDeps = mutableListOf<String>()
                     if (gradle.contains("junit-jupiter") || gradle.contains("useJUnitPlatform")) testDeps.add("JUnit 5")
                     if (gradle.contains("mockito")) testDeps.add("Mockito")
@@ -238,8 +255,8 @@ class SpeckitDiscover(private val basePath: String) : LanguageModelToolRegistrat
                         testDeps.forEach { appendLine("- $it") }
                     }
                 }
-                d.resolve("package.json").exists() -> {
-                    val pkg = d.resolve("package.json").readText()
+                packageJson != null -> {
+                    val pkg = VfsUtilCore.loadText(packageJson)
                     val testDeps = mutableListOf<String>()
                     if (pkg.contains("\"jest\"")) testDeps.add("Jest")
                     if (pkg.contains("\"mocha\"")) testDeps.add("Mocha")
@@ -256,11 +273,13 @@ class SpeckitDiscover(private val basePath: String) : LanguageModelToolRegistrat
         }
     }
 
-    private fun analyzeSourceStructure(d: File): String {
+    private fun analyzeSourceStructure(d: VirtualFile): String {
         return buildString {
             // List top-level directories
-            val dirs = d.listFiles()?.filter { it.isDirectory && !it.name.startsWith(".") && it.name != "node_modules" && it.name != "target" && it.name != "build" }
-                ?.map { it.name }?.sorted() ?: emptyList()
+            val dirs = d.children
+                .filter { it.isDirectory && !it.name.startsWith(".") && it.name != "node_modules" && it.name != "target" && it.name != "build" }
+                .map { it.name }
+                .sorted()
             appendLine("### Top-Level Directories")
             dirs.forEach { appendLine("- $it/") }
             appendLine()
@@ -272,8 +291,8 @@ class SpeckitDiscover(private val basePath: String) : LanguageModelToolRegistrat
                 "src/main/groovy", "src", "lib", "app"
             )
             for (root in sourceRoots) {
-                val rootDir = d.resolve(root)
-                if (rootDir.isDirectory) {
+                val rootDir = d.findFileByRelativePath(root)
+                if (rootDir != null && rootDir.isDirectory) {
                     val count = countSourceFiles(rootDir)
                     appendLine("- **$root/**: $count source files")
                 }
@@ -288,12 +307,12 @@ class SpeckitDiscover(private val basePath: String) : LanguageModelToolRegistrat
                 "spec", "api-tests"
             )
             for (root in testRoots) {
-                val rootDir = d.resolve(root)
-                if (rootDir.isDirectory) {
+                val rootDir = d.findFileByRelativePath(root)
+                if (rootDir != null && rootDir.isDirectory) {
                     val count = countSourceFiles(rootDir)
                     appendLine("- **$root/**: $count test files")
                     // Show subdirectory structure
-                    val subdirs = rootDir.listFiles()?.filter { it.isDirectory }?.map { it.name }?.sorted() ?: emptyList()
+                    val subdirs = rootDir.children.filter { it.isDirectory }.map { it.name }.sorted()
                     if (subdirs.isNotEmpty()) {
                         appendLine("  Subdirectories: ${subdirs.joinToString(", ")}")
                     }
@@ -302,19 +321,19 @@ class SpeckitDiscover(private val basePath: String) : LanguageModelToolRegistrat
         }
     }
 
-    private fun countSourceFiles(dir: File): Int {
+    private fun countSourceFiles(dir: VirtualFile): Int {
         val extensions = setOf("java", "kt", "scala", "groovy", "ts", "js", "py", "go", "rs", "cs")
-        return dir.walkTopDown()
-            .filter { it.isFile && it.extension in extensions }
-            .count()
+        return VfsUtil.collectChildrenRecursively(dir)
+            .count { !it.isDirectory && it.extension in extensions }
     }
 
-    private fun analyzeExistingTests(d: File): String {
+    private fun analyzeExistingTests(d: VirtualFile): String {
         return buildString {
-            // Find test files
-            val testDirs = listOf("src/test", "test", "tests", "__tests__", "spec", "api-tests")
-                .map { d.resolve(it) }
-                .filter { it.isDirectory }
+            // Find test directories
+            val testDirPaths = listOf("src/test", "test", "tests", "__tests__", "spec", "api-tests")
+            val testDirs = testDirPaths.mapNotNull { path ->
+                d.findFileByRelativePath(path)?.takeIf { it.isDirectory }
+            }
 
             if (testDirs.isEmpty()) {
                 appendLine("- **No test directories found**")
@@ -322,10 +341,10 @@ class SpeckitDiscover(private val basePath: String) : LanguageModelToolRegistrat
             }
 
             // Sample test files to detect patterns
+            val testExtensions = setOf("java", "kt", "ts", "js", "py", "go")
             val testFiles = testDirs.flatMap { dir ->
-                dir.walkTopDown()
-                    .filter { it.isFile && it.extension in setOf("java", "kt", "ts", "js", "py", "go") }
-                    .toList()
+                VfsUtil.collectChildrenRecursively(dir)
+                    .filter { !it.isDirectory && it.extension in testExtensions }
             }
 
             appendLine("- **Test file count**: ${testFiles.size}")
@@ -361,8 +380,8 @@ class SpeckitDiscover(private val basePath: String) : LanguageModelToolRegistrat
             appendLine("### Convention Samples (first 3 test files)")
             val samples = testFiles.take(3)
             for (sample in samples) {
-                val relativePath = sample.relativeTo(d).path
-                val content = sample.readText()
+                val relativePath = VfsUtilCore.getRelativePath(sample, d, '/') ?: sample.path
+                val content = VfsUtilCore.loadText(sample)
                 val lines = content.lines()
                 val annotations = mutableSetOf<String>()
                 val imports = mutableListOf<String>()
@@ -394,7 +413,7 @@ class SpeckitDiscover(private val basePath: String) : LanguageModelToolRegistrat
         }
     }
 
-    private fun detectCoverageState(d: File): String {
+    private fun detectCoverageState(d: VirtualFile): String {
         return buildString {
             val candidates = listOf(
                 "build/reports/jacoco/test/jacocoTestReport.xml" to "JaCoCo XML",
@@ -410,11 +429,11 @@ class SpeckitDiscover(private val basePath: String) : LanguageModelToolRegistrat
 
             var found = false
             for ((path, format) in candidates) {
-                val f = d.resolve(path)
-                if (f.exists()) {
+                val f = d.findFileByRelativePath(path)
+                if (f != null && !f.isDirectory) {
                     appendLine("- **Report found**: $path ($format)")
-                    appendLine("- **Last modified**: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm").format(java.util.Date(f.lastModified()))}")
-                    appendLine("- **Size**: ${f.length()} bytes")
+                    appendLine("- **Last modified**: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm").format(java.util.Date(f.timeStamp))}")
+                    appendLine("- **Size**: ${f.length} bytes")
                     found = true
                 }
             }
@@ -426,7 +445,7 @@ class SpeckitDiscover(private val basePath: String) : LanguageModelToolRegistrat
         }
     }
 
-    private fun detectCIConfig(d: File): String {
+    private fun detectCIConfig(d: VirtualFile): String {
         return buildString {
             val ciFiles = listOf(
                 ".github/workflows" to "GitHub Actions",
@@ -443,18 +462,18 @@ class SpeckitDiscover(private val basePath: String) : LanguageModelToolRegistrat
 
             var found = false
             for ((path, name) in ciFiles) {
-                val f = d.resolve(path)
-                if (f.exists()) {
+                val f = d.findFileByRelativePath(path)
+                if (f != null) {
                     appendLine("- **$name**: $path")
                     found = true
                 }
             }
 
             // List pipeline files specifically
-            val pipelineFiles = d.listFiles()?.filter {
-                it.isFile && (it.name.contains("pipeline") || it.name.contains("Pipeline")) &&
-                (it.name.endsWith(".yml") || it.name.endsWith(".yaml"))
-            }?.map { it.name } ?: emptyList()
+            val pipelineFiles = d.children
+                .filter { !it.isDirectory && (it.name.contains("pipeline") || it.name.contains("Pipeline")) &&
+                    (it.name.endsWith(".yml") || it.name.endsWith(".yaml")) }
+                .map { it.name }
 
             if (pipelineFiles.isNotEmpty()) {
                 appendLine("- **Pipeline files**: ${pipelineFiles.joinToString(", ")}")
@@ -466,12 +485,12 @@ class SpeckitDiscover(private val basePath: String) : LanguageModelToolRegistrat
         }
     }
 
-    private fun generateOpenQuestions(d: File): String {
+    private fun generateOpenQuestions(d: VirtualFile): String {
         return buildString {
             appendLine("Resolve the following by reading project files (do NOT ask the user):")
             appendLine()
 
-            val hasTests = listOf("src/test", "test", "tests").any { d.resolve(it).isDirectory }
+            val hasTests = listOf("src/test", "test", "tests").any { d.findFileByRelativePath(it)?.isDirectory == true }
 
             appendLine("### Resolve from build file and source code")
             appendLine("- Scope: Read source directories to identify service layer, domain logic, and utility packages")

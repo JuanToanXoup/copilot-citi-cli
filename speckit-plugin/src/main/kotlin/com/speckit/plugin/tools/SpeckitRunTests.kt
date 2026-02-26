@@ -4,6 +4,9 @@ import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelTool
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelToolResult
 import com.github.copilot.chat.conversation.agent.tool.LanguageModelToolRegistration
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
+import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VfsUtilCore
+import com.intellij.openapi.vfs.VirtualFile
 import java.io.File
 
 class SpeckitRunTests(private val basePath: String) : LanguageModelToolRegistration {
@@ -35,8 +38,9 @@ class SpeckitRunTests(private val basePath: String) : LanguageModelToolRegistrat
             else -> "$basePath/$path"
         }
 
-        val d = File(workDir)
-        if (!d.isDirectory) {
+        val lfs = LocalFileSystem.getInstance()
+        val d = lfs.findFileByIoFile(File(workDir))
+        if (d == null || !d.isDirectory) {
             return LanguageModelToolResult.Companion.error(
                 "Directory not found: $workDir (path='$path', basePath='$basePath'). " +
                 "Verify the path parameter points to a valid project directory."
@@ -48,7 +52,7 @@ class SpeckitRunTests(private val basePath: String) : LanguageModelToolRegistrat
         val memoryCommand = if (coverage) discovery?.coverageCommand else discovery?.testCommand
 
         val command = memoryCommand
-            ?: detectTestCommand(workDir, coverage)
+            ?: detectTestCommand(d, coverage)
             ?: return LanguageModelToolResult.Companion.error(
                 "No build system detected in '$workDir' (path='$path'). Looked for: build.gradle.kts, build.gradle, pom.xml, package.json, pyproject.toml, setup.py, go.mod. " +
                 "Run speckit_discover first, or provide the test command directly to run_in_terminal."
@@ -56,10 +60,11 @@ class SpeckitRunTests(private val basePath: String) : LanguageModelToolRegistrat
 
         val reportPath = discovery?.coverageReportPath
         val existingReport = if (reportPath != null) {
-            val f = File(if (reportPath.startsWith("/")) reportPath else "$workDir/$reportPath")
-            if (f.exists()) f.absolutePath else null
+            val fullPath = if (reportPath.startsWith("/")) reportPath else "$workDir/$reportPath"
+            val f = lfs.findFileByIoFile(File(fullPath))
+            if (f != null && !f.isDirectory) f.path else null
         } else null
-            ?: findCoverageReport(workDir)
+            ?: findCoverageReport(d)
 
         val source = if (memoryCommand != null) "discovery memory" else "auto-detect"
 
@@ -85,13 +90,14 @@ class SpeckitRunTests(private val basePath: String) : LanguageModelToolRegistrat
     }
 
     private fun readDiscoveryMemory(workDir: String): DiscoveryConfig? {
+        val lfs = LocalFileSystem.getInstance()
         // Check both the workDir and basePath for the memory file
         val candidates = listOf(
-            File(workDir, ".specify/memory/discovery-report.md"),
-            File(basePath, ".specify/memory/discovery-report.md")
+            lfs.findFileByIoFile(File(workDir, ".specify/memory/discovery-report.md")),
+            lfs.findFileByIoFile(File(basePath, ".specify/memory/discovery-report.md"))
         )
-        val memoryFile = candidates.firstOrNull { it.exists() } ?: return null
-        return parseDiscoveryReport(memoryFile.readText())
+        val memoryFile = candidates.firstOrNull { it != null && !it.isDirectory } ?: return null
+        return parseDiscoveryReport(VfsUtilCore.loadText(memoryFile))
     }
 
     private fun parseDiscoveryReport(content: String): DiscoveryConfig? {
@@ -122,26 +128,23 @@ class SpeckitRunTests(private val basePath: String) : LanguageModelToolRegistrat
         val coverageReportFormat: String?
     )
 
-    private fun detectTestCommand(dir: String, coverage: Boolean): String? {
-        val d = File(dir)
+    private fun detectTestCommand(d: VirtualFile, coverage: Boolean): String? {
         return when {
-            d.resolve("build.gradle.kts").exists() || d.resolve("build.gradle").exists() ->
+            d.findChild("build.gradle.kts") != null || d.findChild("build.gradle") != null ->
                 if (coverage) "./gradlew test jacocoTestReport" else "./gradlew test"
-            d.resolve("pom.xml").exists() ->
+            d.findChild("pom.xml") != null ->
                 if (coverage) "mvn test jacoco:report" else "mvn test"
-            d.resolve("package.json").exists() ->
+            d.findChild("package.json") != null ->
                 if (coverage) "npm test -- --coverage" else "npm test"
-            d.resolve("pyproject.toml").exists() || d.resolve("setup.py").exists() ->
+            d.findChild("pyproject.toml") != null || d.findChild("setup.py") != null ->
                 if (coverage) "pytest --cov --cov-report=json --cov-report=term" else "pytest"
-            d.resolve("go.mod").exists() ->
+            d.findChild("go.mod") != null ->
                 if (coverage) "go test -coverprofile=coverage.out -covermode=atomic ./..." else "go test ./..."
             else -> null
         }
     }
 
-    private fun findCoverageReport(dir: String): String? {
-        val d = File(dir)
-
+    private fun findCoverageReport(d: VirtualFile): String? {
         // 1. Check well-known static paths first
         val staticCandidates = listOf(
             "build/reports/jacoco/test/jacocoTestReport.xml",
@@ -153,19 +156,34 @@ class SpeckitRunTests(private val basePath: String) : LanguageModelToolRegistrat
             "htmlcov/coverage.json",
             "coverage.out",
         )
-        staticCandidates.map { d.resolve(it) }.firstOrNull { it.exists() }?.let { return it.absolutePath }
+        for (candidate in staticCandidates) {
+            val vf = d.findFileByRelativePath(candidate)
+            if (vf != null && !vf.isDirectory) return vf.path
+        }
 
         // 2. Recursive fallback — handles multi-module projects
         val reportFileNames = setOf(
             "jacocoTestReport.xml", "jacoco.xml", "lcov.info",
             "coverage-final.json", "clover.xml", "coverage.out", "index.html"
         )
-        return d.walkTopDown()
-            .maxDepth(5)
-            .filter { it.isFile && it.name in reportFileNames }
-            .filter { it.name != "index.html" || it.parentFile?.name == "jacoco" }  // only jacoco html index
-            .sortedByDescending { it.lastModified() }
+        val results = mutableListOf<VirtualFile>()
+        val rootSlashCount = d.path.count { it == '/' }
+        VfsUtilCore.iterateChildrenRecursively(
+            d,
+            { dir -> dir.path.count { it == '/' } - rootSlashCount < 5 },
+            { child ->
+                if (!child.isDirectory && child.name in reportFileNames) {
+                    // Only include index.html from jacoco directories
+                    if (child.name != "index.html" || child.parent?.name == "jacoco") {
+                        results.add(child)
+                    }
+                }
+                true
+            }
+        )
+        return results
+            .sortedByDescending { it.timeStamp }
             .firstOrNull()
-            ?.absolutePath
+            ?.path
     }
 }

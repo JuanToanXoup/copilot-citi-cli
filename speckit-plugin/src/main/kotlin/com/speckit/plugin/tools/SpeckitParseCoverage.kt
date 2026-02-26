@@ -4,6 +4,9 @@ import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelTool
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelToolResult
 import com.github.copilot.chat.conversation.agent.tool.LanguageModelToolRegistration
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
+import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VfsUtilCore
+import com.intellij.openapi.vfs.VirtualFile
 import java.io.File
 
 class SpeckitParseCoverage(private val basePath: String) : LanguageModelToolRegistration {
@@ -35,8 +38,9 @@ class SpeckitParseCoverage(private val basePath: String) : LanguageModelToolRegi
             else -> "$basePath/$path"
         }
 
-        val d = File(workDir)
-        if (!d.isDirectory) {
+        val lfs = LocalFileSystem.getInstance()
+        val d = lfs.findFileByIoFile(File(workDir))
+        if (d == null || !d.isDirectory) {
             return LanguageModelToolResult.Companion.error(
                 "Directory not found: $workDir (path='$path', basePath='$basePath'). " +
                 "If this is a file path, use the report_path parameter instead."
@@ -44,15 +48,16 @@ class SpeckitParseCoverage(private val basePath: String) : LanguageModelToolRegi
         }
 
         val reportFile = if (explicitReport != null) {
-            val f = File(if (explicitReport.startsWith("/")) explicitReport else "$workDir/$explicitReport")
-            if (!f.exists()) return LanguageModelToolResult.Companion.error(
-                "Report not found: ${f.absolutePath} (report_path='$explicitReport', workDir='$workDir')"
+            val reportPath = if (explicitReport.startsWith("/")) explicitReport else "$workDir/$explicitReport"
+            val f = lfs.findFileByIoFile(File(reportPath))
+            if (f == null || f.isDirectory) return LanguageModelToolResult.Companion.error(
+                "Report not found: $reportPath (report_path='$explicitReport', workDir='$workDir')"
             )
             f
         } else {
             // Try discovery memory first for the known report path
             findFromDiscoveryMemory(workDir)
-                ?: findCoverageReport(workDir)
+                ?: findCoverageReport(d)
                 ?: return LanguageModelToolResult.Companion.error(
                     "No coverage report found in '$workDir'. Run speckit_run_tests with coverage=true first.\n" +
                     "Checked discovery memory, static paths, and recursive search.\n" +
@@ -60,21 +65,22 @@ class SpeckitParseCoverage(private val basePath: String) : LanguageModelToolRegi
                 )
         }
 
-        val content = reportFile.readText()
+        val content = VfsUtilCore.loadText(reportFile)
         val format = detectFormat(reportFile.name)
 
         return LanguageModelToolResult.Companion.success(
-            "Coverage report: ${reportFile.absolutePath}\nFormat: $format\nSize: ${content.length} chars\n\n$content"
+            "Coverage report: ${reportFile.path}\nFormat: $format\nSize: ${content.length} chars\n\n$content"
         )
     }
 
-    private fun findFromDiscoveryMemory(workDir: String): File? {
+    private fun findFromDiscoveryMemory(workDir: String): VirtualFile? {
+        val lfs = LocalFileSystem.getInstance()
         val candidates = listOf(
-            File(workDir, ".specify/memory/discovery-report.md"),
-            File(basePath, ".specify/memory/discovery-report.md")
+            lfs.findFileByIoFile(File(workDir, ".specify/memory/discovery-report.md")),
+            lfs.findFileByIoFile(File(basePath, ".specify/memory/discovery-report.md"))
         )
-        val memoryFile = candidates.firstOrNull { it.exists() } ?: return null
-        val content = memoryFile.readText()
+        val memoryFile = candidates.firstOrNull { it != null && !it.isDirectory } ?: return null
+        val content = VfsUtilCore.loadText(memoryFile)
 
         // Extract coverage report path from the discovery report
         val regex = Regex("""\*\*Coverage report path\*\*:\s*\[?(.+?)\]?\s*$""", RegexOption.MULTILINE)
@@ -82,13 +88,12 @@ class SpeckitParseCoverage(private val basePath: String) : LanguageModelToolRegi
         val reportPath = match.groupValues[1].trim()
         if (reportPath.startsWith("e.g.,") || reportPath == "UNKNOWN" || reportPath.isEmpty()) return null
 
-        val f = File(if (reportPath.startsWith("/")) reportPath else "$workDir/$reportPath")
-        return if (f.exists()) f else null
+        val fullPath = if (reportPath.startsWith("/")) reportPath else "$workDir/$reportPath"
+        val f = lfs.findFileByIoFile(File(fullPath))
+        return if (f != null && !f.isDirectory) f else null
     }
 
-    private fun findCoverageReport(dir: String): File? {
-        val d = File(dir)
-
+    private fun findCoverageReport(d: VirtualFile): VirtualFile? {
         // 1. Check well-known static paths first
         val staticCandidates = listOf(
             "build/reports/jacoco/test/jacocoTestReport.xml",
@@ -99,17 +104,30 @@ class SpeckitParseCoverage(private val basePath: String) : LanguageModelToolRegi
             "htmlcov/coverage.json",
             "coverage.out",
         )
-        staticCandidates.map { d.resolve(it) }.firstOrNull { it.exists() }?.let { return it }
+        for (candidate in staticCandidates) {
+            val vf = d.findFileByRelativePath(candidate)
+            if (vf != null && !vf.isDirectory) return vf
+        }
 
         // 2. Recursive fallback — handles multi-module projects, non-standard paths
         val reportFileNames = setOf(
             "jacocoTestReport.xml", "jacoco.xml", "lcov.info",
             "coverage-final.json", "clover.xml", "coverage.out"
         )
-        return d.walkTopDown()
-            .maxDepth(5)
-            .filter { it.isFile && it.name in reportFileNames }
-            .sortedByDescending { it.lastModified() }  // most recent first
+        val results = mutableListOf<VirtualFile>()
+        val rootSlashCount = d.path.count { it == '/' }
+        VfsUtilCore.iterateChildrenRecursively(
+            d,
+            { dir -> dir.path.count { it == '/' } - rootSlashCount < 5 },
+            { child ->
+                if (!child.isDirectory && child.name in reportFileNames) {
+                    results.add(child)
+                }
+                true
+            }
+        )
+        return results
+            .sortedByDescending { it.timeStamp }  // most recent first
             .firstOrNull()
     }
 

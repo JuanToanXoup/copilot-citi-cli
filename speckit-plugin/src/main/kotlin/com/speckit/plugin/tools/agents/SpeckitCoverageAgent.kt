@@ -4,6 +4,8 @@ import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelTool
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelToolResult
 import com.github.copilot.chat.conversation.agent.tool.LanguageModelToolRegistration
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
+import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VfsUtilCore
 import java.io.File
 
 class SpeckitCoverageAgent(private val basePath: String) : LanguageModelToolRegistration {
@@ -41,10 +43,11 @@ class SpeckitCoverageAgent(private val basePath: String) : LanguageModelToolRegi
             appendLine()
 
             // Constitution
-            val constitution = File(basePath, ".specify/memory/constitution.md")
-            if (constitution.exists()) {
+            val constitution = LocalFileSystem.getInstance()
+                .findFileByIoFile(File(basePath, ".specify/memory/constitution.md"))
+            if (constitution != null && !constitution.isDirectory) {
                 appendLine("## Project Constitution")
-                appendLine(constitution.readText())
+                appendLine(VfsUtilCore.loadText(constitution))
                 appendLine()
             }
 
@@ -91,7 +94,7 @@ The pipeline has two layers:
 5. For each feature spec, run the full pipeline:
    - **Specify**: gap inventory (which methods/branches are uncovered)
    - **Clarify**: technical decisions (mock strategies, DI, async, edge cases)
-   - **Plan**: test architecture (dependency order, fixtures, batching)
+   - **Plan**: test architecture (dependency order, fixtures, coverage prediction)
    - **Tasks**: per-method test scenarios (happy path, error, edge cases)
    - **Analyze**: validate completeness (every method has a test, conventions followed)
    - **Implement**: write tests, self-heal, measure coverage

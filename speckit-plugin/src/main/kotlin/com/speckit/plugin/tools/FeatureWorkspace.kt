@@ -1,5 +1,6 @@
 package com.speckit.plugin.tools
 
+import com.intellij.openapi.vfs.LocalFileSystem
 import java.io.File
 
 // Kotlin reimplementation of .specify/scripts/bash/common.sh
@@ -37,10 +38,11 @@ object FeatureWorkspace {
         } catch (_: Exception) {}
 
         // 3. Latest feature directory as fallback
-        val specsDir = File(basePath, "specs")
-        if (specsDir.isDirectory) {
-            specsDir.listFiles { f -> f.isDirectory && FEATURE_BRANCH_PATTERN.containsMatchIn(f.name) }
-                ?.maxByOrNull { it.name.substring(0, 3).toIntOrNull() ?: 0 }
+        val specsDir = LocalFileSystem.getInstance().findFileByIoFile(File(basePath, "specs"))
+        if (specsDir != null && specsDir.isDirectory) {
+            specsDir.children
+                .filter { it.isDirectory && FEATURE_BRANCH_PATTERN.containsMatchIn(it.name) }
+                .maxByOrNull { it.name.substring(0, 3).toIntOrNull() ?: 0 }
                 ?.let { return it.name }
         }
 
@@ -52,18 +54,20 @@ object FeatureWorkspace {
 
     // Find feature dir by numeric prefix (supports multiple branches per spec)
     fun findFeatureDir(basePath: String, branchName: String): String {
-        val specsDir = File(basePath, "specs")
-        val match = Regex("^(\\d{3})-").find(branchName) ?: return File(specsDir, branchName).absolutePath
+        val specsPath = "$basePath/specs"
+        val match = Regex("^(\\d{3})-").find(branchName) ?: return "$specsPath/$branchName"
 
         val prefix = match.groupValues[1]
-        if (!specsDir.isDirectory) return File(specsDir, branchName).absolutePath
+        val specsDir = LocalFileSystem.getInstance().findFileByIoFile(File(specsPath))
+        if (specsDir == null || !specsDir.isDirectory) return "$specsPath/$branchName"
 
-        val matches = specsDir.listFiles { f -> f.isDirectory && f.name.startsWith("$prefix-") }
-            ?.map { it.name } ?: emptyList()
+        val matches = specsDir.children
+            .filter { it.isDirectory && it.name.startsWith("$prefix-") }
+            .map { it.name }
 
         return when (matches.size) {
-            1 -> File(specsDir, matches[0]).absolutePath
-            else -> File(specsDir, branchName).absolutePath
+            1 -> "$specsPath/${matches[0]}"
+            else -> "$specsPath/$branchName"
         }
     }
 
@@ -99,9 +103,9 @@ object FeatureWorkspace {
         var highest = 0
 
         // Check specs directory
-        val specsDir = File(basePath, "specs")
-        if (specsDir.isDirectory) {
-            specsDir.listFiles { f -> f.isDirectory }?.forEach { dir ->
+        val specsDir = LocalFileSystem.getInstance().findFileByIoFile(File(basePath, "specs"))
+        if (specsDir != null && specsDir.isDirectory) {
+            specsDir.children.filter { it.isDirectory }.forEach { dir ->
                 val num = Regex("^(\\d+)").find(dir.name)?.groupValues?.get(1)?.toIntOrNull() ?: 0
                 if (num > highest) highest = num
             }

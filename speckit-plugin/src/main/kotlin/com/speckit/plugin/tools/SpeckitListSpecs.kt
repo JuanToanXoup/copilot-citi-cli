@@ -4,6 +4,7 @@ import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelTool
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelToolResult
 import com.github.copilot.chat.conversation.agent.tool.LanguageModelToolRegistration
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
+import com.intellij.openapi.vfs.LocalFileSystem
 import java.io.File
 
 class SpeckitListSpecs(private val basePath: String) : LanguageModelToolRegistration {
@@ -24,14 +25,14 @@ class SpeckitListSpecs(private val basePath: String) : LanguageModelToolRegistra
     override suspend fun handleInvocation(
         request: ToolInvocationRequest
     ): LanguageModelToolResult {
-        val specsDir = File(basePath, "specs")
-        if (!specsDir.isDirectory) {
+        val specsDir = LocalFileSystem.getInstance().findFileByIoFile(File(basePath, "specs"))
+        if (specsDir == null || !specsDir.isDirectory) {
             return LanguageModelToolResult.Companion.success("No specs/ directory found. Use speckit_setup_feature to create a feature first.")
         }
 
-        val features = specsDir.listFiles { f -> f.isDirectory }
-            ?.sortedBy { it.name }
-            ?: emptyList()
+        val features = specsDir.children
+            .filter { it.isDirectory }
+            .sortedBy { it.name }
 
         if (features.isEmpty()) {
             return LanguageModelToolResult.Companion.success("specs/ directory is empty. Use speckit_setup_feature to create a feature.")
@@ -41,7 +42,7 @@ class SpeckitListSpecs(private val basePath: String) : LanguageModelToolRegistra
             appendLine("Feature specs (${features.size}):")
             for (feature in features) {
                 appendLine("- ${feature.name}/")
-                val files = feature.listFiles { f -> f.isFile }?.sortedBy { it.name } ?: emptyList()
+                val files = feature.children.filter { !it.isDirectory }.sortedBy { it.name }
                 for (file in files) {
                     appendLine("    ${file.name}")
                 }

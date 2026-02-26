@@ -4,6 +4,8 @@ import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelTool
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelToolResult
 import com.github.copilot.chat.conversation.agent.tool.LanguageModelToolRegistration
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
+import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VfsUtilCore
 import com.speckit.plugin.tools.ResourceLoader
 import com.speckit.plugin.tools.ScriptRunner
 import java.io.File
@@ -52,10 +54,11 @@ abstract class AgentTool(
             }
 
             // Constitution (governance rules agents must follow)
-            val constitution = File(basePath, ".specify/memory/constitution.md")
-            if (constitution.exists()) {
+            val constitution = LocalFileSystem.getInstance()
+                .findFileByIoFile(File(basePath, ".specify/memory/constitution.md"))
+            if (constitution != null && !constitution.isDirectory) {
                 appendLine("## Constitution")
-                appendLine(constitution.readText())
+                appendLine(VfsUtilCore.loadText(constitution))
                 appendLine()
             }
 
@@ -84,13 +87,14 @@ abstract class AgentTool(
 
     protected fun readFeatureArtifact(featureDir: String, fileName: String): String? {
         // Feature artifacts are project-only (no bundled fallback)
-        val file = File(basePath, "specs/$featureDir/$fileName")
-        return if (file.exists()) file.readText() else null
+        val file = LocalFileSystem.getInstance()
+            .findFileByIoFile(File(basePath, "specs/$featureDir/$fileName"))
+        return if (file != null && !file.isDirectory) VfsUtilCore.loadText(file) else null
     }
 
     protected fun findCurrentFeatureDir(): String? {
-        val specsDir = File(basePath, "specs")
-        if (!specsDir.isDirectory) return null
+        val specsDir = LocalFileSystem.getInstance().findFileByIoFile(File(basePath, "specs"))
+        if (specsDir == null || !specsDir.isDirectory) return null
 
         val result = ScriptRunner.exec(listOf("git", "rev-parse", "--abbrev-ref", "HEAD"), basePath)
         if (!result.success) return null
@@ -99,7 +103,8 @@ abstract class AgentTool(
         val match = Regex("^(\\d{3})-").find(branch) ?: return null
         val prefix = match.groupValues[1]
 
-        return specsDir.listFiles { f -> f.isDirectory && f.name.startsWith(prefix) }
-            ?.firstOrNull()?.name
+        return specsDir.children
+            .filter { it.isDirectory && it.name.startsWith(prefix) }
+            .firstOrNull()?.name
     }
 }

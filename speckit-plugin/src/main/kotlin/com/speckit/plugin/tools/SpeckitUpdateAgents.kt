@@ -4,6 +4,9 @@ import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelTool
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelToolResult
 import com.github.copilot.chat.conversation.agent.tool.LanguageModelToolRegistration
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
+import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VfsUtilCore
+import com.intellij.openapi.vfs.VirtualFile
 import java.io.File
 import java.time.LocalDate
 
@@ -63,11 +66,12 @@ class SpeckitUpdateAgents(
         request: ToolInvocationRequest
     ): LanguageModelToolResult {
         val agentType = request.input?.get("agent_type")?.asString
+        val lfs = LocalFileSystem.getInstance()
 
         val paths = FeatureWorkspace.getFeaturePaths(basePath)
 
-        val planFile = File(paths.implPlan)
-        if (!planFile.isFile) {
+        val planFile = lfs.findFileByIoFile(File(paths.implPlan))
+        if (planFile == null || planFile.isDirectory) {
             return LanguageModelToolResult.Companion.error(
                 "No plan.md found at ${paths.implPlan}\n" +
                 "Make sure you're working on a feature with a plan."
@@ -88,8 +92,8 @@ class SpeckitUpdateAgents(
         } else {
             var foundAgent = false
             for ((_, config) in agentConfigs) {
-                val targetFile = File(basePath, config.relativePath)
-                if (targetFile.isFile) {
+                val targetFile = lfs.findFileByIoFile(File(basePath, config.relativePath))
+                if (targetFile != null && !targetFile.isDirectory) {
                     filesToWrite.add(generateFileAction(config, planData, paths.currentBranch, currentDate))
                     foundAgent = true
                 }
@@ -139,8 +143,8 @@ class SpeckitUpdateAgents(
         branch: String,
         currentDate: String
     ): FileAction {
-        val targetFile = File(basePath, config.relativePath)
-        return if (targetFile.isFile) {
+        val targetFile = LocalFileSystem.getInstance().findFileByIoFile(File(basePath, config.relativePath))
+        return if (targetFile != null && !targetFile.isDirectory) {
             FileAction(
                 config.relativePath, config.displayName, "update",
                 generateUpdatedContent(targetFile, planData, branch, currentDate)
@@ -158,7 +162,7 @@ class SpeckitUpdateAgents(
         if (template == null) {
             val techStack = formatTechStack(planData)
             return buildString {
-                appendLine("# ${File(basePath).name}")
+                appendLine("# ${basePath.substringAfterLast('/')}")
                 appendLine()
                 appendLine("**Last updated**: $currentDate")
                 appendLine()
@@ -172,7 +176,7 @@ class SpeckitUpdateAgents(
             }
         }
 
-        val projectName = File(basePath).name
+        val projectName = basePath.substringAfterLast('/')
         val techStack = formatTechStack(planData)
         val techEntry = if (techStack.isNotBlank()) "- $techStack ($branch)" else "- ($branch)"
         val recentChange = if (techStack.isNotBlank()) "- $branch: Added $techStack" else "- $branch: Added"
@@ -205,14 +209,14 @@ class SpeckitUpdateAgents(
     }
 
     private fun generateUpdatedContent(
-        targetFile: File,
+        targetFile: VirtualFile,
         planData: PlanData,
         branch: String,
         currentDate: String
     ): String {
-        val lines = targetFile.readLines()
+        val existingContent = VfsUtilCore.loadText(targetFile)
+        val lines = existingContent.lines()
         val techStack = formatTechStack(planData)
-        val existingContent = targetFile.readText()
 
         val newTechEntries = mutableListOf<String>()
         if (techStack.isNotBlank() && !existingContent.contains(techStack)) {
@@ -294,8 +298,8 @@ class SpeckitUpdateAgents(
         return output.toString()
     }
 
-    private fun parsePlanData(planFile: File): PlanData {
-        val content = planFile.readText()
+    private fun parsePlanData(planFile: VirtualFile): PlanData {
+        val content = VfsUtilCore.loadText(planFile)
         return PlanData(
             language = extractPlanField(content, "Language/Version"),
             framework = extractPlanField(content, "Primary Dependencies"),

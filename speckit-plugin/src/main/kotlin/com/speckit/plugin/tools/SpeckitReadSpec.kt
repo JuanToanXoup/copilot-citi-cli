@@ -4,6 +4,8 @@ import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelTool
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelToolResult
 import com.github.copilot.chat.conversation.agent.tool.LanguageModelToolRegistration
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
+import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VfsUtilCore
 import java.io.File
 
 class SpeckitReadSpec(private val basePath: String) : LanguageModelToolRegistration {
@@ -32,12 +34,12 @@ class SpeckitReadSpec(private val basePath: String) : LanguageModelToolRegistrat
         val fileName = request.input?.get("file")?.asString
             ?: return LanguageModelToolResult.Companion.error("Missing required parameter: file")
 
-        val file = File(basePath, "specs/$feature/$fileName")
+        val file = LocalFileSystem.getInstance().findFileByIoFile(File(basePath, "specs/$feature/$fileName"))
 
-        if (!file.exists()) {
+        if (file == null || file.isDirectory) {
             return LanguageModelToolResult.Companion.error("File not found: specs/$feature/$fileName")
         }
 
-        return LanguageModelToolResult.Companion.success(file.readText())
+        return LanguageModelToolResult.Companion.success(VfsUtilCore.loadText(file))
     }
 }

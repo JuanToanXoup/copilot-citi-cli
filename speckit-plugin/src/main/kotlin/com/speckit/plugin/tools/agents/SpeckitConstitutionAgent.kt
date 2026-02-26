@@ -1,6 +1,7 @@
 package com.speckit.plugin.tools.agents
 
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
+import com.intellij.openapi.vfs.LocalFileSystem
 import java.io.File
 
 class SpeckitConstitutionAgent(private val basePath: String) : AgentTool(
@@ -26,9 +27,10 @@ class SpeckitConstitutionAgent(private val basePath: String) : AgentTool(
             }
 
             // List dependent templates that may need sync
-            val templatesDir = File(basePath, ".specify/templates")
-            if (templatesDir.isDirectory) {
-                val templates = templatesDir.listFiles { f -> f.isFile }?.map { it.name } ?: emptyList()
+            val templatesDir = LocalFileSystem.getInstance()
+                .findFileByIoFile(File(basePath, ".specify/templates"))
+            if (templatesDir != null && templatesDir.isDirectory) {
+                val templates = templatesDir.children.filter { !it.isDirectory }.map { it.name }
                 appendLine("## Dependent Templates (for sync validation)")
                 templates.forEach { appendLine("- $it") }
                 appendLine()

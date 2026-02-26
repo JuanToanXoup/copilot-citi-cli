@@ -4,6 +4,7 @@ import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelTool
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelToolResult
 import com.github.copilot.chat.conversation.agent.tool.LanguageModelToolRegistration
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
+import com.intellij.openapi.vfs.LocalFileSystem
 import java.io.File
 
 class SpeckitAnalyzeProject(
@@ -39,6 +40,7 @@ class SpeckitAnalyzeProject(
         val includeTasks = request.input?.get("include_tasks")?.asBoolean ?: false
 
         val paths = FeatureWorkspace.getFeaturePaths(basePath)
+        val lfs = LocalFileSystem.getInstance()
 
         // paths-only mode: return paths without validation
         if (mode == "paths-only") {
@@ -56,7 +58,8 @@ class SpeckitAnalyzeProject(
         }
 
         // Validate feature directory exists
-        if (!File(paths.featureDir).isDirectory) {
+        val featureDirVf = lfs.findFileByIoFile(File(paths.featureDir))
+        if (featureDirVf == null || !featureDirVf.isDirectory) {
             return LanguageModelToolResult.Companion.error(
                 "Feature directory not found: ${paths.featureDir}\n" +
                 "Run speckit_setup_feature first to create the feature structure."
@@ -64,7 +67,8 @@ class SpeckitAnalyzeProject(
         }
 
         // Validate plan.md exists
-        if (!File(paths.implPlan).isFile) {
+        val planVf = lfs.findFileByIoFile(File(paths.implPlan))
+        if (planVf == null || planVf.isDirectory) {
             return LanguageModelToolResult.Companion.error(
                 "plan.md not found in ${paths.featureDir}\n" +
                 "Run speckit_setup_plan first to create the implementation plan."
@@ -72,7 +76,8 @@ class SpeckitAnalyzeProject(
         }
 
         // Validate tasks.md if required
-        if (requireTasks && !File(paths.tasks).isFile) {
+        val tasksVf = lfs.findFileByIoFile(File(paths.tasks))
+        if (requireTasks && (tasksVf == null || tasksVf.isDirectory)) {
             return LanguageModelToolResult.Companion.error(
                 "tasks.md not found in ${paths.featureDir}\n" +
                 "Run speckit_tasks first to create the task list."
@@ -81,14 +86,17 @@ class SpeckitAnalyzeProject(
 
         // Build list of available documents
         val docs = mutableListOf<String>()
-        if (File(paths.research).isFile) docs.add("research.md")
-        if (File(paths.dataModel).isFile) docs.add("data-model.md")
-        val contractsDir = File(paths.contractsDir)
-        if (contractsDir.isDirectory && (contractsDir.listFiles()?.isNotEmpty() == true)) {
+        val researchVf = lfs.findFileByIoFile(File(paths.research))
+        if (researchVf != null && !researchVf.isDirectory) docs.add("research.md")
+        val dataModelVf = lfs.findFileByIoFile(File(paths.dataModel))
+        if (dataModelVf != null && !dataModelVf.isDirectory) docs.add("data-model.md")
+        val contractsVf = lfs.findFileByIoFile(File(paths.contractsDir))
+        if (contractsVf != null && contractsVf.isDirectory && contractsVf.children.isNotEmpty()) {
             docs.add("contracts/")
         }
-        if (File(paths.quickstart).isFile) docs.add("quickstart.md")
-        if (includeTasks && File(paths.tasks).isFile) docs.add("tasks.md")
+        val quickstartVf = lfs.findFileByIoFile(File(paths.quickstart))
+        if (quickstartVf != null && !quickstartVf.isDirectory) docs.add("quickstart.md")
+        if (includeTasks && tasksVf != null && !tasksVf.isDirectory) docs.add("tasks.md")
 
         // JSON output
         val jsonDocs = docs.joinToString(",") { "\"$it\"" }
