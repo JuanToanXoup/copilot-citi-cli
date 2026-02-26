@@ -156,10 +156,22 @@ abstract class SubagentTool(
                 if (!"$/progress".equals(name.trim(), ignoreCase = true)) return@JsonRpcNotificationListener false
                 try {
                     val progress = JsonRPC.parseResponse(message, ConversationProgress::class.java)
-                        ?: return@JsonRpcNotificationListener false
-                    if (progress.token != token) return@JsonRpcNotificationListener false
+                    if (progress == null) {
+                        log.info("[$toolName] Progress parse returned null")
+                        return@JsonRpcNotificationListener false
+                    }
+                    val progressToken = progress.token
+                    if (progressToken != token) {
+                        log.info("[$toolName] Token mismatch: got '$progressToken', expected '$token'")
+                        return@JsonRpcNotificationListener false
+                    }
 
-                    val value = progress.value ?: return@JsonRpcNotificationListener false
+                    val value = progress.value
+                    if (value == null) {
+                        log.info("[$toolName] Progress value is null")
+                        return@JsonRpcNotificationListener false
+                    }
+                    log.info("[$toolName] Progress kind=${value.kind}, reply=${value.reply?.take(80)}, steps=${value.steps?.size ?: 0}")
                     if (value.isReport()) {
                         // Capture streaming text reply
                         value.reply?.let {
