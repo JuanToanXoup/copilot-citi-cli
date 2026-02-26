@@ -137,15 +137,18 @@ class SpeckitRunTests : LanguageModelToolRegistration {
     )
 
     private fun detectTestCommand(d: VirtualFile, coverage: Boolean): String? {
+        // Use batch/quiet flags to reduce terminal output — verbose Maven/Gradle output
+        // overflows the IntelliJ terminal buffer (25 rows) causing JediTerm SEVERE errors
+        // and connection drops. The coverage report is read from disk, not terminal output.
         return when {
             d.findChild("build.gradle.kts") != null || d.findChild("build.gradle") != null ->
-                if (coverage) "./gradlew test jacocoTestReport" else "./gradlew test"
+                if (coverage) "./gradlew test jacocoTestReport --console=plain -q" else "./gradlew test --console=plain -q"
             d.findChild("pom.xml") != null ->
-                if (coverage) "mvn test jacoco:report" else "mvn test"
+                if (coverage) "mvn test jacoco:report -B -q" else "mvn test -B -q"
             d.findChild("package.json") != null ->
                 if (coverage) "npm test -- --coverage" else "npm test"
             d.findChild("pyproject.toml") != null || d.findChild("setup.py") != null ->
-                if (coverage) "pytest --cov --cov-report=json --cov-report=term" else "pytest"
+                if (coverage) "pytest --cov --cov-report=json --cov-report=term -q" else "pytest -q"
             d.findChild("go.mod") != null ->
                 if (coverage) "go test -coverprofile=coverage.out -covermode=atomic ./..." else "go test ./..."
             else -> null
