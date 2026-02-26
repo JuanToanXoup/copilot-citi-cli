@@ -10,6 +10,8 @@ import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class SpeckitRunTests : LanguageModelToolRegistration {
 
@@ -40,11 +42,10 @@ class SpeckitRunTests : LanguageModelToolRegistration {
 
         val path = request.input?.get("path")?.asString ?: "."
         val coverage = request.input?.get("coverage")?.asBoolean ?: true
-        val workDir = when {
-            path == "." -> basePath
-            path.startsWith("/") -> path
-            else -> "$basePath/$path"
-        }
+        val workDir = PathSandbox.resolveWorkDir(basePath, path)
+            ?: return LanguageModelToolResult.Companion.error(
+                "Path '$path' resolves outside the project root"
+            )
 
         val lfs = LocalFileSystem.getInstance()
         val d = lfs.findFileByIoFile(File(workDir))
@@ -55,22 +56,26 @@ class SpeckitRunTests : LanguageModelToolRegistration {
             )
         }
 
+        return withContext(Dispatchers.IO) {
         // Check discovery memory first
         val discovery = readDiscoveryMemory(workDir, basePath)
         val memoryCommand = if (coverage) discovery?.coverageCommand else discovery?.testCommand
 
         val command = memoryCommand
             ?: detectTestCommand(d, coverage)
-            ?: return LanguageModelToolResult.Companion.error(
+            ?: return@withContext LanguageModelToolResult.Companion.error(
                 "No build system detected in '$workDir' (path='$path'). Looked for: build.gradle.kts, build.gradle, pom.xml, package.json, pyproject.toml, setup.py, go.mod. " +
                 "Run speckit_discover first, or provide the test command directly to run_in_terminal."
             )
 
         val reportPath = discovery?.coverageReportPath
         val existingReport = if (reportPath != null) {
-            val fullPath = if (reportPath.startsWith("/")) reportPath else "$workDir/$reportPath"
-            val f = lfs.findFileByIoFile(File(fullPath))
-            if (f != null && !f.isDirectory) f.path else null
+            val fullPath = PathSandbox.resolve(workDir, reportPath)
+                ?: if (reportPath.startsWith("/")) null else "$workDir/$reportPath"
+            if (fullPath != null) {
+                val f = lfs.findFileByIoFile(File(fullPath))
+                if (f != null && !f.isDirectory) f.path else null
+            } else null
         } else null
             ?: findCoverageReport(d)
 
@@ -94,7 +99,8 @@ class SpeckitRunTests : LanguageModelToolRegistration {
             appendLine("2. After tests complete, use `speckit_parse_coverage` to analyze the report")
         }
 
-        return LanguageModelToolResult.Companion.success(output)
+        LanguageModelToolResult.Companion.success(output)
+        }
     }
 
     private fun readDiscoveryMemory(workDir: String, basePath: String): DiscoveryConfig? {

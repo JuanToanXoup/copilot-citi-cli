@@ -21,7 +21,7 @@ class SpeckitSetupFeature : LanguageModelToolRegistration {
             ),
             "required" to listOf("description")
         ),
-        null,
+        mapOf("title" to "Setup Feature", "message" to "Create feature branch and spec directory."),
         "function",
         "enabled"
     )

@@ -17,7 +17,7 @@ class SpeckitSetupPlan : LanguageModelToolRegistration {
             "properties" to mapOf<String, Any>(),
             "required" to listOf<String>()
         ),
-        null,
+        mapOf("title" to "Setup Plan", "message" to "Create plan.md in feature directory."),
         "function",
         "enabled"
     )

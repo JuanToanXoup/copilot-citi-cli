@@ -9,6 +9,8 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtilCore
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class SpeckitReadSpec : LanguageModelToolRegistration {
 
@@ -42,12 +44,22 @@ class SpeckitReadSpec : LanguageModelToolRegistration {
         val fileName = request.input?.get("file")?.asString
             ?: return LanguageModelToolResult.Companion.error("Missing required parameter: file")
 
+        if (!PathSandbox.isSafeName(feature)) {
+            return LanguageModelToolResult.Companion.error("Invalid feature name: '$feature'")
+        }
+        if (!PathSandbox.isSafeName(fileName)) {
+            return LanguageModelToolResult.Companion.error("Invalid file name: '$fileName'")
+        }
+
         val file = LocalFileSystem.getInstance().findFileByIoFile(File(basePath, "specs/$feature/$fileName"))
 
         if (file == null || file.isDirectory) {
             return LanguageModelToolResult.Companion.error("File not found: $basePath/specs/$feature/$fileName")
         }
 
-        return LanguageModelToolResult.Companion.success(VfsUtilCore.loadText(file))
+        val content = withContext(Dispatchers.IO) {
+            VfsUtilCore.loadText(file)
+        }
+        return LanguageModelToolResult.Companion.success(content)
     }
 }

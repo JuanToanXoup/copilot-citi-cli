@@ -8,9 +8,12 @@ import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtilCore
+import com.speckit.plugin.tools.PathSandbox
 import com.speckit.plugin.tools.ResourceLoader
 import com.speckit.plugin.tools.ScriptRunner
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 abstract class AgentTool(
     private val toolName: String,
@@ -42,52 +45,57 @@ abstract class AgentTool(
                 "Agent definition not found: $agentFileName (checked project .github/agents/ and bundled resources)"
             )
 
-        val context = buildString {
-            appendLine("# Agent: $toolName")
-            appendLine()
+        val context = withContext(Dispatchers.IO) {
+            buildString {
+                appendLine("# Agent: $toolName")
+                appendLine()
 
-            appendLine("## File Discovery Rules")
-            appendLine("- **NEVER construct file paths by guessing.** Use `run_in_terminal` with `find` to locate files first.")
-            appendLine("- Example: `find ${basePath}/src -name \"ClassName.java\" -type f`")
-            appendLine("- Only pass absolute paths from `find` output to `read_file`.")
-            appendLine()
+                appendLine("## File Discovery Rules")
+                appendLine("- **NEVER construct file paths by guessing.** Use `run_in_terminal` with `find` to locate files first.")
+                appendLine("- Example: `find ${basePath}/src -name \"ClassName.java\" -type f`")
+                appendLine("- Only pass absolute paths from `find` output to `read_file`.")
+                appendLine()
 
-            // Project context from prerequisites (only if script exists)
-            if (ResourceLoader.hasScript(basePath, "check-prerequisites.sh")) {
-                val prereqResult = ScriptRunner.execScript(
-                    "$basePath/.specify/scripts/bash/check-prerequisites.sh",
-                    listOf("--json"),
-                    basePath
-                )
-                if (prereqResult.success) {
-                    appendLine("## Project Context")
-                    appendLine(prereqResult.output)
+                // Project context from prerequisites (only if script exists)
+                if (ResourceLoader.hasScript(basePath, "check-prerequisites.sh")) {
+                    val scriptPath = PathSandbox.resolve(basePath, ".specify/scripts/bash/check-prerequisites.sh")
+                    if (scriptPath != null) {
+                        val prereqResult = ScriptRunner.execScript(
+                            scriptPath,
+                            listOf("--json"),
+                            basePath
+                        )
+                        if (prereqResult.success) {
+                            appendLine("## Project Context")
+                            appendLine(prereqResult.output)
+                            appendLine()
+                        }
+                    }
+                }
+
+                // Constitution (governance rules agents must follow)
+                val constitution = LocalFileSystem.getInstance()
+                    .findFileByIoFile(File(basePath, ".specify/memory/constitution.md"))
+                if (constitution != null && !constitution.isDirectory) {
+                    appendLine("## Constitution")
+                    appendLine(VfsUtilCore.loadText(constitution))
                     appendLine()
                 }
-            }
 
-            // Constitution (governance rules agents must follow)
-            val constitution = LocalFileSystem.getInstance()
-                .findFileByIoFile(File(basePath, ".specify/memory/constitution.md"))
-            if (constitution != null && !constitution.isDirectory) {
-                appendLine("## Constitution")
-                appendLine(VfsUtilCore.loadText(constitution))
-                appendLine()
-            }
+                // Agent-specific context
+                val extra = gatherExtraContext(request, basePath)
+                if (extra.isNotEmpty()) {
+                    appendLine(extra)
+                }
 
-            // Agent-specific context
-            val extra = gatherExtraContext(request, basePath)
-            if (extra.isNotEmpty()) {
-                appendLine(extra)
-            }
+                appendLine("## Agent Instructions")
+                appendLine(agentInstructions)
 
-            appendLine("## Agent Instructions")
-            appendLine(agentInstructions)
-
-            val suffix = getPromptSuffix(request, basePath)
-            if (suffix.isNotEmpty()) {
-                appendLine()
-                appendLine(suffix)
+                val suffix = getPromptSuffix(request, basePath)
+                if (suffix.isNotEmpty()) {
+                    appendLine()
+                    appendLine(suffix)
+                }
             }
         }
 
@@ -107,6 +115,7 @@ abstract class AgentTool(
     }
 
     protected fun readFeatureArtifact(basePath: String, featureDir: String, fileName: String): String? {
+        if (!PathSandbox.isSafeName(featureDir)) return null
         // Feature artifacts are project-only (no bundled fallback)
         val file = LocalFileSystem.getInstance()
             .findFileByIoFile(File(basePath, "specs/$featureDir/$fileName"))
@@ -116,6 +125,7 @@ abstract class AgentTool(
     protected fun resolveFeatureDir(request: ToolInvocationRequest, basePath: String): String? {
         val explicit = request.input?.get("feature")?.asString
         if (explicit != null) {
+            if (!PathSandbox.isSafeName(explicit)) return null
             val dir = LocalFileSystem.getInstance()
                 .findFileByIoFile(File(basePath, "specs/$explicit"))
             if (dir != null && dir.isDirectory) return explicit

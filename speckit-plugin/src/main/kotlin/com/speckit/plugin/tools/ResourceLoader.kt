@@ -67,6 +67,7 @@ object ResourceLoader {
     //   .specify/templates/   -> /speckit/templates/
     //   .specify/memory/      -> project only (no bundled fallback)
     fun readFile(basePath: String, relativePath: String): String? {
+        if (relativePath.contains("..")) return null
         val vFile = LocalFileSystem.getInstance().findFileByIoFile(File(basePath, relativePath))
         if (vFile != null && !vFile.isDirectory) return VfsUtilCore.loadText(vFile)
 
@@ -134,8 +135,8 @@ object ResourceLoader {
     }
 
     private fun readClasspathResource(path: String): String? {
-        return ResourceLoader::class.java.getResourceAsStream(path)
-            ?.bufferedReader()
-            ?.readText()
+        return ResourceLoader::class.java.getResourceAsStream(path)?.use { stream ->
+            stream.bufferedReader().readText()
+        }
     }
 }

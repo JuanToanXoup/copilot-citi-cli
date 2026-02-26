@@ -36,6 +36,10 @@ class SpeckitReadAgent : LanguageModelToolRegistration {
         val name = request.input?.get("name")?.asString
             ?: return LanguageModelToolResult.Companion.error("Missing required parameter: name")
 
+        if (!PathSandbox.isSafeName(name)) {
+            return LanguageModelToolResult.Companion.error("Invalid agent name: '$name'")
+        }
+
         val fileName = if (name.endsWith(".agent.md")) name else "$name.agent.md"
         val content = ResourceLoader.readAgent(basePath, fileName)
             ?: return LanguageModelToolResult.Companion.error("Agent not found: $fileName")

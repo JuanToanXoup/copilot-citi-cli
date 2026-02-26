@@ -10,6 +10,8 @@ import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class SpeckitParseCoverage : LanguageModelToolRegistration {
 
@@ -40,11 +42,10 @@ class SpeckitParseCoverage : LanguageModelToolRegistration {
 
         val path = request.input?.get("path")?.asString ?: "."
         val explicitReport = request.input?.get("report_path")?.asString
-        val workDir = when {
-            path == "." -> basePath
-            path.startsWith("/") -> path
-            else -> "$basePath/$path"
-        }
+        val workDir = PathSandbox.resolveWorkDir(basePath, path)
+            ?: return LanguageModelToolResult.Companion.error(
+                "Path '$path' resolves outside the project root"
+            )
 
         val lfs = LocalFileSystem.getInstance()
         val d = lfs.findFileByIoFile(File(workDir))
@@ -55,10 +56,15 @@ class SpeckitParseCoverage : LanguageModelToolRegistration {
             )
         }
 
+        return withContext(Dispatchers.IO) {
         val reportFile = if (explicitReport != null) {
-            val reportPath = if (explicitReport.startsWith("/")) explicitReport else "$workDir/$explicitReport"
+            val reportPath = PathSandbox.resolve(workDir, explicitReport)
+                ?: if (explicitReport.startsWith("/")) null else null
+            if (reportPath == null) return@withContext LanguageModelToolResult.Companion.error(
+                "Report path '$explicitReport' resolves outside the project root"
+            )
             val f = lfs.findFileByIoFile(File(reportPath))
-            if (f == null || f.isDirectory) return LanguageModelToolResult.Companion.error(
+            if (f == null || f.isDirectory) return@withContext LanguageModelToolResult.Companion.error(
                 "Report not found: $reportPath (report_path='$explicitReport', workDir='$workDir')"
             )
             f
@@ -66,7 +72,7 @@ class SpeckitParseCoverage : LanguageModelToolRegistration {
             // Try discovery memory first for the known report path
             findFromDiscoveryMemory(workDir, basePath)
                 ?: findCoverageReport(d)
-                ?: return LanguageModelToolResult.Companion.error(
+                ?: return@withContext LanguageModelToolResult.Companion.error(
                     "No coverage report found in '$workDir'. Run speckit_run_tests with coverage=true first.\n" +
                     "Checked discovery memory, static paths, and recursive search.\n" +
                     "Tip: use report_path parameter to specify the exact file location."
@@ -76,9 +82,10 @@ class SpeckitParseCoverage : LanguageModelToolRegistration {
         val content = VfsUtilCore.loadText(reportFile)
         val format = detectFormat(reportFile.name)
 
-        return LanguageModelToolResult.Companion.success(
+        LanguageModelToolResult.Companion.success(
             "Coverage report: ${reportFile.path}\nFormat: $format\nSize: ${content.length} chars\n\n$content"
         )
+        }
     }
 
     private fun findFromDiscoveryMemory(workDir: String, basePath: String): VirtualFile? {
@@ -96,7 +103,7 @@ class SpeckitParseCoverage : LanguageModelToolRegistration {
         val reportPath = match.groupValues[1].trim()
         if (reportPath.startsWith("e.g.,") || reportPath == "UNKNOWN" || reportPath.isEmpty()) return null
 
-        val fullPath = if (reportPath.startsWith("/")) reportPath else "$workDir/$reportPath"
+        val fullPath = PathSandbox.resolve(workDir, reportPath) ?: return null
         val f = lfs.findFileByIoFile(File(fullPath))
         return if (f != null && !f.isDirectory) f else null
     }

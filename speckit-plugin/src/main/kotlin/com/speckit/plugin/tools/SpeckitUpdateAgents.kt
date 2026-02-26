@@ -11,6 +11,8 @@ import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
 import java.io.File
 import java.time.LocalDate
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class SpeckitUpdateAgents : LanguageModelToolRegistration {
 
@@ -27,7 +29,7 @@ class SpeckitUpdateAgents : LanguageModelToolRegistration {
             ),
             "required" to listOf<String>()
         ),
-        null,
+        mapOf("title" to "Update Agents", "message" to "Update agent context files from plan."),
         "function",
         "enabled"
     )
@@ -84,13 +86,14 @@ class SpeckitUpdateAgents : LanguageModelToolRegistration {
             )
         }
 
+        return withContext(Dispatchers.IO) {
         val planData = parsePlanData(planFile)
         val currentDate = LocalDate.now().toString()
         val filesToWrite = mutableListOf<FileAction>()
 
         if (agentType != null) {
             val config = agentConfigs[agentType]
-                ?: return LanguageModelToolResult.Companion.error(
+                ?: return@withContext LanguageModelToolResult.Companion.error(
                     "Unknown agent type '$agentType'. " +
                     "Expected: ${agentConfigs.keys.sorted().joinToString("|")}"
                 )
@@ -133,7 +136,8 @@ class SpeckitUpdateAgents : LanguageModelToolRegistration {
             }
         }
 
-        return LanguageModelToolResult.Companion.success(output)
+        LanguageModelToolResult.Companion.success(output)
+        }
     }
 
     private data class FileAction(

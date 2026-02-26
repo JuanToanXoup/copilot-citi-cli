@@ -11,11 +11,16 @@ import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.withTimeout
 import java.util.concurrent.CompletableFuture
 
 class SpeckitWriteMemory : LanguageModelToolRegistration {
+
+    companion object {
+        private val writeLocks = ConcurrentHashMap<String, Any>()
+    }
 
     override val toolDefinition = LanguageModelTool(
         "speckit_write_memory",
@@ -28,7 +33,7 @@ class SpeckitWriteMemory : LanguageModelToolRegistration {
             ),
             "required" to listOf("name", "content")
         ),
-        null,
+        mapOf("title" to "Write Memory", "message" to "Write to .specify/memory/"),
         "function",
         "enabled"
     )
@@ -46,6 +51,12 @@ class SpeckitWriteMemory : LanguageModelToolRegistration {
             ?: return LanguageModelToolResult.Companion.error("Missing required parameter: name")
         val content = request.input?.get("content")?.asString
             ?: return LanguageModelToolResult.Companion.error("Missing required parameter: content")
+
+        if (!PathSandbox.isSafeName(name)) {
+            return LanguageModelToolResult.Companion.error(
+                "Invalid memory file name: '$name' — must not contain path separators or '..'"
+            )
+        }
 
         val filePath = "$basePath/.specify/memory/$name"
         val ioFile = File(filePath)
@@ -84,37 +95,42 @@ class SpeckitWriteMemory : LanguageModelToolRegistration {
         content: String,
         future: CompletableFuture<LanguageModelToolResult>
     ) {
+        val lock = writeLocks.getOrPut(ioFile.canonicalPath) { Any() }
         runInEdt {
             if (project.isDisposed) {
                 future.complete(LanguageModelToolResult.Companion.error("Project disposed"))
                 return@runInEdt
             }
             try {
-                WriteCommandAction.runWriteCommandAction(project) {
-                    var parentVFile = LocalFileSystem.getInstance()
-                        .findFileByIoFile(File(parentPath))
-                    if (parentVFile == null) {
-                        parentVFile = VfsUtil.createDirectories(parentPath)
-                    }
-                    if (parentVFile == null) {
-                        future.complete(LanguageModelToolResult.Companion.error(
-                            "Failed to create directory: $parentPath"
-                        ))
-                        return@runWriteCommandAction
-                    }
-                    parentVFile.refresh(false, false)
-                    val existingVFile = parentVFile.findChild(ioFile.name)
-                    if (existingVFile != null) {
-                        VfsUtil.saveText(existingVFile, content)
-                        future.complete(LanguageModelToolResult.Companion.success(
-                            "Updated ${content.length} chars in ${existingVFile.path}"
-                        ))
-                    } else {
-                        val vFile = parentVFile.createChildData(this@SpeckitWriteMemory, ioFile.name)
-                        VfsUtil.saveText(vFile, content)
-                        future.complete(LanguageModelToolResult.Companion.success(
-                            "Written ${content.length} chars to ${vFile.path}"
-                        ))
+                synchronized(lock) {
+                    WriteCommandAction.runWriteCommandAction(project) {
+                        var parentVFile = LocalFileSystem.getInstance()
+                            .refreshAndFindFileByIoFile(File(parentPath))
+                        if (parentVFile == null) {
+                            parentVFile = VfsUtil.createDirectories(parentPath)
+                        }
+                        if (parentVFile == null) {
+                            future.complete(LanguageModelToolResult.Companion.error(
+                                "Failed to create directory: $parentPath"
+                            ))
+                            return@runWriteCommandAction
+                        }
+                        parentVFile.refresh(false, false)
+                        val existingVFile = parentVFile.findChild(ioFile.name)
+                        if (existingVFile != null) {
+                            VfsUtil.saveText(existingVFile, content)
+                            existingVFile.refresh(false, false)
+                            future.complete(LanguageModelToolResult.Companion.success(
+                                "Updated ${content.length} chars in ${existingVFile.path}"
+                            ))
+                        } else {
+                            val vFile = parentVFile.createChildData(this@SpeckitWriteMemory, ioFile.name)
+                            VfsUtil.saveText(vFile, content)
+                            vFile.refresh(false, false)
+                            future.complete(LanguageModelToolResult.Companion.success(
+                                "Written ${content.length} chars to ${vFile.path}"
+                            ))
+                        }
                     }
                 }
             } catch (e: Exception) {

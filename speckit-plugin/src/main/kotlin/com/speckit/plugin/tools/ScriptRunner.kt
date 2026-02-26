@@ -15,7 +15,7 @@ object ScriptRunner {
             .redirectErrorStream(true)
             .start()
 
-        val output = process.inputStream.bufferedReader().readText()
+        val output = process.inputStream.bufferedReader().use { it.readText() }
         val exited = process.waitFor(timeoutSeconds, TimeUnit.SECONDS)
 
         if (!exited) {

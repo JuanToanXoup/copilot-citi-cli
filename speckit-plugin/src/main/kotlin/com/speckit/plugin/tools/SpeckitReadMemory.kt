@@ -9,6 +9,8 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtilCore
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class SpeckitReadMemory : LanguageModelToolRegistration {
 
@@ -59,6 +61,9 @@ class SpeckitReadMemory : LanguageModelToolRegistration {
             return LanguageModelToolResult.Companion.error("Memory file not found: $name")
         }
 
-        return LanguageModelToolResult.Companion.success(VfsUtilCore.loadText(file))
+        val content = withContext(Dispatchers.IO) {
+            VfsUtilCore.loadText(file)
+        }
+        return LanguageModelToolResult.Companion.success(content)
     }
 }

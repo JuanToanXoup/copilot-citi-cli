@@ -11,6 +11,8 @@ import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class SpeckitDiscover : LanguageModelToolRegistration {
 
@@ -39,11 +41,10 @@ class SpeckitDiscover : LanguageModelToolRegistration {
             ?: return LanguageModelToolResult.Companion.error("No project base path")
 
         val path = request.input?.get("path")?.asString ?: "."
-        val workDir = when {
-            path == "." -> basePath
-            path.startsWith("/") -> path
-            else -> "$basePath/$path"
-        }
+        val workDir = PathSandbox.resolveWorkDir(basePath, path)
+            ?: return LanguageModelToolResult.Companion.error(
+                "Path '$path' resolves outside the project root"
+            )
         val d = LocalFileSystem.getInstance().findFileByIoFile(File(workDir))
 
         if (d == null || !d.isDirectory) {
@@ -52,7 +53,7 @@ class SpeckitDiscover : LanguageModelToolRegistration {
             )
         }
 
-        val report = buildString {
+        val report = withContext(Dispatchers.IO) { buildString {
             appendLine("# Project Discovery Report")
             appendLine("**Workspace root**: $workDir")
             appendLine()
@@ -107,7 +108,7 @@ class SpeckitDiscover : LanguageModelToolRegistration {
             appendLine("2. Include ALL the data above — build system, language, framework, test deps, source structure, test conventions, and the test/coverage commands")
             appendLine("3. Do NOT read the build file (pom.xml, build.gradle, etc.) — this report already extracted everything from it")
             appendLine("4. This saved report will be used by `speckit_run_tests` and `speckit_parse_coverage`")
-        }
+        } }
 
         return LanguageModelToolResult.Companion.success(report)
     }

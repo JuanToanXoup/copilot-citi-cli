@@ -38,7 +38,7 @@ object FeatureWorkspace {
         } catch (_: Exception) {}
 
         // 3. Latest feature directory as fallback
-        val specsDir = LocalFileSystem.getInstance().findFileByIoFile(File(basePath, "specs"))
+        val specsDir = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(File(basePath, "specs"))
         if (specsDir != null && specsDir.isDirectory) {
             specsDir.children
                 .filter { it.isDirectory && FEATURE_BRANCH_PATTERN.containsMatchIn(it.name) }
@@ -58,7 +58,7 @@ object FeatureWorkspace {
         val match = Regex("^(\\d{3})-").find(branchName) ?: return "$specsPath/$branchName"
 
         val prefix = match.groupValues[1]
-        val specsDir = LocalFileSystem.getInstance().findFileByIoFile(File(specsPath))
+        val specsDir = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(File(specsPath))
         if (specsDir == null || !specsDir.isDirectory) return "$specsPath/$branchName"
 
         val matches = specsDir.children
@@ -103,7 +103,7 @@ object FeatureWorkspace {
         var highest = 0
 
         // Check specs directory
-        val specsDir = LocalFileSystem.getInstance().findFileByIoFile(File(basePath, "specs"))
+        val specsDir = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(File(basePath, "specs"))
         if (specsDir != null && specsDir.isDirectory) {
             specsDir.children.filter { it.isDirectory }.forEach { dir ->
                 val num = Regex("^(\\d+)").find(dir.name)?.groupValues?.get(1)?.toIntOrNull() ?: 0

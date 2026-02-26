@@ -183,8 +183,8 @@ class SpeckitCoverageAgent : AgentTool(
     }
 
     private fun hasMemoryFile(basePath: String, name: String): Boolean {
-        val file = LocalFileSystem.getInstance()
-            .findFileByIoFile(File(basePath, ".specify/memory/$name"))
-        return file != null && !file.isDirectory
+        val f = LocalFileSystem.getInstance()
+            .refreshAndFindFileByIoFile(File(basePath, ".specify/memory/$name"))
+        return f != null && !f.isDirectory
     }
 }

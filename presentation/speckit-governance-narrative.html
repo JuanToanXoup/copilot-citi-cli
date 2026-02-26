@@ -610,6 +610,7 @@
   <button class="nav-dot" data-target="problem"><span class="tooltip">Problem</span></button>
   <button class="nav-dot" data-target="solution"><span class="tooltip">Solution</span></button>
   <button class="nav-dot" data-target="how-it-works"><span class="tooltip">How It Works</span></button>
+  <button class="nav-dot" data-target="coverage-at-scale"><span class="tooltip">Coverage</span></button>
   <button class="nav-dot" data-target="artifacts"><span class="tooltip">Artifacts</span></button>
   <button class="nav-dot" data-target="takeaways"><span class="tooltip">Takeaways</span></button>
 </nav>
@@ -623,7 +624,7 @@
     <span class="gradient">SpecKit Governance Pipeline</span>
   </h1>
   <p class="hero-tagline reveal reveal-delay-2">
-    Governed, auditable test coverage through a 9-agent pipeline that produces a complete artifact trail from standard to test.
+    Autonomous unit test coverage for microservices&mdash;governed by a 9-agent pipeline that produces a complete artifact trail from standard to test.
   </p>
 
   <div class="pipeline-flow reveal reveal-delay-3">
@@ -648,16 +649,8 @@
       <div class="label">Agents</div>
     </div>
     <div class="hero-stat reveal reveal-delay-5">
-      <div class="num">7</div>
-      <div class="label">Pipeline Phases</div>
-    </div>
-    <div class="hero-stat reveal reveal-delay-6">
-      <div class="num">10+</div>
-      <div class="label">Artifacts</div>
-    </div>
-    <div class="hero-stat reveal reveal-delay-7">
-      <div class="num">1</div>
-      <div class="label">Audit Trail</div>
+      <div class="num">100%</div>
+      <div class="label">Coverage Target</div>
     </div>
   </div>
   <div class="scroll-hint">
@@ -676,30 +669,30 @@
     <div class="section-divider reveal reveal-delay-1"></div>
 
     <p class="reveal reveal-delay-2" style="font-size:1.05rem; margin-bottom:2rem;">
-      Coverage metrics alone do not satisfy audit requirements. Tests written without a documented standard cannot be traced to requirements, and no existing process produces an artifact trail from standard to specification to test.
+      Microservices architectures multiply the unit testing challenge. Each service has its own dependencies, state machines, and API contracts. Testing one service means mocking the others&mdash;effort compounds with every service added. Average enterprise coverage sits at 40%, with some services at 15% and others at 80%. There is no enforced standard and no audit trail.
     </p>
 
     <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1rem;" class="reveal reveal-delay-3">
       <div class="callout" style="margin:0;">
+        <strong>Scale</strong><br>
+        Hundreds of microservices, each requiring isolated unit tests with mocked dependencies. 2&ndash;4 weeks per developer per service for comprehensive coverage.
+      </div>
+      <div class="callout" style="margin:0;">
+        <strong>Inconsistency</strong><br>
+        Coverage varies wildly per service&mdash;no enforced standard, no versioned baseline, no way to guarantee every service meets the same bar.
+      </div>
+      <div class="callout" style="margin:0;">
         <strong>No traceability</strong><br>
-        Tests exist, but there is no documented chain from requirement to test to standard.
+        Tests exist in isolation. No documented chain from requirement to test to standard. No way to prove why a test exists or what it validates.
       </div>
       <div class="callout" style="margin:0;">
-        <strong>No enforced standard</strong><br>
-        Testing conventions vary across services with no versioned, enforceable baseline.
-      </div>
-      <div class="callout" style="margin:0;">
-        <strong>No pre-implementation validation</strong><br>
-        Test plans are not validated for completeness or consistency before code is written.
-      </div>
-      <div class="callout" style="margin:0;">
-        <strong>No audit trail</strong><br>
-        There are no artifacts documenting what was tested, why, and against what criteria.
+        <strong>Compliance exposure</strong><br>
+        Every untested code path is a potential production incident. Low coverage means slower release cycles and audit risk.
       </div>
     </div>
 
     <p class="reveal reveal-delay-4" style="color:var(--citi-text-muted); margin-top:1.5rem;">
-      This gap exists whether tests are written by humans or AI. The issue is not who writes the tests&mdash;it is whether the process that produces them is governed.
+      This governance rigor&mdash;constitution, specification, validation gate, artifact trail&mdash;does not scale manually across hundreds of services. The issue is not effort. The issue is that the process producing tests must itself be governed.
     </p>
   </div>
 </section>
@@ -714,11 +707,11 @@
     <div class="section-divider reveal reveal-delay-1"></div>
 
     <p class="reveal reveal-delay-2" style="font-size:1.05rem; margin-bottom:1.5rem;">
-      SpecKit is a 9-agent pipeline that produces governed, auditable test coverage. Each phase generates versioned artifacts. Every test is traceable to a task, a specification, and a constitution. The pipeline validates completeness before writing any code.
+      SpecKit drives unit test coverage to 100% per microservice, autonomously. It understands service boundaries, mocks dependencies correctly, tests every branch, and produces a governance trail at every phase. Every test is traceable to a task, a specification, and a constitution.
     </p>
 
     <p class="reveal reveal-delay-3" style="color:var(--citi-text-muted); margin-bottom:1.5rem;">
-      This level of governance rigor&mdash;constitution, specification, validation gate, artifact trail&mdash;does not scale manually across hundreds of services. SpecKit makes it the default for every service, every time.
+      The pipeline handles microservice-specific challenges&mdash;service isolation, dependency mocking, shared test utilities, per-service coverage tracking. It makes governed, auditable coverage the default for every service, every time.
     </p>
 
     <div class="pipeline-flow reveal reveal-delay-4" style="margin-top:1rem;">
@@ -756,7 +749,7 @@
         <h3>Constitution</h3>
         <div class="phase-content">
           <p style="margin-bottom:0.75rem; color:var(--citi-text-muted);">
-            Creates a versioned testing standard derived from the project's existing patterns. Stored at <code>.specify/memory/constitution.md</code> with semantic versioning. Downstream violations are flagged <span class="severity severity-critical">CRITICAL</span> and block the pipeline.
+            Creates a versioned testing standard derived from the project's existing patterns. Stored at <code>.specify/memory/constitution.md</code> with semantic versioning. Includes mock strategies, DI patterns, and service isolation conventions specific to the microservices architecture. Downstream violations are flagged <span class="severity severity-critical">CRITICAL</span> and block the pipeline.
           </p>
           <table class="data-table">
             <thead>
@@ -769,14 +762,19 @@
                 <td>All generated tests follow this naming</td>
               </tr>
               <tr>
+                <td><code>@Mock</code> + <code>@InjectMocks</code></td>
+                <td>Mockito annotation pattern</td>
+                <td>No manual <code>Mockito.mock()</code>&mdash;service dependencies always mocked via annotation</td>
+              </tr>
+              <tr>
                 <td>AssertJ <code>assertThat()</code></td>
                 <td>Existing imports</td>
                 <td>No <code>assertEquals</code></td>
               </tr>
               <tr>
-                <td><code>@Mock</code> + <code>@InjectMocks</code></td>
-                <td>Mockito annotation pattern</td>
-                <td>No manual <code>Mockito.mock()</code></td>
+                <td>Service isolation</td>
+                <td>Microservice architecture</td>
+                <td>Each service tested in isolation&mdash;mock all external clients and repositories</td>
               </tr>
               <tr>
                 <td>PII: anonymized</td>
@@ -797,16 +795,17 @@
         <h3>Specification &amp; Clarification</h3>
         <div class="phase-content">
           <p style="margin-bottom:0.75rem; color:var(--citi-text-muted);">
-            Builds a structured feature spec with functional/non-functional requirements, scope, and success criteria. Then scans for ambiguities across 9 categories (scope, data model, UX flow, non-functional attributes, integrations, edge cases, constraints, terminology, completion signals) and resolves them before planning begins.
+            Maps the service topology&mdash;controllers &rarr; services &rarr; repositories &rarr; entities. Identifies inter-service dependencies and makes mocking decisions per dependency (mock the repository layer, mock external HTTP clients, etc.). Then scans for ambiguities across 9 categories and resolves them before planning begins.
           </p>
           <table class="data-table">
             <thead>
               <tr><th>Clarification</th><th>Resolution</th></tr>
             </thead>
             <tbody>
+              <tr><td>Service dependency mocking</td><td>Mock repositories via <code>@Mock</code>, mock HTTP clients via <code>MockRestServiceServer</code></td></tr>
               <tr><td>Database isolation strategy</td><td>Mock via <code>@Mock</code> (not H2, not Testcontainers)</td></tr>
               <tr><td>Async operation handling</td><td><code>CompletableFuture.join()</code> (not Awaitility)</td></tr>
-              <tr><td>Failure modes</td><td>Specific exceptions enumerated per method</td></tr>
+              <tr><td>Failure modes per service</td><td>Specific exceptions enumerated per method per service</td></tr>
             </tbody>
           </table>
           <p style="font-size:0.85rem; color:var(--citi-text-light); margin-top:0.75rem;">
@@ -821,9 +820,20 @@
         <h3>Technical Planning</h3>
         <div class="phase-content">
           <p style="margin-bottom:0.75rem; color:var(--citi-text-muted);">
-            Researches technical unknowns, then designs the implementation architecture. Documents all decisions with rationale.
+            Designs the test implementation architecture with dependency-aware execution ordering across services. Documents all decisions with rationale.
           </p>
-          <p style="font-size:0.85rem; color:var(--citi-text-light);">
+          <table class="data-table">
+            <thead>
+              <tr><th>Execution Order</th><th>Service Type</th><th>Rationale</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>1st</td><td>Leaf services (no internal dependencies)</td><td>Simplest mock setup, validates test infrastructure</td></tr>
+              <tr><td>2nd</td><td>Core domain services (business logic)</td><td>State machines, validation rules, business invariants</td></tr>
+              <tr><td>3rd</td><td>Orchestration services (cross-service)</td><td>Highest branch count, most inter-service dependencies</td></tr>
+              <tr><td>4th</td><td>Controllers + exception handlers</td><td>Entry points, resilience, error response mapping</td></tr>
+            </tbody>
+          </table>
+          <p style="font-size:0.85rem; color:var(--citi-text-light); margin-top:0.75rem;">
             Produces: <code>plan.md</code>, <code>data-model.md</code>, <code>research.md</code>, <code>contracts/</code>
           </p>
         </div>
@@ -835,13 +845,18 @@
         <h3>Task Breakdown &amp; Validation</h3>
         <div class="phase-content">
           <p style="margin-bottom:0.75rem; color:var(--citi-text-muted);">
-            Generates dependency-ordered tasks traceable to specific methods and scenarios. Then runs a read-only consistency check before any code is written.
+            Generates dependency-ordered tasks traceable to specific methods and scenarios per microservice. Then runs a read-only consistency check before any code is written.
           </p>
           <div class="code-block">
-            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T001]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">OrderService.createOrder</span> <span class="task-desc">&mdash; happy path</span> <span class="task-arrow">&rarr; saved, event published</span><br>
-            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T002]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">OrderService.createOrder</span> <span class="task-desc">&mdash; null input</span> <span class="task-arrow">&rarr; IllegalArgumentException</span><br>
-            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T003]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">OrderService.createOrder</span> <span class="task-desc">&mdash; duplicate</span> <span class="task-arrow">&rarr; DuplicateOrderException</span><br>
-            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T004]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">OrderService.createOrder</span> <span class="task-desc">&mdash; payment declined</span> <span class="task-arrow">&rarr; PaymentDeclinedException</span>
+            <span style="color:var(--citi-text-light); font-weight:600;">// PaymentService &mdash; core domain</span><br>
+            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T001]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.processPayment</span> <span class="task-desc">&mdash; success</span> <span class="task-arrow">&rarr; charged, receipt generated</span><br>
+            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T002]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.processPayment</span> <span class="task-desc">&mdash; zero amount</span> <span class="task-arrow">&rarr; InvalidAmountException</span><br>
+            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T003]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.processPayment</span> <span class="task-desc">&mdash; exceeds limit</span> <span class="task-arrow">&rarr; LimitExceededException</span><br>
+            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T004]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.processPayment</span> <span class="task-desc">&mdash; idempotency check</span> <span class="task-arrow">&rarr; returns existing receipt</span><br>
+            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T005]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.retryPayment</span> <span class="task-desc">&mdash; succeeds on 2nd attempt</span> <span class="task-arrow">&rarr; charged after retry</span><br>
+            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T006]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.retryPayment</span> <span class="task-desc">&mdash; exhausted after max attempts</span> <span class="task-arrow">&rarr; RetryExhaustedException</span><br>
+            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T007]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.refund</span> <span class="task-desc">&mdash; success</span> <span class="task-arrow">&rarr; refunded, event published</span><br>
+            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T008]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.refund</span> <span class="task-desc">&mdash; already refunded</span> <span class="task-arrow">&rarr; DuplicateRefundException</span>
           </div>
           <p style="font-size:0.85rem; color:var(--citi-text-muted); margin:0.75rem 0;">
             The <code>speckit_analyze</code> agent runs 6 detection passes:
@@ -866,7 +881,7 @@
         <h3>Verified Implementation</h3>
         <div class="phase-content">
           <p style="margin-bottom:0.75rem; color:var(--citi-text-muted);">
-            Executes tasks in dependency order. Each test is compiled, run, and verified. Failures are classified and retried up to 3 times with targeted fixes. Stops when the coverage target is reached.
+            Executes tasks in dependency order, per service. Each test is compiled, run, and verified. Failures are classified and retried up to 3 times with targeted fixes. Stops when every service reaches 100% coverage.
           </p>
           <ol class="impl-steps">
             <li>Generate test following constitution conventions</li>
@@ -874,18 +889,10 @@
             <li>Run&mdash;classify and fix failures</li>
             <li>Retry up to 3 times</li>
             <li>Measure coverage after each batch</li>
-            <li>Stop at target coverage</li>
+            <li>Stop when 100% coverage is reached</li>
           </ol>
-          <div style="margin-top:1rem;">
-            <p style="font-size:0.8rem; color:var(--citi-text-light); margin-bottom:0.25rem;">Coverage</p>
-            <div class="coverage-bar"><div class="fill green" data-width="100"></div></div>
-            <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--citi-text-light);">
-              <span>38%</span>
-              <span>100%</span>
-            </div>
-          </div>
           <p style="font-size:0.85rem; color:var(--citi-text-light); margin-top:0.75rem;">
-            Produces: test files, coverage report
+            Produces: test files, coverage reports
           </p>
         </div>
       </div>
@@ -896,9 +903,81 @@
 
 
 <!-- ============================================ -->
+<!-- COVERAGE AT SCALE                             -->
+<!-- ============================================ -->
+<section class="section" id="coverage-at-scale">
+  <div class="section-inner">
+    <h2 class="reveal">Microservices Coverage at Scale</h2>
+    <div class="section-divider reveal reveal-delay-1"></div>
+
+    <p class="reveal reveal-delay-2" style="font-size:1.05rem; margin-bottom:2rem;">
+      SpecKit classifies services by priority and tests each one to 100% coverage. The pipeline understands that an orchestration service with 40 branches needs more test scenarios than a notification adapter with 6.
+    </p>
+
+    <h4 class="reveal reveal-delay-2">Service Classification by Priority</h4>
+    <table class="data-table reveal reveal-delay-3">
+      <thead>
+        <tr><th>Priority</th><th>Service Type</th><th>Example</th><th>Why</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="severity severity-critical">CRITICAL</span></td>
+          <td>Orchestration services</td>
+          <td><code>OrderOrchestrator</code></td>
+          <td>Highest branch count, most inter-service dependencies</td>
+        </tr>
+        <tr>
+          <td><span style="display:inline-block; padding:1px 8px; border-radius:4px; font-size:0.7rem; font-weight:700; background:var(--citi-amber-bg); color:var(--citi-amber); border:1px solid rgba(183,121,31,0.2);">HIGH</span></td>
+          <td>Core domain services</td>
+          <td><code>PaymentService</code></td>
+          <td>Business logic with state management</td>
+        </tr>
+        <tr>
+          <td><span style="display:inline-block; padding:1px 8px; border-radius:4px; font-size:0.7rem; font-weight:700; background:var(--citi-amber-bg); color:var(--citi-amber); border:1px solid rgba(183,121,31,0.2);">HIGH</span></td>
+          <td>Auth / identity services</td>
+          <td><code>AuthService</code></td>
+          <td>Authentication and registration flows</td>
+        </tr>
+        <tr>
+          <td><span style="display:inline-block; padding:1px 8px; border-radius:4px; font-size:0.7rem; font-weight:700; background:var(--citi-blue-pale); color:var(--citi-blue); border:1px solid rgba(0,61,165,0.2);">MEDIUM</span></td>
+          <td>Integration services</td>
+          <td><code>NotificationClient</code></td>
+          <td>External HTTP clients and adapters</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h4 class="reveal reveal-delay-3" style="margin-top:2rem;">What Gets Tested Per Service</h4>
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top:1rem;" class="reveal reveal-delay-4">
+      <div class="callout" style="margin:0;">
+        <strong>Every public method</strong><br>
+        Happy path + every error path. No method left untested.
+      </div>
+      <div class="callout" style="margin:0;">
+        <strong>Every catch block</strong><br>
+        Every thrown exception tested. Every catch block reached.
+      </div>
+      <div class="callout" style="margin:0;">
+        <strong>State transitions &amp; edge cases</strong><br>
+        Boundary values, null inputs, empty collections, concurrent access.
+      </div>
+      <div class="callout" style="margin:0;">
+        <strong>Retry logic &amp; idempotency</strong><br>
+        Retry success, retry exhaustion, duplicate request handling.
+      </div>
+    </div>
+
+    <div class="callout green reveal reveal-delay-5" style="margin-top:1.5rem;">
+      <strong>Dependency interactions are always mocked.</strong> Each service is tested in complete isolation. Repository layers, HTTP clients, message queues&mdash;all mocked per the constitution.
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================ -->
 <!-- ARTIFACT TRAIL                               -->
 <!-- ============================================ -->
-<section class="section" id="artifacts">
+<section class="section section-alt" id="artifacts">
   <div class="section-inner">
     <h2 class="reveal">Artifact Trail</h2>
     <div class="section-divider reveal reveal-delay-1"></div>
@@ -963,7 +1042,7 @@
 <!-- ============================================ -->
 <!-- TAKEAWAYS                                    -->
 <!-- ============================================ -->
-<section class="section section-alt" id="takeaways" style="padding-bottom: 8rem;">
+<section class="section" id="takeaways" style="padding-bottom: 8rem;">
   <div class="section-inner">
     <h2 class="reveal" style="text-align:center; margin-bottom:2.5rem;">Key Takeaways</h2>
 
@@ -973,12 +1052,12 @@
         <p>The constitution gates every downstream decision. Violations are <span class="severity severity-critical">CRITICAL</span> and block the pipeline.</p>
       </div>
       <div class="big-three-card reveal reveal-delay-2">
-        <h3 style="color:#6B21A8;">Due Diligence</h3>
-        <p>Every answer is derived from the codebase&mdash;parsed from project files, scanned from source, read from existing patterns.</p>
+        <h3 style="color:#6B21A8;">Per-Service Coverage</h3>
+        <p>Every microservice individually reaches 100% unit test coverage. Not just the aggregate&mdash;each service is tested in isolation to its own target.</p>
       </div>
       <div class="big-three-card reveal reveal-delay-3">
         <h3 style="color:var(--citi-green);">Audit Trail</h3>
-        <p>Constitution &rarr; spec &rarr; plan &rarr; tasks &rarr; analysis &rarr; tests. Each phase produces an artifact. Each artifact feeds the next.</p>
+        <p>Constitution &rarr; spec &rarr; plan &rarr; tasks &rarr; analysis &rarr; tests. Unbroken artifact chain from standard to test, per service.</p>
       </div>
     </div>
   </div>
@@ -1007,6 +1086,17 @@ const revealObserver = new IntersectionObserver((entries) => {
       if (bar) {
         const width = bar.dataset.width || 100;
         setTimeout(() => { bar.style.width = width + '%'; }, 300);
+      }
+    } else {
+      entry.target.classList.remove('visible');
+
+      if (entry.target.classList.contains('phase')) {
+        entry.target.classList.remove('lit');
+      }
+
+      const bar = entry.target.querySelector('.coverage-bar .fill');
+      if (bar) {
+        bar.style.width = '0%';
       }
     }
   });
