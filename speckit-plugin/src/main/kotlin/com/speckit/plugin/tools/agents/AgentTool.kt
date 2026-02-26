@@ -105,6 +105,16 @@ abstract class AgentTool(
         return if (file != null && !file.isDirectory) VfsUtilCore.loadText(file) else null
     }
 
+    protected fun resolveFeatureDir(request: ToolInvocationRequest, basePath: String): String? {
+        val explicit = request.input?.get("feature")?.asString
+        if (explicit != null) {
+            val dir = LocalFileSystem.getInstance()
+                .findFileByIoFile(File(basePath, "specs/$explicit"))
+            if (dir != null && dir.isDirectory) return explicit
+        }
+        return findCurrentFeatureDir(basePath)
+    }
+
     protected fun findCurrentFeatureDir(basePath: String): String? {
         val specsDir = LocalFileSystem.getInstance().findFileByIoFile(File(basePath, "specs"))
         if (specsDir == null || !specsDir.isDirectory) return null

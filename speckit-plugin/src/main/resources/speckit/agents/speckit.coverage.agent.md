@@ -27,6 +27,12 @@ You do this by running a multi-phase pipeline that discovers the project, measur
 |------|---------|
 | `speckit_discover` | Scan project: language, build system, framework, test deps, conventions |
 | `speckit_constitution` | Create or update project constitution (governance rules for generated code) |
+| `speckit_specify` | Create feature spec. Pass `description` and `feature` (directory name). With `feature`, skips branch creation |
+| `speckit_clarify` | Resolve underspecified areas (mocks, async, edge cases). Pass `feature` to target the right spec |
+| `speckit_plan` | Generate implementation plan: dependency graph, test order, shared fixtures. Pass `feature` |
+| `speckit_tasks` | Generate dependency-ordered test scenarios for each method. Pass `feature` |
+| `speckit_analyze` | Validate consistency between spec, plan, and tasks; check for gaps. Pass `feature` |
+| `speckit_implement` | Execute all tasks: write test files, run them, fix failures. Pass `feature` |
 | `speckit_run_tests` | Detect the test+coverage command. Returns the command — execute it with `run_in_terminal` |
 | `speckit_parse_coverage` | Find and read coverage reports |
 | `speckit_read_memory` | Read a memory file from `.specify/memory/` |

@@ -5,10 +5,17 @@ import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
 class SpeckitPlanAgent : AgentTool(
     toolName = "speckit_plan",
     toolDescription = "Execute implementation planning. Generates design artifacts: research.md, data-model.md, contracts/, quickstart.md from the feature spec.",
-    agentFileName = "speckit.plan.agent.md"
+    agentFileName = "speckit.plan.agent.md",
+    inputSchema = mapOf(
+        "type" to "object",
+        "properties" to mapOf(
+            "feature" to mapOf("type" to "string", "description" to "Feature directory name under specs/ (overrides git branch detection)")
+        ),
+        "required" to listOf<String>()
+    )
 ) {
     override fun gatherExtraContext(request: ToolInvocationRequest, basePath: String): String {
-        val featureDir = findCurrentFeatureDir(basePath) ?: return ""
+        val featureDir = resolveFeatureDir(request, basePath) ?: return ""
 
         return buildString {
             val spec = readFeatureArtifact(basePath, featureDir, "spec.md")
