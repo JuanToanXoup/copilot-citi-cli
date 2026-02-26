@@ -55,9 +55,7 @@ class SpeckitChatPanel(
     init {
         Disposer.register(parentDisposable, this)
 
-        agentCombo = JComboBox<AgentEntry>().apply {
-            preferredSize = Dimension(500, preferredSize.height)
-        }
+        agentCombo = JComboBox<AgentEntry>()
         argField = JBTextArea(3, 0).apply {
             lineWrap = true
             wrapStyleWord = true
@@ -65,25 +63,23 @@ class SpeckitChatPanel(
         sendButton = JButton(com.intellij.icons.AllIcons.Actions.Execute)
         refreshButton = JButton(com.intellij.icons.AllIcons.Actions.Refresh)
 
-        // Top: text area + send button
+        // Agent bar: label + dropdown (fills width) + refresh icon
+        val agentBar = JPanel(BorderLayout(4, 0))
+        agentBar.add(JLabel("Agent:"), BorderLayout.WEST)
+        agentBar.add(agentCombo, BorderLayout.CENTER)
+        agentBar.add(refreshButton, BorderLayout.EAST)
+
+        // Prompt bar: text area + send icon
         val argScrollPane = JBScrollPane(argField).apply {
             preferredSize = Dimension(0, 60)
         }
-        val topBar = JPanel(BorderLayout(4, 0))
-        topBar.add(argScrollPane, BorderLayout.CENTER)
-        topBar.add(sendButton, BorderLayout.EAST)
-
-        // Controls bar: agent dropdown + refresh
-        val controlsBar = JPanel().apply {
-            layout = java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 4, 0)
-            add(JLabel("Agent:"))
-            add(agentCombo)
-            add(refreshButton)
-        }
+        val promptBar = JPanel(BorderLayout(4, 0))
+        promptBar.add(argScrollPane, BorderLayout.CENTER)
+        promptBar.add(sendButton, BorderLayout.EAST)
 
         val topPanel = JPanel(BorderLayout(0, 4))
-        topPanel.add(topBar, BorderLayout.NORTH)
-        topPanel.add(controlsBar, BorderLayout.SOUTH)
+        topPanel.add(agentBar, BorderLayout.NORTH)
+        topPanel.add(promptBar, BorderLayout.SOUTH)
 
         // Table setup
         table.setShowGrid(false)
