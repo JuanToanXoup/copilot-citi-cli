@@ -58,16 +58,39 @@ class SpeckitWriteMemory : LanguageModelToolRegistration {
         }
 
         val future = CompletableFuture<LanguageModelToolResult>()
+        scheduleVfsWrite(project, parentPath, ioFile, name, content, future)
 
+        return try {
+            withTimeout(120_000) { future.await() }
+        } catch (e: Exception) {
+            // EDT was busy (e.g. indexing). Retry once.
+            val retryFuture = CompletableFuture<LanguageModelToolResult>()
+            scheduleVfsWrite(project, parentPath, ioFile, name, content, retryFuture)
+            try {
+                withTimeout(120_000) { retryFuture.await() }
+            } catch (retryEx: Exception) {
+                LanguageModelToolResult.Companion.error(
+                    "Timed out writing .specify/memory/$name after retry: ${retryEx.message}"
+                )
+            }
+        }
+    }
+
+    private fun scheduleVfsWrite(
+        project: com.intellij.openapi.project.Project,
+        parentPath: String,
+        ioFile: File,
+        name: String,
+        content: String,
+        future: CompletableFuture<LanguageModelToolResult>
+    ) {
         runInEdt {
             if (project.isDisposed) {
                 future.complete(LanguageModelToolResult.Companion.error("Project disposed"))
                 return@runInEdt
             }
-
             try {
                 WriteCommandAction.runWriteCommandAction(project) {
-                    // Find or create parent directory via VFS
                     var parentVFile = LocalFileSystem.getInstance()
                         .findFileByIoFile(File(parentPath))
                     if (parentVFile == null) {
@@ -79,9 +102,7 @@ class SpeckitWriteMemory : LanguageModelToolRegistration {
                         ))
                         return@runWriteCommandAction
                     }
-
                     parentVFile.refresh(false, false)
-
                     val existingVFile = parentVFile.findChild(ioFile.name)
                     if (existingVFile != null) {
                         VfsUtil.saveText(existingVFile, content)
@@ -103,14 +124,6 @@ class SpeckitWriteMemory : LanguageModelToolRegistration {
                     ))
                 }
             }
-        }
-
-        return try {
-            withTimeout(30_000) { future.await() }
-        } catch (e: Exception) {
-            LanguageModelToolResult.Companion.error(
-                "Timed out writing .specify/memory/$name: ${e.message}"
-            )
         }
     }
 }
