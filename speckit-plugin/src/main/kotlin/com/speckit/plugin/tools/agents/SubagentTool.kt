@@ -24,8 +24,11 @@ import com.speckit.plugin.tools.ScriptRunner
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.future.await
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
@@ -214,14 +217,30 @@ abstract class SubagentTool(
         var conversationId: String? = null
         try {
             log.info("Creating sub-conversation for $toolName (mode: $chatModeSlug)")
-            val createPromise = lspClient.executeCommand(createCmd)
-            val createResponse = createPromise.blockingGet(30_000)
-                ?: return LanguageModelToolResult.Companion.error(
-                    "Sub-conversation creation returned null for $toolName"
-                )
+
+            // Await the create command without blocking the thread.
+            // CancellablePromise -> suspend via callbacks.
+            val createResponse = suspendCancellableCoroutine { cont ->
+                val createPromise = lspClient.executeCommand(createCmd)
+                createPromise.onSuccess { response ->
+                    if (response != null) {
+                        cont.resume(response)
+                    } else {
+                        cont.resumeWithException(RuntimeException("conversation/create returned null"))
+                    }
+                }
+                createPromise.onError { error ->
+                    cont.resumeWithException(error ?: RuntimeException("conversation/create failed"))
+                }
+                cont.invokeOnCancellation {
+                    createPromise.cancel()
+                }
+            }
+
             conversationId = createResponse.conversationId
             log.info("Sub-conversation created: $conversationId for $toolName")
 
+            // Wait for the sub-agent to finish (progress listener completes the future)
             val response = withTimeout(300_000L) {
                 completion.await()
             }
@@ -231,10 +250,11 @@ abstract class SubagentTool(
 
             return LanguageModelToolResult.Companion.success(response)
         } catch (e: Exception) {
-            log.warn("Subagent $toolName failed: ${e.message}", e)
+            val errorType = e.javaClass.simpleName
+            log.warn("Subagent $toolName failed ($errorType): ${e.message}", e)
             cleanupConversation(lspClient, conversationId, listenerDisposable)
             return LanguageModelToolResult.Companion.error(
-                "Subagent $toolName failed: ${e.message}"
+                "Subagent $toolName failed ($errorType): ${e.message ?: "no details"}"
             )
         }
     }
