@@ -55,6 +55,12 @@ object SpeckitTools : ToolGroup {
 
         // speckit_run_tests: run tests with coverage
         """{"name":"speckit_run_tests","description":"Run the project's test suite with coverage enabled. Auto-detects build system and coverage tool. Returns JSON with pass/fail, coverage percentage, and per-package breakdown. Timeout: 5 minutes.","inputSchema":{"type":"object","properties":{"package_filter":{"type":"string","description":"Optional: only run tests for this package/path. If omitted, runs all tests."}},"required":[]}}""",
+
+        // speckit_write_memory: write a memory file
+        """{"name":"speckit_write_memory","description":"Write or update a memory file in .specify/memory/. Used to persist project knowledge across sessions (constitution, discovery reports, conventions, coverage patterns).","inputSchema":{"type":"object","properties":{"name":{"type":"string","description":"File name, e.g. 'constitution.md', 'discovery-report.md'"},"content":{"type":"string","description":"Full content to write to the file"}},"required":["name","content"]}}""",
+
+        // speckit_read_memory: read a memory file
+        """{"name":"speckit_read_memory","description":"Read a memory file from .specify/memory/ (e.g. constitution.md, discovery-report.md). Omit 'name' to list all memory files.","inputSchema":{"type":"object","properties":{"name":{"type":"string","description":"File name, e.g. 'constitution.md'. Omit to list all memory files."}},"required":[]}}""",
     )
 
     override val executors: Map<String, (JsonObject, String) -> String> = mapOf(
@@ -70,6 +76,8 @@ object SpeckitTools : ToolGroup {
         "speckit_get_feature_dir" to ::executeGetFeatureDir,
         "speckit_analyze_project" to ::executeAnalyzeProject,
         "speckit_run_tests" to ::executeRunTests,
+        "speckit_write_memory" to ::executeWriteMemory,
+        "speckit_read_memory" to ::executeReadMemory,
     )
 
     // -- Tool implementations --
@@ -211,6 +219,53 @@ object SpeckitTools : ToolGroup {
         artifactFile.writeText(content)
 
         return "Written ${content.length} chars to ${featureDir.name}/$artifact"
+    }
+
+    private fun executeWriteMemory(input: JsonObject, ws: String): String {
+        val name = input.str("name") ?: return "Error: name is required"
+        val content = input.str("content") ?: return "Error: content is required"
+
+        // Prevent path traversal
+        if (name.contains("..") || name.contains("/")) return "Error: name must be a simple filename, not a path"
+
+        val file = File(ws, ".specify/memory/$name")
+        file.parentFile?.mkdirs()
+        file.writeText(content)
+
+        return "Written ${content.length} chars to .specify/memory/$name (${file.absolutePath})"
+    }
+
+    private fun executeReadMemory(input: JsonObject, ws: String): String {
+        val name = input.str("name")
+        val memoryDir = File(ws, ".specify/memory")
+
+        if (!memoryDir.isDirectory) {
+            return if (name == null) {
+                "No .specify/memory/ directory found. Memory will be created when speckit_write_memory is first used."
+            } else {
+                "Error: memory file not found: $name (no .specify/memory/ directory)"
+            }
+        }
+
+        if (name == null) {
+            val files = memoryDir.listFiles { f -> f.isFile }
+                ?.sortedBy { it.name }
+                ?.map { it.name }
+                ?: emptyList()
+            return if (files.isEmpty()) {
+                "No memory files found in .specify/memory/"
+            } else {
+                "Memory files:\n${files.joinToString("\n") { "- $it" }}"
+            }
+        }
+
+        // Prevent path traversal
+        if (name.contains("..") || name.contains("/")) return "Error: name must be a simple filename, not a path"
+
+        val file = File(memoryDir, name)
+        if (!file.exists()) return "Error: memory file not found: $name"
+
+        return file.readText().take(OUTPUT_LIMIT)
     }
 
     private fun executeGetFeatureDir(input: JsonObject, ws: String): String {
