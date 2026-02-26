@@ -14,8 +14,10 @@ import com.github.copilot.lang.agent.CopilotAgentProcessService
 import com.github.copilot.lang.agent.rpc.JsonRPC
 import com.github.copilot.lang.agent.rpc.JsonRpcNotificationListener
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.util.Disposer
+import com.speckit.plugin.ui.SubagentConsole
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.speckit.plugin.tools.PathSandbox
@@ -137,6 +139,9 @@ abstract class SubagentTool(
         // Spin up sub-conversation via LSP
         val lspClient = CopilotAgentProcessService.getInstance()
         val token = "WDT-${UUID.randomUUID()}"
+        val console = project.service<SubagentConsole>()
+        val startTime = System.currentTimeMillis()
+        console.logStart(toolName)
 
         val replyBuilder = StringBuilder()
         val stepsLog = mutableListOf<String>()
@@ -157,21 +162,29 @@ abstract class SubagentTool(
                     val value = progress.value ?: return@JsonRpcNotificationListener false
                     if (value.isReport()) {
                         // Capture streaming text reply
-                        value.reply?.let { replyBuilder.append(it) }
+                        value.reply?.let {
+                            replyBuilder.append(it)
+                            console.logReply(toolName, it)
+                        }
                         // Capture tool-call steps (agent work done via tools, not text)
                         value.steps?.forEach { step ->
                             val desc = step.description ?: step.title
                             if (desc.isNotBlank() && desc !in stepsLog) {
                                 stepsLog.add(desc)
+                                console.logStep(toolName, desc)
                             }
                         }
                     } else if (value.isEnd()) {
+                        val elapsed = System.currentTimeMillis() - startTime
                         val error = value.error
                         if (error != null) {
+                            console.logError(toolName, error.message)
+                            console.logEnd(toolName, elapsed)
                             completion.completeExceptionally(
                                 RuntimeException("Subagent error: ${error.message}")
                             )
                         } else {
+                            console.logEnd(toolName, elapsed)
                             // Build response: prefer reply text, fall back to steps summary
                             val reply = replyBuilder.toString()
                             val result = if (reply.isNotBlank()) {
@@ -251,7 +264,10 @@ abstract class SubagentTool(
             return LanguageModelToolResult.Companion.success(response)
         } catch (e: Exception) {
             val errorType = e.javaClass.simpleName
+            val elapsed = System.currentTimeMillis() - startTime
             log.warn("Subagent $toolName failed ($errorType): ${e.message}", e)
+            console.logError(toolName, "$errorType: ${e.message ?: "no details"}")
+            console.logEnd(toolName, elapsed)
             cleanupConversation(lspClient, conversationId, listenerDisposable)
             return LanguageModelToolResult.Companion.error(
                 "Subagent $toolName failed ($errorType): ${e.message ?: "no details"}"

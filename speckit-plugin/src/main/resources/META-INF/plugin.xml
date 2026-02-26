@@ -14,5 +14,10 @@
     <extensions defaultExtensionNs="com.intellij">
         <postStartupActivity
             implementation="com.speckit.plugin.installer.SpeckitPluginInstaller"/>
+        <toolWindow id="Speckit"
+                    anchor="bottom"
+                    icon="AllIcons.Actions.Execute"
+                    factoryClass="com.speckit.plugin.ui.SubagentConsoleFactory"
+                    canCloseContents="false"/>
     </extensions>
 </idea-plugin>
