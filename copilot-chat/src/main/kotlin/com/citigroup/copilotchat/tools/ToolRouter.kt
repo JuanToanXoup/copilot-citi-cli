@@ -146,7 +146,9 @@ class ToolRouter(private val project: Project) : ToolExecutor {
             val ws = WorkingSetService.getInstance(project)
             val paths = extractFilePaths(name, input, effectiveWs)
             paths.forEach { ws.captureBeforeState(name, it) }
-            val result = BuiltInTools.execute(name, input, effectiveWs)
+            val result = ToolInvocationContext.withProject(project) {
+                BuiltInTools.execute(name, input, effectiveWs)
+            }
             paths.forEach { ws.captureAfterState(it) }
 
             // Refresh VFS so IntelliJ's file tree and editors see the changes
@@ -205,7 +207,9 @@ class ToolRouter(private val project: Project) : ToolExecutor {
     private fun tryFallback(name: String, input: JsonObject, effectiveWs: String = workspaceRoot): JsonElement {
         // If the original name (before redirect) is a built-in tool, use it
         if (name in BuiltInTools.toolNames) {
-            val result = BuiltInTools.execute(name, input, effectiveWs)
+            val result = ToolInvocationContext.withProject(project) {
+                BuiltInTools.execute(name, input, effectiveWs)
+            }
             return wrapResult(result)
         }
         return wrapResult("Error: Tool execution failed: $name", isError = true)
