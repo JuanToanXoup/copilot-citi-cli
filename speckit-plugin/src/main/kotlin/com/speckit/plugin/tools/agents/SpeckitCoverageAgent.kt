@@ -25,10 +25,12 @@ class SpeckitCoverageAgent : AgentTool(
         val batchSize = request.input?.get("batch_size")?.asInt ?: 5
 
         return buildString {
-            appendLine("## Configuration")
-            appendLine("- **Target**: ${target}% line coverage")
-            appendLine("- **Project path**: $path")
-            appendLine("- **Batch size**: $batchSize files per iteration")
+            appendLine("## Your Mission")
+            appendLine()
+            val pathClause = if (path != ".") " in `$path`" else ""
+            appendLine("Autonomously write unit tests for this project$pathClause until line coverage reaches **${target}%**.")
+            appendLine("You will discover the project, measure its current coverage, identify untested code,")
+            appendLine("and generate test files — all without manual intervention. Process files in batches of $batchSize.")
             appendLine()
 
             appendLine("## File Discovery Rules")

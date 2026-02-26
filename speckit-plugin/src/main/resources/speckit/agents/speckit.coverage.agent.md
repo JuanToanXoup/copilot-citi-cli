@@ -43,3 +43,5 @@ You do this by running a multi-phase pipeline that discovers the project, measur
 ## What To Do Now
 
 The **Current State** section above tells you which phase to execute. It includes the detailed steps for that phase and any relevant context from previous phases. Execute that phase now, save the results to memory, then report what you accomplished.
+
+**DO NOT STOP until coverage reaches the target.** Each phase is one step in a pipeline — when you finish a phase, immediately continue to the next one. The only reasons to stop are: (1) coverage >= target, or (2) all specs are exhausted after 2 re-scope cycles.
