@@ -3,11 +3,11 @@ package com.speckit.plugin.tools
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelTool
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelToolResult
 import com.github.copilot.chat.conversation.agent.tool.LanguageModelToolRegistration
+import com.github.copilot.chat.conversation.agent.tool.ToolInvocationManager
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
+import com.intellij.openapi.application.ApplicationManager
 
-class SpeckitSetupFeature(
-    private val basePath: String
-) : LanguageModelToolRegistration {
+class SpeckitSetupFeature : LanguageModelToolRegistration {
 
     override val toolDefinition = LanguageModelTool(
         "speckit_setup_feature",
@@ -29,6 +29,12 @@ class SpeckitSetupFeature(
     override suspend fun handleInvocation(
         request: ToolInvocationRequest
     ): LanguageModelToolResult {
+        val manager = ApplicationManager.getApplication().getService(ToolInvocationManager::class.java)
+        val project = manager.findProjectForInvocation(request.identifier)
+            ?: return LanguageModelToolResult.Companion.error("No project found for invocation")
+        val basePath = project.basePath
+            ?: return LanguageModelToolResult.Companion.error("No project base path")
+
         val description = request.input?.get("description")?.asString
             ?: return LanguageModelToolResult.Companion.error("Missing required parameter: description")
         val shortName = request.input?.get("short_name")?.asString

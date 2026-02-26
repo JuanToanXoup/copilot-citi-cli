@@ -3,12 +3,14 @@ package com.speckit.plugin.tools.agents
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelTool
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelToolResult
 import com.github.copilot.chat.conversation.agent.tool.LanguageModelToolRegistration
+import com.github.copilot.chat.conversation.agent.tool.ToolInvocationManager
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtilCore
 import java.io.File
 
-class SpeckitCoverageAgent(private val basePath: String) : LanguageModelToolRegistration {
+class SpeckitCoverageAgent : LanguageModelToolRegistration {
 
     override val toolDefinition = LanguageModelTool(
         "speckit_coverage",
@@ -30,6 +32,12 @@ class SpeckitCoverageAgent(private val basePath: String) : LanguageModelToolRegi
     override suspend fun handleInvocation(
         request: ToolInvocationRequest
     ): LanguageModelToolResult {
+        val manager = ApplicationManager.getApplication().getService(ToolInvocationManager::class.java)
+        val project = manager.findProjectForInvocation(request.identifier)
+            ?: return LanguageModelToolResult.Companion.error("No project found for invocation")
+        val basePath = project.basePath
+            ?: return LanguageModelToolResult.Companion.error("No project base path")
+
         val target = request.input?.get("target")?.asInt ?: 100
         val path = request.input?.get("path")?.asString ?: "."
         val batchSize = request.input?.get("batch_size")?.asInt ?: 5

@@ -3,19 +3,17 @@ package com.speckit.plugin.tools
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelTool
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelToolResult
 import com.github.copilot.chat.conversation.agent.tool.LanguageModelToolRegistration
+import com.github.copilot.chat.conversation.agent.tool.ToolInvocationManager
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.command.WriteCommandAction
-import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
 import java.io.File
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 
-class SpeckitWriteMemory(private val project: Project) : LanguageModelToolRegistration {
-
-    private val basePath = project.basePath ?: ""
+class SpeckitWriteMemory : LanguageModelToolRegistration {
 
     override val toolDefinition = LanguageModelTool(
         "speckit_write_memory",
@@ -36,6 +34,12 @@ class SpeckitWriteMemory(private val project: Project) : LanguageModelToolRegist
     override suspend fun handleInvocation(
         request: ToolInvocationRequest
     ): LanguageModelToolResult {
+        val manager = ApplicationManager.getApplication().getService(ToolInvocationManager::class.java)
+        val project = manager.findProjectForInvocation(request.identifier)
+            ?: return LanguageModelToolResult.Companion.error("No project found for invocation")
+        val basePath = project.basePath
+            ?: return LanguageModelToolResult.Companion.error("No project base path")
+
         val name = request.input?.get("name")?.asString
             ?: return LanguageModelToolResult.Companion.error("Missing required parameter: name")
         val content = request.input?.get("content")?.asString

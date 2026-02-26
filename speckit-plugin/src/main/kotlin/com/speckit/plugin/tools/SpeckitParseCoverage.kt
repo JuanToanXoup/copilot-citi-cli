@@ -3,13 +3,15 @@ package com.speckit.plugin.tools
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelTool
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelToolResult
 import com.github.copilot.chat.conversation.agent.tool.LanguageModelToolRegistration
+import com.github.copilot.chat.conversation.agent.tool.ToolInvocationManager
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
 import java.io.File
 
-class SpeckitParseCoverage(private val basePath: String) : LanguageModelToolRegistration {
+class SpeckitParseCoverage : LanguageModelToolRegistration {
 
     override val toolDefinition = LanguageModelTool(
         "speckit_parse_coverage",
@@ -30,6 +32,12 @@ class SpeckitParseCoverage(private val basePath: String) : LanguageModelToolRegi
     override suspend fun handleInvocation(
         request: ToolInvocationRequest
     ): LanguageModelToolResult {
+        val manager = ApplicationManager.getApplication().getService(ToolInvocationManager::class.java)
+        val project = manager.findProjectForInvocation(request.identifier)
+            ?: return LanguageModelToolResult.Companion.error("No project found for invocation")
+        val basePath = project.basePath
+            ?: return LanguageModelToolResult.Companion.error("No project base path")
+
         val path = request.input?.get("path")?.asString ?: "."
         val explicitReport = request.input?.get("report_path")?.asString
         val workDir = when {
@@ -56,7 +64,7 @@ class SpeckitParseCoverage(private val basePath: String) : LanguageModelToolRegi
             f
         } else {
             // Try discovery memory first for the known report path
-            findFromDiscoveryMemory(workDir)
+            findFromDiscoveryMemory(workDir, basePath)
                 ?: findCoverageReport(d)
                 ?: return LanguageModelToolResult.Companion.error(
                     "No coverage report found in '$workDir'. Run speckit_run_tests with coverage=true first.\n" +
@@ -73,7 +81,7 @@ class SpeckitParseCoverage(private val basePath: String) : LanguageModelToolRegi
         )
     }
 
-    private fun findFromDiscoveryMemory(workDir: String): VirtualFile? {
+    private fun findFromDiscoveryMemory(workDir: String, basePath: String): VirtualFile? {
         val lfs = LocalFileSystem.getInstance()
         val candidates = listOf(
             lfs.findFileByIoFile(File(workDir, ".specify/memory/discovery-report.md")),

@@ -3,11 +3,11 @@ package com.speckit.plugin.tools
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelTool
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelToolResult
 import com.github.copilot.chat.conversation.agent.tool.LanguageModelToolRegistration
+import com.github.copilot.chat.conversation.agent.tool.ToolInvocationManager
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
+import com.intellij.openapi.application.ApplicationManager
 
-class SpeckitSetupPlan(
-    private val basePath: String
-) : LanguageModelToolRegistration {
+class SpeckitSetupPlan : LanguageModelToolRegistration {
 
     override val toolDefinition = LanguageModelTool(
         "speckit_setup_plan",
@@ -25,6 +25,12 @@ class SpeckitSetupPlan(
     override suspend fun handleInvocation(
         request: ToolInvocationRequest
     ): LanguageModelToolResult {
+        val manager = ApplicationManager.getApplication().getService(ToolInvocationManager::class.java)
+        val project = manager.findProjectForInvocation(request.identifier)
+            ?: return LanguageModelToolResult.Companion.error("No project found for invocation")
+        val basePath = project.basePath
+            ?: return LanguageModelToolResult.Companion.error("No project base path")
+
         val paths = FeatureWorkspace.getFeaturePaths(basePath)
 
         // Validate feature branch

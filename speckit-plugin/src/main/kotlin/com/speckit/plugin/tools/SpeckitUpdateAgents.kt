@@ -3,16 +3,16 @@ package com.speckit.plugin.tools
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelTool
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelToolResult
 import com.github.copilot.chat.conversation.agent.tool.LanguageModelToolRegistration
+import com.github.copilot.chat.conversation.agent.tool.ToolInvocationManager
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
 import java.io.File
 import java.time.LocalDate
 
-class SpeckitUpdateAgents(
-    private val basePath: String
-) : LanguageModelToolRegistration {
+class SpeckitUpdateAgents : LanguageModelToolRegistration {
 
     override val toolDefinition = LanguageModelTool(
         "speckit_update_agents",
@@ -65,6 +65,12 @@ class SpeckitUpdateAgents(
     override suspend fun handleInvocation(
         request: ToolInvocationRequest
     ): LanguageModelToolResult {
+        val invocationManager = ApplicationManager.getApplication().getService(ToolInvocationManager::class.java)
+        val project = invocationManager.findProjectForInvocation(request.identifier)
+            ?: return LanguageModelToolResult.Companion.error("No project found for invocation")
+        val basePath = project.basePath
+            ?: return LanguageModelToolResult.Companion.error("No project base path")
+
         val agentType = request.input?.get("agent_type")?.asString
         val lfs = LocalFileSystem.getInstance()
 
@@ -88,19 +94,19 @@ class SpeckitUpdateAgents(
                     "Unknown agent type '$agentType'. " +
                     "Expected: ${agentConfigs.keys.sorted().joinToString("|")}"
                 )
-            filesToWrite.add(generateFileAction(config, planData, paths.currentBranch, currentDate))
+            filesToWrite.add(generateFileAction(basePath, config, planData, paths.currentBranch, currentDate))
         } else {
             var foundAgent = false
             for ((_, config) in agentConfigs) {
                 val targetFile = lfs.findFileByIoFile(File(basePath, config.relativePath))
                 if (targetFile != null && !targetFile.isDirectory) {
-                    filesToWrite.add(generateFileAction(config, planData, paths.currentBranch, currentDate))
+                    filesToWrite.add(generateFileAction(basePath, config, planData, paths.currentBranch, currentDate))
                     foundAgent = true
                 }
             }
             if (!foundAgent) {
                 val claudeConfig = agentConfigs["claude"]!!
-                filesToWrite.add(generateFileAction(claudeConfig, planData, paths.currentBranch, currentDate))
+                filesToWrite.add(generateFileAction(basePath, claudeConfig, planData, paths.currentBranch, currentDate))
             }
         }
 
@@ -138,6 +144,7 @@ class SpeckitUpdateAgents(
     )
 
     private fun generateFileAction(
+        basePath: String,
         config: AgentConfig,
         planData: PlanData,
         branch: String,
@@ -152,12 +159,12 @@ class SpeckitUpdateAgents(
         } else {
             FileAction(
                 config.relativePath, config.displayName, "create",
-                generateNewContent(planData, branch, currentDate)
+                generateNewContent(basePath, planData, branch, currentDate)
             )
         }
     }
 
-    private fun generateNewContent(planData: PlanData, branch: String, currentDate: String): String {
+    private fun generateNewContent(basePath: String, planData: PlanData, branch: String, currentDate: String): String {
         val template = ResourceLoader.readTemplate(basePath, "agent-file-template.md")
         if (template == null) {
             val techStack = formatTechStack(planData)

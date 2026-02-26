@@ -3,7 +3,9 @@ package com.speckit.plugin.tools.agents
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelTool
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelToolResult
 import com.github.copilot.chat.conversation.agent.tool.LanguageModelToolRegistration
+import com.github.copilot.chat.conversation.agent.tool.ToolInvocationManager
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.speckit.plugin.tools.ResourceLoader
@@ -11,7 +13,6 @@ import com.speckit.plugin.tools.ScriptRunner
 import java.io.File
 
 abstract class AgentTool(
-    private val basePath: String,
     private val toolName: String,
     private val toolDescription: String,
     private val agentFileName: String,
@@ -30,6 +31,12 @@ abstract class AgentTool(
     override suspend fun handleInvocation(
         request: ToolInvocationRequest
     ): LanguageModelToolResult {
+        val manager = ApplicationManager.getApplication().getService(ToolInvocationManager::class.java)
+        val project = manager.findProjectForInvocation(request.identifier)
+            ?: return LanguageModelToolResult.Companion.error("No project found for invocation")
+        val basePath = project.basePath
+            ?: return LanguageModelToolResult.Companion.error("No project base path")
+
         val agentInstructions = ResourceLoader.readAgent(basePath, agentFileName)
             ?: return LanguageModelToolResult.Companion.error(
                 "Agent definition not found: $agentFileName (checked project .github/agents/ and bundled resources)"
@@ -63,7 +70,7 @@ abstract class AgentTool(
             }
 
             // Agent-specific context
-            val extra = gatherExtraContext(request)
+            val extra = gatherExtraContext(request, basePath)
             if (extra.isNotEmpty()) {
                 appendLine(extra)
             }
@@ -75,24 +82,24 @@ abstract class AgentTool(
         return LanguageModelToolResult.Companion.success(context)
     }
 
-    protected open fun gatherExtraContext(request: ToolInvocationRequest): String = ""
+    protected open fun gatherExtraContext(request: ToolInvocationRequest, basePath: String): String = ""
 
     /**
      * Read a file from the project, falling back to bundled resources for
      * known paths (.github/agents/, .specify/templates/).
      */
-    protected fun readFileIfExists(relativePath: String): String? {
+    protected fun readFileIfExists(basePath: String, relativePath: String): String? {
         return ResourceLoader.readFile(basePath, relativePath)
     }
 
-    protected fun readFeatureArtifact(featureDir: String, fileName: String): String? {
+    protected fun readFeatureArtifact(basePath: String, featureDir: String, fileName: String): String? {
         // Feature artifacts are project-only (no bundled fallback)
         val file = LocalFileSystem.getInstance()
             .findFileByIoFile(File(basePath, "specs/$featureDir/$fileName"))
         return if (file != null && !file.isDirectory) VfsUtilCore.loadText(file) else null
     }
 
-    protected fun findCurrentFeatureDir(): String? {
+    protected fun findCurrentFeatureDir(basePath: String): String? {
         val specsDir = LocalFileSystem.getInstance().findFileByIoFile(File(basePath, "specs"))
         if (specsDir == null || !specsDir.isDirectory) return null
 

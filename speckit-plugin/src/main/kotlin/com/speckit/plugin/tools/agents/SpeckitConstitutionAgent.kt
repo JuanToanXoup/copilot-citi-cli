@@ -4,8 +4,7 @@ import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
 import com.intellij.openapi.vfs.LocalFileSystem
 import java.io.File
 
-class SpeckitConstitutionAgent(private val basePath: String) : AgentTool(
-    basePath = basePath,
+class SpeckitConstitutionAgent : AgentTool(
     toolName = "speckit_constitution",
     toolDescription = "Create or update the project constitution (.specify/memory/constitution.md). Collects project principles, governance rules, and ensures dependent templates stay in sync.",
     agentFileName = "speckit.constitution.agent.md",
@@ -17,9 +16,9 @@ class SpeckitConstitutionAgent(private val basePath: String) : AgentTool(
         "required" to listOf<String>()
     )
 ) {
-    override fun gatherExtraContext(request: ToolInvocationRequest): String {
+    override fun gatherExtraContext(request: ToolInvocationRequest, basePath: String): String {
         return buildString {
-            val template = readFileIfExists(".specify/templates/constitution-template.md")
+            val template = readFileIfExists(basePath, ".specify/templates/constitution-template.md")
             if (template != null) {
                 appendLine("## Constitution Template")
                 appendLine(template)

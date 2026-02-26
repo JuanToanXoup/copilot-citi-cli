@@ -3,9 +3,11 @@ package com.speckit.plugin.tools
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelTool
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelToolResult
 import com.github.copilot.chat.conversation.agent.tool.LanguageModelToolRegistration
+import com.github.copilot.chat.conversation.agent.tool.ToolInvocationManager
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
+import com.intellij.openapi.application.ApplicationManager
 
-class SpeckitReadTemplate(private val basePath: String) : LanguageModelToolRegistration {
+class SpeckitReadTemplate : LanguageModelToolRegistration {
 
     override val toolDefinition = LanguageModelTool(
         "speckit_read_template",
@@ -25,6 +27,12 @@ class SpeckitReadTemplate(private val basePath: String) : LanguageModelToolRegis
     override suspend fun handleInvocation(
         request: ToolInvocationRequest
     ): LanguageModelToolResult {
+        val manager = ApplicationManager.getApplication().getService(ToolInvocationManager::class.java)
+        val project = manager.findProjectForInvocation(request.identifier)
+            ?: return LanguageModelToolResult.Companion.error("No project found for invocation")
+        val basePath = project.basePath
+            ?: return LanguageModelToolResult.Companion.error("No project base path")
+
         val name = request.input?.get("name")?.asString
             ?: return LanguageModelToolResult.Companion.error("Missing required parameter: name")
 

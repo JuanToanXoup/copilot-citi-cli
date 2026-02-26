@@ -3,13 +3,13 @@ package com.speckit.plugin.tools
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelTool
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelToolResult
 import com.github.copilot.chat.conversation.agent.tool.LanguageModelToolRegistration
+import com.github.copilot.chat.conversation.agent.tool.ToolInvocationManager
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.vfs.LocalFileSystem
 import java.io.File
 
-class SpeckitAnalyzeProject(
-    private val basePath: String
-) : LanguageModelToolRegistration {
+class SpeckitAnalyzeProject : LanguageModelToolRegistration {
 
     override val toolDefinition = LanguageModelTool(
         "speckit_analyze_project",
@@ -35,6 +35,12 @@ class SpeckitAnalyzeProject(
     override suspend fun handleInvocation(
         request: ToolInvocationRequest
     ): LanguageModelToolResult {
+        val manager = ApplicationManager.getApplication().getService(ToolInvocationManager::class.java)
+        val project = manager.findProjectForInvocation(request.identifier)
+            ?: return LanguageModelToolResult.Companion.error("No project found for invocation")
+        val basePath = project.basePath
+            ?: return LanguageModelToolResult.Companion.error("No project base path")
+
         val mode = request.input?.get("mode")?.asString ?: "json"
         val requireTasks = request.input?.get("require_tasks")?.asBoolean ?: false
         val includeTasks = request.input?.get("include_tasks")?.asBoolean ?: false

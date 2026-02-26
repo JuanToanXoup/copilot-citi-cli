@@ -3,13 +3,15 @@ package com.speckit.plugin.tools
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelTool
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelToolResult
 import com.github.copilot.chat.conversation.agent.tool.LanguageModelToolRegistration
+import com.github.copilot.chat.conversation.agent.tool.ToolInvocationManager
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
 import java.io.File
 
-class SpeckitRunTests(private val basePath: String) : LanguageModelToolRegistration {
+class SpeckitRunTests : LanguageModelToolRegistration {
 
     override val toolDefinition = LanguageModelTool(
         "speckit_run_tests",
@@ -30,6 +32,12 @@ class SpeckitRunTests(private val basePath: String) : LanguageModelToolRegistrat
     override suspend fun handleInvocation(
         request: ToolInvocationRequest
     ): LanguageModelToolResult {
+        val manager = ApplicationManager.getApplication().getService(ToolInvocationManager::class.java)
+        val project = manager.findProjectForInvocation(request.identifier)
+            ?: return LanguageModelToolResult.Companion.error("No project found for invocation")
+        val basePath = project.basePath
+            ?: return LanguageModelToolResult.Companion.error("No project base path")
+
         val path = request.input?.get("path")?.asString ?: "."
         val coverage = request.input?.get("coverage")?.asBoolean ?: true
         val workDir = when {
@@ -48,7 +56,7 @@ class SpeckitRunTests(private val basePath: String) : LanguageModelToolRegistrat
         }
 
         // Check discovery memory first
-        val discovery = readDiscoveryMemory(workDir)
+        val discovery = readDiscoveryMemory(workDir, basePath)
         val memoryCommand = if (coverage) discovery?.coverageCommand else discovery?.testCommand
 
         val command = memoryCommand
@@ -89,7 +97,7 @@ class SpeckitRunTests(private val basePath: String) : LanguageModelToolRegistrat
         return LanguageModelToolResult.Companion.success(output)
     }
 
-    private fun readDiscoveryMemory(workDir: String): DiscoveryConfig? {
+    private fun readDiscoveryMemory(workDir: String, basePath: String): DiscoveryConfig? {
         val lfs = LocalFileSystem.getInstance()
         // Check both the workDir and basePath for the memory file
         val candidates = listOf(

@@ -2,8 +2,7 @@ package com.speckit.plugin.tools.agents
 
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
 
-class SpeckitChecklistAgent(private val basePath: String) : AgentTool(
-    basePath = basePath,
+class SpeckitChecklistAgent : AgentTool(
     toolName = "speckit_checklist",
     toolDescription = "Generate a custom requirements quality checklist for the current feature. Validates quality of requirements, NOT implementation.",
     agentFileName = "speckit.checklist.agent.md",
@@ -15,12 +14,12 @@ class SpeckitChecklistAgent(private val basePath: String) : AgentTool(
         "required" to listOf<String>()
     )
 ) {
-    override fun gatherExtraContext(request: ToolInvocationRequest): String {
-        val featureDir = findCurrentFeatureDir() ?: return ""
+    override fun gatherExtraContext(request: ToolInvocationRequest, basePath: String): String {
+        val featureDir = findCurrentFeatureDir(basePath) ?: return ""
 
         return buildString {
             for (artifact in listOf("spec.md", "plan.md", "tasks.md")) {
-                val content = readFeatureArtifact(featureDir, artifact)
+                val content = readFeatureArtifact(basePath, featureDir, artifact)
                 if (content != null) {
                     appendLine("## $artifact (specs/$featureDir/$artifact)")
                     appendLine(content)
@@ -28,7 +27,7 @@ class SpeckitChecklistAgent(private val basePath: String) : AgentTool(
                 }
             }
 
-            val checklistTemplate = readFileIfExists(".specify/templates/checklist-template.md")
+            val checklistTemplate = readFileIfExists(basePath, ".specify/templates/checklist-template.md")
             if (checklistTemplate != null) {
                 appendLine("## Checklist Template")
                 appendLine(checklistTemplate)

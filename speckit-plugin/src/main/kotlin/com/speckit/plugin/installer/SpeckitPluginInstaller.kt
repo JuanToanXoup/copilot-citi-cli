@@ -31,22 +31,31 @@ import com.speckit.plugin.tools.agents.SpeckitSpecifyAgent
 import com.speckit.plugin.tools.agents.SpeckitTasksAgent
 import com.speckit.plugin.tools.agents.SpeckitCoverageAgent
 import com.speckit.plugin.tools.agents.SpeckitTasksToIssuesAgent
+import java.util.concurrent.atomic.AtomicBoolean
 
 class SpeckitPluginInstaller : StartupActivity.DumbAware {
+
+    companion object {
+        private val registered = AtomicBoolean(false)
+    }
 
     private val log = Logger.getInstance(SpeckitPluginInstaller::class.java)
 
     override fun runActivity(project: Project) {
-        val basePath = project.basePath ?: return
+        if (!registered.compareAndSet(false, true)) {
+            log.info("Spec-Kit tools already registered, skipping (project: ${project.name})")
+            return
+        }
 
         try {
-            registerTools(project, basePath)
+            registerTools()
         } catch (e: Exception) {
+            registered.set(false) // allow retry on failure
             log.warn("Spec-Kit plugin tool registration failed", e)
         }
     }
 
-    private fun registerTools(project: Project, basePath: String) {
+    private fun registerTools() {
         val registry = ToolRegistryProvider.getInstance()
         if (registry !is ToolRegistryImpl) {
             log.warn("ToolRegistry is not ToolRegistryImpl — cannot register tools")
@@ -55,35 +64,35 @@ class SpeckitPluginInstaller : StartupActivity.DumbAware {
 
         val tools = listOf(
             // Workflow agents (the speckit pipeline)
-            SpeckitConstitutionAgent(basePath),
-            SpeckitSpecifyAgent(basePath),
-            SpeckitClarifyAgent(basePath),
-            SpeckitPlanAgent(basePath),
-            SpeckitTasksAgent(basePath),
-            SpeckitAnalyzeAgent(basePath),
-            SpeckitChecklistAgent(basePath),
-            SpeckitImplementAgent(basePath),
-            SpeckitTasksToIssuesAgent(basePath),
+            SpeckitConstitutionAgent(),
+            SpeckitSpecifyAgent(),
+            SpeckitClarifyAgent(),
+            SpeckitPlanAgent(),
+            SpeckitTasksAgent(),
+            SpeckitAnalyzeAgent(),
+            SpeckitChecklistAgent(),
+            SpeckitImplementAgent(),
+            SpeckitTasksToIssuesAgent(),
             // Coverage orchestrator
-            SpeckitCoverageAgent(basePath),
+            SpeckitCoverageAgent(),
             // Workflow tools (reimplemented in Kotlin, no shell scripts needed)
-            SpeckitAnalyzeProject(basePath),
-            SpeckitSetupPlan(basePath),
-            SpeckitSetupFeature(basePath),
-            SpeckitUpdateAgents(basePath),
+            SpeckitAnalyzeProject(),
+            SpeckitSetupPlan(),
+            SpeckitSetupFeature(),
+            SpeckitUpdateAgents(),
             // Discovery and coverage tools
-            SpeckitDiscover(basePath),
-            SpeckitRunTests(basePath),
-            SpeckitParseCoverage(basePath),
+            SpeckitDiscover(),
+            SpeckitRunTests(),
+            SpeckitParseCoverage(),
             // File access tools
-            SpeckitListAgents(basePath),
-            SpeckitReadAgent(basePath),
-            SpeckitListTemplates(basePath),
-            SpeckitReadTemplate(basePath),
-            SpeckitListSpecs(basePath),
-            SpeckitReadSpec(basePath),
-            SpeckitReadMemory(basePath),
-            SpeckitWriteMemory(project),
+            SpeckitListAgents(),
+            SpeckitReadAgent(),
+            SpeckitListTemplates(),
+            SpeckitReadTemplate(),
+            SpeckitListSpecs(),
+            SpeckitReadSpec(),
+            SpeckitReadMemory(),
+            SpeckitWriteMemory(),
         )
 
         for (tool in tools) {

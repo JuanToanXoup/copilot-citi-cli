@@ -3,12 +3,14 @@ package com.speckit.plugin.tools
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelTool
 import com.github.copilot.chat.conversation.agent.rpc.command.LanguageModelToolResult
 import com.github.copilot.chat.conversation.agent.tool.LanguageModelToolRegistration
+import com.github.copilot.chat.conversation.agent.tool.ToolInvocationManager
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtilCore
 import java.io.File
 
-class SpeckitReadMemory(private val basePath: String) : LanguageModelToolRegistration {
+class SpeckitReadMemory : LanguageModelToolRegistration {
 
     override val toolDefinition = LanguageModelTool(
         "speckit_read_memory",
@@ -28,6 +30,12 @@ class SpeckitReadMemory(private val basePath: String) : LanguageModelToolRegistr
     override suspend fun handleInvocation(
         request: ToolInvocationRequest
     ): LanguageModelToolResult {
+        val manager = ApplicationManager.getApplication().getService(ToolInvocationManager::class.java)
+        val project = manager.findProjectForInvocation(request.identifier)
+            ?: return LanguageModelToolResult.Companion.error("No project found for invocation")
+        val basePath = project.basePath
+            ?: return LanguageModelToolResult.Companion.error("No project base path")
+
         val name = request.input?.get("name")?.asString
         val memoryDir = LocalFileSystem.getInstance().findFileByIoFile(File(basePath, ".specify/memory"))
 
