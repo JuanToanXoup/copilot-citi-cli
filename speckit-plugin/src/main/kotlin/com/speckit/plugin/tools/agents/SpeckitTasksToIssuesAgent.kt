@@ -2,10 +2,11 @@ package com.speckit.plugin.tools.agents
 
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
 
-class SpeckitTasksToIssuesAgent : AgentTool(
+class SpeckitTasksToIssuesAgent : SubagentTool(
     toolName = "speckit_taskstoissues",
     toolDescription = "Convert tasks from tasks.md into GitHub issues. Requires a GitHub remote URL.",
-    agentFileName = "speckit.taskstoissues.agent.md"
+    agentFileName = "speckit.taskstoissues.agent.md",
+    chatModeSlug = "speckit.taskstoissues"
 ) {
     override fun gatherExtraContext(request: ToolInvocationRequest, basePath: String): String {
         val featureDir = findCurrentFeatureDir(basePath) ?: return ""

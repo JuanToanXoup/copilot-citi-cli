@@ -2,10 +2,11 @@ package com.speckit.plugin.tools.agents
 
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
 
-class SpeckitPlanAgent : AgentTool(
+class SpeckitPlanAgent : SubagentTool(
     toolName = "speckit_plan",
     toolDescription = "Execute implementation planning. Generates design artifacts: research.md, data-model.md, contracts/, quickstart.md from the feature spec.",
     agentFileName = "speckit.plan.agent.md",
+    chatModeSlug = "speckit.plan",
     inputSchema = mapOf(
         "type" to "object",
         "properties" to mapOf(

@@ -4,10 +4,11 @@ import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
 import com.intellij.openapi.vfs.LocalFileSystem
 import java.io.File
 
-class SpeckitConstitutionAgent : AgentTool(
+class SpeckitConstitutionAgent : SubagentTool(
     toolName = "speckit_constitution",
     toolDescription = "Create or update the project constitution (.specify/memory/constitution.md). Collects project principles, governance rules, and ensures dependent templates stay in sync.",
     agentFileName = "speckit.constitution.agent.md",
+    chatModeSlug = "speckit.constitution",
     inputSchema = mapOf(
         "type" to "object",
         "properties" to mapOf(

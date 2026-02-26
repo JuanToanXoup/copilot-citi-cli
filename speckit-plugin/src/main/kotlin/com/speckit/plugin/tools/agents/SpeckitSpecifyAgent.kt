@@ -2,10 +2,11 @@ package com.speckit.plugin.tools.agents
 
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
 
-class SpeckitSpecifyAgent : AgentTool(
+class SpeckitSpecifyAgent : SubagentTool(
     toolName = "speckit_specify",
     toolDescription = "Create or update a feature specification from a natural language description. Creates feature branch, initializes spec directory, fills spec sections.",
     agentFileName = "speckit.specify.agent.md",
+    chatModeSlug = "speckit.specify",
     inputSchema = mapOf(
         "type" to "object",
         "properties" to mapOf(

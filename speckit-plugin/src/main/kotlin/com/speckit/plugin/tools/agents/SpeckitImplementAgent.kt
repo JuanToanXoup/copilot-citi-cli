@@ -2,10 +2,11 @@ package com.speckit.plugin.tools.agents
 
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
 
-class SpeckitImplementAgent : AgentTool(
+class SpeckitImplementAgent : SubagentTool(
     toolName = "speckit_implement",
     toolDescription = "Execute the implementation plan by processing tasks from tasks.md. Follows TDD, respects dependency order, marks completed tasks.",
     agentFileName = "speckit.implement.agent.md",
+    chatModeSlug = "speckit.implement",
     inputSchema = mapOf(
         "type" to "object",
         "properties" to mapOf(

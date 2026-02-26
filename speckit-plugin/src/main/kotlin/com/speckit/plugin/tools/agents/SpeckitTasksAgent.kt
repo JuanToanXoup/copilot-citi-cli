@@ -2,10 +2,11 @@ package com.speckit.plugin.tools.agents
 
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
 
-class SpeckitTasksAgent : AgentTool(
+class SpeckitTasksAgent : SubagentTool(
     toolName = "speckit_tasks",
     toolDescription = "Generate actionable, dependency-ordered tasks.md from the feature's design artifacts (plan.md, spec.md, data-model.md, contracts/).",
     agentFileName = "speckit.tasks.agent.md",
+    chatModeSlug = "speckit.tasks",
     inputSchema = mapOf(
         "type" to "object",
         "properties" to mapOf(

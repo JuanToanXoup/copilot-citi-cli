@@ -2,10 +2,11 @@ package com.speckit.plugin.tools.agents
 
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
 
-class SpeckitChecklistAgent : AgentTool(
+class SpeckitChecklistAgent : SubagentTool(
     toolName = "speckit_checklist",
     toolDescription = "Generate a custom requirements quality checklist for the current feature. Validates quality of requirements, NOT implementation.",
     agentFileName = "speckit.checklist.agent.md",
+    chatModeSlug = "speckit.checklist",
     inputSchema = mapOf(
         "type" to "object",
         "properties" to mapOf(

@@ -4,10 +4,11 @@ import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
 import com.intellij.openapi.vfs.LocalFileSystem
 import java.io.File
 
-class SpeckitCoverageAgent : AgentTool(
+class SpeckitCoverageAgent : SubagentTool(
     toolName = "speckit_coverage",
     toolDescription = "Autonomous coverage orchestrator. Runs discovery first to understand the project, then drives the speckit pipeline to bring unit test coverage to 100%. No hardcoded assumptions — learns the project before writing a single test.",
     agentFileName = "speckit.coverage.agent.md",
+    chatModeSlug = "speckit.coverage",
     inputSchema = mapOf(
         "type" to "object",
         "properties" to mapOf(

@@ -2,10 +2,11 @@ package com.speckit.plugin.tools.agents
 
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
 
-class SpeckitClarifyAgent : AgentTool(
+class SpeckitClarifyAgent : SubagentTool(
     toolName = "speckit_clarify",
     toolDescription = "Identify underspecified areas in the current feature spec and ask targeted clarification questions. Updates the spec with clarifications.",
     agentFileName = "speckit.clarify.agent.md",
+    chatModeSlug = "speckit.clarify",
     inputSchema = mapOf(
         "type" to "object",
         "properties" to mapOf(
