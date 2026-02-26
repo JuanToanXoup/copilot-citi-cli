@@ -1,0 +1,1177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SpecKit Governance Pipeline</title>
+<style>
+  /* ── Reset & Base ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: #FFFFFF;
+    color: #2D3748;
+    line-height: 1.7;
+    overflow-x: hidden;
+    timeline-scope: --tl-hero, --tl-problem, --tl-solution, --tl-how, --tl-coverage, --tl-artifacts, --tl-takeaways;
+  }
+  #hero { view-timeline: --tl-hero block; }
+  #problem { view-timeline: --tl-problem block; }
+  #solution { view-timeline: --tl-solution block; }
+  #how-it-works { view-timeline: --tl-how block; }
+  #coverage-at-scale { view-timeline: --tl-coverage block; }
+  #artifacts { view-timeline: --tl-artifacts block; }
+  #takeaways { view-timeline: --tl-takeaways block; }
+
+  /* ── Citi Color Palette ── */
+  :root {
+    --citi-blue: #003DA5;
+    --citi-blue-light: #00BDF2;
+    --citi-blue-pale: #E8F4FD;
+    --citi-red: #E21836;
+    --citi-bg: #FFFFFF;
+    --citi-bg-alt: #F5F7FA;
+    --citi-text: #1A1A2E;
+    --citi-text-muted: #4A5568;
+    --citi-text-light: #718096;
+    --citi-border: #E2E8F0;
+    --citi-card-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+    --citi-card-shadow-hover: 0 4px 12px rgba(0,0,0,0.1);
+    --citi-code-bg: #F0F4F8;
+    --citi-green: #0B8457;
+    --citi-green-bg: #F0FFF4;
+    --citi-amber: #B7791F;
+    --citi-amber-bg: #FFFFF0;
+  }
+
+  /* ── Typography ── */
+  h1, h2, h3, h4 { color: var(--citi-text); font-weight: 700; line-height: 1.2; }
+  h1 { font-size: clamp(2rem, 5vw, 3.5rem); letter-spacing: -1px; }
+  h2 { font-size: clamp(1.5rem, 3.5vw, 2.5rem); letter-spacing: -0.5px; }
+  h3 { font-size: clamp(1.1rem, 2.5vw, 1.5rem); }
+  h4 {
+    font-size: 0.8rem;
+    color: var(--citi-text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  code {
+    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+    font-size: 0.85em;
+    background: var(--citi-code-bg);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--citi-blue);
+  }
+  strong { color: var(--citi-text); }
+
+  /* ── Layout ── */
+  .section {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6rem 2rem;
+    position: relative;
+  }
+  .section-alt { background: var(--citi-bg-alt); }
+  .section-inner {
+    max-width: 860px;
+    width: 100%;
+  }
+  .section-divider {
+    width: 60px;
+    height: 3px;
+    background: linear-gradient(90deg, var(--citi-blue), var(--citi-blue-light));
+    border-radius: 2px;
+    margin: 2rem 0;
+  }
+
+  /* ── Hero ── */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 4rem 2rem;
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(180deg, #FFFFFF 0%, var(--citi-bg-alt) 100%);
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(ellipse at 50% 40%, rgba(0,61,165,0.04) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  .hero-subtitle {
+    font-size: 0.85rem;
+    color: var(--citi-blue);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    margin-bottom: 1rem;
+    font-weight: 700;
+  }
+  .hero h1 { margin-bottom: 1.5rem; color: var(--citi-text); }
+  .hero h1 .gradient {
+    background: linear-gradient(135deg, var(--citi-blue), var(--citi-blue-light));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero-tagline {
+    font-size: clamp(1rem, 2vw, 1.2rem);
+    color: var(--citi-text-muted);
+    max-width: 780px;
+    margin-bottom: 3rem;
+  }
+  .hero-stats {
+    display: flex;
+    gap: 3rem;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .hero-stat { text-align: center; }
+  .hero-stat .num {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: var(--citi-blue);
+    line-height: 1;
+  }
+  .hero-stat .label {
+    font-size: 0.8rem;
+    color: var(--citi-text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-top: 0.25rem;
+  }
+  .scroll-hint {
+    position: absolute;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--citi-text-light);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    animation: float 2s ease-in-out infinite;
+  }
+  .scroll-hint .arrow { font-size: 1.2rem; }
+  @keyframes float {
+    0%, 100% { transform: translateX(-50%) translateY(0); }
+    50% { transform: translateX(-50%) translateY(8px); }
+  }
+
+  /* ── Animate-in system ── */
+  @keyframes reveal-up {
+    from { opacity: 0; transform: translateY(40px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .reveal {
+    animation: reveal-up linear both;
+    animation-timeline: view();
+    animation-range: entry 25% cover 25%;
+  }
+  .reveal-delay-1, .reveal-delay-2, .reveal-delay-3,
+  .reveal-delay-4, .reveal-delay-5, .reveal-delay-6,
+  .reveal-delay-7 { /* delays not needed — scroll-driven */ }
+
+  /* ── Pipeline / Phase timeline ── */
+  .pipeline {
+    position: relative;
+    padding-left: 3rem;
+    margin: 2rem 0;
+  }
+  .pipeline::before {
+    content: '';
+    position: absolute;
+    left: 11px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--citi-border);
+  }
+  .phase {
+    position: relative;
+    margin-bottom: 3rem;
+    padding: 1.5rem;
+    background: var(--citi-bg);
+    border: 1px solid var(--citi-border);
+    border-radius: 12px;
+    box-shadow: var(--citi-card-shadow);
+    transition: box-shadow 0.3s ease;
+  }
+  .phase:hover { box-shadow: var(--citi-card-shadow-hover); }
+  .phase::before {
+    content: '';
+    position: absolute;
+    left: calc(-3rem + 4px);
+    top: 1.8rem;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--citi-border);
+    border: 3px solid var(--citi-bg-alt);
+    transition: background 0.5s ease, box-shadow 0.5s ease;
+    z-index: 1;
+  }
+  @keyframes phase-light {
+    from { background: var(--citi-bg-alt); box-shadow: none; }
+    to   { background: var(--citi-blue); box-shadow: 0 0 12px rgba(0,61,165,0.35); }
+  }
+  .phase::before {
+    animation: phase-light linear both;
+    animation-timeline: view();
+    animation-range: entry 25% cover 25%;
+  }
+  .phase-num {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--citi-blue);
+    margin-bottom: 0.5rem;
+  }
+  .phase h3 { margin-bottom: 0.25rem; }
+  .phase-content { margin-top: 0.75rem; }
+
+  /* ── Tables ── */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.85rem;
+  }
+  .data-table th {
+    text-align: left;
+    padding: 0.6rem 1rem;
+    background: var(--citi-bg-alt);
+    color: var(--citi-text-muted);
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-bottom: 2px solid var(--citi-border);
+  }
+  .data-table td {
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid var(--citi-border);
+    color: var(--citi-text);
+  }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table tr:hover td { background: rgba(0,61,165,0.02); }
+
+  /* ── Code block ── */
+  .code-block {
+    background: var(--citi-code-bg);
+    border: 1px solid var(--citi-border);
+    border-radius: 8px;
+    padding: 0.85rem 1rem;
+    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    overflow-x: auto;
+    margin: 0.75rem 0;
+  }
+  .code-block > span:first-child {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-size: 0.75rem;
+  }
+  .code-block .task-id { color: var(--citi-blue); font-weight: 600; }
+  .code-block .task-method { color: #6B21A8; }
+  .code-block .task-desc { color: var(--citi-text-muted); }
+  .code-block .task-arrow { color: var(--citi-green); }
+  .task-line {
+    display: block;
+  }
+  @keyframes task-cb-out {
+    0%   { opacity: 1; max-width: 3em; }
+    49%  { opacity: 0; max-width: 3em; }
+    50%  { opacity: 0; max-width: 0; }
+    100% { opacity: 0; max-width: 0; }
+  }
+  @keyframes task-x-in {
+    0%   { opacity: 0; max-width: 0; }
+    50%  { opacity: 0; max-width: 3em; }
+    51%  { opacity: 1; max-width: 3em; }
+    100% { opacity: 1; max-width: 3em; }
+  }
+  .task-line .task-checkbox {
+    display: inline-block;
+    overflow: hidden;
+    vertical-align: bottom;
+    color: var(--citi-text-light);
+    animation: task-cb-out linear both;
+    animation-timeline: view();
+    animation-range: entry 30% entry 55%;
+  }
+  .task-line .task-x {
+    display: inline-block;
+    overflow: hidden;
+    vertical-align: bottom;
+    max-width: 0;
+    opacity: 0;
+    color: var(--citi-green);
+    font-weight: 700;
+    animation: task-x-in linear both;
+    animation-timeline: view();
+    animation-range: entry 30% entry 55%;
+  }
+
+  /* ── Validation checklist ── */
+  .validation-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.75rem 0;
+  }
+  .validation-list li {
+    padding: 0.3rem 0 0.3rem 2rem;
+    position: relative;
+    color: var(--citi-text-muted);
+    font-size: 0.9rem;
+  }
+  @keyframes check-fill {
+    from { background: transparent; border-color: var(--citi-border); }
+    to   { background: var(--citi-green); border-color: var(--citi-green); }
+  }
+  @keyframes check-tick {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  .validation-list li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    border: 2px solid var(--citi-border);
+    animation: check-fill linear both;
+    animation-timeline: view();
+    animation-range: entry 25% cover 25%;
+  }
+  .validation-list li::after {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 50%;
+    transform: translateY(-50%) rotate(-45deg);
+    margin-top: -1px;
+    width: 8px;
+    height: 4px;
+    border-left: 2px solid #fff;
+    border-bottom: 2px solid #fff;
+    animation: check-tick linear both;
+    animation-timeline: view();
+    animation-range: entry 25% cover 25%;
+  }
+
+  /* ── Implementation steps ── */
+  .impl-steps {
+    list-style: none;
+    padding: 0;
+    counter-reset: step;
+    margin: 1rem 0;
+  }
+  .impl-steps li {
+    counter-increment: step;
+    position: relative;
+    padding: 0.6rem 0 0.6rem 2.5rem;
+    color: var(--citi-text-muted);
+    font-size: 0.9rem;
+  }
+  .impl-steps li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: 0.5rem;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--citi-blue-pale);
+    color: var(--citi-blue);
+    font-size: 0.7rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ── Artifact chain ── */
+  .artifact-chain {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 2rem 0;
+  }
+  .artifact-card {
+    display: flex;
+    align-items: stretch;
+    background: var(--citi-bg);
+    border: 1px solid var(--citi-border);
+    overflow: hidden;
+    margin-bottom: -1px;
+  }
+  .artifact-card:first-child { border-radius: 8px 8px 0 0; }
+  .artifact-card:last-child { border-radius: 0 0 8px 8px; margin-bottom: 0; }
+  .artifact-icon {
+    width: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+    background: var(--citi-blue-pale);
+    border-right: 1px solid var(--citi-border);
+    color: var(--citi-blue);
+    font-weight: 700;
+  }
+  .artifact-body {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  .artifact-name {
+    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+    font-size: 0.8rem;
+    color: var(--citi-blue);
+    font-weight: 600;
+  }
+  .artifact-proves {
+    font-size: 0.8rem;
+    color: var(--citi-text-muted);
+    text-align: right;
+    flex: 1;
+  }
+  .artifact-connector {
+    width: 56px;
+    height: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .artifact-connector::before {
+    content: '';
+    width: 2px;
+    height: 100%;
+    background: linear-gradient(180deg, var(--citi-blue), var(--citi-blue-light));
+    opacity: 0.3;
+  }
+
+  /* ── Big three cards ── */
+  .big-three {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1.5rem;
+    margin: 2rem 0;
+  }
+  .big-three-card {
+    background: var(--citi-bg);
+    border: 1px solid var(--citi-border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: var(--citi-card-shadow);
+    border-top: 3px solid;
+    transition: box-shadow 0.3s ease;
+  }
+  .big-three-card:hover { box-shadow: var(--citi-card-shadow-hover); }
+  .big-three-card:nth-child(1) { border-top-color: var(--citi-blue); }
+  .big-three-card:nth-child(2) { border-top-color: #6B21A8; }
+  .big-three-card:nth-child(3) { border-top-color: var(--citi-green); }
+  .big-three-card h3 { font-size: 1rem; margin-bottom: 0.5rem; }
+  .big-three-card p { font-size: 0.85rem; color: var(--citi-text-muted); }
+
+  /* ── Discovery stats ── */
+  .discovery-stats {
+    list-style: none;
+    padding: 0;
+    margin: 1rem 0;
+  }
+  .discovery-stats li {
+    padding: 0.5rem 0;
+    font-size: 0.9rem;
+    color: var(--citi-text-muted);
+    border-bottom: 1px solid var(--citi-border);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .discovery-stats li:last-child { border-bottom: none; }
+  .discovery-stats .stat-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    font-weight: 700;
+    flex-shrink: 0;
+    background: var(--citi-blue-pale);
+    color: var(--citi-blue);
+  }
+
+  /* ── Callout ── */
+  .callout {
+    background: var(--citi-blue-pale);
+    border: 1px solid rgba(0,61,165,0.12);
+    border-left: 4px solid var(--citi-blue);
+    border-radius: 0 8px 8px 0;
+    padding: 1rem 1.2rem;
+    margin: 1.5rem 0;
+    font-size: 0.95rem;
+    color: var(--citi-text);
+  }
+  .callout.green {
+    background: var(--citi-green-bg);
+    border-color: rgba(11,132,87,0.12);
+    border-left-color: var(--citi-green);
+  }
+  .callout strong { color: var(--citi-text); }
+
+  /* ── Coverage bar ── */
+  .coverage-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--citi-border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 0.5rem 0;
+  }
+  @keyframes fill-bar {
+    from { width: 0; }
+    to   { width: var(--fill-width, 100%); }
+  }
+  .coverage-bar .fill {
+    height: 100%;
+    border-radius: 4px;
+    animation: fill-bar linear both;
+    animation-timeline: view();
+    animation-range: entry 25% cover 25%;
+  }
+  .coverage-bar .fill.green { background: linear-gradient(90deg, var(--citi-green), #38A169); }
+
+  /* ── Severity badges ── */
+  .severity {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+  .severity-critical { background: #FFF5F5; color: var(--citi-red); border: 1px solid rgba(226,24,54,0.2); }
+
+  /* ── Nav dots ── */
+  .nav-dots {
+    position: fixed;
+    right: 2rem;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    z-index: 100;
+  }
+  .nav-dot {
+    display: block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--citi-border);
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    padding: 0;
+    position: relative;
+    text-decoration: none;
+  }
+  .nav-dot:hover { background: var(--citi-text-light); }
+  @keyframes dot-active {
+    0%, 100% { background: var(--citi-border); box-shadow: none; }
+    15%, 85% { background: var(--citi-blue); box-shadow: 0 0 8px rgba(0,61,165,0.3); }
+  }
+  .nav-dot[href="#hero"]             { animation: dot-active linear both; animation-timeline: --tl-hero; }
+  .nav-dot[href="#problem"]          { animation: dot-active linear both; animation-timeline: --tl-problem; }
+  .nav-dot[href="#solution"]         { animation: dot-active linear both; animation-timeline: --tl-solution; }
+  .nav-dot[href="#how-it-works"]     { animation: dot-active linear both; animation-timeline: --tl-how; }
+  .nav-dot[href="#coverage-at-scale"]{ animation: dot-active linear both; animation-timeline: --tl-coverage; }
+  .nav-dot[href="#artifacts"]        { animation: dot-active linear both; animation-timeline: --tl-artifacts; }
+  .nav-dot[href="#takeaways"]        { animation: dot-active linear both; animation-timeline: --tl-takeaways; }
+  .nav-dot .tooltip {
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--citi-text);
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+  .nav-dot:hover .tooltip { opacity: 1; }
+
+  /* ── Pipeline flow diagram ── */
+  .pipeline-flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    flex-wrap: wrap;
+    margin: 1.5rem 0;
+    padding: 1.2rem;
+    background: var(--citi-code-bg);
+    border-radius: 8px;
+    border: 2px solid var(--citi-border);
+    animation: pipeline-border linear both;
+    animation-timeline: view();
+    animation-range: entry 70% entry 80%;
+  }
+  @keyframes flow-node-light {
+    from { background: var(--citi-border); color: var(--citi-text-light); box-shadow: none; }
+    to   { background: var(--citi-blue-pale); color: var(--citi-blue); box-shadow: 0 0 0 1px var(--citi-blue); }
+  }
+  @keyframes flow-arrow-light {
+    from { color: var(--citi-border); }
+    to   { color: var(--citi-text-light); }
+  }
+  @keyframes pipeline-border {
+    from { border-color: var(--citi-border); }
+    to   { border-color: var(--citi-blue); }
+  }
+  .flow-node {
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    background: var(--citi-border);
+    color: var(--citi-text-light);
+    white-space: nowrap;
+    animation: flow-node-light linear both;
+    animation-timeline: view();
+  }
+  .flow-arrow {
+    color: var(--citi-border);
+    font-size: 0.9rem;
+    margin: 0 0.3rem;
+    animation: flow-arrow-light linear both;
+    animation-timeline: view();
+  }
+  /* Staggered light-up: 13 children (7 nodes + 6 arrows) */
+  .pipeline-flow > :nth-child(1)  { animation-range: entry 30% entry 38%; }
+  .pipeline-flow > :nth-child(2)  { animation-range: entry 33% entry 41%; }
+  .pipeline-flow > :nth-child(3)  { animation-range: entry 36% entry 44%; }
+  .pipeline-flow > :nth-child(4)  { animation-range: entry 39% entry 47%; }
+  .pipeline-flow > :nth-child(5)  { animation-range: entry 42% entry 50%; }
+  .pipeline-flow > :nth-child(6)  { animation-range: entry 45% entry 53%; }
+  .pipeline-flow > :nth-child(7)  { animation-range: entry 48% entry 56%; }
+  .pipeline-flow > :nth-child(8)  { animation-range: entry 51% entry 59%; }
+  .pipeline-flow > :nth-child(9)  { animation-range: entry 54% entry 62%; }
+  .pipeline-flow > :nth-child(10) { animation-range: entry 57% entry 65%; }
+  .pipeline-flow > :nth-child(11) { animation-range: entry 60% entry 68%; }
+  .pipeline-flow > :nth-child(12) { animation-range: entry 63% entry 71%; }
+  .pipeline-flow > :nth-child(13) { animation-range: entry 66% entry 74%; }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .section { padding: 4rem 1.5rem; }
+    .pipeline { padding-left: 2rem; }
+    .pipeline::before { left: 7px; }
+    .phase::before { left: -1.72rem; width: 12px; height: 12px; }
+    .hero-stats { gap: 2rem; }
+    .nav-dots { right: 1rem; }
+    .big-three { grid-template-columns: 1fr; }
+    blockquote { font-size: 1.2rem; }
+    .artifact-body { flex-direction: column; align-items: flex-start; gap: 0.25rem; }
+    .artifact-proves { text-align: left; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Navigation dots -->
+<nav class="nav-dots" aria-label="Section navigation">
+  <a href="#hero" class="nav-dot"><span class="tooltip">Overview</span></a>
+  <a href="#problem" class="nav-dot"><span class="tooltip">Problem</span></a>
+  <a href="#solution" class="nav-dot"><span class="tooltip">Solution</span></a>
+  <a href="#how-it-works" class="nav-dot"><span class="tooltip">How It Works</span></a>
+  <a href="#coverage-at-scale" class="nav-dot"><span class="tooltip">Coverage</span></a>
+  <a href="#artifacts" class="nav-dot"><span class="tooltip">Artifacts</span></a>
+  <a href="#takeaways" class="nav-dot"><span class="tooltip">Takeaways</span></a>
+</nav>
+
+<!-- ============================================ -->
+<!-- HERO                                         -->
+<!-- ============================================ -->
+<section class="hero" id="hero">
+  <div class="hero-subtitle reveal">Executive Summary</div>
+  <h1 class="reveal reveal-delay-1">
+    <span class="gradient">SpecKit Governance Pipeline</span>
+  </h1>
+  <p class="hero-tagline reveal reveal-delay-2">
+    Autonomous unit test coverage for microservices&mdash;governed by a 7-agent pipeline that produces a complete artifact trail from standard to test.
+  </p>
+
+  <div class="pipeline-flow reveal reveal-delay-3">
+    <span class="flow-node">constitution</span>
+    <span class="flow-arrow">&rarr;</span>
+    <span class="flow-node">specify</span>
+    <span class="flow-arrow">&rarr;</span>
+    <span class="flow-node">clarify</span>
+    <span class="flow-arrow">&rarr;</span>
+    <span class="flow-node">plan</span>
+    <span class="flow-arrow">&rarr;</span>
+    <span class="flow-node">tasks</span>
+    <span class="flow-arrow">&rarr;</span>
+    <span class="flow-node">analyze</span>
+    <span class="flow-arrow">&rarr;</span>
+    <span class="flow-node">implement</span>
+  </div>
+
+  <div class="hero-stats" style="margin-top: 2rem;">
+    <div class="hero-stat reveal reveal-delay-4">
+      <div class="num">7</div>
+      <div class="label">Agents</div>
+    </div>
+    <div class="hero-stat reveal reveal-delay-5">
+      <div class="num">100%</div>
+      <div class="label">Coverage Target</div>
+    </div>
+  </div>
+  <div class="scroll-hint">
+    <span>Scroll</span>
+    <span class="arrow">&darr;</span>
+  </div>
+</section>
+
+
+<!-- ============================================ -->
+<!-- PROBLEM                                      -->
+<!-- ============================================ -->
+<section class="section section-alt" id="problem">
+  <div class="section-inner">
+    <h2 class="reveal">The Problem</h2>
+    <div class="section-divider reveal reveal-delay-1"></div>
+
+    <p class="reveal reveal-delay-2" style="font-size:1.05rem; margin-bottom:2rem;">
+      Microservices architectures multiply the unit testing challenge. Each service has its own dependencies, state machines, and API contracts. Testing one service means mocking the others&mdash;effort compounds with every service added. Average enterprise coverage sits at 40%, with some services at 15% and others at 80%. There is no enforced standard and no audit trail.
+    </p>
+
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1rem;" class="reveal reveal-delay-3">
+      <div class="callout" style="margin:0;">
+        <strong>Scale</strong><br>
+        Hundreds of microservices, each requiring isolated unit tests with mocked dependencies. 2&ndash;4 weeks per developer per service for comprehensive coverage.
+      </div>
+      <div class="callout" style="margin:0;">
+        <strong>Inconsistency</strong><br>
+        Coverage varies wildly per service&mdash;no enforced standard, no versioned baseline, no way to guarantee every service meets the same bar.
+      </div>
+      <div class="callout" style="margin:0;">
+        <strong>No traceability</strong><br>
+        Tests exist in isolation. No documented chain from requirement to test to standard. No way to prove why a test exists or what it validates.
+      </div>
+      <div class="callout" style="margin:0;">
+        <strong>Compliance exposure</strong><br>
+        Every untested code path is a potential production incident. Low coverage means slower release cycles and audit risk.
+      </div>
+    </div>
+
+    <p class="reveal reveal-delay-4" style="color:var(--citi-text-muted); margin-top:1.5rem;">
+      This governance rigor&mdash;constitution, specification, validation gate, artifact trail&mdash;does not scale manually across hundreds of services. The issue is not effort. The issue is that the process producing tests must itself be governed.
+    </p>
+  </div>
+</section>
+
+
+<!-- ============================================ -->
+<!-- SOLUTION                                     -->
+<!-- ============================================ -->
+<section class="section" id="solution">
+  <div class="section-inner">
+    <h2 class="reveal">The Solution</h2>
+    <div class="section-divider reveal reveal-delay-1"></div>
+
+    <p class="reveal reveal-delay-2" style="font-size:1.05rem; margin-bottom:1.5rem;">
+      SpecKit drives unit test coverage to 100% per microservice, autonomously. It understands service boundaries, mocks dependencies correctly, tests every branch, and produces a governance trail at every phase. Every test is traceable to a task, a specification, and a constitution.
+    </p>
+
+    <p class="reveal reveal-delay-3" style="color:var(--citi-text-muted); margin-bottom:1.5rem;">
+      The pipeline handles microservice-specific challenges&mdash;service isolation, dependency mocking, shared test utilities, per-service coverage tracking. It makes governed, auditable coverage the default for every service, every time.
+    </p>
+
+    <div class="pipeline-flow reveal reveal-delay-4" style="margin-top:1rem;">
+      <span class="flow-node">constitution</span>
+      <span class="flow-arrow">&rarr;</span>
+      <span class="flow-node">specify</span>
+      <span class="flow-arrow">&rarr;</span>
+      <span class="flow-node">clarify</span>
+      <span class="flow-arrow">&rarr;</span>
+      <span class="flow-node">plan</span>
+      <span class="flow-arrow">&rarr;</span>
+      <span class="flow-node">tasks</span>
+      <span class="flow-arrow">&rarr;</span>
+      <span class="flow-node">analyze</span>
+      <span class="flow-arrow">&rarr;</span>
+      <span class="flow-node">implement</span>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================ -->
+<!-- HOW IT WORKS                                 -->
+<!-- ============================================ -->
+<section class="section section-alt" id="how-it-works" style="min-height: auto; padding-top: 6rem; padding-bottom: 2rem;">
+  <div class="section-inner">
+    <h2 class="reveal">How It Works</h2>
+    <div class="section-divider reveal reveal-delay-1"></div>
+
+    <div class="pipeline">
+
+      <!-- Phase 1: Constitution -->
+      <div class="phase reveal" data-phase="1">
+        <div class="phase-num">Phase 1 &middot; speckit_constitution</div>
+        <h3>Constitution</h3>
+        <div class="phase-content">
+          <p style="margin-bottom:0.75rem; color:var(--citi-text-muted);">
+            Creates a versioned testing standard derived from the project's existing patterns. Stored at <code>.specify/memory/constitution.md</code> with semantic versioning. Includes mock strategies, DI patterns, and service isolation conventions specific to the microservices architecture. Downstream violations are flagged <span class="severity severity-critical">CRITICAL</span> and block the pipeline.
+          </p>
+          <table class="data-table">
+            <thead>
+              <tr><th>Rule</th><th>Derived From</th><th>Enforced As</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>*Test.java</code></td>
+                <td>80% of existing tests</td>
+                <td>All generated tests follow this naming</td>
+              </tr>
+              <tr>
+                <td><code>@Mock</code> + <code>@InjectMocks</code></td>
+                <td>Mockito annotation pattern</td>
+                <td>No manual <code>Mockito.mock()</code>&mdash;service dependencies always mocked via annotation</td>
+              </tr>
+              <tr>
+                <td>AssertJ <code>assertThat()</code></td>
+                <td>Existing imports</td>
+                <td>No <code>assertEquals</code></td>
+              </tr>
+              <tr>
+                <td>Service isolation</td>
+                <td>Microservice architecture</td>
+                <td>Each service tested in isolation&mdash;mock all external clients and repositories</td>
+              </tr>
+              <tr>
+                <td>PII: anonymized</td>
+                <td>Compliance constraint</td>
+                <td>No real names, emails, or account numbers</td>
+              </tr>
+            </tbody>
+          </table>
+          <p style="font-size:0.85rem; color:var(--citi-text-light); margin-top:0.75rem;">
+            Produces: <code>constitution.md</code>
+          </p>
+        </div>
+      </div>
+
+      <!-- Phase 2: Specify + Clarify -->
+      <div class="phase reveal" data-phase="2">
+        <div class="phase-num">Phase 2 &middot; speckit_specify + speckit_clarify</div>
+        <h3>Specification &amp; Clarification</h3>
+        <div class="phase-content">
+          <p style="margin-bottom:0.75rem; color:var(--citi-text-muted);">
+            Maps the service topology&mdash;controllers &rarr; services &rarr; repositories &rarr; entities. Identifies inter-service dependencies and makes mocking decisions per dependency (mock the repository layer, mock external HTTP clients, etc.). Then scans for ambiguities across 9 categories and resolves them before planning begins.
+          </p>
+          <table class="data-table">
+            <thead>
+              <tr><th>Clarification</th><th>Resolution</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Service dependency mocking</td><td>Mock repositories via <code>@Mock</code>, mock HTTP clients via <code>MockRestServiceServer</code></td></tr>
+              <tr><td>Database isolation strategy</td><td>Mock via <code>@Mock</code> (not H2, not Testcontainers)</td></tr>
+              <tr><td>Async operation handling</td><td><code>CompletableFuture.join()</code> (not Awaitility)</td></tr>
+              <tr><td>Failure modes per service</td><td>Specific exceptions enumerated per method per service</td></tr>
+            </tbody>
+          </table>
+          <p style="font-size:0.85rem; color:var(--citi-text-light); margin-top:0.75rem;">
+            Produces: <code>spec.md</code>
+          </p>
+        </div>
+      </div>
+
+      <!-- Phase 3: Plan -->
+      <div class="phase reveal" data-phase="3">
+        <div class="phase-num">Phase 3 &middot; speckit_plan</div>
+        <h3>Technical Planning</h3>
+        <div class="phase-content">
+          <p style="margin-bottom:0.75rem; color:var(--citi-text-muted);">
+            Designs the test implementation architecture with dependency-aware execution ordering across services. Documents all decisions with rationale.
+          </p>
+          <table class="data-table">
+            <thead>
+              <tr><th>Execution Order</th><th>Service Type</th><th>Rationale</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>1st</td><td>Leaf services (no internal dependencies)</td><td>Simplest mock setup, validates test infrastructure</td></tr>
+              <tr><td>2nd</td><td>Core domain services (business logic)</td><td>State machines, validation rules, business invariants</td></tr>
+              <tr><td>3rd</td><td>Orchestration services (cross-service)</td><td>Highest branch count, most inter-service dependencies</td></tr>
+              <tr><td>4th</td><td>Controllers + exception handlers</td><td>Entry points, resilience, error response mapping</td></tr>
+            </tbody>
+          </table>
+          <p style="font-size:0.85rem; color:var(--citi-text-light); margin-top:0.75rem;">
+            Produces: <code>plan.md</code>, <code>data-model.md</code>, <code>research.md</code>, <code>contracts/</code>
+          </p>
+        </div>
+      </div>
+
+      <!-- Phase 4: Tasks + Analyze -->
+      <div class="phase reveal" data-phase="4">
+        <div class="phase-num">Phase 4 &middot; speckit_tasks + speckit_analyze</div>
+        <h3>Task Breakdown &amp; Validation</h3>
+        <div class="phase-content">
+          <p style="margin-bottom:0.75rem; color:var(--citi-text-muted);">
+            Generates dependency-ordered tasks traceable to specific methods and scenarios per microservice. Then runs a read-only consistency check before any code is written.
+          </p>
+          <div class="code-block">
+            <span style="color:var(--citi-text-light); font-weight:600;">// PaymentService &mdash; core domain</span>
+            <div class="task-line"><span class="task-checkbox">- [ ]</span><span class="task-x">- [X]</span> <span class="task-id">[T001]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.processPayment</span> <span class="task-desc">&mdash; success</span> <span class="task-arrow">&rarr; charged, receipt generated</span></div>
+            <div class="task-line"><span class="task-checkbox">- [ ]</span><span class="task-x">- [X]</span> <span class="task-id">[T002]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.processPayment</span> <span class="task-desc">&mdash; zero amount</span> <span class="task-arrow">&rarr; InvalidAmountException</span></div>
+            <div class="task-line"><span class="task-checkbox">- [ ]</span><span class="task-x">- [X]</span> <span class="task-id">[T003]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.processPayment</span> <span class="task-desc">&mdash; exceeds limit</span> <span class="task-arrow">&rarr; LimitExceededException</span></div>
+            <div class="task-line"><span class="task-checkbox">- [ ]</span><span class="task-x">- [X]</span> <span class="task-id">[T004]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.processPayment</span> <span class="task-desc">&mdash; idempotency check</span> <span class="task-arrow">&rarr; returns existing receipt</span></div>
+            <div class="task-line"><span class="task-checkbox">- [ ]</span><span class="task-x">- [X]</span> <span class="task-id">[T005]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.retryPayment</span> <span class="task-desc">&mdash; succeeds on 2nd attempt</span> <span class="task-arrow">&rarr; charged after retry</span></div>
+            <div class="task-line"><span class="task-checkbox">- [ ]</span><span class="task-x">- [X]</span> <span class="task-id">[T006]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.retryPayment</span> <span class="task-desc">&mdash; exhausted after max attempts</span> <span class="task-arrow">&rarr; RetryExhaustedException</span></div>
+            <div class="task-line"><span class="task-checkbox">- [ ]</span><span class="task-x">- [X]</span> <span class="task-id">[T007]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.refund</span> <span class="task-desc">&mdash; success</span> <span class="task-arrow">&rarr; refunded, event published</span></div>
+            <div class="task-line"><span class="task-checkbox">- [ ]</span><span class="task-x">- [X]</span> <span class="task-id">[T008]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">PaymentService.refund</span> <span class="task-desc">&mdash; already refunded</span> <span class="task-arrow">&rarr; DuplicateRefundException</span></div>
+          </div>
+          <p style="font-size:0.85rem; color:var(--citi-text-muted); margin:0.75rem 0;">
+            The <code>speckit_analyze</code> agent runs 6 detection passes:
+          </p>
+          <ol class="validation-list" id="validation-checks">
+            <li>Duplication&mdash;near-duplicate requirements</li>
+            <li>Ambiguity&mdash;vague terms without measurable criteria</li>
+            <li>Underspecification&mdash;missing outcomes or acceptance criteria</li>
+            <li>Constitution alignment&mdash;conflicts with MUST principles are <span class="severity severity-critical">CRITICAL</span></li>
+            <li>Coverage gaps&mdash;requirements with zero tasks</li>
+            <li>Inconsistency&mdash;terminology drift across artifacts</li>
+          </ol>
+          <p style="font-size:0.85rem; color:var(--citi-text-light); margin-top:0.75rem;">
+            Produces: <code>tasks.md</code>, analyze report
+          </p>
+        </div>
+      </div>
+
+      <!-- Phase 5: Implement -->
+      <div class="phase reveal" data-phase="5">
+        <div class="phase-num">Phase 5 &middot; speckit_implement</div>
+        <h3>Verified Implementation</h3>
+        <div class="phase-content">
+          <p style="margin-bottom:0.75rem; color:var(--citi-text-muted);">
+            Executes tasks in dependency order, per service. Each test is compiled, run, and verified. Failures are classified and retried up to 3 times with targeted fixes. Stops when every service reaches 100% coverage.
+          </p>
+          <ol class="impl-steps">
+            <li>Generate test following constitution conventions</li>
+            <li>Compile&mdash;classify and fix failures</li>
+            <li>Run&mdash;classify and fix failures</li>
+            <li>Retry up to 3 times</li>
+            <li>Measure coverage after each batch</li>
+            <li>Stop when 100% coverage is reached</li>
+          </ol>
+          <p style="font-size:0.85rem; color:var(--citi-text-light); margin-top:0.75rem;">
+            Produces: test files, coverage reports
+          </p>
+        </div>
+      </div>
+
+    </div><!-- /.pipeline -->
+  </div>
+</section>
+
+
+<!-- ============================================ -->
+<!-- COVERAGE AT SCALE                             -->
+<!-- ============================================ -->
+<section class="section" id="coverage-at-scale">
+  <div class="section-inner">
+    <h2 class="reveal">Microservices Coverage at Scale</h2>
+    <div class="section-divider reveal reveal-delay-1"></div>
+
+    <p class="reveal reveal-delay-2" style="font-size:1.05rem; margin-bottom:2rem;">
+      SpecKit classifies services by priority and tests each one to 100% coverage. The pipeline understands that an orchestration service with 40 branches needs more test scenarios than a notification adapter with 6.
+    </p>
+
+    <h4 class="reveal reveal-delay-2">Service Classification by Priority</h4>
+    <table class="data-table reveal reveal-delay-3">
+      <thead>
+        <tr><th>Priority</th><th>Service Type</th><th>Example</th><th>Why</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="severity severity-critical">CRITICAL</span></td>
+          <td>Orchestration services</td>
+          <td><code>OrderOrchestrator</code></td>
+          <td>Highest branch count, most inter-service dependencies</td>
+        </tr>
+        <tr>
+          <td><span style="display:inline-block; padding:1px 8px; border-radius:4px; font-size:0.7rem; font-weight:700; background:var(--citi-amber-bg); color:var(--citi-amber); border:1px solid rgba(183,121,31,0.2);">HIGH</span></td>
+          <td>Core domain services</td>
+          <td><code>PaymentService</code></td>
+          <td>Business logic with state management</td>
+        </tr>
+        <tr>
+          <td><span style="display:inline-block; padding:1px 8px; border-radius:4px; font-size:0.7rem; font-weight:700; background:var(--citi-amber-bg); color:var(--citi-amber); border:1px solid rgba(183,121,31,0.2);">HIGH</span></td>
+          <td>Auth / identity services</td>
+          <td><code>AuthService</code></td>
+          <td>Authentication and registration flows</td>
+        </tr>
+        <tr>
+          <td><span style="display:inline-block; padding:1px 8px; border-radius:4px; font-size:0.7rem; font-weight:700; background:var(--citi-blue-pale); color:var(--citi-blue); border:1px solid rgba(0,61,165,0.2);">MEDIUM</span></td>
+          <td>Integration services</td>
+          <td><code>NotificationClient</code></td>
+          <td>External HTTP clients and adapters</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h4 class="reveal reveal-delay-3" style="margin-top:2rem;">What Gets Tested Per Service</h4>
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top:1rem;" class="reveal reveal-delay-4">
+      <div class="callout" style="margin:0;">
+        <strong>Every public method</strong><br>
+        Happy path + every error path. No method left untested.
+      </div>
+      <div class="callout" style="margin:0;">
+        <strong>Every catch block</strong><br>
+        Every thrown exception tested. Every catch block reached.
+      </div>
+      <div class="callout" style="margin:0;">
+        <strong>State transitions &amp; edge cases</strong><br>
+        Boundary values, null inputs, empty collections, concurrent access.
+      </div>
+      <div class="callout" style="margin:0;">
+        <strong>Retry logic &amp; idempotency</strong><br>
+        Retry success, retry exhaustion, duplicate request handling.
+      </div>
+    </div>
+
+    <div class="callout green reveal reveal-delay-5" style="margin-top:1.5rem;">
+      <strong>Dependency interactions are always mocked.</strong> Each service is tested in complete isolation. Repository layers, HTTP clients, message queues&mdash;all mocked per the constitution.
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================ -->
+<!-- ARTIFACT TRAIL                               -->
+<!-- ============================================ -->
+<section class="section section-alt" id="artifacts">
+  <div class="section-inner">
+    <h2 class="reveal">Artifact Trail</h2>
+    <div class="section-divider reveal reveal-delay-1"></div>
+
+    <p class="reveal reveal-delay-2" style="font-size:1rem; margin-bottom:2rem; color:var(--citi-text-muted);">
+      Each phase produces versioned artifacts. The complete chain is stored in the <code>.specify/</code> directory.
+    </p>
+
+    <div class="artifact-chain">
+      <div class="artifact-card reveal reveal-delay-1">
+        <div class="artifact-icon">C</div>
+        <div class="artifact-body">
+          <span class="artifact-name">constitution.md <span style="color:var(--citi-text-light); font-weight:400;">v1.0.0</span></span>
+          <span class="artifact-proves">Testing standard&mdash;versioned, enforceable</span>
+        </div>
+      </div>
+      <div class="artifact-connector reveal reveal-delay-1"></div>
+      <div class="artifact-card reveal reveal-delay-2">
+        <div class="artifact-icon">S</div>
+        <div class="artifact-body">
+          <span class="artifact-name">spec.md</span>
+          <span class="artifact-proves">Requirements with clarifications resolved</span>
+        </div>
+      </div>
+      <div class="artifact-connector reveal reveal-delay-2"></div>
+      <div class="artifact-card reveal reveal-delay-3">
+        <div class="artifact-icon">P</div>
+        <div class="artifact-body">
+          <span class="artifact-name">plan.md + research.md + data-model.md</span>
+          <span class="artifact-proves">Technical strategy and architecture decisions</span>
+        </div>
+      </div>
+      <div class="artifact-connector reveal reveal-delay-3"></div>
+      <div class="artifact-card reveal reveal-delay-4">
+        <div class="artifact-icon">T</div>
+        <div class="artifact-body">
+          <span class="artifact-name">tasks.md</span>
+          <span class="artifact-proves">Atomic tasks traceable to methods and scenarios</span>
+        </div>
+      </div>
+      <div class="artifact-connector reveal reveal-delay-4"></div>
+      <div class="artifact-card reveal reveal-delay-5">
+        <div class="artifact-icon">A</div>
+        <div class="artifact-body">
+          <span class="artifact-name">analyze report</span>
+          <span class="artifact-proves">Completeness validated before implementation</span>
+        </div>
+      </div>
+      <div class="artifact-connector reveal reveal-delay-5"></div>
+      <div class="artifact-card reveal reveal-delay-6">
+        <div class="artifact-icon" style="background: rgba(11,132,87,0.1); color: var(--citi-green);">I</div>
+        <div class="artifact-body">
+          <span class="artifact-name" style="color: var(--citi-green);">test files + coverage report</span>
+          <span class="artifact-proves">Every test traceable to task &rarr; spec &rarr; constitution</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================ -->
+<!-- TAKEAWAYS                                    -->
+<!-- ============================================ -->
+<section class="section" id="takeaways" style="padding-bottom: 8rem;">
+  <div class="section-inner">
+    <h2 class="reveal" style="text-align:center; margin-bottom:2.5rem;">Key Takeaways</h2>
+
+    <div class="big-three">
+      <div class="big-three-card reveal reveal-delay-1">
+        <h3 style="color:var(--citi-blue);">Policy Enforcement</h3>
+        <p>The constitution gates every downstream decision. Violations are <span class="severity severity-critical">CRITICAL</span> and block the pipeline.</p>
+      </div>
+      <div class="big-three-card reveal reveal-delay-2">
+        <h3 style="color:#6B21A8;">Per-Service Coverage</h3>
+        <p>Every microservice individually reaches 100% unit test coverage. Not just the aggregate&mdash;each service is tested in isolation to its own target.</p>
+      </div>
+      <div class="big-three-card reveal reveal-delay-3">
+        <h3 style="color:var(--citi-green);">Audit Trail</h3>
+        <p>Constitution &rarr; spec &rarr; plan &rarr; tasks &rarr; analysis &rarr; tests. Unbroken artifact chain from standard to test, per service.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- No JavaScript — all effects are CSS scroll-driven -->
+
+</body>
+</html>
