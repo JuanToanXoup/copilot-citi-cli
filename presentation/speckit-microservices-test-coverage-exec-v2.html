@@ -475,56 +475,6 @@
         <div class="pipe-step"><div class="pipe-num">PHASE 7</div><div class="pipe-cmd">speckit_implement</div><div class="pipe-label">Generation</div><div class="pipe-desc">Write &amp; measure</div><div class="pipe-questions">10 questions</div></div>
     </div>
 
-    <div class="timeline" style="margin-top: 40px;">
-        <div class="tl-item">
-            <div class="tl-dot green">0</div>
-            <div class="tl-title">Discover Project</div>
-            <div class="tl-body">Detect language, build system, test framework, DI approach, existing test conventions, and build a source-to-test file mapping. 21 questions answered by reading project files &mdash; no user prompts.</div>
-        </div>
-
-        <div class="tl-item">
-            <div class="tl-dot blue">1</div>
-            <div class="tl-title">Measure Baseline Coverage</div>
-            <div class="tl-body">Run the test suite with coverage enabled, parse the report, and record per-file line coverage. If coverage already meets the target, the pipeline stops immediately.</div>
-        </div>
-
-        <div class="tl-item">
-            <div class="tl-dot green">2</div>
-            <div class="tl-title">Establish Test Standards</div>
-            <div class="tl-body">Generate a test constitution: naming conventions, assertion library, mock approach, test data strategy, flaky test handling, and PII rules &mdash; all derived from existing project patterns.</div>
-        </div>
-
-        <div class="tl-item">
-            <div class="tl-dot orange">3</div>
-            <div class="tl-title">Analyze Coverage Gaps</div>
-            <div class="tl-body">Filter files below target, classify by layer (service, controller, utility, DTO), rank by impact tier, calculate per-file line gaps, and estimate effort.</div>
-        </div>
-
-        <div class="tl-item">
-            <div class="tl-dot blue">4</div>
-            <div class="tl-title">Resolve All Ambiguities</div>
-            <div class="tl-body">For every in-scope file: determine how to isolate each dependency (DB, HTTP, messaging), handle async operations, override config, and catalog boundary values and failure modes.</div>
-        </div>
-
-        <div class="tl-item">
-            <div class="tl-dot purple">5</div>
-            <div class="tl-title">Design Test Architecture</div>
-            <div class="tl-body">Build a dependency graph, determine execution order (leaves first), plan shared fixtures and base test classes, group files into batches, and predict coverage per batch.</div>
-        </div>
-
-        <div class="tl-item">
-            <div class="tl-dot orange">6</div>
-            <div class="tl-title">Break Down &amp; Validate Tasks</div>
-            <div class="tl-body">Generate per-method test scenarios (happy path, edge cases, error paths) with equivalence partitioning and branch tracing. Then validate: every gap has a task, every method has a test, every error path is covered. Gaps loop back automatically.</div>
-        </div>
-
-        <div class="tl-item">
-            <div class="tl-dot green">7</div>
-            <div class="tl-title">Generate, Self-Heal, Measure</div>
-            <div class="tl-body">Write tests batch-by-batch, compile and run after each file, self-heal failures (max 3 retries), and measure coverage incrementally. Stop when 90%+ is reached. If stuck, loop back to gap analysis with updated data.</div>
-        </div>
-    </div>
-
     <!-- RESULTS -->
     <div class="results-grid" style="margin-top: 40px;">
         <div class="result-box">
