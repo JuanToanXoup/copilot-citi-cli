@@ -206,6 +206,8 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
 
                     // Wait for streaming to complete, with subagent collection + auto-continue loop
                     var autoContinueTurns = 0
+                    var consecutiveEmptyTurns = 0
+                    var partsBeforeTurn = synchronized(replyParts) { replyParts.size }
                     val leadMaxTurns = leadAgent?.maxTurns ?: DEFAULT_MAX_TURNS
                     // Timeout uses a generous upper bound; actual continuation is gated by maxContinuations
                     val timeoutMs = minOf(
@@ -231,6 +233,7 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
                                     handleLeadProgress(value, replyParts)
                                 }
 
+                                partsBeforeTurn = synchronized(replyParts) { replyParts.size }
                                 isStreaming = true
                                 sendFollowUpTurn(workDoneToken, resultContext, useModel, rootUri)
                             } else if (leadConversationId != null && run {
@@ -240,18 +243,30 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
                                 // Auto-continue: check if the agent signaled completion
                                 val accumulatedText = synchronized(replyParts) { replyParts.joinToString("") }
                                 val hasStopSignal = STOP_SIGNALS.any { accumulatedText.contains(it, ignoreCase = false) }
-                                val lastTurnEmpty = synchronized(replyParts) {
-                                    // If the last few parts are very short, the model had nothing to say
-                                    replyParts.takeLast(3).joinToString("").trim().length < 20
+
+                                // Check if this turn produced any new content (detects connection errors / empty responses)
+                                val currentTurnEmpty = synchronized(replyParts) {
+                                    val newParts = replyParts.subList(partsBeforeTurn, replyParts.size)
+                                    newParts.joinToString("").trim().length < 20
+                                }
+                                if (currentTurnEmpty) {
+                                    consecutiveEmptyTurns++
+                                } else {
+                                    consecutiveEmptyTurns = 0
                                 }
 
-                                if (hasStopSignal || lastTurnEmpty) {
-                                    log.info("AgentService: autonomous agent signaled completion (stopSignal=$hasStopSignal, emptyTurn=$lastTurnEmpty)")
+                                if (hasStopSignal) {
+                                    log.info("AgentService: autonomous agent signaled completion (stopSignal=true)")
+                                    break
+                                }
+                                if (consecutiveEmptyTurns >= 2) {
+                                    log.info("AgentService: stopping auto-continue after $consecutiveEmptyTurns consecutive empty turns (likely connection error)")
+                                    _events.tryEmit(LeadEvent.Delta("\n\n*Pipeline stopped: server returned empty responses (connection error). Try again.*\n"))
                                     break
                                 }
 
                                 autoContinueTurns++
-                                log.info("AgentService: auto-continue turn $autoContinueTurns/${maxOf(leadMaxTurns, toolTriggeredMaxTurns)}")
+                                log.info("AgentService: auto-continue turn $autoContinueTurns/${maxOf(leadMaxTurns, toolTriggeredMaxTurns)} (emptyStreak=$consecutiveEmptyTurns)")
                                 _events.tryEmit(LeadEvent.Delta("\n\n*Continuing pipeline (turn $autoContinueTurns)...*\n"))
 
                                 lspClient.removeProgressListener(workDoneToken)
@@ -261,6 +276,7 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
                                     handleLeadProgress(value, replyParts)
                                 }
 
+                                partsBeforeTurn = synchronized(replyParts) { replyParts.size }
                                 isStreaming = true
                                 sendContinueTurn(workDoneToken, useModel, rootUri)
                             } else {
