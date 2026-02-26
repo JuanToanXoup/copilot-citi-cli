@@ -1,5 +1,17 @@
 ---
+name: Speckit Analyze
 description: Perform a non-destructive cross-artifact consistency and quality analysis across spec.md, plan.md, and tasks.md after task generation.
+argument-hint: Analyze feature artifacts for consistency
+tools: ['speckit_analyze', 'speckit_read_spec', 'speckit_read_memory', 'read_file']
+handoffs:
+  - label: Create Tasks
+    agent: speckit.tasks
+    prompt: Break the plan into tasks
+    send: true
+  - label: Start Implementation
+    agent: speckit.implement
+    prompt: Start the implementation in phases
+    send: true
 ---
 
 ## User Input

@@ -1,13 +1,16 @@
 ---
+name: Speckit Specify
 description: Create or update the feature specification from a natural language feature description.
-handoffs: 
-  - label: Build Technical Plan
-    agent: speckit.plan
-    prompt: Create a plan for the spec. I am building with...
+argument-hint: Describe the feature you want to build
+tools: ['speckit_specify', 'speckit_setup_feature', 'speckit_read_memory', 'speckit_write_memory', 'speckit_read_template', 'run_in_terminal', 'read_file', 'create_file']
+handoffs:
   - label: Clarify Spec Requirements
     agent: speckit.clarify
     prompt: Clarify specification requirements
     send: true
+  - label: Build Technical Plan
+    agent: speckit.plan
+    prompt: Create a plan for the spec. I am building with...
 ---
 
 ## User Input

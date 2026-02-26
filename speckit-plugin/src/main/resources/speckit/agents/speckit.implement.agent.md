@@ -1,5 +1,13 @@
 ---
+name: Speckit Implement
 description: Execute the implementation plan by processing and executing all tasks defined in tasks.md
+argument-hint: Implement the feature tasks phase by phase
+tools: ['speckit_implement', 'speckit_read_spec', 'speckit_read_memory', 'speckit_write_memory', 'run_in_terminal', 'read_file', 'create_file', 'insert_edit_into_file']
+handoffs:
+  - label: Analyze For Consistency
+    agent: speckit.analyze
+    prompt: Run a project analysis for consistency
+    send: true
 ---
 
 ## User Input

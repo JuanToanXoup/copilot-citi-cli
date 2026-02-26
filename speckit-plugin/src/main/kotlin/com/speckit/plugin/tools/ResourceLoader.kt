@@ -17,11 +17,12 @@ import java.io.File
 object ResourceLoader {
 
     /** Bundled agent file names (classpath: /speckit/agents/) */
-    private val BUNDLED_AGENTS = listOf(
+    val BUNDLED_AGENTS = listOf(
         "speckit.analyze.agent.md",
         "speckit.checklist.agent.md",
         "speckit.clarify.agent.md",
         "speckit.constitution.agent.md",
+        "speckit.coverage.agent.md",
         "speckit.implement.agent.md",
         "speckit.plan.agent.md",
         "speckit.specify.agent.md",

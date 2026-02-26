@@ -1,6 +1,9 @@
 ---
+name: Speckit Clarify
 description: Identify underspecified areas in the current feature spec by asking up to 5 highly targeted clarification questions and encoding answers back into the spec.
-handoffs: 
+argument-hint: Clarify requirements for the current feature spec
+tools: ['speckit_clarify', 'speckit_read_spec', 'speckit_read_memory', 'speckit_write_memory', 'read_file']
+handoffs:
   - label: Build Technical Plan
     agent: speckit.plan
     prompt: Create a plan for the spec. I am building with...

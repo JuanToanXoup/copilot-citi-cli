@@ -1,13 +1,17 @@
 ---
+name: Speckit Plan
 description: Execute the implementation planning workflow using the plan template to generate design artifacts.
-handoffs: 
+argument-hint: Create a technical plan for the current feature
+tools: ['speckit_plan', 'speckit_setup_plan', 'speckit_read_spec', 'speckit_read_memory', 'speckit_write_memory', 'speckit_read_template', 'read_file', 'create_file']
+handoffs:
   - label: Create Tasks
     agent: speckit.tasks
     prompt: Break the plan into tasks
     send: true
-  - label: Create Checklist
-    agent: speckit.checklist
-    prompt: Create a checklist for the following domain...
+  - label: Start Implementation
+    agent: speckit.implement
+    prompt: Start the implementation in phases
+    send: true
 ---
 
 ## User Input

@@ -1,6 +1,9 @@
 ---
+name: Speckit Tasks
 description: Generate an actionable, dependency-ordered tasks.md for the feature based on available design artifacts.
-handoffs: 
+argument-hint: Break the plan into ordered implementation tasks
+tools: ['speckit_tasks', 'speckit_read_spec', 'speckit_read_memory', 'speckit_write_memory', 'read_file', 'create_file']
+handoffs:
   - label: Analyze For Consistency
     agent: speckit.analyze
     prompt: Run a project analysis for consistency

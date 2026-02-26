@@ -1,5 +1,13 @@
 ---
+name: Speckit Checklist
 description: Generate a custom checklist for the current feature based on user requirements.
+argument-hint: Generate a requirements checklist for a domain
+tools: ['speckit_checklist', 'speckit_read_spec', 'speckit_read_memory', 'read_file']
+handoffs:
+  - label: Start Implementation
+    agent: speckit.implement
+    prompt: Start the implementation in phases
+    send: true
 ---
 
 ## Checklist Purpose: "Unit Tests for English"

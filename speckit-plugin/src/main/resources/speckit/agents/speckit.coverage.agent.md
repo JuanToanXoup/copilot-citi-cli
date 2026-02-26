@@ -1,5 +1,12 @@
 ---
+name: Speckit Coverage
 description: Autonomous coverage orchestrator. Discovers the project, measures baseline coverage, then drives the speckit pipeline to reach the target coverage percentage.
+argument-hint: Drive test coverage to the target percentage
+tools: ['speckit_coverage', 'speckit_specify', 'speckit_clarify', 'speckit_plan', 'speckit_tasks', 'speckit_analyze', 'speckit_checklist', 'speckit_implement', 'speckit_constitution', 'speckit_taskstoissues', 'speckit_setup_feature', 'speckit_setup_plan', 'speckit_read_spec', 'speckit_read_memory', 'speckit_write_memory', 'speckit_read_template', 'speckit_discover', 'speckit_run_tests', 'speckit_parse_coverage', 'speckit_analyze_project', 'speckit_update_agents', 'speckit_list_agents', 'speckit_read_agent', 'speckit_list_templates', 'speckit_list_specs', 'run_in_terminal', 'read_file', 'create_file', 'insert_edit_into_file']
+handoffs:
+  - label: Ask for Help
+    agent: Ask
+    prompt: I need help with test coverage
 ---
 
 ## Goal

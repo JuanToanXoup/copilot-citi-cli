@@ -1,8 +1,10 @@
 package com.speckit.plugin.installer
 
+import com.github.copilot.agent.chatMode.ChatModeService
 import com.github.copilot.chat.conversation.agent.tool.ConversationToolService
 import com.github.copilot.chat.conversation.agent.tool.ToolRegistryImpl
 import com.github.copilot.chat.conversation.agent.tool.ToolRegistryProvider
+import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.startup.StartupActivity
@@ -48,7 +50,21 @@ class SpeckitPluginInstaller : StartupActivity.DumbAware {
         }
 
         try {
+            // 1. Force-enable agent mode feature flags
+            FeatureFlagOverride.ensureAgentModeEnabled()
+
+            // 2. Register tools
             registerTools()
+
+            // 3. Scaffold .agent.md files to .github/agents/
+            AgentScaffolder.scaffold(project)
+
+            // 4. Refresh chat modes so dropdown picks up new agents
+            try {
+                project.service<ChatModeService>().refreshChatModes()
+            } catch (e: Exception) {
+                log.info("ChatModeService refresh deferred: ${e.message}")
+            }
         } catch (e: Exception) {
             registered.set(false) // allow retry on failure
             log.warn("Spec-Kit plugin tool registration failed", e)

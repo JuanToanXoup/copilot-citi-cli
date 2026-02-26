@@ -1,6 +1,9 @@
 ---
+name: Speckit Constitution
 description: Create or update the project constitution from interactive or provided principle inputs, ensuring all dependent templates stay in sync.
-handoffs: 
+argument-hint: Define or update your project's engineering principles
+tools: ['speckit_constitution', 'speckit_read_memory', 'speckit_write_memory', 'read_file']
+handoffs:
   - label: Build Specification
     agent: speckit.specify
     prompt: Implement the feature specification based on the updated constitution. I want to build...

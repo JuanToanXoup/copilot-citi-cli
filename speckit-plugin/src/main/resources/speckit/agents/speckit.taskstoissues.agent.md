@@ -1,6 +1,8 @@
 ---
+name: Speckit Issues
 description: Convert existing tasks into actionable, dependency-ordered GitHub issues for the feature based on available design artifacts.
-tools: ['github/github-mcp-server/issue_write']
+argument-hint: Create GitHub issues from feature tasks
+tools: ['speckit_taskstoissues', 'speckit_read_spec', 'speckit_read_memory', 'run_in_terminal']
 ---
 
 ## User Input
