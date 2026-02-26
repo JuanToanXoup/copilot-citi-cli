@@ -33,9 +33,21 @@ Available subagent types:
 1. Execute ALL steps without stopping for user confirmation — this is fully autonomous.
 2. Do NOT modify production code — only create test files.
 3. Do NOT modify existing test files — only create new ones.
-4. Track all iterations in working memory for the final summary.
+4. **Save progress to memory after each phase** — the pipeline may be interrupted and resumed via auto-continue. Memory files are your checkpoints.
 5. Stop as soon as coverage reaches 100%. Do not over-test.
 6. Match the project's existing test conventions exactly (naming, assertions, mocks, organization).
+
+## Memory Files
+
+| File | Written After | Purpose |
+|------|--------------|---------|
+| `discovery-report.md` | Phase 0 | Project metadata, build/test commands, conventions |
+| `baseline-coverage.md` | Phase 1 | Parsed per-file coverage data |
+| `test-conventions.md` | Phase 2 | Testing standards (naming, mocks, assertions) |
+| `scoping-plan.md` | Phase 3 | Feature specs with status (PENDING/DONE/SKIPPED) |
+| `technical-decisions.md` | Phase 4.2 (per spec) | Mock strategies, DI, async, edge cases |
+| `coverage-progression.md` | Phase 4.7 (per spec) | Per-spec results and running coverage total |
+| `coverage-patterns.md` | Phase 5 | Lessons learned for future runs |
 
 ---
 
@@ -117,7 +129,27 @@ From `PER_FILE_COVERAGE`, build a list of files below 100% coverage. For each fi
 - Lines missed (absolute count)
 - Package/directory it belongs to
 
-Save as `UNCOVERED_FILES`. Continue.
+Save as `UNCOVERED_FILES`.
+
+### STEP 1.6: Save baseline to memory
+
+Call **speckit_write_memory** with `name: "baseline-coverage.md"` containing:
+
+```
+# Baseline Coverage Report
+- **Date**: {date}
+- **Overall coverage**: {BASELINE_PERCENT}%
+- **Total source files**: {count}
+- **Files below target**: {count}
+
+## Per-File Coverage
+| File | Package | Coverage % | Lines Missed |
+|------|---------|-----------|--------------|
+| {path} | {pkg} | {pct}% | {missed} |
+| ... | | | |
+```
+
+This is read by Phase 3 (scoping) and Phase 4.8 (re-scope) to avoid re-parsing the coverage report.
 
 ---
 
@@ -228,13 +260,45 @@ Output the scoping plan:
 
 Save as `SPECS[]`. Set `SPEC_INDEX = 0`. Set `CURRENT_COVERAGE = BASELINE_PERCENT`.
 
+### STEP 3.6: Save scoping plan to memory
+
+Call **speckit_write_memory** with `name: "scoping-plan.md"` containing the full table above plus a status column:
+
+```
+# Scoping Plan
+- **Baseline**: {BASELINE_PERCENT}%
+- **Target**: 100%
+- **Re-scope cycle**: 0
+
+| # | Spec Name | Package(s) | Files | Tier | Status | Before % | After % |
+|---|-----------|------------|-------|------|--------|----------|---------|
+| 1 | {name}    | {pkg}      | {n}   | CRIT | PENDING | —       | —       |
+| 2 | ...       |            |       |      | PENDING | —       | —       |
+
+## File List Per Spec
+### Spec 1: {name}
+- {file1.java} (coverage: {pct}%, missed: {n})
+- {file2.java} (coverage: {pct}%, missed: {n})
+...
+```
+
+All specs start as `PENDING`. Updated to `DONE` or `SKIPPED` after each spec completes (Phase 4.8).
+This file enables resumability — on auto-continue, read it to find the next PENDING spec.
+
 ---
 
 # PIPELINE LOOP (per feature spec)
 
 ## Phase 4: Process Feature Specs
 
-For each spec in `SPECS`, execute phases 4.1 through 4.8.
+### STEP 4.0: Check for resume state
+
+Call **speckit_read_memory** with `name: "scoping-plan.md"`.
+
+- IF found → Read the table. Find the first spec with `Status = PENDING`. Set `SPEC_INDEX` to that spec's index. Read `CURRENT_COVERAGE` from the last `DONE` spec's "After %" column (or from baseline if none done). Skip to Phase 4.1 for that spec.
+- IF not found → This is a fresh run. Start from `SPEC_INDEX = 0`.
+
+For each spec in `SPECS` starting from `SPEC_INDEX`, execute phases 4.1 through 4.8.
 
 ---
 
@@ -272,6 +336,32 @@ For each file in the current spec:
 6. **Failure modes**: For each method, identify what exceptions it throws or catches.
 
 Record all decisions. These feed directly into the task breakdown.
+
+#### STEP 4.2.1: Save technical decisions to memory
+
+Call **speckit_read_memory** with `name: "technical-decisions.md"` to get existing content (may be empty on first spec).
+
+Append this spec's decisions under a new section header, then call **speckit_write_memory** with `name: "technical-decisions.md"`:
+
+```
+## Spec: {spec name} ({package})
+
+### Mock Strategies
+- {ClassName}.{dependency} → {strategy} (e.g., @Mock UserRepository)
+- ...
+
+### DI Approach
+- {approach for this spec's files}
+
+### Async Handling
+- {async patterns and test approach, or NONE}
+
+### Edge Cases & Failure Modes
+- {ClassName}.{methodName}: {edge cases list}
+- ...
+```
+
+This accumulates across specs so test-writer gets richer context and retries don't re-analyze.
 
 ---
 
@@ -441,6 +531,24 @@ Output:
 
 Set `CURRENT_COVERAGE = NEW_COVERAGE`.
 
+#### STEP 4.7.4: Save progress to memory
+
+**Append to coverage-progression.md:** Call **speckit_read_memory** with `name: "coverage-progression.md"` to get existing content. Append this spec's results, then call **speckit_write_memory** with `name: "coverage-progression.md"`:
+
+```
+# Coverage Progression
+- **Baseline**: {BASELINE_PERCENT}%
+- **Current**: {CURRENT_COVERAGE}%
+- **Target**: 100%
+
+| # | Spec Name | Files | Before % | After % | Delta |
+|---|-----------|-------|----------|---------|-------|
+| 1 | {name}    | {n}   | {b}%     | {a}%    | +{d}% |
+| ... (all completed specs) |
+```
+
+**Update scoping-plan.md:** Call **speckit_read_memory** with `name: "scoping-plan.md"`. Update the current spec's row: set `Status` to `DONE`, fill in `Before %` and `After %`. Then call **speckit_write_memory** to save.
+
 ---
 
 ### Phase 4.8: Decision
@@ -456,9 +564,10 @@ Set `CURRENT_COVERAGE = NEW_COVERAGE`.
    - IF yes → Increment `SPEC_INDEX`. Go to Phase 4.1 with the next spec.
 
 4. **All specs exhausted but target not met?**
-   - Re-scope: Call **speckit_parse_coverage** again. Re-read `PER_FILE_COVERAGE`.
-   - Identify files that are STILL below 100% and were NOT in any prior spec (edge case: coverage from other specs may have covered them).
-   - IF new uncovered files found → Create new specs from them (go back to Phase 3.3).
+   - Re-scope: Run `TEST_CMD` with coverage. Call **speckit_parse_coverage** to get fresh data.
+   - Update **baseline-coverage.md** with the new per-file coverage data.
+   - Compare against **scoping-plan.md** to identify files STILL below 100% that were NOT in any prior spec.
+   - IF new uncovered files found → Create new specs, append to **scoping-plan.md** (increment re-scope cycle), go back to Phase 4.0.
    - IF no new files to cover → Go to Phase 5 (Completion) with partial result.
    - Max 2 re-scope cycles total.
 
@@ -476,12 +585,14 @@ Call **speckit_parse_coverage** to get the final number.
 ### STEP 5.2: Save learned patterns
 
 Call **speckit_write_memory** with `name: "coverage-patterns.md"` containing:
-- Mock strategies that worked well
+- Mock strategies that worked well (extract from **technical-decisions.md**)
 - Common test patterns that compiled on first try
 - Edge cases that caught real issues
 - Files that were hard to test and why
 
 ### STEP 5.3: Output final report
+
+Read **coverage-progression.md** and **scoping-plan.md** from memory to build the report.
 
 ```
 ## Test Coverage Summary

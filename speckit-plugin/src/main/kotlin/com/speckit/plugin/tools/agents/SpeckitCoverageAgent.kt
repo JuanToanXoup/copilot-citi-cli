@@ -124,21 +124,25 @@ Impact tiers:
 7. Call `speckit_parse_coverage` to read the report
 8. Parse per-file coverage. If already at {{TARGET}}% → STOP
 9. List all files below {{TARGET}}% with their coverage % and lines missed
+10. Save to memory: `speckit_write_memory` with name `baseline-coverage.md`
 
 ### Phase 2 — Constitution
-10. Check `speckit_read_memory` for existing `constitution.md`
-11. From discovery + existing test samples, document conventions:
+11. Check `speckit_read_memory` for existing `constitution.md`
+12. From discovery + existing test samples, document conventions:
     naming, assertions, mocks, test data, organization, method naming, DI approach
-12. Save to memory: `speckit_write_memory` with name `test-conventions.md`
+13. Save to memory: `speckit_write_memory` with name `test-conventions.md`
 
 ### Phase 3 — Scope Feature Specs
-13. Classify uncovered files by impact tier
-14. Remove exclusions (generated code, framework boilerplate, simple DTOs)
-15. Group into feature specs of 3-8 files by package
-16. Order by impact tier → gap size → dependency depth
-17. Output the scoping plan (table of specs with estimated gain)
+14. Classify uncovered files by impact tier
+15. Remove exclusions (generated code, framework boilerplate, simple DTOs)
+16. Group into feature specs of 3-8 files by package
+17. Order by impact tier → gap size → dependency depth
+18. Output the scoping plan (table of specs with estimated gain)
+19. Save to memory: `speckit_write_memory` with name `scoping-plan.md` (include status column: PENDING/DONE/SKIPPED)
 
 ### Phase 4 — Feature Spec Pipeline (loop per spec)
+
+**Before starting**: Read `scoping-plan.md` from memory. Find the first spec with `PENDING` status. Resume from there.
 
 For each feature spec, execute these sub-phases:
 
@@ -147,6 +151,7 @@ external dependencies, complexity. Build the gap inventory.
 
 **4.2 Clarify**: For each dependency → mock strategy. For async → sync test approach.
 For config reads → override strategy. For each method → edge cases and failure modes.
+**Save**: Append decisions to `technical-decisions.md` in memory.
 
 **4.3 Plan**: Build dependency graph. Determine test execution order (leaf classes first).
 Identify shared fixtures. Assign sub-batches of 3-5 files.
@@ -162,6 +167,7 @@ Naming matches conventions. All mocks listed. If gaps → back to 4.4.
 scenario details). Self-heal compilation failures (max 3 retries). Run tests.
 
 **4.7 Measure**: Run full suite with coverage. Parse report. Calculate delta.
+**Save**: Append results to `coverage-progression.md`. Update spec status in `scoping-plan.md` to DONE.
 
 **4.8 Decide**:
 - Coverage >= {{TARGET}}% → STOP (go to Phase 5)
@@ -183,7 +189,9 @@ scenario details). Self-heal compilation failures (max 3 retries). Run tests.
 - **Self-heal** — fix failing tests immediately
 - **Stop at target** — once {{TARGET}}%+ is reached, stop
 - **Report progress** — show current vs target after every spec
-- **Save patterns** — write working strategies to memory
+- **Save progress to memory** — the pipeline may be interrupted and resumed. Memory files are your checkpoints:
+  `discovery-report.md`, `baseline-coverage.md`, `test-conventions.md`, `scoping-plan.md`,
+  `technical-decisions.md`, `coverage-progression.md`, `coverage-patterns.md`
 """.trimIndent()
     }
 }

@@ -35,6 +35,14 @@ class SpeckitParseCoverage(private val basePath: String) : LanguageModelToolRegi
             else -> "$basePath/$path"
         }
 
+        val d = File(workDir)
+        if (!d.isDirectory) {
+            return LanguageModelToolResult.Companion.error(
+                "Directory not found: $workDir (path='$path', basePath='$basePath'). " +
+                "If this is a file path, use the report_path parameter instead."
+            )
+        }
+
         val reportFile = if (explicitReport != null) {
             val f = File(if (explicitReport.startsWith("/")) explicitReport else "$workDir/$explicitReport")
             if (!f.exists()) return LanguageModelToolResult.Companion.error(

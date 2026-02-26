@@ -35,6 +35,14 @@ class SpeckitRunTests(private val basePath: String) : LanguageModelToolRegistrat
             else -> "$basePath/$path"
         }
 
+        val d = File(workDir)
+        if (!d.isDirectory) {
+            return LanguageModelToolResult.Companion.error(
+                "Directory not found: $workDir (path='$path', basePath='$basePath'). " +
+                "Verify the path parameter points to a valid project directory."
+            )
+        }
+
         // Check discovery memory first
         val discovery = readDiscoveryMemory(workDir)
         val memoryCommand = if (coverage) discovery?.coverageCommand else discovery?.testCommand
