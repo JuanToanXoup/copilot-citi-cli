@@ -10,8 +10,9 @@ import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
 import java.io.File
+import kotlinx.coroutines.future.await
+import kotlinx.coroutines.withTimeout
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.TimeUnit
 
 class SpeckitWriteMemory : LanguageModelToolRegistration {
 
@@ -104,7 +105,7 @@ class SpeckitWriteMemory : LanguageModelToolRegistration {
         }
 
         return try {
-            future.get(30, TimeUnit.SECONDS)
+            withTimeout(30_000) { future.await() }
         } catch (e: Exception) {
             LanguageModelToolResult.Companion.error(
                 "Timed out writing .specify/memory/$name: ${e.message}"
