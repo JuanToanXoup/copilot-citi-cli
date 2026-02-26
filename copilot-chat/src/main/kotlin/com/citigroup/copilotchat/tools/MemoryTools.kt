@@ -27,13 +27,15 @@ object MemoryTools : ToolGroup {
         """{"name":"recall","description":"Retrieve stored knowledge by topic. Uses both semantic similarity and keyword matching to find relevant memories saved with the remember tool.","inputSchema":{"type":"object","properties":{"topic":{"type":"string","description":"The topic or question to search memories for."},"category":{"type":"string","description":"Optional: filter results to a specific category.","enum":["semantic","procedural","failure","general"]}},"required":["topic"]}}""",
     )
 
-    override val executors: Map<String, (JsonObject, String) -> String> = mapOf(
+    override val executors: Map<String, (ToolInvocationRequest) -> String> = mapOf(
         "semantic_search" to ::executeSemanticSearch,
         "remember" to ::executeRemember,
         "recall" to ::executeRecall,
     )
 
-    private fun executeSemanticSearch(input: JsonObject, ws: String): String {
+    private fun executeSemanticSearch(request: ToolInvocationRequest): String {
+        val input = request.input
+        val ws = request.workspaceRoot
         val query = input.str("query") ?: return "Error: query is required"
         val topK = input.int("topK") ?: 5
 
@@ -71,7 +73,8 @@ object MemoryTools : ToolGroup {
         }
     }
 
-    private fun executeRemember(input: JsonObject, ws: String): String {
+    private fun executeRemember(request: ToolInvocationRequest): String {
+        val input = request.input
         val fact = input.str("fact") ?: return "Error: fact is required"
         val category = input.str("category") ?: "general"
 
@@ -110,7 +113,8 @@ object MemoryTools : ToolGroup {
         return "Remembered [$category]: $fact"
     }
 
-    private fun executeRecall(input: JsonObject, ws: String): String {
+    private fun executeRecall(request: ToolInvocationRequest): String {
+        val input = request.input
         val topic = input.str("topic") ?: return "Error: topic is required"
         val category = input.str("category")
 

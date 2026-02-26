@@ -19,15 +19,15 @@ object BuiltInTools {
     )
 
     // Agent stub executors — actual execution is handled by AgentService.
-    private val agentStubs: Map<String, (JsonObject, String) -> String> = mapOf(
-        "delegate_task" to { _, _ -> "Error: delegate_task is only available in the Agent tab" },
-        "create_team" to { _, _ -> "Error: create_team is only available in the Agent tab" },
-        "send_message" to { _, _ -> "Error: send_message is only available in the Agent tab" },
-        "delete_team" to { _, _ -> "Error: delete_team is only available in the Agent tab" },
+    private val agentStubs: Map<String, (ToolInvocationRequest) -> String> = mapOf(
+        "delegate_task" to { _ -> "Error: delegate_task is only available in the Agent tab" },
+        "create_team" to { _ -> "Error: create_team is only available in the Agent tab" },
+        "send_message" to { _ -> "Error: send_message is only available in the Agent tab" },
+        "delete_team" to { _ -> "Error: delete_team is only available in the Agent tab" },
     )
 
-    private val allExecutors: Map<String, (JsonObject, String) -> String> by lazy {
-        val map = mutableMapOf<String, (JsonObject, String) -> String>()
+    private val allExecutors: Map<String, (ToolInvocationRequest) -> String> by lazy {
+        val map = mutableMapOf<String, (ToolInvocationRequest) -> String>()
         for (group in groups) map.putAll(group.executors)
         map.putAll(agentStubs)
         map
@@ -40,12 +40,16 @@ object BuiltInTools {
         groups.flatMap { it.schemas } + agentSchemas
     }
 
-    fun execute(name: String, input: JsonObject, workspaceRoot: String): String {
-        val executor = allExecutors[name] ?: return "Error: Unknown built-in tool: $name"
+    /**
+     * Execute a tool by dispatching a [ToolInvocationRequest].
+     * Mirrors the reference plugin's ToolRegistryImpl.handleToolInvocation(request).
+     */
+    fun execute(request: ToolInvocationRequest): String {
+        val executor = allExecutors[request.name] ?: return "Error: Unknown built-in tool: ${request.name}"
         return try {
-            executor(input, workspaceRoot)
+            executor(request)
         } catch (e: Exception) {
-            "Error executing $name: ${e.message}"
+            "Error executing ${request.name}: ${e.message}"
         }
     }
 

@@ -65,7 +65,7 @@ object SpeckitTools : ToolGroup {
         """{"name":"speckit_read_memory","description":"Read a memory file from .specify/memory/ (e.g. constitution.md, discovery-report.md). Omit 'name' to list all memory files.","inputSchema":{"type":"object","properties":{"name":{"type":"string","description":"File name, e.g. 'constitution.md'. Omit to list all memory files."}},"required":[]}}""",
     )
 
-    override val executors: Map<String, (JsonObject, String) -> String> = mapOf(
+    override val executors: Map<String, (ToolInvocationRequest) -> String> = mapOf(
         "speckit_setup_feature" to ::executeSetupFeature,
         "speckit_setup_plan" to ::executeSetupPlan,
         "speckit_check_prerequisites" to ::executeCheckPrerequisites,
@@ -84,7 +84,9 @@ object SpeckitTools : ToolGroup {
 
     // -- Tool implementations --
 
-    private fun executeSetupFeature(input: JsonObject, ws: String): String {
+    private fun executeSetupFeature(request: ToolInvocationRequest): String {
+        val input = request.input
+        val ws = request.workspaceRoot
         val description = input.str("description") ?: return "Error: description is required"
         val shortName = input.str("short_name") ?: return "Error: short_name is required"
         val number = input["number"]?.toString()?.toIntOrNull()
@@ -101,14 +103,17 @@ object SpeckitTools : ToolGroup {
         return runCommand(cmd, workingDir = ws, timeout = 30)
     }
 
-    private fun executeSetupPlan(input: JsonObject, ws: String): String {
+    private fun executeSetupPlan(request: ToolInvocationRequest): String {
+        val ws = request.workspaceRoot
         val scriptPath = File(ws, ".specify/scripts/bash/setup-plan.sh")
         if (!scriptPath.exists()) return "Error: SpecKit not initialized — .specify/scripts/bash/setup-plan.sh not found"
 
         return runCommand(listOf("bash", scriptPath.absolutePath, "--json"), workingDir = ws, timeout = 30)
     }
 
-    private fun executeCheckPrerequisites(input: JsonObject, ws: String): String {
+    private fun executeCheckPrerequisites(request: ToolInvocationRequest): String {
+        val input = request.input
+        val ws = request.workspaceRoot
         val scriptPath = File(ws, ".specify/scripts/bash/check-prerequisites.sh")
         if (!scriptPath.exists()) return "Error: SpecKit not initialized — .specify/scripts/bash/check-prerequisites.sh not found"
 
@@ -126,7 +131,9 @@ object SpeckitTools : ToolGroup {
         return runCommand(cmd, workingDir = ws, timeout = 30)
     }
 
-    private fun executeUpdateAgentContext(input: JsonObject, ws: String): String {
+    private fun executeUpdateAgentContext(request: ToolInvocationRequest): String {
+        val input = request.input
+        val ws = request.workspaceRoot
         val agentType = input.str("agent_type") ?: "copilot"
         val scriptPath = File(ws, ".specify/scripts/bash/update-agent-context.sh")
         if (!scriptPath.exists()) return "Error: SpecKit not initialized — .specify/scripts/bash/update-agent-context.sh not found"
@@ -134,7 +141,9 @@ object SpeckitTools : ToolGroup {
         return runCommand(listOf("bash", scriptPath.absolutePath, agentType), workingDir = ws, timeout = 30)
     }
 
-    private fun executeReadTemplate(input: JsonObject, ws: String): String {
+    private fun executeReadTemplate(request: ToolInvocationRequest): String {
+        val input = request.input
+        val ws = request.workspaceRoot
         val template = input.str("template") ?: return "Error: template is required"
 
         // Prevent path traversal
@@ -152,7 +161,8 @@ object SpeckitTools : ToolGroup {
         return templateFile.readText().take(OUTPUT_LIMIT)
     }
 
-    private fun executeReadConstitution(input: JsonObject, ws: String): String {
+    private fun executeReadConstitution(request: ToolInvocationRequest): String {
+        val ws = request.workspaceRoot
         val constitutionFile = File(ws, ".specify/memory/constitution.md")
         if (!constitutionFile.exists()) {
             return "Error: constitution not found at .specify/memory/constitution.md. " +
@@ -163,7 +173,8 @@ object SpeckitTools : ToolGroup {
         return constitutionFile.readText().take(OUTPUT_LIMIT)
     }
 
-    private fun executeListFeatures(input: JsonObject, ws: String): String {
+    private fun executeListFeatures(request: ToolInvocationRequest): String {
+        val ws = request.workspaceRoot
         val specsDir = File(ws, "specs")
         if (!specsDir.isDirectory) return "No specs/ directory found. No features have been created yet."
 
@@ -186,7 +197,9 @@ object SpeckitTools : ToolGroup {
         }.take(OUTPUT_LIMIT)
     }
 
-    private fun executeReadArtifact(input: JsonObject, ws: String): String {
+    private fun executeReadArtifact(request: ToolInvocationRequest): String {
+        val input = request.input
+        val ws = request.workspaceRoot
         val artifact = input.str("artifact") ?: return "Error: artifact is required"
 
         // Prevent path traversal
@@ -205,7 +218,9 @@ object SpeckitTools : ToolGroup {
         return artifactFile.readText().take(OUTPUT_LIMIT)
     }
 
-    private fun executeWriteArtifact(input: JsonObject, ws: String): String {
+    private fun executeWriteArtifact(request: ToolInvocationRequest): String {
+        val input = request.input
+        val ws = request.workspaceRoot
         val artifact = input.str("artifact") ?: return "Error: artifact is required"
         val content = input.str("content") ?: return "Error: content is required"
 
@@ -223,7 +238,9 @@ object SpeckitTools : ToolGroup {
         return "Written ${content.length} chars to ${featureDir.name}/$artifact"
     }
 
-    private fun executeWriteMemory(input: JsonObject, ws: String): String {
+    private fun executeWriteMemory(request: ToolInvocationRequest): String {
+        val input = request.input
+        val ws = request.workspaceRoot
         val name = input.str("name") ?: return "Error: name is required"
         val content = input.str("content") ?: return "Error: content is required"
 
@@ -240,7 +257,9 @@ object SpeckitTools : ToolGroup {
         return "Written ${content.length} chars to .specify/memory/$name (${ioFile.absolutePath})"
     }
 
-    private fun executeReadMemory(input: JsonObject, ws: String): String {
+    private fun executeReadMemory(request: ToolInvocationRequest): String {
+        val input = request.input
+        val ws = request.workspaceRoot
         val name = input.str("name")
         val lfs = LocalFileSystem.getInstance()
         val memoryDir = lfs.findFileByIoFile(File(ws, ".specify/memory"))
@@ -274,7 +293,8 @@ object SpeckitTools : ToolGroup {
         return VfsUtilCore.loadText(vFile).take(OUTPUT_LIMIT)
     }
 
-    private fun executeGetFeatureDir(input: JsonObject, ws: String): String {
+    private fun executeGetFeatureDir(request: ToolInvocationRequest): String {
+        val ws = request.workspaceRoot
         val featureDir = resolveFeatureDir(ws)
             ?: return "Error: not on a SpecKit feature branch. Expected branch name matching pattern NNN-feature-name."
 
@@ -334,7 +354,8 @@ object SpeckitTools : ToolGroup {
 
     // -- Coverage analysis tools --
 
-    private fun executeAnalyzeProject(input: JsonObject, ws: String): String {
+    private fun executeAnalyzeProject(request: ToolInvocationRequest): String {
+        val ws = request.workspaceRoot
         val buildSystem = detectBuildSystem(ws)
         val language = detectLanguage(ws, buildSystem)
         val testFramework = detectTestFramework(ws, buildSystem)
@@ -361,7 +382,9 @@ object SpeckitTools : ToolGroup {
         }.toString()
     }
 
-    private fun executeRunTests(input: JsonObject, ws: String): String {
+    private fun executeRunTests(request: ToolInvocationRequest): String {
+        val input = request.input
+        val ws = request.workspaceRoot
         val packageFilter = input.str("package_filter")
         val buildSystem = detectBuildSystem(ws)
         val cmd = buildTestCommand(buildSystem, packageFilter, ws)

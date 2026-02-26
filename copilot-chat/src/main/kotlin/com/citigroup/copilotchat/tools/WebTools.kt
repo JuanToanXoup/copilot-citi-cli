@@ -13,12 +13,13 @@ object WebTools : ToolGroup {
         """{"name":"github_repo","description":"Search code in a GitHub repository using the GitHub CLI (gh).","inputSchema":{"type":"object","properties":{"repo":{"type":"string","description":"The GitHub repository in 'owner/repo' format."},"query":{"type":"string","description":"The search query for code search."}},"required":["repo","query"]}}""",
     )
 
-    override val executors: Map<String, (JsonObject, String) -> String> = mapOf(
+    override val executors: Map<String, (ToolInvocationRequest) -> String> = mapOf(
         "fetch_web_page" to ::executeFetchWebPage,
         "github_repo" to ::executeGithubRepo,
     )
 
-    private fun executeFetchWebPage(input: JsonObject, ws: String): String {
+    private fun executeFetchWebPage(request: ToolInvocationRequest): String {
+        val input = request.input
         val urls = input.strArray("urls") ?: return "Error: urls is required"
         return urls.take(5).joinToString("\n\n") { url ->
             try {
@@ -30,7 +31,8 @@ object WebTools : ToolGroup {
         }
     }
 
-    private fun executeGithubRepo(input: JsonObject, ws: String): String {
+    private fun executeGithubRepo(request: ToolInvocationRequest): String {
+        val input = request.input
         val repo = input.str("repo") ?: return "Error: repo is required"
         val query = input.str("query") ?: return "Error: query is required"
         return runCommand(listOf("gh", "search", "code", "--repo", repo, query), timeout = 30)

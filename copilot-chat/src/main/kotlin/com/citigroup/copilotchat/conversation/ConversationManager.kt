@@ -384,7 +384,7 @@ class ConversationManager(private val project: Project) : Disposable {
                     }
                 } else {
                     val wsOverride = if (callConvId != null) workspaceOverrides[callConvId] else null
-                    val result = lspSession.toolRouter.executeTool(toolName, toolInput, wsOverride)
+                    val result = lspSession.toolRouter.executeTool(toolName, toolInput, wsOverride, callConvId)
                     lspClient.sendResponse(id, result)
 
                     if (isChatConversation) {

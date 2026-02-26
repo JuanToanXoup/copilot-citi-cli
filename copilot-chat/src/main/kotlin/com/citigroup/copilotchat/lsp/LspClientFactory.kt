@@ -227,7 +227,7 @@ class LspClientFactory(private val project: Project) : Disposable {
                 } else null
 
                 val toolRouter = ToolRouter(project)
-                val result = toolRouter.executeTool(toolName, toolInput, wsOverride)
+                val result = toolRouter.executeTool(toolName, toolInput, wsOverride, convId)
                 client.sendResponse(id, result)
             }
             else -> {

@@ -11,17 +11,21 @@ object ExecutionTools : ToolGroup {
         """{"name":"run_tests","description":"Run tests using the project's test framework.","inputSchema":{"type":"object","properties":{"command":{"type":"string","description":"The test command to run."},"explanation":{"type":"string","description":"What tests are being run."}},"required":["command"]}}""",
     )
 
-    override val executors: Map<String, (JsonObject, String) -> String> = mapOf(
+    override val executors: Map<String, (ToolInvocationRequest) -> String> = mapOf(
         "run_in_terminal" to ::executeRunInTerminal,
         "run_tests" to ::executeRunTests,
     )
 
-    private fun executeRunInTerminal(input: JsonObject, ws: String): String {
+    private fun executeRunInTerminal(request: ToolInvocationRequest): String {
+        val input = request.input
+        val ws = request.workspaceRoot
         val command = input.str("command") ?: return "Error: command is required"
         return runCommand(listOf("sh", "-c", command), workingDir = ws, timeout = 60)
     }
 
-    private fun executeRunTests(input: JsonObject, ws: String): String {
+    private fun executeRunTests(request: ToolInvocationRequest): String {
+        val input = request.input
+        val ws = request.workspaceRoot
         val command = input.str("command") ?: return "Error: command is required"
         return runCommand(listOf("sh", "-c", command), workingDir = ws, timeout = 120)
     }

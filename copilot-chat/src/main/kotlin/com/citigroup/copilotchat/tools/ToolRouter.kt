@@ -104,9 +104,14 @@ class ToolRouter(private val project: Project) : ToolExecutor {
      * Execute a tool call and return the result in copilot format:
      * [{"content": [{"value": "..."}], "status": "success"}, null]
      */
-    override suspend fun executeTool(name: String, input: JsonObject, workspaceRootOverride: String?): JsonElement {
+    override suspend fun executeTool(name: String, input: JsonObject, workspaceRootOverride: String?, conversationId: String?): JsonElement {
         log.info("Tool call: $name")
         val effectiveWs = workspaceRootOverride ?: workspaceRoot
+
+        // Register conversationId → Project mapping for ToolInvocationManager
+        if (conversationId != null) {
+            ToolInvocationManager.getInstance().registerInvocation(conversationId, project)
+        }
 
         // Check if tool is disabled
         val settings = CopilotChatSettings.getInstance()
@@ -146,9 +151,13 @@ class ToolRouter(private val project: Project) : ToolExecutor {
             val ws = WorkingSetService.getInstance(project)
             val paths = extractFilePaths(name, input, effectiveWs)
             paths.forEach { ws.captureBeforeState(name, it) }
-            val result = ToolInvocationContext.withProject(project) {
-                BuiltInTools.execute(name, input, effectiveWs)
-            }
+            val request = ToolInvocationRequest(
+                name = name,
+                input = input,
+                conversationId = conversationId,
+                workspaceRoot = effectiveWs,
+            )
+            val result = BuiltInTools.execute(request)
             paths.forEach { ws.captureAfterState(it) }
 
             // Refresh VFS so IntelliJ's file tree and editors see the changes
@@ -204,12 +213,16 @@ class ToolRouter(private val project: Project) : ToolExecutor {
         }
     }
 
-    private fun tryFallback(name: String, input: JsonObject, effectiveWs: String = workspaceRoot): JsonElement {
+    private fun tryFallback(name: String, input: JsonObject, effectiveWs: String = workspaceRoot, conversationId: String? = null): JsonElement {
         // If the original name (before redirect) is a built-in tool, use it
         if (name in BuiltInTools.toolNames) {
-            val result = ToolInvocationContext.withProject(project) {
-                BuiltInTools.execute(name, input, effectiveWs)
-            }
+            val request = ToolInvocationRequest(
+                name = name,
+                input = input,
+                conversationId = conversationId,
+                workspaceRoot = effectiveWs,
+            )
+            val result = BuiltInTools.execute(request)
             return wrapResult(result)
         }
         return wrapResult("Error: Tool execution failed: $name", isError = true)

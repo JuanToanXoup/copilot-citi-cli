@@ -357,7 +357,7 @@ class AgentService(private val project: Project) : AgentEventBus, Disposable {
                         add(JsonNull)
                     }
                 } else {
-                    toolRouter.executeTool(name, input)
+                    toolRouter.executeTool(name, input, conversationId = conversationId)
                 }
                 lspClient.sendResponse(id, result)
             }

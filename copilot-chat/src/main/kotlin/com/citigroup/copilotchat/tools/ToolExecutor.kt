@@ -14,5 +14,10 @@ interface ToolExecutor {
     fun getToolSchemas(): List<String>
 
     /** Execute a tool call and return the result in copilot response format. */
-    suspend fun executeTool(name: String, input: JsonObject, workspaceRootOverride: String? = null): JsonElement
+    suspend fun executeTool(
+        name: String,
+        input: JsonObject,
+        workspaceRootOverride: String? = null,
+        conversationId: String? = null,
+    ): JsonElement
 }

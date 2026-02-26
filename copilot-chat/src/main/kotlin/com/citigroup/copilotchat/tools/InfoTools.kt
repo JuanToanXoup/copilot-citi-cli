@@ -21,7 +21,7 @@ object InfoTools : ToolGroup {
         """{"name":"resolve_library_id","description":"Resolves a library/package name to a library ID for use with get_library_docs. You MUST call this BEFORE get_library_docs to get the correct ID. Bundled: playwright, selenium, cucumber, gherkin, java, mermaid. Other libraries are resolved via Context7 API.","inputSchema":{"type":"object","properties":{"libraryName":{"type":"string","description":"Library or package name to resolve (e.g. 'playwright', 'selenium-java', 'cucumber', 'mermaid')."},"query":{"type":"string","description":"Optional: the user's question to help disambiguate results."}},"required":["libraryName"]}}""",
     )
 
-    override val executors: Map<String, (JsonObject, String) -> String> = mapOf(
+    override val executors: Map<String, (ToolInvocationRequest) -> String> = mapOf(
         "get_errors" to ::executeGetErrors,
         "get_doc_info" to ::executeGetDocInfo,
         "get_project_setup_info" to ::executeGetProjectSetupInfo,
@@ -29,7 +29,8 @@ object InfoTools : ToolGroup {
         "resolve_library_id" to ::executeResolveLibraryId,
     )
 
-    private fun executeGetErrors(input: JsonObject, ws: String): String {
+    private fun executeGetErrors(request: ToolInvocationRequest): String {
+        val input = request.input
         val filePaths = input.strArray("filePaths")
         return if (filePaths != null && filePaths.isNotEmpty()) {
             filePaths.joinToString("\n") { path ->
@@ -45,7 +46,8 @@ object InfoTools : ToolGroup {
         }
     }
 
-    private fun executeGetDocInfo(input: JsonObject, ws: String): String {
+    private fun executeGetDocInfo(request: ToolInvocationRequest): String {
+        val input = request.input
         val filePaths = input.strArray("filePaths") ?: return "Error: filePaths is required"
         return filePaths.joinToString("\n\n") { path ->
             val file = File(path)
@@ -62,7 +64,9 @@ object InfoTools : ToolGroup {
         }
     }
 
-    private fun executeGetProjectSetupInfo(input: JsonObject, ws: String): String {
+    private fun executeGetProjectSetupInfo(request: ToolInvocationRequest): String {
+        val input = request.input
+        val ws = request.workspaceRoot
         val configFiles = listOf(
             "pyproject.toml", "setup.py", "requirements.txt",
             "package.json", "tsconfig.json",
@@ -74,7 +78,8 @@ object InfoTools : ToolGroup {
         return "Project root: $ws\nConfig files found: ${found.joinToString(", ")}\n\nDirectory listing:\n$tree"
     }
 
-    private fun executeGetLibraryDocs(input: JsonObject, ws: String): String {
+    private fun executeGetLibraryDocs(request: ToolInvocationRequest): String {
+        val input = request.input
         val rawId = input.str("libraryId") ?: return "Error: libraryId is required"
         val query = input.str("query") ?: ""
 
@@ -102,7 +107,8 @@ object InfoTools : ToolGroup {
         return "No documentation found for library '$rawId'. Bundled docs available for: ${LibraryDocs.bundledIds.joinToString(", ")}."
     }
 
-    private fun executeResolveLibraryId(input: JsonObject, ws: String): String {
+    private fun executeResolveLibraryId(request: ToolInvocationRequest): String {
+        val input = request.input
         val libraryName = input.str("libraryName") ?: return "Error: libraryName is required"
 
         val localMatches = LibraryDocs.resolve(libraryName)

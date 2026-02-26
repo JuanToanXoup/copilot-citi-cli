@@ -660,7 +660,7 @@ class CustomAgentPanel(private val project: Project) : JPanel(BorderLayout()), D
                             val convManager = ConversationManager.getInstance(project)
                             val wsOverride = if (callConvId != null) convManager.getWorkspaceOverride(callConvId) else null
                             val toolRouter = ToolRouter(project)
-                            val result = toolRouter.executeTool(toolName, toolInput, wsOverride)
+                            val result = toolRouter.executeTool(toolName, toolInput, wsOverride, callConvId)
                             client.sendResponse(id, result)
                         }
                     }

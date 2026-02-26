@@ -27,6 +27,9 @@
         <!-- Application-level Settings -->
         <applicationService serviceImplementation="com.citigroup.copilotchat.config.CopilotChatSettings"/>
 
+        <!-- Application-level Tool Invocation Manager — resolves Project for tool calls -->
+        <applicationService serviceImplementation="com.citigroup.copilotchat.tools.ToolInvocationManager"/>
+
         <!-- Project-level Conversation Manager -->
         <projectService serviceImplementation="com.citigroup.copilotchat.conversation.ConversationManager"/>
 

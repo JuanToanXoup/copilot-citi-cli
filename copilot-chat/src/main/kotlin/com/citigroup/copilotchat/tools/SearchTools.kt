@@ -20,7 +20,7 @@ object SearchTools : ToolGroup {
         """{"name":"get_changed_files","description":"Get the list of changed, staged, or untracked files from git.","inputSchema":{"type":"object","properties":{"repositoryPath":{"type":"string","description":"Path to the git repository. Defaults to workspace root."},"sourceControlState":{"type":"string","description":"Filter by state: 'all' (default), 'staged', 'unstaged', 'untracked'."}},"required":[]}}""",
     )
 
-    override val executors: Map<String, (JsonObject, String) -> String> = mapOf(
+    override val executors: Map<String, (ToolInvocationRequest) -> String> = mapOf(
         "grep_search" to ::executeGrepSearch,
         "file_search" to ::executeFileSearch,
         "list_code_usages" to ::executeListCodeUsages,
@@ -29,7 +29,9 @@ object SearchTools : ToolGroup {
         "get_changed_files" to ::executeGetChangedFiles,
     )
 
-    private fun executeGrepSearch(input: JsonObject, ws: String): String {
+    private fun executeGrepSearch(request: ToolInvocationRequest): String {
+        val input = request.input
+        val ws = request.workspaceRoot
         val query = input.str("query") ?: return "Error: query is required"
         val isRegexp = input.bool("isRegexp") ?: false
         val include = input.str("includePattern")
@@ -41,7 +43,9 @@ object SearchTools : ToolGroup {
         return if (result.isBlank() || result == "Exit code: 1") "No matches found." else result
     }
 
-    private fun executeFileSearch(input: JsonObject, ws: String): String {
+    private fun executeFileSearch(request: ToolInvocationRequest): String {
+        val input = request.input
+        val ws = request.workspaceRoot
         val query = input.str("query") ?: return "Error: query is required"
         val maxResults = input.int("maxResults") ?: 50
         val root = File(ws)
@@ -54,12 +58,16 @@ object SearchTools : ToolGroup {
         return matches.joinToString("\n").ifBlank { "No files found." }
     }
 
-    private fun executeListCodeUsages(input: JsonObject, ws: String): String {
+    private fun executeListCodeUsages(request: ToolInvocationRequest): String {
+        val input = request.input
+        val ws = request.workspaceRoot
         val symbol = input.str("symbolName") ?: return "Error: symbolName is required"
         return runCommand(listOf("grep", "-rn", "-F", symbol, ws), timeout = 30).take(OUTPUT_LIMIT).ifBlank { "No usages found." }
     }
 
-    private fun executeSearchWorkspaceSymbols(input: JsonObject, ws: String): String {
+    private fun executeSearchWorkspaceSymbols(request: ToolInvocationRequest): String {
+        val input = request.input
+        val ws = request.workspaceRoot
         val symbol = input.str("symbolName") ?: return "Error: symbolName is required"
         val patterns = listOf("def $symbol", "class $symbol", "fun $symbol", "function $symbol", "val $symbol", "var $symbol", "const $symbol")
         val results = mutableListOf<String>()
@@ -70,7 +78,8 @@ object SearchTools : ToolGroup {
         return results.joinToString("\n").take(OUTPUT_LIMIT).ifBlank { "No definitions found for: $symbol" }
     }
 
-    private fun executeFindTestFiles(input: JsonObject, ws: String): String {
+    private fun executeFindTestFiles(request: ToolInvocationRequest): String {
+        val input = request.input
         val filePaths = input.strArray("filePaths") ?: return "Error: filePaths is required"
         val results = mutableListOf<String>()
         for (path in filePaths) {
@@ -87,7 +96,9 @@ object SearchTools : ToolGroup {
         return results.joinToString("\n")
     }
 
-    private fun executeGetChangedFiles(input: JsonObject, ws: String): String {
+    private fun executeGetChangedFiles(request: ToolInvocationRequest): String {
+        val input = request.input
+        val ws = request.workspaceRoot
         val repoPath = input.str("repositoryPath") ?: ws
         val state = input.str("sourceControlState") ?: "all"
         val parts = mutableListOf<String>()

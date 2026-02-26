@@ -21,7 +21,7 @@ object FileTools : ToolGroup {
         """{"name":"apply_patch","description":"Apply a unified diff patch to files.","inputSchema":{"type":"object","properties":{"input":{"type":"string","description":"The patch content to apply."},"explanation":{"type":"string","description":"A short description of what the patch does."}},"required":["input","explanation"]}}""",
     )
 
-    override val executors: Map<String, (JsonObject, String) -> String> = mapOf(
+    override val executors: Map<String, (ToolInvocationRequest) -> String> = mapOf(
         "read_file" to ::executeReadFile,
         "list_dir" to ::executeListDir,
         "create_file" to ::executeCreateFile,
@@ -32,7 +32,8 @@ object FileTools : ToolGroup {
         "apply_patch" to ::executeApplyPatch,
     )
 
-    private fun executeReadFile(input: JsonObject, ws: String): String {
+    private fun executeReadFile(request: ToolInvocationRequest): String {
+        val input = request.input
         val filePath = input.str("filePath") ?: return "Error: filePath is required"
         val file = File(filePath)
         if (!file.exists()) return "Error: File not found: $filePath"
@@ -43,7 +44,8 @@ object FileTools : ToolGroup {
         return "File `$filePath`. Total ${lines.size} lines. Lines $start-$end:\n```\n${selected.joinToString("\n")}\n```"
     }
 
-    private fun executeListDir(input: JsonObject, ws: String): String {
+    private fun executeListDir(request: ToolInvocationRequest): String {
+        val input = request.input
         val path = input.str("path") ?: return "Error: path is required"
         val dir = File(path)
         if (!dir.isDirectory) return "Error: Not a directory: $path"
@@ -52,7 +54,8 @@ object FileTools : ToolGroup {
         } ?: "Error: Cannot list directory"
     }
 
-    private fun executeCreateFile(input: JsonObject, ws: String): String {
+    private fun executeCreateFile(request: ToolInvocationRequest): String {
+        val input = request.input
         val filePath = input.str("filePath") ?: return "Error: filePath is required"
         val content = input.str("content") ?: return "Error: content is required"
         val file = File(filePath)
@@ -61,13 +64,15 @@ object FileTools : ToolGroup {
         return "Created file: $filePath (${content.length} chars)"
     }
 
-    private fun executeCreateDirectory(input: JsonObject, ws: String): String {
+    private fun executeCreateDirectory(request: ToolInvocationRequest): String {
+        val input = request.input
         val dirPath = input.str("dirPath") ?: return "Error: dirPath is required"
         File(dirPath).mkdirs()
         return "Created directory: $dirPath"
     }
 
-    private fun executeInsertEdit(input: JsonObject, ws: String): String {
+    private fun executeInsertEdit(request: ToolInvocationRequest): String {
+        val input = request.input
         val filePath = input.str("filePath") ?: return "Error: filePath is required"
         val code = input.str("code") ?: return "Error: code is required"
         val file = File(filePath)
@@ -76,7 +81,8 @@ object FileTools : ToolGroup {
         return "Wrote ${code.length} chars to $filePath"
     }
 
-    private fun executeReplaceString(input: JsonObject, ws: String): String {
+    private fun executeReplaceString(request: ToolInvocationRequest): String {
+        val input = request.input
         val filePath = input.str("filePath") ?: return "Error: filePath is required"
         val oldString = input.str("oldString") ?: return "Error: oldString is required"
         val newString = input.str("newString") ?: return "Error: newString is required"
@@ -88,7 +94,8 @@ object FileTools : ToolGroup {
         return "Replaced in $filePath"
     }
 
-    private fun executeMultiReplace(input: JsonObject, ws: String): String {
+    private fun executeMultiReplace(request: ToolInvocationRequest): String {
+        val input = request.input
         val replacements = input["replacements"]?.jsonArray ?: return "Error: replacements is required"
         val results = mutableListOf<String>()
         for (rep in replacements) {
@@ -106,7 +113,9 @@ object FileTools : ToolGroup {
         return results.joinToString("\n")
     }
 
-    private fun executeApplyPatch(input: JsonObject, ws: String): String {
+    private fun executeApplyPatch(request: ToolInvocationRequest): String {
+        val input = request.input
+        val ws = request.workspaceRoot
         val patch = input.str("input") ?: return "Error: input is required"
         return runCommand(listOf("patch", "-p1", "--directory=$ws"), stdin = patch, timeout = 30)
     }

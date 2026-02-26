@@ -184,7 +184,7 @@ class LspClientPool(private val project: Project) : Disposable {
                     client.sendResponse(id, result)
                 } else {
                     val toolRouter = ToolRouter(project)
-                    val result = toolRouter.executeTool(toolName, toolInput, wsOverride)
+                    val result = toolRouter.executeTool(toolName, toolInput, wsOverride, convId)
                     client.sendResponse(id, result)
                 }
             }
