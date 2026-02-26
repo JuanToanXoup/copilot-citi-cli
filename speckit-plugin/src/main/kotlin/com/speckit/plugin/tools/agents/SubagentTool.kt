@@ -123,7 +123,8 @@ abstract class SubagentTool(
         val lspClient = CopilotAgentProcessService.getInstance()
         val token = "WDT-${UUID.randomUUID()}"
 
-        val responseBuilder = StringBuilder()
+        val replyBuilder = StringBuilder()
+        val stepsLog = mutableListOf<String>()
         val completion = CompletableFuture<String>()
 
         // Register progress listener BEFORE creating conversation to avoid race.
@@ -140,7 +141,15 @@ abstract class SubagentTool(
 
                     val value = progress.value ?: return@JsonRpcNotificationListener false
                     if (value.isReport()) {
-                        value.reply?.let { responseBuilder.append(it) }
+                        // Capture streaming text reply
+                        value.reply?.let { replyBuilder.append(it) }
+                        // Capture tool-call steps (agent work done via tools, not text)
+                        value.steps?.forEach { step ->
+                            val desc = step.description ?: step.title
+                            if (desc.isNotBlank() && desc !in stepsLog) {
+                                stepsLog.add(desc)
+                            }
+                        }
                     } else if (value.isEnd()) {
                         val error = value.error
                         if (error != null) {
@@ -148,7 +157,17 @@ abstract class SubagentTool(
                                 RuntimeException("Subagent error: ${error.message}")
                             )
                         } else {
-                            completion.complete(responseBuilder.toString())
+                            // Build response: prefer reply text, fall back to steps summary
+                            val reply = replyBuilder.toString()
+                            val result = if (reply.isNotBlank()) {
+                                reply
+                            } else if (stepsLog.isNotEmpty()) {
+                                "Subagent $toolName completed. Actions taken:\n" +
+                                    stepsLog.joinToString("\n") { "- $it" }
+                            } else {
+                                "Subagent $toolName completed successfully."
+                            }
+                            completion.complete(result)
                         }
                     }
                 } catch (e: Exception) {
@@ -197,12 +216,6 @@ abstract class SubagentTool(
 
             // Cleanup
             cleanupConversation(lspClient, conversationId, listenerDisposable)
-
-            if (response.isBlank()) {
-                return LanguageModelToolResult.Companion.error(
-                    "Subagent $toolName returned empty response"
-                )
-            }
 
             return LanguageModelToolResult.Companion.success(response)
         } catch (e: Exception) {
