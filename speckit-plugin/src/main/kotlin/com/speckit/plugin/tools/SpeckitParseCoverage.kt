@@ -37,14 +37,18 @@ class SpeckitParseCoverage(private val basePath: String) : LanguageModelToolRegi
 
         val reportFile = if (explicitReport != null) {
             val f = File(if (explicitReport.startsWith("/")) explicitReport else "$workDir/$explicitReport")
-            if (!f.exists()) return LanguageModelToolResult.Companion.error("Report not found: $explicitReport")
+            if (!f.exists()) return LanguageModelToolResult.Companion.error(
+                "Report not found: ${f.absolutePath} (report_path='$explicitReport', workDir='$workDir')"
+            )
             f
         } else {
             findCoverageReport(workDir)
                 ?: return LanguageModelToolResult.Companion.error(
-                    "No coverage report found in '$path'. Run speckit_run_tests with coverage=true first. " +
-                    "Looked for: build/reports/jacoco/*/jacocoTestReport.xml, target/site/jacoco/jacoco.xml, " +
-                    "coverage/lcov.info, coverage/coverage-final.json, htmlcov/coverage.json, coverage.out"
+                    "No coverage report found in '$workDir'. Run speckit_run_tests with coverage=true first.\n" +
+                    "Checked static paths: build/reports/jacoco/test/jacocoTestReport.xml, target/site/jacoco/jacoco.xml, " +
+                    "coverage/lcov.info, coverage/coverage-final.json, coverage/clover.xml, htmlcov/coverage.json, coverage.out\n" +
+                    "Also searched recursively for: jacocoTestReport.xml, jacoco.xml, lcov.info, coverage-final.json, coverage.out\n" +
+                    "Tip: use report_path parameter to specify the exact file location."
                 )
         }
 
@@ -58,7 +62,9 @@ class SpeckitParseCoverage(private val basePath: String) : LanguageModelToolRegi
 
     private fun findCoverageReport(dir: String): File? {
         val d = File(dir)
-        val candidates = listOf(
+
+        // 1. Check well-known static paths first
+        val staticCandidates = listOf(
             "build/reports/jacoco/test/jacocoTestReport.xml",
             "target/site/jacoco/jacoco.xml",
             "coverage/lcov.info",
@@ -67,7 +73,18 @@ class SpeckitParseCoverage(private val basePath: String) : LanguageModelToolRegi
             "htmlcov/coverage.json",
             "coverage.out",
         )
-        return candidates.map { d.resolve(it) }.firstOrNull { it.exists() }
+        staticCandidates.map { d.resolve(it) }.firstOrNull { it.exists() }?.let { return it }
+
+        // 2. Recursive fallback — handles multi-module projects, non-standard paths
+        val reportFileNames = setOf(
+            "jacocoTestReport.xml", "jacoco.xml", "lcov.info",
+            "coverage-final.json", "clover.xml", "coverage.out"
+        )
+        return d.walkTopDown()
+            .maxDepth(5)
+            .filter { it.isFile && it.name in reportFileNames }
+            .sortedByDescending { it.lastModified() }  // most recent first
+            .firstOrNull()
     }
 
     private fun detectFormat(fileName: String): String = when {

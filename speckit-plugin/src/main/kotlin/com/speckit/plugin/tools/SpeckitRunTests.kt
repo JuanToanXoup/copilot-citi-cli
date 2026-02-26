@@ -37,7 +37,7 @@ class SpeckitRunTests(private val basePath: String) : LanguageModelToolRegistrat
 
         val command = detectTestCommand(workDir, coverage)
             ?: return LanguageModelToolResult.Companion.error(
-                "No build system detected in '$path'. Looked for: build.gradle.kts, build.gradle, pom.xml, package.json, pyproject.toml, setup.py, go.mod. " +
+                "No build system detected in '$workDir' (path='$path'). Looked for: build.gradle.kts, build.gradle, pom.xml, package.json, pyproject.toml, setup.py, go.mod. " +
                 "Provide the test command directly to run_in_terminal."
             )
 
@@ -79,7 +79,9 @@ class SpeckitRunTests(private val basePath: String) : LanguageModelToolRegistrat
 
     private fun findCoverageReport(dir: String): String? {
         val d = File(dir)
-        val candidates = listOf(
+
+        // 1. Check well-known static paths first
+        val staticCandidates = listOf(
             "build/reports/jacoco/test/jacocoTestReport.xml",
             "build/reports/jacoco/test/html/index.html",
             "target/site/jacoco/jacoco.xml",
@@ -89,6 +91,19 @@ class SpeckitRunTests(private val basePath: String) : LanguageModelToolRegistrat
             "htmlcov/coverage.json",
             "coverage.out",
         )
-        return candidates.map { d.resolve(it) }.firstOrNull { it.exists() }?.absolutePath
+        staticCandidates.map { d.resolve(it) }.firstOrNull { it.exists() }?.let { return it.absolutePath }
+
+        // 2. Recursive fallback — handles multi-module projects
+        val reportFileNames = setOf(
+            "jacocoTestReport.xml", "jacoco.xml", "lcov.info",
+            "coverage-final.json", "clover.xml", "coverage.out", "index.html"
+        )
+        return d.walkTopDown()
+            .maxDepth(5)
+            .filter { it.isFile && it.name in reportFileNames }
+            .filter { it.name != "index.html" || it.parentFile?.name == "jacoco" }  // only jacoco html index
+            .sortedByDescending { it.lastModified() }
+            .firstOrNull()
+            ?.absolutePath
     }
 }
