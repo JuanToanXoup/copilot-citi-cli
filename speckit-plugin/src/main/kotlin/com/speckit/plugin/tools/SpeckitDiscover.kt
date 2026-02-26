@@ -292,8 +292,8 @@ class SpeckitDiscover : LanguageModelToolRegistration {
             dirs.forEach { appendLine("- ${d.path}/$it/") }
             appendLine()
 
-            // Detect source roots
-            appendLine("### Source Roots")
+            // Detect source roots and list all source files with absolute paths
+            appendLine("### Source Files")
             val sourceRoots = listOf(
                 "src/main/java", "src/main/kotlin", "src/main/scala",
                 "src/main/groovy", "src", "lib", "app"
@@ -301,14 +301,17 @@ class SpeckitDiscover : LanguageModelToolRegistration {
             for (root in sourceRoots) {
                 val rootDir = d.findFileByRelativePath(root)
                 if (rootDir != null && rootDir.isDirectory) {
-                    val count = countSourceFiles(rootDir)
-                    appendLine("- **${rootDir.path}/**: $count source files")
+                    val sourceFiles = collectSourceFiles(rootDir)
+                    appendLine("- **${rootDir.path}/**: ${sourceFiles.size} source files")
+                    for (f in sourceFiles) {
+                        appendLine("  - ${f.path}")
+                    }
                 }
             }
             appendLine()
 
-            // Detect test roots
-            appendLine("### Test Roots")
+            // Detect test roots and list all test files with absolute paths
+            appendLine("### Test Files")
             val testRoots = listOf(
                 "src/test/java", "src/test/kotlin", "src/test/scala",
                 "src/test/groovy", "test", "tests", "__tests__",
@@ -317,22 +320,22 @@ class SpeckitDiscover : LanguageModelToolRegistration {
             for (root in testRoots) {
                 val rootDir = d.findFileByRelativePath(root)
                 if (rootDir != null && rootDir.isDirectory) {
-                    val count = countSourceFiles(rootDir)
-                    appendLine("- **${rootDir.path}/**: $count test files")
-                    // Show subdirectory structure
-                    val subdirs = rootDir.children.filter { it.isDirectory }.map { it.name }.sorted()
-                    if (subdirs.isNotEmpty()) {
-                        appendLine("  Subdirectories: ${subdirs.joinToString(", ")}")
+                    val testFiles = collectSourceFiles(rootDir)
+                    appendLine("- **${rootDir.path}/**: ${testFiles.size} test files")
+                    for (f in testFiles) {
+                        appendLine("  - ${f.path}")
                     }
                 }
             }
         }
     }
 
-    private fun countSourceFiles(dir: VirtualFile): Int {
-        val extensions = setOf("java", "kt", "scala", "groovy", "ts", "js", "py", "go", "rs", "cs")
+    private val SOURCE_EXTENSIONS = setOf("java", "kt", "scala", "groovy", "ts", "js", "py", "go", "rs", "cs")
+
+    private fun collectSourceFiles(dir: VirtualFile): List<VirtualFile> {
         return VfsUtil.collectChildrenRecursively(dir)
-            .count { !it.isDirectory && it.extension in extensions }
+            .filter { !it.isDirectory && it.extension in SOURCE_EXTENSIONS }
+            .sortedBy { it.path }
     }
 
     private fun analyzeExistingTests(d: VirtualFile): String {
