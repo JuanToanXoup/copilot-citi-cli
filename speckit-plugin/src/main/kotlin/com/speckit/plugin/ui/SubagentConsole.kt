@@ -1,68 +1,66 @@
 package com.speckit.plugin.ui
 
-import com.intellij.execution.filters.TextConsoleBuilderFactory
-import com.intellij.execution.ui.ConsoleView
 import com.intellij.execution.ui.ConsoleViewContentType
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.invokeLater
 import com.intellij.openapi.components.Service
+import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.wm.ToolWindowManager
 
 @Service(Service.Level.PROJECT)
 class SubagentConsole(private val project: Project) : Disposable {
 
+    private val tracker get() = project.service<AgentRunTracker>()
+
     @Volatile
-    private var consoleView: ConsoleView? = null
+    var panel: AgentRunPanel? = null
 
-    fun getOrCreateConsole(): ConsoleView {
-        consoleView?.let { return it }
-        synchronized(this) {
-            consoleView?.let { return it }
-            val console = TextConsoleBuilderFactory.getInstance()
-                .createBuilder(project)
-                .console
-            Disposer.register(this, console)
-            consoleView = console
-            return console
-        }
-    }
-
-    fun logStart(agentName: String) {
-        printLn("\n━━━ $agentName started ━━━", ConsoleViewContentType.SYSTEM_OUTPUT)
+    fun logStart(agentName: String): AgentRun {
+        val run = tracker.startRun(agentName)
+        tracker.appendOutput(run, "━━━ $agentName started ━━━\n", ConsoleViewContentType.SYSTEM_OUTPUT)
         showToolWindow()
+        invokeLater { panel?.selectRun(0) }
+        panel?.refreshDetailIfSelected(run)
+        return run
     }
 
-    fun logStep(agentName: String, stepTitle: String) {
-        printLn("[$agentName] $stepTitle", ConsoleViewContentType.NORMAL_OUTPUT)
+    fun logStep(run: AgentRun, agentName: String, stepTitle: String) {
+        tracker.addToolCall(run, stepTitle)
+        tracker.appendOutput(run, "[$agentName] $stepTitle\n", ConsoleViewContentType.NORMAL_OUTPUT)
+        panel?.refreshDetailIfSelected(run)
     }
 
-    fun logReply(agentName: String, text: String) {
-        // Reply text streams in chunks — append without newline
-        print("$text", ConsoleViewContentType.USER_INPUT)
+    fun logReply(run: AgentRun, text: String) {
+        tracker.appendOutput(run, text, ConsoleViewContentType.USER_INPUT)
+        panel?.refreshDetailIfSelected(run)
     }
 
-    fun logEnd(agentName: String, durationMs: Long) {
+    fun logEnd(run: AgentRun, agentName: String, durationMs: Long) {
         val seconds = durationMs / 1000.0
-        printLn("\n━━━ $agentName completed (${String.format("%.1f", seconds)}s) ━━━\n", ConsoleViewContentType.SYSTEM_OUTPUT)
+        tracker.appendOutput(
+            run,
+            "\n━━━ $agentName completed (${String.format("%.1f", seconds)}s) ━━━\n\n",
+            ConsoleViewContentType.SYSTEM_OUTPUT
+        )
+        tracker.completeRun(run, durationMs)
+        panel?.refreshDetailIfSelected(run)
     }
 
-    fun logError(agentName: String, error: String) {
-        printLn("[$agentName] ERROR: $error", ConsoleViewContentType.ERROR_OUTPUT)
+    fun logError(run: AgentRun, agentName: String, error: String) {
+        tracker.appendOutput(run, "[$agentName] ERROR: $error\n", ConsoleViewContentType.ERROR_OUTPUT)
+        panel?.refreshDetailIfSelected(run)
     }
 
-    private fun print(text: String, type: ConsoleViewContentType) {
-        val console = consoleView ?: return
-        invokeLater {
-            if (!project.isDisposed) {
-                console.print(text, type)
-            }
-        }
-    }
-
-    private fun printLn(text: String, type: ConsoleViewContentType) {
-        print("$text\n", type)
+    fun failRun(run: AgentRun, agentName: String, durationMs: Long) {
+        val seconds = durationMs / 1000.0
+        tracker.appendOutput(
+            run,
+            "\n━━━ $agentName failed (${String.format("%.1f", seconds)}s) ━━━\n\n",
+            ConsoleViewContentType.ERROR_OUTPUT
+        )
+        tracker.failRun(run, durationMs)
+        panel?.refreshDetailIfSelected(run)
     }
 
     private fun showToolWindow() {
@@ -74,6 +72,6 @@ class SubagentConsole(private val project: Project) : Disposable {
     }
 
     override fun dispose() {
-        consoleView = null
+        panel = null
     }
 }

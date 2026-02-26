@@ -17,9 +17,12 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.util.Disposer
+import com.speckit.plugin.ui.AgentRunStatus
 import com.speckit.plugin.ui.SubagentConsole
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtilCore
+import com.github.copilot.lang.agent.lsp.AgentWorkspaceFolders
+import com.github.copilot.lang.agent.lsp.VirtualFileUri
 import com.speckit.plugin.tools.PathSandbox
 import com.speckit.plugin.tools.ResourceLoader
 import com.speckit.plugin.tools.ScriptRunner
@@ -140,8 +143,7 @@ abstract class SubagentTool(
         val lspClient = CopilotAgentProcessService.getInstance()
         val token = "WDT-${UUID.randomUUID()}"
         val console = project.service<SubagentConsole>()
-        val startTime = System.currentTimeMillis()
-        console.logStart(toolName)
+        val run = console.logStart(toolName)
 
         val replyBuilder = StringBuilder()
         val stepsLog = mutableListOf<String>()
@@ -180,7 +182,7 @@ abstract class SubagentTool(
                                 val toolName2 = toolCall.name
                                 if (toolName2 != null && toolName2.isNotBlank() && toolName2 !in stepsLog) {
                                     stepsLog.add(toolName2)
-                                    console.logStep(toolName, toolName2)
+                                    console.logStep(run, toolName, toolName2)
                                 }
                             }
                             // Capture reply text (streamed in chunks)
@@ -190,21 +192,21 @@ abstract class SubagentTool(
                                 if (newText.isNotBlank()) {
                                     replyBuilder.clear()
                                     replyBuilder.append(reply)
-                                    console.logReply(toolName, newText)
+                                    console.logReply(run, newText)
                                 }
                             }
                         }
                     } else if (value.isEnd()) {
-                        val elapsed = System.currentTimeMillis() - startTime
+                        val elapsed = System.currentTimeMillis() - run.startTimeMillis
                         val error = value.error
                         if (error != null) {
-                            console.logError(toolName, error.message)
-                            console.logEnd(toolName, elapsed)
+                            console.logError(run, toolName, error.message)
+                            console.failRun(run, toolName, elapsed)
                             completion.completeExceptionally(
                                 RuntimeException("Subagent error: ${error.message}")
                             )
                         } else {
-                            console.logEnd(toolName, elapsed)
+                            console.logEnd(run, toolName, elapsed)
                             // Build response: prefer reply text, fall back to steps summary
                             val reply = replyBuilder.toString()
                             val result = if (reply.isNotBlank()) {
@@ -225,7 +227,9 @@ abstract class SubagentTool(
             }
         )
 
-        val workspaceFolderUri = "file://$basePath"
+        val workspaceFolder = AgentWorkspaceFolders.asWorkspaceFolder(project)
+        val workspaceFolderUri = workspaceFolder?.uri?.uri
+        val workspaceFolders = AgentWorkspaceFolders.getAllWorkspaceFolders(project)
 
         val createCmd = ConversationCreateCommand(
             listOf(Turn(userMessage, null, null)),
@@ -238,7 +242,7 @@ abstract class SubagentTool(
             null,                   // ignoredSkills
             "panel",                // source
             workspaceFolderUri,     // workspaceFolder
-            null,                   // workspaceFolders
+            workspaceFolders,       // workspaceFolders
             null,                   // userLanguage
             "gpt-4.1",              // model
             null,                   // modelProviderName
@@ -284,10 +288,12 @@ abstract class SubagentTool(
             return LanguageModelToolResult.Companion.success(response)
         } catch (e: Exception) {
             val errorType = e.javaClass.simpleName
-            val elapsed = System.currentTimeMillis() - startTime
+            val elapsed = System.currentTimeMillis() - run.startTimeMillis
             log.warn("Subagent $toolName failed ($errorType): ${e.message}", e)
-            console.logError(toolName, "$errorType: ${e.message ?: "no details"}")
-            console.logEnd(toolName, elapsed)
+            if (run.status == AgentRunStatus.RUNNING) {
+                console.logError(run, toolName, "$errorType: ${e.message ?: "no details"}")
+                console.failRun(run, toolName, elapsed)
+            }
             cleanupConversation(lspClient, conversationId, listenerDisposable)
             return LanguageModelToolResult.Companion.error(
                 "Subagent $toolName failed ($errorType): ${e.message ?: "no details"}"
