@@ -175,7 +175,7 @@ abstract class SubagentTool(
             null,                   // userLanguage
             null,                   // model
             null,                   // modelProviderName
-            "agent",                // chatMode
+            "Agent",                // chatMode (ChatModeKind enum: Ask, Edit, Agent)
             chatModeSlug,           // customChatModeId
             false                   // needToolCallConfirmation
         )
