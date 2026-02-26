@@ -73,11 +73,23 @@ abstract class SubagentTool(
         val basePath = project.basePath
             ?: return LanguageModelToolResult.Companion.error("No project base path")
 
-        // Assemble the user message: project context + subclass artifacts
-        // Agent instructions come from the .agent.md system prompt via customChatModeId
+        // Load agent instructions from .agent.md file
+        val agentInstructions = ResourceLoader.readAgent(basePath, agentFileName)
+            ?: return LanguageModelToolResult.Companion.error(
+                "Agent definition not found: $agentFileName"
+            )
+
+        // Assemble the user message: agent instructions (system prompt) + project context
+        // We use standard Agent mode and embed the .agent.md content directly
         val userMessage = withContext(Dispatchers.IO) {
             buildString {
-                appendLine("# Agent: $toolName")
+                // Agent instructions act as the system prompt
+                appendLine("# Agent Instructions")
+                appendLine()
+                appendLine(agentInstructions)
+                appendLine()
+
+                appendLine("# Context")
                 appendLine()
 
                 appendLine("## File Discovery Rules")
@@ -195,7 +207,7 @@ abstract class SubagentTool(
             "gpt-4.1",              // model
             null,                   // modelProviderName
             "Agent",                // chatMode (ChatModeKind enum: Ask, Edit, Agent)
-            chatModeSlug,           // customChatModeId
+            null,                   // customChatModeId (instructions embedded in message)
             false                   // needToolCallConfirmation
         )
 
