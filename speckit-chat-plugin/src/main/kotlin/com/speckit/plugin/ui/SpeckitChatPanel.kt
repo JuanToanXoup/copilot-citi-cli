@@ -56,14 +56,14 @@ class SpeckitChatPanel(
         Disposer.register(parentDisposable, this)
 
         agentCombo = JComboBox<AgentEntry>().apply {
-            preferredSize = Dimension(250, preferredSize.height)
+            preferredSize = Dimension(500, preferredSize.height)
         }
         argField = JBTextArea(3, 0).apply {
             lineWrap = true
             wrapStyleWord = true
         }
-        sendButton = JButton("Send")
-        refreshButton = JButton("Refresh")
+        sendButton = JButton(com.intellij.icons.AllIcons.Actions.Execute)
+        refreshButton = JButton(com.intellij.icons.AllIcons.Actions.Refresh)
 
         // Top: text area + send button
         val argScrollPane = JBScrollPane(argField).apply {
