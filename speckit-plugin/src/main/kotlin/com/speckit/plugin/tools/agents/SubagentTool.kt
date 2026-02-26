@@ -171,19 +171,27 @@ abstract class SubagentTool(
                         log.info("[$toolName] Progress value is null")
                         return@JsonRpcNotificationListener false
                     }
-                    log.info("[$toolName] Progress kind=${value.kind}, reply=${value.reply?.take(80)}, steps=${value.steps?.size ?: 0}, raw=${message.toString().take(300)}")
+                    log.info("[$toolName] Progress kind=${value.kind}, rounds=${value.editAgentRounds?.size ?: 0}")
                     if (value.isReport()) {
-                        // Capture streaming text reply
-                        value.reply?.let {
-                            replyBuilder.append(it)
-                            console.logReply(toolName, it)
-                        }
-                        // Capture tool-call steps (agent work done via tools, not text)
-                        value.steps?.forEach { step ->
-                            val desc = step.description ?: step.title
-                            if (desc.isNotBlank() && desc !in stepsLog) {
-                                stepsLog.add(desc)
-                                console.logStep(toolName, desc)
+                        // Agent mode uses editAgentRounds (not reply/steps)
+                        value.editAgentRounds?.forEach { round ->
+                            // Capture tool calls
+                            round.toolCalls?.forEach { toolCall ->
+                                val toolName2 = toolCall.name
+                                if (toolName2 != null && toolName2.isNotBlank() && toolName2 !in stepsLog) {
+                                    stepsLog.add(toolName2)
+                                    console.logStep(toolName, toolName2)
+                                }
+                            }
+                            // Capture reply text (streamed in chunks)
+                            val reply = round.reply
+                            if (reply != null && reply.isNotBlank()) {
+                                val newText = reply.removePrefix(replyBuilder.toString())
+                                if (newText.isNotBlank()) {
+                                    replyBuilder.clear()
+                                    replyBuilder.append(reply)
+                                    console.logReply(toolName, newText)
+                                }
                             }
                         }
                     } else if (value.isEnd()) {
