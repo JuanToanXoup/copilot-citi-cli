@@ -6,6 +6,7 @@ import com.github.copilot.chat.conversation.agent.tool.LanguageModelToolRegistra
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationManager
 import com.github.copilot.chat.conversation.agent.tool.ToolInvocationRequest
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.runInEdt
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
@@ -58,10 +59,10 @@ class SpeckitWriteMemory : LanguageModelToolRegistration {
 
         val future = CompletableFuture<LanguageModelToolResult>()
 
-        ApplicationManager.getApplication().invokeLater {
+        runInEdt {
             if (project.isDisposed) {
                 future.complete(LanguageModelToolResult.Companion.error("Project disposed"))
-                return@invokeLater
+                return@runInEdt
             }
 
             try {
