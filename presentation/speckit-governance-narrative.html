@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SpecKit — Discipline That Scales</title>
+<title>SpecKit Governance Pipeline</title>
 <style>
   /* ── Reset & Base ── */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -56,16 +56,6 @@
     padding: 2px 6px;
     border-radius: 4px;
     color: var(--citi-blue);
-  }
-  blockquote {
-    font-size: clamp(1.3rem, 3vw, 2rem);
-    color: var(--citi-text);
-    font-weight: 600;
-    font-style: italic;
-    border-left: 4px solid var(--citi-blue);
-    padding: 0.5em 0 0.5em 1.2em;
-    margin: 1.5em 0;
-    line-height: 1.4;
   }
   strong { color: var(--citi-text); }
 
@@ -195,35 +185,6 @@
   .reveal-delay-6 { transition-delay: 0.6s; }
   .reveal-delay-7 { transition-delay: 0.7s; }
 
-  /* ── Question bullets ── */
-  .question-list {
-    list-style: none;
-    padding: 0;
-    margin: 1.5rem 0;
-  }
-  .question-list li {
-    position: relative;
-    padding: 0.6rem 0 0.6rem 2rem;
-    font-size: 1.05rem;
-    color: var(--citi-text-muted);
-  }
-  .question-list li::before {
-    content: '?';
-    position: absolute;
-    left: 0;
-    top: 0.55rem;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background: var(--citi-blue-pale);
-    color: var(--citi-blue);
-    font-size: 0.75rem;
-    font-weight: 700;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
   /* ── Pipeline / Phase timeline ── */
   .pipeline {
     position: relative;
@@ -276,15 +237,7 @@
     margin-bottom: 0.5rem;
   }
   .phase h3 { margin-bottom: 0.25rem; }
-  .phase .narrator {
-    font-size: 1.05rem;
-    color: var(--citi-text-muted);
-    font-style: italic;
-    margin: 0.75rem 0;
-    padding-left: 1rem;
-    border-left: 3px solid var(--citi-border);
-  }
-  .phase-content { margin-top: 1rem; }
+  .phase-content { margin-top: 0.75rem; }
 
   /* ── Tables ── */
   .data-table {
@@ -485,14 +438,6 @@
   .big-three-card:nth-child(3) { border-top-color: var(--citi-green); }
   .big-three-card h3 { font-size: 1rem; margin-bottom: 0.5rem; }
   .big-three-card p { font-size: 0.85rem; color: var(--citi-text-muted); }
-  .big-three-card .equals {
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--citi-text-light);
-    font-weight: 700;
-    margin-bottom: 0.25rem;
-  }
 
   /* ── Discovery stats ── */
   .discovery-stats {
@@ -569,17 +514,6 @@
     letter-spacing: 0.04em;
   }
   .severity-critical { background: #FFF5F5; color: var(--citi-red); border: 1px solid rgba(226,24,54,0.2); }
-
-  /* ── Closing ── */
-  .closing {
-    padding: 4rem 0 0;
-  }
-  .closing blockquote {
-    border-left: none;
-    text-align: center;
-    max-width: 700px;
-    margin: 0 auto;
-  }
 
   /* ── Nav dots ── */
   .nav-dots {
@@ -672,25 +606,24 @@
 
 <!-- Navigation dots -->
 <nav class="nav-dots" aria-label="Section navigation">
-  <button class="nav-dot active" data-target="hero"><span class="tooltip">Start</span></button>
-  <button class="nav-dot" data-target="movement-1"><span class="tooltip">False Confidence</span></button>
-  <button class="nav-dot" data-target="movement-2"><span class="tooltip">The Question</span></button>
-  <button class="nav-dot" data-target="movement-3"><span class="tooltip">The Pipeline</span></button>
-  <button class="nav-dot" data-target="movement-4"><span class="tooltip">The Reframe</span></button>
-  <button class="nav-dot" data-target="movement-5"><span class="tooltip">The New Question</span></button>
-  <button class="nav-dot" data-target="closing"><span class="tooltip">Takeaways</span></button>
+  <button class="nav-dot active" data-target="hero"><span class="tooltip">Overview</span></button>
+  <button class="nav-dot" data-target="problem"><span class="tooltip">Problem</span></button>
+  <button class="nav-dot" data-target="solution"><span class="tooltip">Solution</span></button>
+  <button class="nav-dot" data-target="how-it-works"><span class="tooltip">How It Works</span></button>
+  <button class="nav-dot" data-target="artifacts"><span class="tooltip">Artifacts</span></button>
+  <button class="nav-dot" data-target="takeaways"><span class="tooltip">Takeaways</span></button>
 </nav>
 
 <!-- ============================================ -->
 <!-- HERO                                         -->
 <!-- ============================================ -->
 <section class="hero" id="hero">
-  <div class="hero-subtitle reveal">SpecKit Governed Pipeline</div>
+  <div class="hero-subtitle reveal">Executive Summary</div>
   <h1 class="reveal reveal-delay-1">
-    <span class="gradient">Discipline That Scales</span>
+    <span class="gradient">SpecKit Governance Pipeline</span>
   </h1>
   <p class="hero-tagline reveal reveal-delay-2">
-    How 9 agents deliver auditable test coverage&mdash;with a complete governance trail at every phase.
+    Governed, auditable test coverage through a 9-agent pipeline that produces a complete artifact trail from standard to test.
   </p>
 
   <div class="pipeline-flow reveal reveal-delay-3">
@@ -728,92 +661,102 @@
     </div>
   </div>
   <div class="scroll-hint">
-    <span>Scroll to begin</span>
+    <span>Scroll</span>
     <span class="arrow">&darr;</span>
   </div>
 </section>
 
 
 <!-- ============================================ -->
-<!-- MOVEMENT 1 — FALSE CONFIDENCE                -->
+<!-- PROBLEM                                      -->
 <!-- ============================================ -->
-<section class="section section-alt" id="movement-1">
+<section class="section section-alt" id="problem">
   <div class="section-inner">
-    <h2 class="reveal">False Confidence</h2>
-    <div class="section-divider reveal reveal-delay-2"></div>
+    <h2 class="reveal">The Problem</h2>
+    <div class="section-divider reveal reveal-delay-1"></div>
 
-    <blockquote class="reveal reveal-delay-2">
-      "We test our code."
-    </blockquote>
-
-    <p class="reveal reveal-delay-3" style="font-size:1.05rem; margin-bottom:1rem;">
-      The coverage dashboard says 62%. Green enough. Ship it.
+    <p class="reveal reveal-delay-2" style="font-size:1.05rem; margin-bottom:2rem;">
+      Coverage metrics alone do not satisfy audit requirements. Tests written without a documented standard cannot be traced to requirements, and no existing process produces an artifact trail from standard to specification to test.
     </p>
 
-    <p class="reveal reveal-delay-4" style="color: var(--citi-text-light); font-size:0.95rem;">
-      But what does that number actually prove? The number exists&mdash;so the problem must be solved. Until someone asks the question that matters.
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1rem;" class="reveal reveal-delay-3">
+      <div class="callout" style="margin:0;">
+        <strong>No traceability</strong><br>
+        Tests exist, but there is no documented chain from requirement to test to standard.
+      </div>
+      <div class="callout" style="margin:0;">
+        <strong>No enforced standard</strong><br>
+        Testing conventions vary across services with no versioned, enforceable baseline.
+      </div>
+      <div class="callout" style="margin:0;">
+        <strong>No pre-implementation validation</strong><br>
+        Test plans are not validated for completeness or consistency before code is written.
+      </div>
+      <div class="callout" style="margin:0;">
+        <strong>No audit trail</strong><br>
+        There are no artifacts documenting what was tested, why, and against what criteria.
+      </div>
+    </div>
+
+    <p class="reveal reveal-delay-4" style="color:var(--citi-text-muted); margin-top:1.5rem;">
+      This gap exists whether tests are written by humans or AI. The issue is not who writes the tests&mdash;it is whether the process that produces them is governed.
+    </p>
+  </div>
+</section>
+
+
+<!-- ============================================ -->
+<!-- SOLUTION                                     -->
+<!-- ============================================ -->
+<section class="section" id="solution">
+  <div class="section-inner">
+    <h2 class="reveal">The Solution</h2>
+    <div class="section-divider reveal reveal-delay-1"></div>
+
+    <p class="reveal reveal-delay-2" style="font-size:1.05rem; margin-bottom:1.5rem;">
+      SpecKit is a 9-agent pipeline that produces governed, auditable test coverage. Each phase generates versioned artifacts. Every test is traceable to a task, a specification, and a constitution. The pipeline validates completeness before writing any code.
     </p>
 
-    <div class="callout reveal reveal-delay-5">
-      <strong>62% coverage with no traceability is just a number.</strong><br>
-      It tells you something ran. It doesn't tell you anything was verified.
+    <p class="reveal reveal-delay-3" style="color:var(--citi-text-muted); margin-bottom:1.5rem;">
+      This level of governance rigor&mdash;constitution, specification, validation gate, artifact trail&mdash;does not scale manually across hundreds of services. SpecKit makes it the default for every service, every time.
+    </p>
+
+    <div class="pipeline-flow reveal reveal-delay-4" style="margin-top:1rem;">
+      <span class="flow-node">constitution</span>
+      <span class="flow-arrow">&rarr;</span>
+      <span class="flow-node">specify</span>
+      <span class="flow-arrow">&rarr;</span>
+      <span class="flow-node">clarify</span>
+      <span class="flow-arrow">&rarr;</span>
+      <span class="flow-node">plan</span>
+      <span class="flow-arrow">&rarr;</span>
+      <span class="flow-node">tasks</span>
+      <span class="flow-arrow">&rarr;</span>
+      <span class="flow-node">analyze</span>
+      <span class="flow-arrow">&rarr;</span>
+      <span class="flow-node">implement</span>
     </div>
   </div>
 </section>
 
 
 <!-- ============================================ -->
-<!-- MOVEMENT 2 — THE QUESTION                    -->
+<!-- HOW IT WORKS                                 -->
 <!-- ============================================ -->
-<section class="section" id="movement-2">
+<section class="section section-alt" id="how-it-works" style="min-height: auto; padding-top: 6rem; padding-bottom: 2rem;">
   <div class="section-inner">
-    <h2 class="reveal">The Question That Creates Doubt</h2>
-    <div class="section-divider reveal reveal-delay-2"></div>
-
-    <blockquote class="reveal reveal-delay-2">
-      "Show me how you know."
-    </blockquote>
-
-    <p class="reveal reveal-delay-3" style="font-size:1rem; margin-bottom:1.5rem;">
-      Not "show me the number." Show me <em>how</em>:
-    </p>
-
-    <ul class="question-list">
-      <li class="reveal reveal-delay-3">Who wrote the tests? Against what standard?</li>
-      <li class="reveal reveal-delay-4">Can you trace any test back to a requirement?</li>
-      <li class="reveal reveal-delay-5">How do you know the tests test the <em>right things</em>?</li>
-      <li class="reveal reveal-delay-6">If an auditor asks "why does this test exist?"&mdash;can you answer?</li>
-    </ul>
-
-    <div class="callout reveal reveal-delay-7">
-      <strong>The problem isn't test coverage.</strong> It's that coverage without governance is just a number.
-    </div>
-  </div>
-</section>
-
-
-<!-- ============================================ -->
-<!-- MOVEMENT 3 — THE PIPELINE                    -->
-<!-- ============================================ -->
-<section class="section section-alt" id="movement-3" style="min-height: auto; padding-top: 6rem; padding-bottom: 2rem;">
-  <div class="section-inner">
-    <h2 class="reveal">Here's What Rigor Actually Looks Like</h2>
-    <div class="section-divider reveal reveal-delay-2"></div>
-
-    <p class="reveal reveal-delay-3" style="font-size:1.05rem; margin-bottom:2rem;">
-      Watch the pipeline run. Every step you see is a <strong>governance behavior</strong>&mdash;not a tech feature.
-    </p>
+    <h2 class="reveal">How It Works</h2>
+    <div class="section-divider reveal reveal-delay-1"></div>
 
     <div class="pipeline">
 
       <!-- Phase 1: Constitution -->
       <div class="phase reveal" data-phase="1">
         <div class="phase-num">Phase 1 &middot; speckit_constitution</div>
-        <h3>The Testing Constitution</h3>
-        <div class="narrator">Before a single spec is written, the pipeline creates a testing constitution&mdash;the standard every test must follow.</div>
+        <h3>Constitution</h3>
         <div class="phase-content">
           <p style="margin-bottom:0.75rem; color:var(--citi-text-muted);">
-            The <code>speckit_constitution</code> agent creates a versioned, enforceable document at <code>.specify/memory/constitution.md</code>. It reads existing test patterns and codifies them into rules.
+            Creates a versioned testing standard derived from the project's existing patterns. Stored at <code>.specify/memory/constitution.md</code> with semantic versioning. Downstream violations are flagged <span class="severity severity-critical">CRITICAL</span> and block the pipeline.
           </p>
           <table class="data-table">
             <thead>
@@ -828,17 +771,12 @@
               <tr>
                 <td>AssertJ <code>assertThat()</code></td>
                 <td>Existing imports</td>
-                <td>No <code>assertEquals</code>&mdash;only <code>assertThat</code></td>
+                <td>No <code>assertEquals</code></td>
               </tr>
               <tr>
                 <td><code>@Mock</code> + <code>@InjectMocks</code></td>
                 <td>Mockito annotation pattern</td>
                 <td>No manual <code>Mockito.mock()</code></td>
-              </tr>
-              <tr>
-                <td>Builder pattern</td>
-                <td><code>TestDataBuilder</code> usage</td>
-                <td>No hardcoded inline test data</td>
               </tr>
               <tr>
                 <td>PII: anonymized</td>
@@ -847,12 +785,9 @@
               </tr>
             </tbody>
           </table>
-          <p style="font-size:0.85rem; color:var(--citi-text-light); margin-top:0.5rem;">
-            Versioned with semantic versioning (MAJOR.MINOR.PATCH). Downstream violations are <span class="severity severity-critical">CRITICAL</span>&mdash;the pipeline stops.
+          <p style="font-size:0.85rem; color:var(--citi-text-light); margin-top:0.75rem;">
+            Produces: <code>constitution.md</code>
           </p>
-          <div class="callout green" style="font-size:0.85rem;">
-            <strong>Governance value:</strong> The answer to "against what standard were these tests written?"&mdash;versioned, auditable, derived from the project's own patterns.
-          </div>
         </div>
       </div>
 
@@ -860,36 +795,23 @@
       <div class="phase reveal" data-phase="2">
         <div class="phase-num">Phase 2 &middot; speckit_specify + speckit_clarify</div>
         <h3>Specification &amp; Clarification</h3>
-        <div class="narrator">A structured feature spec is built and every ambiguity is resolved&mdash;before any planning begins.</div>
         <div class="phase-content">
           <p style="margin-bottom:0.75rem; color:var(--citi-text-muted);">
-            <code>speckit_specify</code> creates a structured feature spec (<code>spec.md</code>) with functional and non-functional requirements, scope, and success criteria. Then <code>speckit_clarify</code> scans across 9 ambiguity categories and asks up to 5 sequential questions&mdash;encoding answers directly into the spec.
+            Builds a structured feature spec with functional/non-functional requirements, scope, and success criteria. Then scans for ambiguities across 9 categories (scope, data model, UX flow, non-functional attributes, integrations, edge cases, constraints, terminology, completion signals) and resolves them before planning begins.
           </p>
-          <h4 style="margin-top:1rem;">9 Ambiguity Categories Scanned</h4>
-          <ul class="discovery-stats" style="font-size:0.85rem;">
-            <li><span class="stat-icon">1</span> Functional scope &amp; behavior</li>
-            <li><span class="stat-icon">2</span> Domain &amp; data model</li>
-            <li><span class="stat-icon">3</span> Interaction &amp; UX flow</li>
-            <li><span class="stat-icon">4</span> Non-functional quality attributes</li>
-            <li><span class="stat-icon">5</span> Integrations &amp; dependencies</li>
-            <li><span class="stat-icon">6</span> Edge cases &amp; error handling</li>
-            <li><span class="stat-icon">7</span> Constraints &amp; assumptions</li>
-            <li><span class="stat-icon">8</span> Terminology alignment</li>
-            <li><span class="stat-icon">9</span> Completion signals</li>
-          </ul>
-          <table class="data-table" style="margin-top:1rem;">
+          <table class="data-table">
             <thead>
-              <tr><th>Clarification Example</th><th>Resolution</th></tr>
+              <tr><th>Clarification</th><th>Resolution</th></tr>
             </thead>
             <tbody>
-              <tr><td>How to isolate the database?</td><td>Mock via <code>@Mock</code> (not H2, not Testcontainers)</td></tr>
-              <tr><td>How to handle async operations?</td><td><code>CompletableFuture.join()</code> (not Awaitility)</td></tr>
-              <tr><td>What failure modes exist?</td><td>Specific exceptions enumerated per method</td></tr>
+              <tr><td>Database isolation strategy</td><td>Mock via <code>@Mock</code> (not H2, not Testcontainers)</td></tr>
+              <tr><td>Async operation handling</td><td><code>CompletableFuture.join()</code> (not Awaitility)</td></tr>
+              <tr><td>Failure modes</td><td>Specific exceptions enumerated per method</td></tr>
             </tbody>
           </table>
-          <div class="callout green" style="font-size:0.85rem;">
-            <strong>Governance value:</strong> Every decision is resolved and recorded in the spec before planning begins. No ambiguity, no guessing.
-          </div>
+          <p style="font-size:0.85rem; color:var(--citi-text-light); margin-top:0.75rem;">
+            Produces: <code>spec.md</code>
+          </p>
         </div>
       </div>
 
@@ -897,22 +819,13 @@
       <div class="phase reveal" data-phase="3">
         <div class="phase-num">Phase 3 &middot; speckit_plan</div>
         <h3>Technical Planning</h3>
-        <div class="narrator">Technical unknowns are researched and the architecture is designed before any code is touched.</div>
         <div class="phase-content">
           <p style="margin-bottom:0.75rem; color:var(--citi-text-muted);">
-            <code>speckit_plan</code> runs two phases&mdash;Phase 0: Research (resolve technical unknowns) &rarr; Phase 1: Design (generate artifacts).
+            Researches technical unknowns, then designs the implementation architecture. Documents all decisions with rationale.
           </p>
-          <h4 style="margin-top:1rem;">Artifacts Produced</h4>
-          <ul class="discovery-stats" style="font-size:0.85rem;">
-            <li><span class="stat-icon">P</span> <code>plan.md</code>&mdash;phased implementation strategy with dependencies</li>
-            <li><span class="stat-icon">D</span> <code>data-model.md</code>&mdash;entity relationships and schema</li>
-            <li><span class="stat-icon">R</span> <code>research.md</code>&mdash;technical decisions documented with rationale</li>
-            <li><span class="stat-icon">C</span> <code>contracts/</code>&mdash;API and interface specifications</li>
-            <li><span class="stat-icon">Q</span> <code>quickstart.md</code>&mdash;integration scenarios</li>
-          </ul>
-          <div class="callout green" style="font-size:0.85rem;">
-            <strong>Governance value:</strong> The plan answers "why were tests generated in this order?" and "what architectural decisions were made?"&mdash;a deliberate strategy, not a firehose.
-          </div>
+          <p style="font-size:0.85rem; color:var(--citi-text-light);">
+            Produces: <code>plan.md</code>, <code>data-model.md</code>, <code>research.md</code>, <code>contracts/</code>
+          </p>
         </div>
       </div>
 
@@ -920,31 +833,30 @@
       <div class="phase reveal" data-phase="4">
         <div class="phase-num">Phase 4 &middot; speckit_tasks + speckit_analyze</div>
         <h3>Task Breakdown &amp; Validation</h3>
-        <div class="narrator">The plan is broken into atomic, traceable tasks&mdash;then validated for completeness before a single test is written.</div>
         <div class="phase-content">
           <p style="margin-bottom:0.75rem; color:var(--citi-text-muted);">
-            <code>speckit_tasks</code> generates dependency-ordered <code>tasks.md</code> across 5 phases: Setup &rarr; Foundational &rarr; User Stories (P1, P2, P3...) &rarr; Polish. Each task follows the format:
+            Generates dependency-ordered tasks traceable to specific methods and scenarios. Then runs a read-only consistency check before any code is written.
           </p>
           <div class="code-block">
-            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T001]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span style="color:var(--citi-text-light);">[Story1]</span> <span class="task-method">OrderService.createOrder</span> <span class="task-desc">&mdash; happy path: valid order</span> <span class="task-arrow">&rarr; saved, event published</span><br>
-            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T002]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span style="color:var(--citi-text-light);">[Story1]</span> <span class="task-method">OrderService.createOrder</span> <span class="task-desc">&mdash; null input</span> <span class="task-arrow">&rarr; IllegalArgumentException</span><br>
-            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T003]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span style="color:var(--citi-text-light);">[Story1]</span> <span class="task-method">OrderService.createOrder</span> <span class="task-desc">&mdash; duplicate order</span> <span class="task-arrow">&rarr; DuplicateOrderException</span><br>
-            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T004]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span style="color:var(--citi-text-light);">[Story1]</span> <span class="task-method">OrderService.createOrder</span> <span class="task-desc">&mdash; payment declined</span> <span class="task-arrow">&rarr; PaymentDeclinedException</span>
+            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T001]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">OrderService.createOrder</span> <span class="task-desc">&mdash; happy path</span> <span class="task-arrow">&rarr; saved, event published</span><br>
+            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T002]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">OrderService.createOrder</span> <span class="task-desc">&mdash; null input</span> <span class="task-arrow">&rarr; IllegalArgumentException</span><br>
+            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T003]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">OrderService.createOrder</span> <span class="task-desc">&mdash; duplicate</span> <span class="task-arrow">&rarr; DuplicateOrderException</span><br>
+            <span style="color:var(--citi-text-light);">- [ ]</span> <span class="task-id">[T004]</span> <span style="color:var(--citi-text-light);">[P2]</span> <span class="task-method">OrderService.createOrder</span> <span class="task-desc">&mdash; payment declined</span> <span class="task-arrow">&rarr; PaymentDeclinedException</span>
           </div>
-          <p style="font-size:0.85rem; color:var(--citi-text-muted); margin-bottom:0.75rem;">
-            Then <code>speckit_analyze</code> runs a <strong>read-only</strong> cross-artifact consistency check&mdash;6 detection passes, 4 severity levels, max 50 findings:
+          <p style="font-size:0.85rem; color:var(--citi-text-muted); margin:0.75rem 0;">
+            The <code>speckit_analyze</code> agent runs 6 detection passes:
           </p>
           <ol class="validation-list" id="validation-checks">
-            <li>Duplication detection&mdash;near-duplicate requirements flagged</li>
-            <li>Ambiguity detection&mdash;vague terms without measurable criteria</li>
-            <li>Underspecification&mdash;missing objects, outcomes, or acceptance criteria</li>
+            <li>Duplication&mdash;near-duplicate requirements</li>
+            <li>Ambiguity&mdash;vague terms without measurable criteria</li>
+            <li>Underspecification&mdash;missing outcomes or acceptance criteria</li>
             <li>Constitution alignment&mdash;conflicts with MUST principles are <span class="severity severity-critical">CRITICAL</span></li>
-            <li>Coverage gaps&mdash;requirements with zero tasks, tasks with no requirement</li>
+            <li>Coverage gaps&mdash;requirements with zero tasks</li>
             <li>Inconsistency&mdash;terminology drift across artifacts</li>
           </ol>
-          <div class="callout green" style="font-size:0.85rem;">
-            <strong>Governance value:</strong> The task manifest is the most granular audit layer. Any test &rarr; task ID &rarr; spec &rarr; constitution. The analyze agent validates completeness <em>before implementation begins</em>.
-          </div>
+          <p style="font-size:0.85rem; color:var(--citi-text-light); margin-top:0.75rem;">
+            Produces: <code>tasks.md</code>, analyze report
+          </p>
         </div>
       </div>
 
@@ -952,30 +864,29 @@
       <div class="phase reveal" data-phase="5">
         <div class="phase-num">Phase 5 &middot; speckit_implement</div>
         <h3>Verified Implementation</h3>
-        <div class="narrator">Only after all validation passes does the pipeline write code&mdash;and every test is verified to compile, pass, and move coverage.</div>
         <div class="phase-content">
           <p style="margin-bottom:0.75rem; color:var(--citi-text-muted);">
-            <code>speckit_implement</code> is the only phase that writes code. It executes tasks phase-by-phase in dependency order, respecting [P] parallel markers, and marks each task complete.
+            Executes tasks in dependency order. Each test is compiled, run, and verified. Failures are classified and retried up to 3 times with targeted fixes. Stops when the coverage target is reached.
           </p>
           <ol class="impl-steps">
             <li>Generate test following constitution conventions</li>
-            <li>Compile&mdash;if failure, classify error and fix</li>
-            <li>Run&mdash;if failure, classify error and fix</li>
-            <li>Retry up to <strong>3 times</strong> with targeted fixes</li>
+            <li>Compile&mdash;classify and fix failures</li>
+            <li>Run&mdash;classify and fix failures</li>
+            <li>Retry up to 3 times</li>
             <li>Measure coverage after each batch</li>
-            <li><strong>Stop the moment the target is reached</strong></li>
+            <li>Stop at target coverage</li>
           </ol>
           <div style="margin-top:1rem;">
-            <p style="font-size:0.8rem; color:var(--citi-text-light); margin-bottom:0.25rem;">Coverage Progress</p>
+            <p style="font-size:0.8rem; color:var(--citi-text-light); margin-bottom:0.25rem;">Coverage</p>
             <div class="coverage-bar"><div class="fill green" data-width="100"></div></div>
             <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--citi-text-light);">
               <span>38%</span>
               <span>100%</span>
             </div>
           </div>
-          <div class="callout green" style="font-size:0.85rem; margin-top:1rem;">
-            <strong>Governance value:</strong> Tests aren't dumped and abandoned. Every test compiles, passes, and is measured. Failed tests are diagnosed and fixed. The pipeline has explicit stopping conditions.
-          </div>
+          <p style="font-size:0.85rem; color:var(--citi-text-light); margin-top:0.75rem;">
+            Produces: test files, coverage report
+          </p>
         </div>
       </div>
 
@@ -985,46 +896,15 @@
 
 
 <!-- ============================================ -->
-<!-- MOVEMENT 4 — THE REFRAME                     -->
+<!-- ARTIFACT TRAIL                               -->
 <!-- ============================================ -->
-<section class="section" id="movement-4">
+<section class="section" id="artifacts">
   <div class="section-inner">
-    <h2 class="reveal">The Rigorous Path and the Fast Path Are the Same Path</h2>
-    <div class="section-divider reveal reveal-delay-2"></div>
+    <h2 class="reveal">Artifact Trail</h2>
+    <div class="section-divider reveal reveal-delay-1"></div>
 
-    <blockquote class="reveal reveal-delay-2">
-      Every one of those governance steps&mdash;the constitution, the spec, the validation gate&mdash;is the work teams aspire to under ideal conditions. The constraint was never willingness. It was time.
-    </blockquote>
-
-    <p class="reveal reveal-delay-3" style="font-size:1.05rem; margin-bottom:1.5rem;">
-      Under delivery pressure with hundreds of microservices and sprint deadlines, the choice between "thorough tests with full documentation" and "ship the feature" is a rational tradeoff. The governance steps get cut&mdash;not from carelessness, but because there aren't enough hours.
-    </p>
-
-    <p class="reveal reveal-delay-4" style="font-size:1.05rem; margin-bottom:1.5rem;">
-      SpecKit removes the tradeoff. The thorough approach becomes the default&mdash;not the exception. The same rigor that would take a team days of documentation, review, and validation runs in a single pipeline, every time, with no shortcuts.
-    </p>
-
-    <div class="callout green reveal reveal-delay-5" style="font-size:1.05rem;">
-      <strong>What changes:</strong> The governance every team already wants to do&mdash;the constitution, the specification, the validation gate, the audit trail&mdash;happens on every service, every time, without trading off against delivery.
-    </div>
-  </div>
-</section>
-
-
-<!-- ============================================ -->
-<!-- MOVEMENT 5 — THE NEW QUESTION                -->
-<!-- ============================================ -->
-<section class="section section-alt" id="movement-5">
-  <div class="section-inner">
-    <h2 class="reveal">The New Question</h2>
-    <div class="section-divider reveal reveal-delay-2"></div>
-
-    <blockquote class="reveal reveal-delay-2">
-      "The question isn't whether AI can write tests. It's whether your testing process&mdash;human or AI&mdash;is governed."
-    </blockquote>
-
-    <p class="reveal reveal-delay-3" style="font-size:1.05rem; margin-bottom:2rem;">
-      When the auditor comes, you don't hand over a coverage number. You hand over the <code>.specify/</code> folder:
+    <p class="reveal reveal-delay-2" style="font-size:1rem; margin-bottom:2rem; color:var(--citi-text-muted);">
+      Each phase produces versioned artifacts. The complete chain is stored in the <code>.specify/</code> directory.
     </p>
 
     <div class="artifact-chain">
@@ -1032,7 +912,7 @@
         <div class="artifact-icon">C</div>
         <div class="artifact-body">
           <span class="artifact-name">constitution.md <span style="color:var(--citi-text-light); font-weight:400;">v1.0.0</span></span>
-          <span class="artifact-proves">What standards governed test generation</span>
+          <span class="artifact-proves">Testing standard&mdash;versioned, enforceable</span>
         </div>
       </div>
       <div class="artifact-connector reveal reveal-delay-1"></div>
@@ -1040,7 +920,7 @@
         <div class="artifact-icon">S</div>
         <div class="artifact-body">
           <span class="artifact-name">spec.md</span>
-          <span class="artifact-proves">What needed tests, with all clarifications resolved</span>
+          <span class="artifact-proves">Requirements with clarifications resolved</span>
         </div>
       </div>
       <div class="artifact-connector reveal reveal-delay-2"></div>
@@ -1048,7 +928,7 @@
         <div class="artifact-icon">P</div>
         <div class="artifact-body">
           <span class="artifact-name">plan.md + research.md + data-model.md</span>
-          <span class="artifact-proves">What strategy was chosen and why</span>
+          <span class="artifact-proves">Technical strategy and architecture decisions</span>
         </div>
       </div>
       <div class="artifact-connector reveal reveal-delay-3"></div>
@@ -1056,7 +936,7 @@
         <div class="artifact-icon">T</div>
         <div class="artifact-body">
           <span class="artifact-name">tasks.md</span>
-          <span class="artifact-proves">What specific scenarios were tested, per method</span>
+          <span class="artifact-proves">Atomic tasks traceable to methods and scenarios</span>
         </div>
       </div>
       <div class="artifact-connector reveal reveal-delay-4"></div>
@@ -1064,7 +944,7 @@
         <div class="artifact-icon">A</div>
         <div class="artifact-body">
           <span class="artifact-name">analyze report</span>
-          <span class="artifact-proves">That completeness was validated before implementation</span>
+          <span class="artifact-proves">Completeness validated before implementation</span>
         </div>
       </div>
       <div class="artifact-connector reveal reveal-delay-5"></div>
@@ -1076,44 +956,30 @@
         </div>
       </div>
     </div>
-
-    <div class="callout reveal" style="margin-top: 2rem; text-align:center; font-size:1.1rem; border-left-color: #6B21A8; background: #FAF5FF; border-color: rgba(107,33,168,0.12);">
-      <strong>The audit trail is the product. The tests are a side effect.</strong>
-    </div>
   </div>
 </section>
 
 
 <!-- ============================================ -->
-<!-- CLOSING — THREE TAKEAWAYS                    -->
+<!-- TAKEAWAYS                                    -->
 <!-- ============================================ -->
-<section class="section" id="closing" style="padding-bottom: 8rem;">
+<section class="section section-alt" id="takeaways" style="padding-bottom: 8rem;">
   <div class="section-inner">
-    <h2 class="reveal" style="text-align:center; margin-bottom:0.5rem;">Three Things to Remember</h2>
-    <p class="reveal reveal-delay-1" style="text-align:center; color:var(--citi-text-light); margin-bottom:2.5rem;">The governance framework behind every test</p>
+    <h2 class="reveal" style="text-align:center; margin-bottom:2.5rem;">Key Takeaways</h2>
 
     <div class="big-three">
-      <div class="big-three-card reveal reveal-delay-2">
-        <div class="equals">Constitution =</div>
+      <div class="big-three-card reveal reveal-delay-1">
         <h3 style="color:var(--citi-blue);">Policy Enforcement</h3>
-        <p>A versioned document that gates every downstream decision. Violations are <span class="severity severity-critical">CRITICAL</span>&mdash;the pipeline stops.</p>
+        <p>The constitution gates every downstream decision. Violations are <span class="severity severity-critical">CRITICAL</span> and block the pipeline.</p>
+      </div>
+      <div class="big-three-card reveal reveal-delay-2">
+        <h3 style="color:#6B21A8;">Due Diligence</h3>
+        <p>Every answer is derived from the codebase&mdash;parsed from project files, scanned from source, read from existing patterns.</p>
       </div>
       <div class="big-three-card reveal reveal-delay-3">
-        <div class="equals">Artifact Chain =</div>
-        <h3 style="color:#6B21A8;">Due Diligence</h3>
-        <p>Every answer is derived from code&mdash;parsed from the project, scanned from source, read from existing patterns. Not hallucinated.</p>
-      </div>
-      <div class="big-three-card reveal reveal-delay-4">
-        <div class="equals">9 Agents =</div>
         <h3 style="color:var(--citi-green);">Audit Trail</h3>
-        <p>Constitution &rarr; spec &rarr; plan &rarr; tasks &rarr; analysis &rarr; tests. Each phase produces an artifact. Each artifact feeds the next. The chain is unbroken and inspectable.</p>
+        <p>Constitution &rarr; spec &rarr; plan &rarr; tasks &rarr; analysis &rarr; tests. Each phase produces an artifact. Each artifact feeds the next.</p>
       </div>
-    </div>
-
-    <div class="closing">
-      <blockquote class="reveal" style="border-left:none; text-align:center; max-width:700px; margin:0 auto;">
-        The rigorous path and the fast path are the same path.<br>The governance happens on every service, every time&mdash;without trading off against delivery.
-      </blockquote>
     </div>
   </div>
 </section>
