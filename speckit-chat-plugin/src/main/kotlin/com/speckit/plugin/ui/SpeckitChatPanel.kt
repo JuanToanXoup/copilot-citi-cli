@@ -3,6 +3,9 @@ package com.speckit.plugin.ui
 import com.github.copilot.agent.session.CopilotAgentSessionManager
 import com.github.copilot.api.CopilotChatService
 import com.github.copilot.chat.window.ShowChatToolWindowsListener
+import com.intellij.execution.RunContentExecutor
+import com.intellij.execution.configurations.GeneralCommandLine
+import com.intellij.execution.process.OSProcessHandler
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.impl.SimpleDataContext
 import com.intellij.openapi.application.invokeLater
@@ -10,6 +13,7 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.ui.JBColor
+import com.intellij.ui.RoundedLineBorder
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
 import com.intellij.ui.table.JBTable
@@ -48,7 +52,7 @@ class SpeckitChatPanel(
     private val agentCombo: JComboBox<AgentEntry>
     private val argField: JBTextArea
     private val sendButton: JButton
-    private val refreshButton: JButton
+    private val moreButton: JButton
     private val scope = CoroutineScope(Dispatchers.Default)
 
     private val runs = mutableListOf<ChatRun>()
@@ -65,11 +69,25 @@ class SpeckitChatPanel(
             margin = java.awt.Insets(6, 8, 6, 8)
         }
         sendButton = JButton(com.intellij.icons.AllIcons.Actions.Execute)
-        refreshButton = JButton(com.intellij.icons.AllIcons.Actions.Refresh)
+        moreButton = JButton(com.intellij.icons.AllIcons.Actions.More).apply {
+            toolTipText = "More actions"
+            addActionListener { e ->
+                val popup = javax.swing.JPopupMenu().apply {
+                    border = BorderFactory.createCompoundBorder(
+                        RoundedLineBorder(JBColor.border(), 8),
+                        BorderFactory.createEmptyBorder(4, 0, 4, 0)
+                    )
+                }
+                popup.add(createMenuItem("Refresh Agents", com.intellij.icons.AllIcons.Actions.Refresh) { loadAgents() })
+                popup.add(createMenuItem("Download Latest Speckit", com.intellij.icons.AllIcons.Actions.Download) { installSpeckit() })
+                val src = e.source as java.awt.Component
+                popup.show(src, 0, src.height)
+            }
+        }
 
-        // Agent bar: dropdown (fills width) + refresh + send icons
+        // Agent bar: dropdown (fills width) + more + send icons
         val buttonsPanel = JPanel(FlowLayout(FlowLayout.LEFT, 2, 0)).apply {
-            add(refreshButton)
+            add(moreButton)
             add(sendButton)
         }
         val agentBar = JPanel(BorderLayout(4, 0))
@@ -151,8 +169,6 @@ class SpeckitChatPanel(
         argField.getActionMap().put("send", object : javax.swing.AbstractAction() {
             override fun actionPerformed(e: java.awt.event.ActionEvent?) { sendMessage() }
         })
-        refreshButton.addActionListener { loadAgents() }
-
         loadAgents()
     }
 
@@ -255,6 +271,82 @@ class SpeckitChatPanel(
             }
             column.preferredWidth = width + spacing
         }
+    }
+
+    private fun createMenuItem(text: String, icon: javax.swing.Icon, action: () -> Unit): javax.swing.JMenuItem {
+        return object : javax.swing.JMenuItem(text, icon) {
+            private var hovered = false
+
+            init {
+                isOpaque = false
+                border = BorderFactory.createEmptyBorder(6, 12, 6, 12)
+                addActionListener { action() }
+                addMouseListener(object : MouseAdapter() {
+                    override fun mouseEntered(e: MouseEvent) { hovered = true; repaint() }
+                    override fun mouseExited(e: MouseEvent) { hovered = false; repaint() }
+                })
+            }
+
+            override fun paintComponent(g: java.awt.Graphics) {
+                if (hovered) {
+                    val g2 = g.create() as java.awt.Graphics2D
+                    g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON)
+                    g2.color = JBColor(Color(0, 0, 0, 20), Color(255, 255, 255, 20))
+                    g2.fillRoundRect(4, 0, width - 8, height, 8, 8)
+                    g2.dispose()
+                }
+                super.paintComponent(g)
+            }
+        }
+    }
+
+    private fun installSpeckit() {
+        val basePath = project.basePath ?: return
+        val isWindows = System.getProperty("os.name").lowercase().contains("win")
+        val shellType = if (isWindows) "ps" else "sh"
+
+        val cmd = if (isWindows) {
+            val psScript = """
+                ${"$"}ErrorActionPreference = 'Stop'
+                Write-Host 'Fetching latest spec-kit release...'
+                ${"$"}release = Invoke-RestMethod -Uri 'https://api.github.com/repos/github/spec-kit/releases/latest'
+                ${"$"}asset = ${"$"}release.assets | Where-Object { ${"$"}_.name -like '*copilot-${shellType}*' } | Select-Object -First 1
+                if (-not ${"$"}asset) { Write-Error 'No copilot-${shellType} asset found'; exit 1 }
+                ${"$"}tmpZip = Join-Path ${"$"}env:TEMP ('speckit-' + [guid]::NewGuid().ToString('N') + '.zip')
+                Write-Host "Downloading ${"$"}(${"$"}asset.browser_download_url)"
+                Invoke-WebRequest -Uri ${"$"}asset.browser_download_url -OutFile ${"$"}tmpZip
+                Write-Host 'Extracting to ${basePath.replace("\\", "\\\\")}...'
+                Expand-Archive -Path ${"$"}tmpZip -DestinationPath '${basePath.replace("'", "''")}' -Force
+                Remove-Item ${"$"}tmpZip -Force
+                Write-Host 'Done.'
+            """.trimIndent()
+            GeneralCommandLine("powershell", "-NoProfile", "-Command", psScript)
+        } else {
+            val shScript = """
+                set -e
+                TMPZIP=${"$"}(mktemp /tmp/speckit-XXXXXX.zip)
+                echo "Fetching latest spec-kit release..."
+                URL=${"$"}(curl -sL https://api.github.com/repos/github/spec-kit/releases/latest \
+                  | grep -o '"browser_download_url":[^,]*copilot-${shellType}[^"]*' \
+                  | cut -d'"' -f4)
+                if [ -z "${"$"}URL" ]; then echo "ERROR: No copilot-${shellType} asset found"; exit 1; fi
+                echo "Downloading ${"$"}URL"
+                curl -Lo "${"$"}TMPZIP" "${"$"}URL"
+                echo "Extracting to ${basePath}..."
+                unzip -o "${"$"}TMPZIP" -d "${basePath}"
+                rm -f "${"$"}TMPZIP"
+                echo "Done."
+            """.trimIndent()
+            GeneralCommandLine("bash", "-c", shScript)
+        }
+
+        cmd.withWorkDirectory(basePath)
+        val handler = OSProcessHandler(cmd)
+
+        RunContentExecutor(project, handler)
+            .withTitle("Speckit Install")
+            .withAfterCompletion { invokeLater { loadAgents() } }
+            .run()
     }
 
     private fun activateRun(run: ChatRun) {

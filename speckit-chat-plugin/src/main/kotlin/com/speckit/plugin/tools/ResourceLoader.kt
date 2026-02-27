@@ -51,6 +51,31 @@ object ResourceLoader {
         return (projectAgents + BUNDLED_AGENTS).sorted()
     }
 
+    // ── Discovery templates ────────────────────────────────────────────────────
+
+    private val BUNDLED_DISCOVERIES = listOf(
+        "constitution.discovery.md",
+    )
+
+    fun readDiscovery(basePath: String, fileName: String): String? {
+        val vFile = LocalFileSystem.getInstance().findFileByIoFile(File(basePath, ".github/discoveries/$fileName"))
+        if (vFile != null && !vFile.isDirectory) return VfsUtilCore.loadText(vFile)
+        return readClasspathResource("/speckit/discoveries/$fileName")
+    }
+
+    fun listDiscoveries(basePath: String): List<String> {
+        val discDir = LocalFileSystem.getInstance().findFileByIoFile(File(basePath, ".github/discoveries"))
+        val projectDiscoveries = if (discDir != null && discDir.isDirectory) {
+            discDir.children
+                .filter { !it.isDirectory && it.name.endsWith(".discovery.md") }
+                .map { it.name }
+                .toSet()
+        } else {
+            emptySet()
+        }
+        return (projectDiscoveries + BUNDLED_DISCOVERIES).sorted()
+    }
+
     private fun readClasspathResource(path: String): String? {
         return ResourceLoader::class.java.getResourceAsStream(path)?.use { stream ->
             stream.bufferedReader().readText()

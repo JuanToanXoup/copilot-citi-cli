@@ -16,6 +16,6 @@
                     anchor="bottom"
                     icon="AllIcons.Actions.Execute"
                     factoryClass="com.speckit.plugin.ui.SubagentConsoleFactory"
-                    canCloseContents="false"/>
+                    canCloseContents="true"/>
     </extensions>
 </idea-plugin>
