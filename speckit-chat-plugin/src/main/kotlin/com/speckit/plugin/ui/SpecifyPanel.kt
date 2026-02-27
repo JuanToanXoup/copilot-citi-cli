@@ -11,6 +11,7 @@ import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.vfs.newvfs.BulkFileListener
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import com.intellij.ui.JBColor
+import com.intellij.ide.util.PropertiesComponent
 import com.intellij.ui.RoundedLineBorder
 import com.intellij.ui.OnePixelSplitter
 import com.intellij.ui.components.JBList
@@ -501,6 +502,35 @@ class SpecifyPanel(
         }
     }
 
+    // ── Argument persistence & autofill ──────────────────────────────────
+
+    private fun argsStorageKey(stepId: String): String {
+        val featureName = featureList.selectedValue?.dirName ?: "_global_"
+        return "speckit.args.$featureName.$stepId"
+    }
+
+    private fun saveArgs(stepId: String, value: String) {
+        PropertiesComponent.getInstance(project).setValue(argsStorageKey(stepId), value)
+    }
+
+    private fun loadArgs(stepId: String): String? {
+        return PropertiesComponent.getInstance(project).getValue(argsStorageKey(stepId))
+    }
+
+    private fun autofillArgs(step: PipelineStepDef): String {
+        return when (step.id) {
+            "constitution" -> "Refer to the `./specify/memory/discovery.md` for project properties"
+            "specify" -> {
+                val dirName = featureList.selectedValue?.dirName ?: return ""
+                val featureName = dirName.replace(Regex("^\\d{3}-"), "").replace('-', ' ')
+                "$featureName\n100% Unit Test Case coverage for all microservices code."
+            }
+            "implement" -> "all remaining tasks"
+            "taskstoissues" -> "all tasks"
+            else -> ""
+        }
+    }
+
     // ── Detail panel ─────────────────────────────────────────────────────────
 
     private fun updateDetailPanel(step: PipelineStepDef) {
@@ -564,17 +594,32 @@ class SpecifyPanel(
             })
         }
 
-        // Arguments
-        content.add(JLabel("Arguments:").apply {
-            font = font.deriveFont(Font.BOLD)
-            alignmentX = Component.LEFT_ALIGNMENT
-            border = BorderFactory.createEmptyBorder(0, 0, 4, 0)
-        })
+        // Arguments (persisted per feature+step, with autofill defaults)
         val argsField = JBTextArea(3, 0).apply {
             lineWrap = true
             wrapStyleWord = true
             margin = java.awt.Insets(6, 8, 6, 8)
+            text = loadArgs(step.id) ?: autofillArgs(step)
         }
+        val argsHeader = JPanel(BorderLayout()).apply {
+            isOpaque = false
+            alignmentX = Component.LEFT_ALIGNMENT
+            maximumSize = Dimension(Int.MAX_VALUE, 24)
+            add(JLabel("Arguments:").apply {
+                font = font.deriveFont(Font.BOLD)
+            }, BorderLayout.WEST)
+            add(JButton("Reset").apply {
+                isBorderPainted = false
+                isContentAreaFilled = false
+                foreground = JBColor.BLUE
+                cursor = java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR)
+                font = font.deriveFont(font.size - 1f)
+                toolTipText = "Reset to default"
+                addActionListener { argsField.text = autofillArgs(step) }
+            }, BorderLayout.EAST)
+            border = BorderFactory.createEmptyBorder(0, 0, 4, 0)
+        }
+        content.add(argsHeader)
         val argsScroll = JBScrollPane(argsField).apply {
             alignmentX = Component.LEFT_ALIGNMENT
             maximumSize = Dimension(Int.MAX_VALUE, 80)
@@ -627,6 +672,7 @@ class SpecifyPanel(
     // ── Run step ─────────────────────────────────────────────────────────────
 
     private fun runStep(step: PipelineStepDef, arguments: String) {
+        saveArgs(step.id, arguments)
         val basePath = project.basePath ?: return
         val chatService = project.getService(CopilotChatService::class.java) ?: return
         val agentContent = ResourceLoader.readAgent(basePath, step.agentFileName) ?: return
