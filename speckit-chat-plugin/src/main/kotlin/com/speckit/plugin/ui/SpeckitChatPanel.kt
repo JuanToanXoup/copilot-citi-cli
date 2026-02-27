@@ -69,17 +69,8 @@ class SpeckitChatPanel(
             margin = java.awt.Insets(6, 8, 6, 8)
         }
         sendButton = JButton(com.intellij.icons.AllIcons.Actions.Execute)
-        moreButton = JButton().apply {
+        moreButton = JButton(com.intellij.icons.AllIcons.Actions.More).apply {
             toolTipText = "More actions"
-            // Scale the icon to match the send button's icon size
-            val sendIcon = sendButton.icon
-            val iconH = sendIcon?.iconHeight ?: 16
-            val url = SpeckitChatPanel::class.java.getResource("/icons/speckit-menu-hires.png")
-            if (url != null) {
-                val hires = javax.swing.ImageIcon(url)
-                val scaled = hires.image.getScaledInstance(iconH, iconH, java.awt.Image.SCALE_SMOOTH)
-                icon = javax.swing.ImageIcon(scaled)
-            }
             addActionListener { e ->
                 val popup = javax.swing.JPopupMenu().apply {
                     border = BorderFactory.createCompoundBorder(
