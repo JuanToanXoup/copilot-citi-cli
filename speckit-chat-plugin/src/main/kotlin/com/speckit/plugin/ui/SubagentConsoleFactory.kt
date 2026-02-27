@@ -16,7 +16,7 @@ class SubagentConsoleFactory : ToolWindowFactory, DumbAware {
         val constitutionPanel = ConstitutionPanel(project, toolWindow.disposable)
         cm.addContent(cm.factory.createContent(constitutionPanel, "Discovery", false).apply { isCloseable = false })
 
-        val specifyPanel = SpecifyPanel(project, toolWindow.disposable)
+        val specifyPanel = SpecifyPanel(project, toolWindow.disposable, chatPanel)
         cm.addContent(cm.factory.createContent(specifyPanel, "Specify", false).apply { isCloseable = false })
     }
 }

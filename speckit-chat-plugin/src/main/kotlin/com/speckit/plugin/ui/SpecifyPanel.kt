@@ -11,9 +11,11 @@ import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.vfs.newvfs.BulkFileListener
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import com.intellij.ui.JBColor
+import com.intellij.ui.RoundedLineBorder
 import com.intellij.ui.OnePixelSplitter
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
+import com.intellij.ui.components.JBTextArea
 import com.speckit.plugin.tools.ResourceLoader
 import java.awt.BorderLayout
 import java.awt.Color
@@ -36,7 +38,8 @@ import javax.swing.SwingConstants
 
 class SpecifyPanel(
     private val project: Project,
-    parentDisposable: Disposable
+    parentDisposable: Disposable,
+    private val chatPanel: SpeckitChatPanel
 ) : JPanel(BorderLayout()), Disposable {
 
     // ── Data model ───────────────────────────────────────────────────────────
@@ -561,10 +564,31 @@ class SpecifyPanel(
             })
         }
 
+        // Arguments
+        content.add(JLabel("Arguments:").apply {
+            font = font.deriveFont(Font.BOLD)
+            alignmentX = Component.LEFT_ALIGNMENT
+            border = BorderFactory.createEmptyBorder(0, 0, 4, 0)
+        })
+        val argsField = JBTextArea(3, 0).apply {
+            lineWrap = true
+            wrapStyleWord = true
+            margin = java.awt.Insets(6, 8, 6, 8)
+        }
+        val argsScroll = JBScrollPane(argsField).apply {
+            alignmentX = Component.LEFT_ALIGNMENT
+            maximumSize = Dimension(Int.MAX_VALUE, 80)
+            border = BorderFactory.createCompoundBorder(
+                BorderFactory.createEmptyBorder(0, 0, 8, 0),
+                RoundedLineBorder(JBColor.GRAY, 6)
+            )
+        }
+        content.add(argsScroll)
+
         // Run button
         val runButton = JButton("Run ${step.name} \u25B7").apply {
             alignmentX = Component.LEFT_ALIGNMENT
-            addActionListener { runStep(step) }
+            addActionListener { runStep(step, argsField.text.trim()) }
         }
         content.add(runButton)
 
@@ -602,20 +626,57 @@ class SpecifyPanel(
 
     // ── Run step ─────────────────────────────────────────────────────────────
 
-    private fun runStep(step: PipelineStepDef) {
+    private fun runStep(step: PipelineStepDef, arguments: String) {
         val basePath = project.basePath ?: return
         val chatService = project.getService(CopilotChatService::class.java) ?: return
         val agentContent = ResourceLoader.readAgent(basePath, step.agentFileName) ?: return
 
-        val prompt = agentContent.replace("\$ARGUMENTS", "")
+        val prompt = agentContent.replace("\$ARGUMENTS", arguments)
         val dataContext = SimpleDataContext.getProjectContext(project)
+
+        val run = ChatRun(
+            agent = step.id,
+            prompt = arguments.ifEmpty { "(no arguments)" },
+            branch = chatPanel.currentGitBranch()
+        )
+        chatPanel.registerRun(run)
 
         chatService.query(dataContext) {
             withInput(prompt)
             withAgentMode()
             withNewSession()
-            onComplete { refreshAll() }
-            onError { _, _, _, _, _ -> }
+            withSessionIdReceiver { sessionId ->
+                invokeLater {
+                    run.sessionId = sessionId
+                    chatPanel.notifyRunChanged()
+                }
+            }
+
+            onComplete {
+                invokeLater {
+                    run.status = ChatRunStatus.COMPLETED
+                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
+                    chatPanel.notifyRunChanged()
+                    refreshAll()
+                }
+            }
+
+            onError { message, _, _, _, _ ->
+                invokeLater {
+                    run.status = ChatRunStatus.FAILED
+                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
+                    run.errorMessage = message
+                    chatPanel.notifyRunChanged()
+                }
+            }
+
+            onCancel {
+                invokeLater {
+                    run.status = ChatRunStatus.CANCELLED
+                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
+                    chatPanel.notifyRunChanged()
+                }
+            }
         }
     }
 

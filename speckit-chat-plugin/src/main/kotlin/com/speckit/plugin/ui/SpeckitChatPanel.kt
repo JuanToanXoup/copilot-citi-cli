@@ -184,7 +184,7 @@ class SpeckitChatPanel(
         agentCombo.model = DefaultComboBoxModel(entries.toTypedArray())
     }
 
-    private fun currentGitBranch(): String {
+    internal fun currentGitBranch(): String {
         val basePath = project.basePath ?: return ""
         return try {
             val process = ProcessBuilder("git", "rev-parse", "--abbrev-ref", "HEAD")
@@ -363,6 +363,15 @@ class SpeckitChatPanel(
                 }
             } catch (_: Exception) {}
         }
+    }
+
+    fun registerRun(run: ChatRun) {
+        runs.add(0, run)
+        tableModel.fireTableDataChanged()
+    }
+
+    fun notifyRunChanged() {
+        tableModel.fireTableDataChanged()
     }
 
     override fun dispose() {}
