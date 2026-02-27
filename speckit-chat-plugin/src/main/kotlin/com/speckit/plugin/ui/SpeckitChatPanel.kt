@@ -74,6 +74,8 @@ class SpeckitChatPanel(
             isBorderPainted = false
             isContentAreaFilled = false
             isFocusPainted = false
+            margin = java.awt.Insets(0, 0, 0, 0)
+            preferredSize = Dimension(16, 16)
             addActionListener { e ->
                 val popup = javax.swing.JPopupMenu().apply {
                     border = BorderFactory.createCompoundBorder(
