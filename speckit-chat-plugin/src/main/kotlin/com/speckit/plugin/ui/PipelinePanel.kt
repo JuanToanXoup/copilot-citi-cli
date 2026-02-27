@@ -79,7 +79,8 @@ class PipelinePanel(
         val prerequisites: List<ArtifactCheck>,
         val outputs: List<ArtifactCheck>,
         val handsOffTo: List<String>,
-        val agentFileName: String
+        val agentFileName: String,
+        val parentId: String? = null
     )
 
     class PipelineStepState {
@@ -143,7 +144,8 @@ class PipelinePanel(
             ),
             outputs = emptyList(),
             handsOffTo = listOf("plan"),
-            agentFileName = "speckit.clarify.agent.md"
+            agentFileName = "speckit.clarify.agent.md",
+            parentId = "specify"
         ),
         PipelineStepDef(
             number = 4, id = "plan", name = "Plan",
@@ -484,6 +486,15 @@ class PipelinePanel(
         val allOutputsExist = outputResults.all { it.exists }
         val someOutputsExist = outputResults.any { it.exists }
 
+        // Clarify: complete when spec.md has no [NEEDS CLARIFICATION markers
+        if (step.id == "clarify" && allPrereqsMet) {
+            val specFile = resolveArtifactFile("spec.md", false, paths)
+            if (specFile != null && specFile.isFile) {
+                val hasMarkers = specFile.readText().contains("[NEEDS CLARIFICATION")
+                return if (hasMarkers) StepStatus.READY else StepStatus.COMPLETED
+            }
+        }
+
         return when {
             step.outputs.isEmpty() && allPrereqsMet -> StepStatus.READY
             allOutputsExist && step.outputs.isNotEmpty() -> StepStatus.COMPLETED
@@ -595,7 +606,7 @@ class PipelinePanel(
         }
 
         // Header
-        content.add(JLabel("Step ${step.number}: ${step.name}").apply {
+        content.add(JLabel("Step ${displayNumber(step)}: ${step.name}").apply {
             font = font.deriveFont(Font.BOLD, font.size + 4f)
             alignmentX = Component.LEFT_ALIGNMENT
         })
@@ -618,6 +629,37 @@ class PipelinePanel(
             border = BorderFactory.createEmptyBorder(0, 0, 12, 0)
         }
         content.add(statusLabel)
+
+        // Clarification markers (clarify step only)
+        if (step.id == "clarify") {
+            val paths = currentPaths
+            if (paths != null) {
+                val specFile = resolveArtifactFile("spec.md", false, paths)
+                if (specFile != null && specFile.isFile) {
+                    val markerCount = Regex("\\[NEEDS CLARIFICATION").findAll(specFile.readText()).count()
+                    val greenColor = JBColor(Color(0, 128, 0), Color(80, 200, 80))
+                    val orangeColor = JBColor(Color(200, 100, 0), Color(255, 160, 60))
+                    val markerLabel = if (markerCount == 0) {
+                        JLabel("No clarification markers in spec.md").apply {
+                            foreground = greenColor
+                        }
+                    } else {
+                        JLabel("$markerCount [NEEDS CLARIFICATION] marker(s) in spec.md").apply {
+                            foreground = orangeColor
+                            cursor = java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR)
+                            addMouseListener(object : java.awt.event.MouseAdapter() {
+                                override fun mouseClicked(e: java.awt.event.MouseEvent) {
+                                    openFileInEditor(specFile)
+                                }
+                            })
+                        }
+                    }
+                    markerLabel.alignmentX = Component.LEFT_ALIGNMENT
+                    markerLabel.border = BorderFactory.createEmptyBorder(0, 0, 12, 0)
+                    content.add(markerLabel)
+                }
+            }
+        }
 
         // Prerequisites
         if (step.prerequisites.isNotEmpty()) {
@@ -963,15 +1005,19 @@ class PipelinePanel(
         ): Component {
             val state = stepStates[value]
             val status = state?.status ?: StepStatus.NOT_STARTED
+            val isSubStep = value.parentId != null
 
             iconLabel.text = statusIcon(status)
             iconLabel.foreground = statusColor(status)
-            nameLabel.text = "${value.number}. ${value.name}"
+            nameLabel.text = "${displayNumber(value)}. ${value.name}"
             nameLabel.foreground = if (isSelected) list.selectionForeground else list.foreground
 
             connectorPanel.isFirst = index == 0
             connectorPanel.isLast = index == stepListModel.size() - 1
+            connectorPanel.isSubStep = isSubStep
             connectorPanel.color = JBColor.border()
+
+            border = BorderFactory.createEmptyBorder(2, if (isSubStep) 20 else 4, 2, 8)
 
             background = if (isSelected) list.selectionBackground else list.background
 
@@ -982,6 +1028,7 @@ class PipelinePanel(
     private class ConnectorPanel : JPanel() {
         var isFirst = false
         var isLast = false
+        var isSubStep = false
         var color: Color = JBColor.border()
 
         init {
@@ -1000,8 +1047,20 @@ class PipelinePanel(
             val bottom = if (isLast) height / 2 else height
 
             g2.drawLine(cx, top, cx, bottom)
-            g2.fillOval(cx - 3, height / 2 - 3, 6, 6)
+            val dotSize = if (isSubStep) 4 else 6
+            g2.fillOval(cx - dotSize / 2, height / 2 - dotSize / 2, dotSize, dotSize)
         }
+    }
+
+    // ── Display helpers ────────────────────────────────────────────────────
+
+    private fun displayNumber(step: PipelineStepDef): String {
+        if (step.parentId == null) return step.number.toString()
+        val parent = pipelineSteps.firstOrNull { it.id == step.parentId }
+            ?: return step.number.toString()
+        val siblingIndex = pipelineSteps.filter { it.parentId == step.parentId }
+            .indexOf(step) + 1
+        return "${parent.number}.$siblingIndex"
     }
 
     // ── Status helpers ───────────────────────────────────────────────────────
