@@ -14,7 +14,7 @@
     <extensions defaultExtensionNs="com.intellij">
         <toolWindow id="Speckit Chat"
                     anchor="bottom"
-                    icon="AllIcons.Actions.Execute"
+                    icon="/icons/speckit.png"
                     factoryClass="com.speckit.plugin.ui.SubagentConsoleFactory"
                     canCloseContents="true"/>
     </extensions>
