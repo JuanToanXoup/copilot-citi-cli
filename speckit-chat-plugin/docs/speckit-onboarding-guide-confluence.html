@@ -1,0 +1,523 @@
+<!-- Speckit Chat Plugin — Confluence Onboarding Guide -->
+<!-- Paste this into the Confluence page editor (Source view / Edit as HTML) -->
+
+<!-- ═══════════════════════ CUSTOM STYLES ═══════════════════════ -->
+<ac:structured-macro ac:name="style">
+  <ac:plain-text-body><![CDATA[
+    .speckit-hero {
+      background: linear-gradient(135deg, #0969da 0%, #1f6feb 40%, #388bfd 100%);
+      color: white;
+      padding: 32px 24px 28px;
+      text-align: center;
+      border-radius: 6px;
+      margin-bottom: 16px;
+    }
+    .speckit-hero h1 { color: white; font-size: 2em; font-weight: 800; margin-bottom: 4px; }
+    .speckit-hero .subtitle { font-size: 1.05em; opacity: 0.9; max-width: 600px; margin: 0 auto 12px; }
+    .speckit-hero .badges { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+    .speckit-hero .badge {
+      background: rgba(255,255,255,0.18);
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 0.8em;
+      font-weight: 500;
+    }
+
+    .speckit-pipeline {
+      display: flex; align-items: center; justify-content: center;
+      flex-wrap: wrap; gap: 3px 0; margin: 12px 0; font-size: 0.88em; font-weight: 600;
+    }
+    .speckit-pipeline .node {
+      background: #f0f3f6; border: 1px solid #d0d7de;
+      border-radius: 4px; padding: 3px 10px; white-space: nowrap;
+    }
+    .speckit-pipeline .node.start { background: #0969da; border-color: #0969da; color: white; }
+    .speckit-pipeline .arrow { color: #8b949e; padding: 0 3px; font-weight: 400; }
+    .speckit-pipeline .num { font-size: 0.8em; opacity: 0.6; margin-right: 2px; }
+
+    .speckit-prereq-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0;
+    }
+    .speckit-prereq-item {
+      background: #f6f8fa; border: 1px solid #d0d7de;
+      border-radius: 6px; padding: 12px 16px;
+    }
+    .speckit-prereq-item .label { font-weight: 600; font-size: 0.95em; }
+    .speckit-prereq-item .desc { font-size: 0.85em; color: #57606a; margin-top: 2px; }
+
+    .speckit-steps { counter-reset: speckit-step; margin: 10px 0; }
+    .speckit-step {
+      background: #f6f8fa; border: 1px solid #d0d7de;
+      border-radius: 6px; padding: 12px 18px 12px 52px;
+      margin: 8px 0; position: relative;
+    }
+    .speckit-step::before {
+      counter-increment: speckit-step;
+      content: counter(speckit-step);
+      position: absolute; left: 14px; top: 12px;
+      width: 28px; height: 28px; background: #0969da; color: white;
+      border-radius: 50%; text-align: center; line-height: 28px;
+      font-weight: 700; font-size: 0.85em;
+    }
+    .speckit-step h4 { font-size: 0.95em; margin-bottom: 2px; }
+    .speckit-step p { color: #57606a; font-size: 0.9em; }
+  ]]></ac:plain-text-body>
+</ac:structured-macro>
+
+
+<!-- ═══════════════════════ HERO BANNER ═══════════════════════ -->
+<ac:structured-macro ac:name="html">
+  <ac:plain-text-body><![CDATA[
+    <div class="speckit-hero">
+      <h1>Speckit Chat</h1>
+      <p class="subtitle">
+        A 9-stage AI-powered specification and implementation pipeline
+        for IntelliJ, powered by GitHub Copilot Chat.
+      </p>
+      <div class="badges">
+        <span class="badge">IntelliJ 2024.3+</span>
+        <span class="badge">GitHub Copilot Required</span>
+        <span class="badge">v0.1.0</span>
+      </div>
+    </div>
+  ]]></ac:plain-text-body>
+</ac:structured-macro>
+
+
+<!-- ═══════════════════════ TABBED PANELS ═══════════════════════ -->
+<ac:structured-macro ac:name="panelbox" ac:macro-id="speckit-tabs">
+  <ac:parameter ac:name="id">speckit-guide</ac:parameter>
+
+  <!-- ──────────────── TAB 1: OVERVIEW ──────────────── -->
+  <ac:rich-text-body>
+    <h2>Overview</h2>
+
+    <h3>What is Speckit Chat?</h3>
+    <p>
+      Speckit Chat is an IntelliJ plugin that brings the
+      <a href="https://github.com/github/spec-kit">Spec-Kit</a> pipeline
+      directly into your IDE. It connects to GitHub Copilot Chat in Agent mode,
+      letting you run specialized AI agents that take you from a one-line feature
+      idea all the way to implemented, tested code and GitHub issues.
+    </p>
+
+    <!-- Pipeline visualization -->
+    <ac:structured-macro ac:name="html">
+      <ac:plain-text-body><![CDATA[
+        <div class="speckit-pipeline">
+          <span class="node start"><span class="num">1.</span>Constitution</span><span class="arrow">&rarr;</span>
+          <span class="node"><span class="num">2.</span>Specify</span><span class="arrow">&rarr;</span>
+          <span class="node"><span class="num">3.</span>Clarify</span><span class="arrow">&rarr;</span>
+          <span class="node"><span class="num">4.</span>Plan</span><span class="arrow">&rarr;</span>
+          <span class="node"><span class="num">5.</span>Tasks</span><span class="arrow">&rarr;</span>
+          <span class="node"><span class="num">6.</span>Checklist</span><span class="arrow">&rarr;</span>
+          <span class="node"><span class="num">7.</span>Analyze</span><span class="arrow">&rarr;</span>
+          <span class="node"><span class="num">8.</span>Implement</span><span class="arrow">&rarr;</span>
+          <span class="node"><span class="num">9.</span>Issues</span>
+        </div>
+        <p style="text-align:center;color:#8b949e;font-size:0.85em;">
+          Each step produces artifacts that feed into the next. Auto-handoffs keep the flow moving.
+        </p>
+      ]]></ac:plain-text-body>
+    </ac:structured-macro>
+
+    <h3>Plugin Tabs</h3>
+    <table>
+      <thead><tr><th>Tab</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Onboarding</strong></td><td>Welcome page with Init Speckit, feature overview, and documentation links.</td></tr>
+        <tr><td><strong>Discovery</strong></td><td>Answer project properties to generate your project constitution.</td></tr>
+        <tr><td><strong>Pipeline</strong></td><td>Validate artifacts and run each step of the spec-driven pipeline.</td></tr>
+        <tr><td><strong>Sessions</strong></td><td>Select an agent, enter arguments, send prompts to Copilot Chat in Agent mode. Track runs with status, duration, and session IDs.</td></tr>
+      </tbody>
+    </table>
+
+    <ac:structured-macro ac:name="info">
+      <ac:parameter ac:name="icon">true</ac:parameter>
+      <ac:rich-text-body>
+        <p><strong>Auto-Handoffs:</strong>
+          Specify &rarr; Clarify (if unresolved markers),
+          Plan &rarr; Tasks + Checklist,
+          Tasks &rarr; Analyze + Implement.</p>
+      </ac:rich-text-body>
+    </ac:structured-macro>
+  </ac:rich-text-body>
+
+
+  <!-- ──────────────── TAB 2: INSTALLATION ──────────────── -->
+  <ac:rich-text-body>
+    <h2>Installation</h2>
+
+    <h3>Prerequisites</h3>
+    <ac:structured-macro ac:name="html">
+      <ac:plain-text-body><![CDATA[
+        <div class="speckit-prereq-grid">
+          <div class="speckit-prereq-item">
+            <div class="label">IntelliJ IDEA 2024.3+</div>
+            <div class="desc">Community or Ultimate edition. Build 243 or later.</div>
+          </div>
+          <div class="speckit-prereq-item">
+            <div class="label">GitHub Copilot Plugin</div>
+            <div class="desc">Installed and signed in with an active Copilot license.</div>
+          </div>
+          <div class="speckit-prereq-item">
+            <div class="label">Git Repository</div>
+            <div class="desc">Your project should be a git repo. Speckit creates branches and feature directories.</div>
+          </div>
+          <div class="speckit-prereq-item">
+            <div class="label">Shell Tools</div>
+            <div class="desc">macOS/Linux: bash, curl, unzip. Windows: PowerShell 5+.</div>
+          </div>
+        </div>
+      ]]></ac:plain-text-body>
+    </ac:structured-macro>
+
+    <h3>Install the Plugin</h3>
+    <ac:structured-macro ac:name="html">
+      <ac:plain-text-body><![CDATA[
+        <div class="speckit-steps">
+          <div class="speckit-step">
+            <h4>Download the plugin ZIP</h4>
+            <p>Get <strong>Speckit-Chat-0.1.0.zip</strong> from your team's shared artifacts or the release page.</p>
+          </div>
+          <div class="speckit-step">
+            <h4>Open Plugin Settings</h4>
+            <p><strong>IntelliJ IDEA</strong> menu &rarr; <strong>Settings...</strong> (Cmd+, on macOS, Ctrl+Alt+S on Windows/Linux).</p>
+          </div>
+          <div class="speckit-step">
+            <h4>Install from Disk</h4>
+            <p>Go to <strong>Plugins</strong>, click the <strong>gear icon</strong> (&#9881;) &rarr; <strong>Install Plugin from Disk...</strong></p>
+          </div>
+          <div class="speckit-step">
+            <h4>Select the ZIP file</h4>
+            <p>Navigate to the downloaded <code>Speckit-Chat-0.1.0.zip</code> and click <strong>Open</strong>.</p>
+          </div>
+          <div class="speckit-step">
+            <h4>Restart IntelliJ</h4>
+            <p>Click <strong>Restart IDE</strong>. The <strong>Speckit Chat</strong> tool window appears in the bottom panel.</p>
+          </div>
+        </div>
+      ]]></ac:plain-text-body>
+    </ac:structured-macro>
+
+    <h3>Init Speckit in Your Project</h3>
+    <p>The plugin needs Speckit agent definitions in your project (<code>.github/agents/</code> and <code>.specify/</code>).</p>
+
+    <ac:structured-macro ac:name="section">
+      <ac:rich-text-body>
+        <ac:structured-macro ac:name="column">
+          <ac:parameter ac:name="width">50%</ac:parameter>
+          <ac:rich-text-body>
+            <h4>From the Onboarding Tab</h4>
+            <ol>
+              <li>Open the <strong>Speckit Chat</strong> tool window</li>
+              <li>Select the <strong>Onboarding</strong> tab</li>
+              <li>Click <strong>Init Speckit</strong></li>
+            </ol>
+          </ac:rich-text-body>
+        </ac:structured-macro>
+        <ac:structured-macro ac:name="column">
+          <ac:parameter ac:name="width">50%</ac:parameter>
+          <ac:rich-text-body>
+            <h4>From the Sessions Tab</h4>
+            <ol>
+              <li>Select the <strong>Sessions</strong> tab</li>
+              <li>Click the <strong>&hellip;</strong> menu next to the send button</li>
+              <li>Select <strong>Init Speckit</strong></li>
+            </ol>
+          </ac:rich-text-body>
+        </ac:structured-macro>
+      </ac:rich-text-body>
+    </ac:structured-macro>
+
+    <ac:structured-macro ac:name="info">
+      <ac:parameter ac:name="icon">true</ac:parameter>
+      <ac:rich-text-body>
+        <p><strong>What gets downloaded?</strong>
+          The latest <a href="https://github.com/github/spec-kit">Spec-Kit</a> release:
+          <code>.github/agents/*.agent.md</code> (9 agent definitions),
+          <code>.github/prompts/*.prompt.md</code> (slash command mappings), and
+          <code>.specify/</code> (shell scripts, templates, memory).</p>
+      </ac:rich-text-body>
+    </ac:structured-macro>
+  </ac:rich-text-body>
+
+
+  <!-- ──────────────── TAB 3: USAGE ──────────────── -->
+  <ac:rich-text-body>
+    <h2>Usage</h2>
+
+    <h3>Running Your First Agent</h3>
+    <ac:structured-macro ac:name="html">
+      <ac:plain-text-body><![CDATA[
+        <div class="speckit-steps">
+          <div class="speckit-step">
+            <h4>Open the Sessions tab</h4>
+            <p>The agent dropdown lists all available agents from <code>.github/agents/</code> plus bundled defaults.</p>
+          </div>
+          <div class="speckit-step">
+            <h4>Select an agent</h4>
+            <p>Start with <strong>constitution</strong> to establish project principles, then <strong>specify</strong> to create your first feature spec.</p>
+          </div>
+          <div class="speckit-step">
+            <h4>Enter arguments and send</h4>
+            <p>Type your input and click send (or <strong>Ctrl+Enter</strong>). The prompt is sent to Copilot Chat in Agent mode.</p>
+          </div>
+          <div class="speckit-step">
+            <h4>Track progress</h4>
+            <p>The run table shows status, duration, branch, and session ID. Double-click a row to switch to that Copilot Chat session.</p>
+          </div>
+        </div>
+      ]]></ac:plain-text-body>
+    </ac:structured-macro>
+
+    <h3>Typical Workflow</h3>
+    <ac:structured-macro ac:name="html">
+      <ac:plain-text-body><![CDATA[
+        <div class="speckit-steps">
+          <div class="speckit-step">
+            <h4>Discovery &mdash; Establish your constitution</h4>
+            <p>Go to the <strong>Discovery</strong> tab, answer the project property questions, and generate your <code>constitution.md</code>.</p>
+          </div>
+          <div class="speckit-step">
+            <h4>Pipeline &mdash; Select a feature</h4>
+            <p>Open the <strong>Pipeline</strong> tab, select a feature directory, and validate each artifact step by step.</p>
+          </div>
+          <div class="speckit-step">
+            <h4>Pipeline &mdash; Run each step</h4>
+            <p>Click <strong>Run Step</strong> for each pipeline stage. Arguments are autofilled with sensible defaults and persisted per feature.</p>
+          </div>
+          <div class="speckit-step">
+            <h4>Sessions &mdash; Monitor and interact</h4>
+            <p>Switch to <strong>Sessions</strong> to see all running and completed agents. Double-click any row to open that Copilot Chat session.</p>
+          </div>
+        </div>
+      ]]></ac:plain-text-body>
+    </ac:structured-macro>
+
+    <ac:structured-macro ac:name="warning">
+      <ac:parameter ac:name="title">Agent Mode Required</ac:parameter>
+      <ac:rich-text-body>
+        <p>Copilot Chat must be in <strong>Agent mode</strong> (not Ask or Edit mode) for Speckit agents to function. The plugin enables this automatically when sending prompts, but if you interact with Copilot Chat directly, ensure Agent mode is selected.</p>
+      </ac:rich-text-body>
+    </ac:structured-macro>
+  </ac:rich-text-body>
+
+
+  <!-- ──────────────── TAB 4: AGENT REFERENCE ──────────────── -->
+  <ac:rich-text-body>
+    <h2>Agent Reference</h2>
+
+    <table>
+      <thead><tr><th>Agent</th><th>Purpose</th><th>Requires</th><th>Produces</th></tr></thead>
+      <tbody>
+        <tr><td><code>constitution</code></td><td>Define governance principles for all agents</td><td>User input</td><td><code>constitution.md</code></td></tr>
+        <tr><td><code>specify</code></td><td>Transform a feature description into a structured spec</td><td>Feature description</td><td><code>spec.md</code>, <code>checklists/requirements.md</code>, git branch</td></tr>
+        <tr><td><code>clarify</code></td><td>Resolve underspecified areas through targeted questions</td><td><code>spec.md</code></td><td>Updated <code>spec.md</code></td></tr>
+        <tr><td><code>plan</code></td><td>Generate technical design with architecture and data models</td><td><code>spec.md</code>, <code>constitution.md</code></td><td><code>plan.md</code>, <code>research.md</code>, <code>data-model.md</code>, <code>contracts/</code></td></tr>
+        <tr><td><code>tasks</code></td><td>Break plan into dependency-ordered, phased task list</td><td><code>plan.md</code>, <code>spec.md</code></td><td><code>tasks.md</code></td></tr>
+        <tr><td><code>checklist</code></td><td>Generate requirement checklists that gate implementation</td><td><code>spec.md</code></td><td><code>checklists/[domain].md</code></td></tr>
+        <tr><td><code>analyze</code></td><td>Read-only cross-artifact consistency check</td><td><code>tasks.md</code>, <code>spec.md</code>, <code>plan.md</code>, <code>constitution.md</code></td><td>Report (stdout only)</td></tr>
+        <tr><td><code>implement</code></td><td>Execute tasks phase-by-phase with TDD and checklist gating</td><td><code>tasks.md</code>, <code>plan.md</code>, checklists</td><td>Source code, updated <code>tasks.md</code></td></tr>
+        <tr><td><code>taskstoissues</code></td><td>Convert tasks into GitHub issues (one per task)</td><td><code>tasks.md</code>, GitHub remote</td><td>GitHub issues</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Agent Details</h3>
+
+    <ac:structured-macro ac:name="ui-expand">
+      <ac:parameter ac:name="title">constitution &mdash; Define governance principles</ac:parameter>
+      <ac:rich-text-body>
+        <p>The constitution agent establishes the engineering principles, constraints, and standards that all subsequent agents must follow. Run this first, ideally via the Discovery tab's guided Q&amp;A.</p>
+        <ul>
+          <li><strong>Input:</strong> Project context and user-supplied engineering principles</li>
+          <li><strong>Output:</strong> <code>.specify/memory/constitution.md</code></li>
+          <li><strong>Default arguments:</strong> <em>Refer to the <code>./specify/memory/discovery.md</code> for project properties</em></li>
+        </ul>
+      </ac:rich-text-body>
+    </ac:structured-macro>
+
+    <ac:structured-macro ac:name="ui-expand">
+      <ac:parameter ac:name="title">specify &mdash; Transform a feature description into a spec</ac:parameter>
+      <ac:rich-text-body>
+        <p>Takes a natural-language feature description and produces a structured specification with requirements, acceptance criteria, and a git feature branch.</p>
+        <ul>
+          <li><strong>Input:</strong> Feature description text</li>
+          <li><strong>Output:</strong> <code>spec.md</code>, <code>checklists/requirements.md</code>, new git branch</li>
+          <li><strong>Auto-handoff:</strong> If the spec contains unresolved markers, automatically chains to the Clarify agent</li>
+          <li><strong>Default arguments:</strong> <em>100% Unit Test Case coverage for all microservices code.</em></li>
+        </ul>
+      </ac:rich-text-body>
+    </ac:structured-macro>
+
+    <ac:structured-macro ac:name="ui-expand">
+      <ac:parameter ac:name="title">clarify &mdash; Resolve underspecified areas</ac:parameter>
+      <ac:rich-text-body>
+        <p>Scans the spec for ambiguous or incomplete areas and generates targeted clarification questions. Updates the spec with resolutions.</p>
+        <ul>
+          <li><strong>Input:</strong> <code>spec.md</code> with unresolved markers</li>
+          <li><strong>Output:</strong> Updated <code>spec.md</code> with clarifications resolved</li>
+        </ul>
+      </ac:rich-text-body>
+    </ac:structured-macro>
+
+    <ac:structured-macro ac:name="ui-expand">
+      <ac:parameter ac:name="title">plan &mdash; Generate technical design</ac:parameter>
+      <ac:rich-text-body>
+        <p>Produces a comprehensive technical plan with architecture decisions, data models, API contracts, and research notes.</p>
+        <ul>
+          <li><strong>Input:</strong> <code>spec.md</code>, <code>constitution.md</code></li>
+          <li><strong>Output:</strong> <code>plan.md</code>, <code>research.md</code>, <code>data-model.md</code>, <code>contracts/</code></li>
+          <li><strong>Auto-handoff:</strong> Chains to Tasks + Checklist agents</li>
+        </ul>
+      </ac:rich-text-body>
+    </ac:structured-macro>
+
+    <ac:structured-macro ac:name="ui-expand">
+      <ac:parameter ac:name="title">tasks &mdash; Break plan into phased task list</ac:parameter>
+      <ac:rich-text-body>
+        <p>Decomposes the plan into dependency-ordered, phased implementation tasks with clear acceptance criteria.</p>
+        <ul>
+          <li><strong>Input:</strong> <code>plan.md</code>, <code>spec.md</code></li>
+          <li><strong>Output:</strong> <code>tasks.md</code></li>
+          <li><strong>Auto-handoff:</strong> Chains to Analyze + Implement agents</li>
+          <li><strong>Default arguments:</strong> <em>all tasks</em></li>
+        </ul>
+      </ac:rich-text-body>
+    </ac:structured-macro>
+
+    <ac:structured-macro ac:name="ui-expand">
+      <ac:parameter ac:name="title">checklist &mdash; Generate requirement checklists</ac:parameter>
+      <ac:rich-text-body>
+        <p>Creates domain-specific checklists that gate implementation quality. Each checklist item maps back to a spec requirement.</p>
+        <ul>
+          <li><strong>Input:</strong> <code>spec.md</code></li>
+          <li><strong>Output:</strong> <code>checklists/[domain].md</code> files</li>
+        </ul>
+      </ac:rich-text-body>
+    </ac:structured-macro>
+
+    <ac:structured-macro ac:name="ui-expand">
+      <ac:parameter ac:name="title">analyze &mdash; Cross-artifact consistency check</ac:parameter>
+      <ac:rich-text-body>
+        <p>Read-only analysis that validates consistency across all artifacts (spec, plan, tasks, constitution). Reports gaps and contradictions without modifying files.</p>
+        <ul>
+          <li><strong>Input:</strong> <code>tasks.md</code>, <code>spec.md</code>, <code>plan.md</code>, <code>constitution.md</code></li>
+          <li><strong>Output:</strong> Consistency report (stdout only, no file changes)</li>
+        </ul>
+      </ac:rich-text-body>
+    </ac:structured-macro>
+
+    <ac:structured-macro ac:name="ui-expand">
+      <ac:parameter ac:name="title">implement &mdash; Execute tasks with TDD</ac:parameter>
+      <ac:rich-text-body>
+        <p>Works through the task list phase-by-phase, writing code with test-driven development and checking off checklist items as it goes.</p>
+        <ul>
+          <li><strong>Input:</strong> <code>tasks.md</code>, <code>plan.md</code>, checklists</li>
+          <li><strong>Output:</strong> Source code, updated <code>tasks.md</code> with completed items</li>
+          <li><strong>Default arguments:</strong> <em>all remaining tasks</em></li>
+        </ul>
+      </ac:rich-text-body>
+    </ac:structured-macro>
+
+    <ac:structured-macro ac:name="ui-expand">
+      <ac:parameter ac:name="title">taskstoissues &mdash; Convert tasks to GitHub issues</ac:parameter>
+      <ac:rich-text-body>
+        <p>Reads <code>tasks.md</code> and creates one GitHub issue per task, preserving dependencies and labels.</p>
+        <ul>
+          <li><strong>Input:</strong> <code>tasks.md</code>, GitHub remote configured</li>
+          <li><strong>Output:</strong> GitHub issues (one per task)</li>
+          <li><strong>Default arguments:</strong> <em>all tasks</em></li>
+        </ul>
+        <ac:structured-macro ac:name="warning">
+          <ac:rich-text-body>
+            <p>Requires a GitHub remote with push access. Ensure your repository has a configured remote before running this agent.</p>
+          </ac:rich-text-body>
+        </ac:structured-macro>
+      </ac:rich-text-body>
+    </ac:structured-macro>
+  </ac:rich-text-body>
+
+
+  <!-- ──────────────── TAB 5: CUSTOMIZATION ──────────────── -->
+  <ac:rich-text-body>
+    <h2>Customization</h2>
+
+    <ac:structured-macro ac:name="section">
+      <ac:rich-text-body>
+        <ac:structured-macro ac:name="column">
+          <ac:parameter ac:name="width">50%</ac:parameter>
+          <ac:rich-text-body>
+            <h3>Override Bundled Agents</h3>
+            <p>Place custom <code>.agent.md</code> files in <code>.github/agents/</code>.
+            Project-level files take priority over bundled defaults.</p>
+            <p>Agent file naming convention: <code>speckit.&lt;name&gt;.agent.md</code></p>
+          </ac:rich-text-body>
+        </ac:structured-macro>
+        <ac:structured-macro ac:name="column">
+          <ac:parameter ac:name="width">50%</ac:parameter>
+          <ac:rich-text-body>
+            <h3>Refresh Agents</h3>
+            <p>Click the <strong>&hellip;</strong> menu in the Sessions tab and select
+            <strong>Refresh Agents</strong> to reload without restarting the IDE.</p>
+            <p>You can also re-run <strong>Init Speckit</strong> to fetch the latest agent definitions from the Spec-Kit release.</p>
+          </ac:rich-text-body>
+        </ac:structured-macro>
+      </ac:rich-text-body>
+    </ac:structured-macro>
+
+    <h3>Pipeline Argument Persistence</h3>
+    <p>The Pipeline tab remembers arguments you've entered per feature and per step. Arguments are persisted across IDE restarts using IntelliJ's project-level properties. Click <strong>Reset</strong> next to the arguments field to restore the default autofill value.</p>
+
+    <h3>Project Directory Structure</h3>
+    <ac:structured-macro ac:name="ui-expand">
+      <ac:parameter ac:name="title">View expected directory layout</ac:parameter>
+      <ac:rich-text-body>
+        <pre>
+your-project/
+├── .github/
+│   ├── agents/
+│   │   ├── speckit.constitution.agent.md
+│   │   ├── speckit.specify.agent.md
+│   │   ├── speckit.clarify.agent.md
+│   │   ├── speckit.plan.agent.md
+│   │   ├── speckit.tasks.agent.md
+│   │   ├── speckit.checklist.agent.md
+│   │   ├── speckit.analyze.agent.md
+│   │   ├── speckit.implement.agent.md
+│   │   └── speckit.taskstoissues.agent.md
+│   └── prompts/
+│       └── *.prompt.md
+├── .specify/
+│   ├── memory/
+│   │   ├── constitution.md
+│   │   └── discovery.md
+│   ├── scripts/
+│   └── templates/
+└── specify/
+    └── &lt;feature-name&gt;/
+        ├── spec.md
+        ├── plan.md
+        ├── tasks.md
+        └── checklists/
+        </pre>
+      </ac:rich-text-body>
+    </ac:structured-macro>
+
+    <ac:structured-macro ac:name="info">
+      <ac:parameter ac:name="icon">true</ac:parameter>
+      <ac:rich-text-body>
+        <p><strong>Tip:</strong> Each feature gets its own directory under <code>specify/</code>. The Pipeline tab's feature selector reads these directories to let you switch between features.</p>
+      </ac:rich-text-body>
+    </ac:structured-macro>
+  </ac:rich-text-body>
+
+</ac:structured-macro>
+
+
+<!-- ═══════════════════════ FOOTER ═══════════════════════ -->
+<p style="text-align: center; color: #8b949e; font-size: 0.85em; margin-top: 24px; padding-top: 16px; border-top: 1px solid #dfe2e5;">
+  Speckit Chat Plugin v0.1.0 &mdash; Built for IntelliJ IDEA 2024.3+ &middot;
+  <a href="https://github.com/github/spec-kit">github/spec-kit</a>
+</p>

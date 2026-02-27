@@ -1,16 +1,19 @@
 package com.speckit.plugin.ui.onboarding
 
+import com.intellij.openapi.project.Project
 import com.intellij.ui.components.JBHtmlPane
 import com.intellij.ui.components.JBHtmlPaneConfiguration
 import com.intellij.ui.components.JBHtmlPaneStyleConfiguration
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.AlignY
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.dsl.gridLayout.UnscaledGaps
 import com.intellij.ui.dsl.gridLayout.UnscaledGapsY
 import com.intellij.util.ui.JBDimension
 import com.intellij.util.ui.JBFont
 import com.intellij.util.ui.JBUI
+import com.speckit.plugin.ui.SessionPanel
 import java.awt.BorderLayout
 import java.awt.Container
 import java.awt.Dimension
@@ -39,8 +42,25 @@ class SpeckitFeaturePanel(
     private val allDescriptors: List<SpeckitFeatureDescriptor>,
     private val onFeatureSelected: (SpeckitFeatureDescriptor, Int) -> Unit,
     private val onDiscoverAll: () -> Unit,
-    private val onClose: () -> Unit
+    private val onClose: () -> Unit,
+    private val project: Project? = null,
+    private val sessionPanel: SessionPanel? = null
 ) : JPanel(BorderLayout()) {
+
+    companion object {
+        /** Maps each feature descriptor to its Pipeline step index (0-based). */
+        private val DESCRIPTOR_TO_STEP_INDEX = mapOf<SpeckitFeatureDescriptor, Int>(
+            ConstitutionFeatureDescriptor to 0,
+            SpecifyFeatureDescriptor to 1,
+            ClarifyFeatureDescriptor to 2,
+            PlanFeatureDescriptor to 3,
+            TasksFeatureDescriptor to 4,
+            ChecklistFeatureDescriptor to 5,
+            AnalyzeFeatureDescriptor to 6,
+            ImplementFeatureDescriptor to 7,
+            IssuesFeatureDescriptor to 8
+        )
+    }
 
     init {
         val header = createHeader()
@@ -80,6 +100,16 @@ class SpeckitFeaturePanel(
      */
     private fun createContent(): JComponent {
         return panel {
+            // Embedded Pipeline demo — pre-selects the step matching this feature
+            if (project != null && sessionPanel != null) {
+                val stepIndex = DESCRIPTOR_TO_STEP_INDEX[descriptor] ?: 0
+                row {
+                    cell(PipelineDemoPanel(project, sessionPanel, initialStepIndex = stepIndex))
+                        .align(AlignX.FILL)
+                        .align(AlignY.FILL)
+                }.customize(UnscaledGapsY(12, 0))
+            }
+
             // Title — wrapped in sub-panel for UnscaledGaps(24, 0, 12, 0)
             // Matches BaseWelcomePanel.title
             panel {

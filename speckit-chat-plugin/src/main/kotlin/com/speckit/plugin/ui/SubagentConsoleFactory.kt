@@ -13,7 +13,7 @@ class SubagentConsoleFactory : ToolWindowFactory, DumbAware {
 
         val sessionPanel = SessionPanel(project, toolWindow.disposable)
 
-        val onboardingPanel = SpeckitOnboardingPanel(project, toolWindow.disposable)
+        val onboardingPanel = SpeckitOnboardingPanel(project, toolWindow.disposable, sessionPanel)
         cm.addContent(cm.factory.createContent(onboardingPanel, "Onboarding", false).apply { isCloseable = false })
 
         val discoveryPanel = DiscoveryPanel(project, toolWindow.disposable, sessionPanel)
