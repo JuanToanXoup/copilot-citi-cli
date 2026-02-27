@@ -174,14 +174,18 @@ class SpeckitChatPanel(
 
     private fun loadAgents() {
         val basePath = project.basePath ?: return
-        val agentFiles = ResourceLoader.listAgents(basePath)
-        val entries = agentFiles.map { fileName ->
-            val slug = fileName.removePrefix("speckit.").removeSuffix(".agent.md")
-            val content = ResourceLoader.readAgent(basePath, fileName)
-            val description = content?.let { parseDescription(it) } ?: ""
-            AgentEntry(fileName, slug, description)
+        scope.launch {
+            val agentFiles = ResourceLoader.listAgents(basePath)
+            val entries = agentFiles.map { fileName ->
+                val slug = fileName.removePrefix("speckit.").removeSuffix(".agent.md")
+                val content = ResourceLoader.readAgent(basePath, fileName)
+                val description = content?.let { parseDescription(it) } ?: ""
+                AgentEntry(fileName, slug, description)
+            }
+            invokeLater {
+                agentCombo.model = DefaultComboBoxModel(entries.toTypedArray())
+            }
         }
-        agentCombo.model = DefaultComboBoxModel(entries.toTypedArray())
     }
 
     internal fun currentGitBranch(): String {
