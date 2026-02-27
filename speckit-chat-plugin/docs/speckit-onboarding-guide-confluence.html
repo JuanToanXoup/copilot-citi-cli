@@ -1,5 +1,7 @@
 <!-- Speckit Chat Plugin — Confluence Onboarding Guide -->
 <!-- Paste this into the Confluence page editor (Source view / Edit as HTML) -->
+<!-- Upload attachments: Speckit-Chat-0.1.0.zip, install-step1-settings.png, -->
+<!-- install-step2-plugins.png, install-step3-select-zip.png, install-step5-onboarding.png -->
 
 <!-- ═══════════════════════ CUSTOM STYLES ═══════════════════════ -->
 <ac:structured-macro ac:name="style">
@@ -48,33 +50,6 @@
     .speckit-pipeline .node.start { background: #0969da; border-color: #0969da; color: white; }
     .speckit-pipeline .arrow { color: #8b949e; padding: 0 3px; font-weight: 400; }
     .speckit-pipeline .num { font-size: 0.8em; opacity: 0.6; margin-right: 2px; }
-
-    .speckit-prereq-grid {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0;
-    }
-    .speckit-prereq-item {
-      background: #f6f8fa; border: 1px solid #d0d7de;
-      border-radius: 6px; padding: 12px 16px;
-    }
-    .speckit-prereq-item .label { font-weight: 600; font-size: 0.95em; }
-    .speckit-prereq-item .desc { font-size: 0.85em; color: #57606a; margin-top: 2px; }
-
-    .speckit-steps { counter-reset: speckit-step; margin: 10px 0; }
-    .speckit-step {
-      background: #f6f8fa; border: 1px solid #d0d7de;
-      border-radius: 6px; padding: 12px 18px 12px 52px;
-      margin: 8px 0; position: relative;
-    }
-    .speckit-step::before {
-      counter-increment: speckit-step;
-      content: counter(speckit-step);
-      position: absolute; left: 14px; top: 12px;
-      width: 28px; height: 28px; background: #0969da; color: white;
-      border-radius: 50%; text-align: center; line-height: 28px;
-      font-weight: 700; font-size: 0.85em;
-    }
-    .speckit-step h4 { font-size: 0.95em; margin-bottom: 2px; }
-    .speckit-step p { color: #57606a; font-size: 0.9em; }
   ]]></ac:plain-text-body>
 </ac:structured-macro>
 
@@ -103,11 +78,6 @@
     <ac:plain-text-link-body><![CDATA[Download Speckit Chat v0.1.0]]></ac:plain-text-link-body>
   </ac:link>
 </p>
-
-<ac:structured-macro ac:name="html">
-  <ac:plain-text-body><![CDATA[
-  ]]></ac:plain-text-body>
-</ac:structured-macro>
 
 
 <!-- ═══════════════════════ TAB BAR + JS ═══════════════════════ -->
@@ -138,13 +108,11 @@
         try { localStorage.setItem('speckit-active-tab', panelId); } catch(e) {}
       }
 
-      // Restore last tab or use hash
       (function() {
         var hash = window.location.hash.replace('#', '');
         var saved = null;
         try { saved = localStorage.getItem('speckit-active-tab'); } catch(e) {}
         var initial = (hash && speckitPanels.indexOf(hash) >= 0) ? hash : (saved || 'overview');
-        // Defer to ensure panels are rendered
         setTimeout(function() { showSpeckitPanel(initial); }, 100);
       })();
     </script>
@@ -161,13 +129,7 @@
   <ac:parameter ac:name="id">speckit-overview</ac:parameter>
   <ac:rich-text-body>
     <h2>What is Speckit Chat?</h2>
-    <p>
-      Speckit Chat is an IntelliJ plugin that brings the
-      <a href="https://github.com/github/spec-kit">Spec-Kit</a> pipeline
-      directly into your IDE. It connects to GitHub Copilot Chat in Agent mode,
-      letting you run specialized AI agents that take you from a one-line feature
-      idea all the way to implemented, tested code and GitHub issues.
-    </p>
+    <p>Speckit Chat is an IntelliJ plugin that brings the <a href="https://github.com/github/spec-kit">Spec-Kit</a> pipeline directly into your IDE. It connects to GitHub Copilot Chat in Agent mode, letting you run specialized AI agents that take you from a one-line feature idea all the way to implemented, tested code and GitHub issues.</p>
 
     <ac:structured-macro ac:name="html">
       <ac:plain-text-body><![CDATA[
@@ -202,10 +164,7 @@
     <ac:structured-macro ac:name="info">
       <ac:parameter ac:name="icon">true</ac:parameter>
       <ac:rich-text-body>
-        <p><strong>Auto-Handoffs:</strong>
-          Specify &rarr; Clarify (if unresolved markers),
-          Plan &rarr; Tasks + Checklist,
-          Tasks &rarr; Analyze + Implement.</p>
+        <p><strong>Auto-Handoffs:</strong> Specify &rarr; Clarify (if unresolved markers), Plan &rarr; Tasks + Checklist, Tasks &rarr; Analyze + Implement.</p>
       </ac:rich-text-body>
     </ac:structured-macro>
   </ac:rich-text-body>
@@ -227,68 +186,45 @@
     <h2>Installation</h2>
 
     <h3>Prerequisites</h3>
-    <ac:structured-macro ac:name="html">
-      <ac:plain-text-body><![CDATA[
-        <div class="speckit-prereq-grid">
-          <div class="speckit-prereq-item">
-            <div class="label">IntelliJ IDEA 2024.3+</div>
-            <div class="desc">Community or Ultimate edition. Build 243 or later.</div>
-          </div>
-          <div class="speckit-prereq-item">
-            <div class="label">GitHub Copilot Plugin</div>
-            <div class="desc">Installed and signed in with an active Copilot license.</div>
-          </div>
-          <div class="speckit-prereq-item">
-            <div class="label">Git Repository</div>
-            <div class="desc">Your project should be a git repo. Speckit creates branches and feature directories.</div>
-          </div>
-          <div class="speckit-prereq-item">
-            <div class="label">Shell Tools</div>
-            <div class="desc">macOS/Linux: bash, curl, unzip. Windows: PowerShell 5+.</div>
-          </div>
-        </div>
-      ]]></ac:plain-text-body>
-    </ac:structured-macro>
+    <table>
+      <thead><tr><th>Requirement</th><th>Details</th></tr></thead>
+      <tbody>
+        <tr><td><strong>IntelliJ IDEA 2024.3+</strong></td><td>Community or Ultimate edition. Build 243 or later.</td></tr>
+        <tr><td><strong>GitHub Copilot Plugin</strong></td><td>Installed and signed in with an active Copilot license.</td></tr>
+        <tr><td><strong>Git Repository</strong></td><td>Your project should be a git repo. Speckit creates branches and feature directories.</td></tr>
+        <tr><td><strong>Shell Tools</strong></td><td>macOS/Linux: <code>bash</code>, <code>curl</code>, <code>unzip</code>. Windows: PowerShell 5+.</td></tr>
+      </tbody>
+    </table>
 
     <h3>Install the Plugin</h3>
-    <ac:structured-macro ac:name="html">
-      <ac:plain-text-body><![CDATA[
-        <div class="speckit-steps">
-          <div class="speckit-step">
-            <h4>Download the plugin ZIP</h4>
-            <p>Download <strong>Speckit-Chat-0.1.0.zip</strong> from the link at the top of this page or from the attachment below.</p>
-          </div>
-      ]]></ac:plain-text-body>
-    </ac:structured-macro>
-
-    <p>
-      <ac:link>
-        <ri:attachment ri:filename="Speckit-Chat-0.1.0.zip" />
-        <ac:plain-text-link-body><![CDATA[Download Speckit-Chat-0.1.0.zip]]></ac:plain-text-link-body>
-      </ac:link>
-    </p>
-
-    <ac:structured-macro ac:name="html">
-      <ac:plain-text-body><![CDATA[
-          <div class="speckit-step">
-            <h4>Open Plugin Settings</h4>
-            <p><strong>IntelliJ IDEA</strong> menu &rarr; <strong>Settings...</strong> (Cmd+, on macOS, Ctrl+Alt+S on Windows/Linux).</p>
-          </div>
-          <div class="speckit-step">
-            <h4>Install from Disk</h4>
-            <p>Go to <strong>Plugins</strong>, click the <strong>gear icon</strong> (&#9881;) &rarr; <strong>Install Plugin from Disk...</strong></p>
-          </div>
-          <div class="speckit-step">
-            <h4>Select the ZIP file</h4>
-            <p>Navigate to the downloaded <code>Speckit-Chat-0.1.0.zip</code> and click <strong>Open</strong>.</p>
-          </div>
-          <div class="speckit-step">
-            <h4>Restart IntelliJ</h4>
-            <p>Click <strong>Restart IDE</strong>. The <strong>Speckit Chat</strong> tool window appears in the bottom panel.</p>
-          </div>
-        </div>
-      ]]></ac:plain-text-body>
-    </ac:structured-macro>
+    <ol>
+      <li><strong>Download the plugin ZIP</strong> &mdash; Download <strong>Speckit-Chat-0.1.0.zip</strong> from the link at the top of this page or from the attachment below.<br/>
+        <ac:link>
+          <ri:attachment ri:filename="Speckit-Chat-0.1.0.zip" />
+          <ac:plain-text-link-body><![CDATA[Download Speckit-Chat-0.1.0.zip]]></ac:plain-text-link-body>
+        </ac:link>
+      </li>
+      <li><strong>Open Plugin Settings</strong> &mdash; <strong>IntelliJ IDEA</strong> menu &rarr; <strong>Settings...</strong> (Cmd+, on macOS, Ctrl+Alt+S on Windows/Linux).<br/>
+        <ac:image ac:width="450">
+          <ri:attachment ri:filename="install-step1-settings.png" />
+        </ac:image>
+      </li>
+      <li><strong>Install from Disk</strong> &mdash; Go to <strong>Plugins</strong>, click the <strong>gear icon</strong> (&9881;) &rarr; <strong>Install Plugin from Disk...</strong><br/>
+        <ac:image>
+          <ri:attachment ri:filename="install-step2-plugins.png" />
+        </ac:image>
+      </li>
+      <li><strong>Select the ZIP file</strong> &mdash; Navigate to the downloaded <code>Speckit-Chat-0.1.0.zip</code> and click <strong>Open</strong>.<br/>
+        <ac:image>
+          <ri:attachment ri:filename="install-step3-select-zip.png" />
+        </ac:image>
+      </li>
+      <li><strong>Restart IntelliJ</strong> &mdash; Click <strong>Restart IDE</strong>. The <strong>Speckit Chat</strong> tool window appears in the bottom panel.<br/>
+        <ac:image ac:width="450">
+          <ri:attachment ri:filename="install-step5-onboarding.png" />
+        </ac:image>
+      </li>
+    </ol>
 
     <h3>Init Speckit in Your Project</h3>
     <p>The plugin needs Speckit agent definitions in your project (<code>.github/agents/</code> and <code>.specify/</code>).</p>
@@ -323,11 +259,7 @@
     <ac:structured-macro ac:name="info">
       <ac:parameter ac:name="icon">true</ac:parameter>
       <ac:rich-text-body>
-        <p><strong>What gets downloaded?</strong>
-          The latest <a href="https://github.com/github/spec-kit">Spec-Kit</a> release:
-          <code>.github/agents/*.agent.md</code> (9 agent definitions),
-          <code>.github/prompts/*.prompt.md</code> (slash command mappings), and
-          <code>.specify/</code> (shell scripts, templates, memory).</p>
+        <p><strong>What gets downloaded?</strong> The latest <a href="https://github.com/github/spec-kit">Spec-Kit</a> release: <code>.github/agents/*.agent.md</code> (9 agent definitions), <code>.github/prompts/*.prompt.md</code> (slash command mappings), and <code>.specify/</code> (shell scripts, templates, memory).</p>
       </ac:rich-text-body>
     </ac:structured-macro>
   </ac:rich-text-body>
@@ -349,52 +281,20 @@
     <h2>Usage</h2>
 
     <h3>Running Your First Agent</h3>
-    <ac:structured-macro ac:name="html">
-      <ac:plain-text-body><![CDATA[
-        <div class="speckit-steps">
-          <div class="speckit-step">
-            <h4>Open the Sessions tab</h4>
-            <p>The agent dropdown lists all available agents from <code>.github/agents/</code> plus bundled defaults.</p>
-          </div>
-          <div class="speckit-step">
-            <h4>Select an agent</h4>
-            <p>Start with <strong>constitution</strong> to establish project principles, then <strong>specify</strong> to create your first feature spec.</p>
-          </div>
-          <div class="speckit-step">
-            <h4>Enter arguments and send</h4>
-            <p>Type your input and click send (or <strong>Ctrl+Enter</strong>). The prompt is sent to Copilot Chat in Agent mode.</p>
-          </div>
-          <div class="speckit-step">
-            <h4>Track progress</h4>
-            <p>The run table shows status, duration, branch, and session ID. Double-click a row to switch to that Copilot Chat session.</p>
-          </div>
-        </div>
-      ]]></ac:plain-text-body>
-    </ac:structured-macro>
+    <ol>
+      <li><strong>Open the Sessions tab</strong> &mdash; The agent dropdown lists all available agents from <code>.github/agents/</code> plus bundled defaults.</li>
+      <li><strong>Select an agent</strong> &mdash; Start with <strong>constitution</strong> to establish project principles, then <strong>specify</strong> to create your first feature spec.</li>
+      <li><strong>Enter arguments and send</strong> &mdash; Type your input and click send (or <strong>Ctrl+Enter</strong>). The prompt is sent to Copilot Chat in Agent mode.</li>
+      <li><strong>Track progress</strong> &mdash; The run table shows status, duration, branch, and session ID. Double-click a row to switch to that Copilot Chat session.</li>
+    </ol>
 
     <h3>Typical Workflow</h3>
-    <ac:structured-macro ac:name="html">
-      <ac:plain-text-body><![CDATA[
-        <div class="speckit-steps">
-          <div class="speckit-step">
-            <h4>Discovery &mdash; Establish your constitution</h4>
-            <p>Go to the <strong>Discovery</strong> tab, answer the project property questions, and generate your <code>constitution.md</code>.</p>
-          </div>
-          <div class="speckit-step">
-            <h4>Pipeline &mdash; Select a feature</h4>
-            <p>Open the <strong>Pipeline</strong> tab, select a feature directory, and validate each artifact step by step.</p>
-          </div>
-          <div class="speckit-step">
-            <h4>Pipeline &mdash; Run each step</h4>
-            <p>Click <strong>Run Step</strong> for each pipeline stage. Arguments are autofilled with sensible defaults and persisted per feature.</p>
-          </div>
-          <div class="speckit-step">
-            <h4>Sessions &mdash; Monitor and interact</h4>
-            <p>Switch to <strong>Sessions</strong> to see all running and completed agents. Double-click any row to open that Copilot Chat session.</p>
-          </div>
-        </div>
-      ]]></ac:plain-text-body>
-    </ac:structured-macro>
+    <ol>
+      <li><strong>Discovery &mdash; Establish your constitution</strong> &mdash; Go to the <strong>Discovery</strong> tab, answer the project property questions, and generate your <code>constitution.md</code>.</li>
+      <li><strong>Pipeline &mdash; Select a feature</strong> &mdash; Open the <strong>Pipeline</strong> tab, select a feature directory, and validate each artifact step by step.</li>
+      <li><strong>Pipeline &mdash; Run each step</strong> &mdash; Click <strong>Run Step</strong> for each pipeline stage. Arguments are autofilled with sensible defaults and persisted per feature.</li>
+      <li><strong>Sessions &mdash; Monitor and interact</strong> &mdash; Switch to <strong>Sessions</strong> to see all running and completed agents. Double-click any row to open that Copilot Chat session.</li>
+    </ol>
 
     <ac:structured-macro ac:name="warning">
       <ac:parameter ac:name="title">Agent Mode Required</ac:parameter>
@@ -572,8 +472,7 @@
           <ac:parameter ac:name="width">50%</ac:parameter>
           <ac:rich-text-body>
             <h3>Override Bundled Agents</h3>
-            <p>Place custom <code>.agent.md</code> files in <code>.github/agents/</code>.
-            Project-level files take priority over bundled defaults.</p>
+            <p>Place custom <code>.agent.md</code> files in <code>.github/agents/</code>. Project-level files take priority over bundled defaults.</p>
             <p>Agent file naming convention: <code>speckit.&lt;name&gt;.agent.md</code></p>
           </ac:rich-text-body>
         </ac:structured-macro>
@@ -581,8 +480,7 @@
           <ac:parameter ac:name="width">50%</ac:parameter>
           <ac:rich-text-body>
             <h3>Refresh Agents</h3>
-            <p>Click the <strong>&hellip;</strong> menu in the Sessions tab and select
-            <strong>Refresh Agents</strong> to reload without restarting the IDE.</p>
+            <p>Click the <strong>&hellip;</strong> menu in the Sessions tab and select <strong>Refresh Agents</strong> to reload without restarting the IDE.</p>
             <p>You can also re-run <strong>Init Speckit</strong> to fetch the latest agent definitions from the Spec-Kit release.</p>
           </ac:rich-text-body>
         </ac:structured-macro>
