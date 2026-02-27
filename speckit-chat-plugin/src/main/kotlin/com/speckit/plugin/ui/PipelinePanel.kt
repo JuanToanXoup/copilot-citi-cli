@@ -255,6 +255,7 @@ class PipelinePanel(
     @Volatile private var currentPaths: FeaturePaths? = null
     @Volatile private var currentBranch: String = ""
     @Volatile private var lastImplementRun: ChatRun? = null
+    @Volatile private var pendingSpecifyArgs: String? = null
 
     // ── Init ─────────────────────────────────────────────────────────────────
 
@@ -559,6 +560,13 @@ class PipelinePanel(
                         )
                     )
                 }
+
+                // Re-save pending specify args under the now-selected feature key
+                val pending = pendingSpecifyArgs
+                if (pending != null) {
+                    saveArgs("specify", pending)
+                    pendingSpecifyArgs = null
+                }
             }
         }
     }
@@ -778,11 +786,14 @@ class PipelinePanel(
         }
 
         // Arguments (persisted per feature+step, with autofill defaults)
+        val isReadOnly = step.id == "specify"
         val argsField = JBTextArea(3, 0).apply {
             lineWrap = true
             wrapStyleWord = true
             margin = java.awt.Insets(6, 8, 6, 8)
             text = loadArgs(step.id) ?: autofillArgs(step)
+            isEditable = !isReadOnly
+            if (isReadOnly) background = JBColor(Color(245, 245, 245), Color(60, 63, 65))
         }
         val argsHeader = JPanel(BorderLayout()).apply {
             isOpaque = false
@@ -791,15 +802,17 @@ class PipelinePanel(
             add(JLabel("Arguments:").apply {
                 font = font.deriveFont(Font.BOLD)
             }, BorderLayout.WEST)
-            add(JButton("Reset").apply {
-                isBorderPainted = false
-                isContentAreaFilled = false
-                foreground = JBColor.BLUE
-                cursor = java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR)
-                font = font.deriveFont(font.size - 1f)
-                toolTipText = "Reset to default"
-                addActionListener { argsField.text = autofillArgs(step) }
-            }, BorderLayout.EAST)
+            if (!isReadOnly) {
+                add(JButton("Reset").apply {
+                    isBorderPainted = false
+                    isContentAreaFilled = false
+                    foreground = JBColor.BLUE
+                    cursor = java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR)
+                    font = font.deriveFont(font.size - 1f)
+                    toolTipText = "Reset to default"
+                    addActionListener { argsField.text = autofillArgs(step) }
+                }, BorderLayout.EAST)
+            }
             border = BorderFactory.createEmptyBorder(0, 0, 4, 0)
         }
         content.add(argsHeader)
@@ -813,12 +826,14 @@ class PipelinePanel(
         }
         content.add(argsScroll)
 
-        // Run button
-        val runButton = JButton("Run ${step.name} \u25B7").apply {
-            alignmentX = Component.LEFT_ALIGNMENT
-            addActionListener { runStep(step, argsField.text.trim()) }
+        // Run button (hidden for Specify — use "Add New Specification" instead)
+        if (!isReadOnly) {
+            val runButton = JButton("Run ${step.name} \u25B7").apply {
+                alignmentX = Component.LEFT_ALIGNMENT
+                addActionListener { runStep(step, argsField.text.trim()) }
+            }
+            content.add(runButton)
         }
-        content.add(runButton)
 
         content.add(javax.swing.Box.createVerticalGlue())
 
@@ -974,8 +989,8 @@ class PipelinePanel(
         // Select the Specify step so the detail panel shows it
         stepList.selectedIndex = specifyIndex
 
-        // Persist the description as the Specify step's arguments
-        saveArgs(specifyStep.id, description)
+        // Stash the description so onComplete can re-save under the correct feature key
+        pendingSpecifyArgs = description
 
         // Run the Specify agent with the description
         runStep(specifyStep, description)
