@@ -1,183 +1,154 @@
-# SpecKit Workflow Prompts — Microservices Project
+# SpecKit Workflow Prompts — Single Microservice, 100% Unit Test Coverage
 
-Copy-paste these prompts in order to take a microservices project from governance through implementation.
+Copy-paste these prompts in order to take a single microservice from zero to 100% unit test coverage through the full SpecKit pipeline.
 
 ---
 
-## Step 1: Constitution — Establish Governance
+## Step 1: Constitution
 
 ```
 /speckit.constitution
 
-Project: E-Commerce Microservices Platform
+Project: User Account Microservice
 
 Principles:
 
-1. Service Autonomy — Each microservice MUST own its data and expose it only through well-defined APIs. No shared databases between services. Services MUST be independently deployable without coordinating releases with other teams.
+1. Test-First Development — Every module MUST have unit tests written before or alongside its implementation. No code MUST be merged without corresponding tests. The project MUST maintain 100% line and branch coverage as measured by the coverage tool, with zero exclusions or pragmas allowed without documented justification.
 
-2. API-First Design — All inter-service communication MUST use versioned REST or gRPC contracts defined before implementation. Breaking changes MUST go through a deprecation cycle of at least 2 minor versions. Every public endpoint MUST have an OpenAPI or Protobuf schema.
+2. Single Responsibility — Each module, class, and function MUST do exactly one thing. Dependencies MUST be injected, never instantiated internally. All external calls (database, HTTP, message queue) MUST go through interfaces so they can be replaced with test doubles.
 
-3. Observability by Default — Every service MUST emit structured logs (JSON), expose health check endpoints (/health, /ready), and publish metrics (latency, error rate, throughput) to a centralized observability stack. Distributed tracing MUST propagate correlation IDs across all service boundaries.
+3. Deterministic Tests — Unit tests MUST NOT depend on network, filesystem, database, time, or randomness. All side effects MUST be injected and mockable. Tests MUST produce identical results on every run regardless of execution order or environment.
 
-4. Resilience Over Availability — Services MUST implement circuit breakers, retries with exponential backoff, and graceful degradation for all downstream dependencies. No service failure should cascade beyond its bounded context. Timeouts MUST be explicitly configured for every outbound call.
+4. Boundary Isolation — The service MUST separate domain logic from infrastructure. Domain models MUST contain no framework imports. Repository, HTTP client, and message publisher interfaces MUST be defined in the domain layer and implemented in the infrastructure layer.
 
-5. Security as a First-Class Concern — All inter-service communication MUST use mTLS or signed JWTs. Secrets MUST never appear in code, logs, or environment variables at rest. All user-facing endpoints MUST validate input at the boundary and enforce rate limiting.
-
-6. Infrastructure as Code — All deployment configurations MUST be declarative (Terraform, Helm, Kubernetes manifests). No manual infrastructure changes. Every environment (dev, staging, prod) MUST be reproducible from version-controlled configuration.
-
-Governance:
-- Ratification date: 2026-02-27
-- Amendment procedure: Any principle change requires a PR with at least 2 approvals and an architecture review
-- Compliance review: Monthly automated checks via CI pipeline
+5. Explicit Error Handling — Every function that can fail MUST return or raise typed errors. No silent swallowing of exceptions. Error paths MUST have the same test coverage as happy paths.
 ```
 
 ---
 
-## Step 2: Specify — Define a Feature
+## Step 2: Specify
 
 ```
 /speckit.specify
 
-Build an Order Management Service for the e-commerce platform. Users can create orders from their shopping cart, the service validates product availability by calling the Product Catalog Service, calculates totals including tax and shipping, reserves inventory, and processes payment through the Payment Service. Orders go through a lifecycle: Created → Confirmed → Paid → Shipped → Delivered, with the ability to cancel at any point before shipping. The service should support order history lookup, filtering by status and date range, and emit domain events (OrderCreated, OrderPaid, OrderShipped, OrderCancelled) so other services can react asynchronously. Must handle partial failures gracefully — if payment fails after inventory is reserved, inventory must be released. Expected scale: 500 orders per minute at peak, 99.9% availability target, order queries must return within 200ms.
+Build a User Account microservice that handles user registration, authentication, and profile management. Users register with email and password, receive a verification email, and can log in to receive a JWT access token and refresh token. Authenticated users can view and update their profile (name, avatar, preferences). Passwords are hashed with bcrypt. The service exposes a REST API and publishes domain events (UserRegistered, UserVerified, PasswordChanged, ProfileUpdated) to a message broker. It stores user data in a PostgreSQL database. Admin users can list all users with pagination, search by email, and deactivate accounts. Deactivated users cannot log in but their data is retained. Rate limiting applies to login and registration endpoints. The service must support 100% unit test coverage for all layers: domain logic, application services, API handlers, and repository adapters.
 ```
 
 ---
 
-## Step 3: Clarify — Resolve Ambiguities
+## Step 3: Clarify
 
 ```
 /speckit.clarify
 ```
 
-*(No arguments needed — the agent reads the existing spec and generates targeted questions. Answer each question as it comes. Example answers you might give:)*
+Example answers:
 
-- **Q1 (Scope):** "B — Start with the core order lifecycle only. Refunds and returns will be a separate service."
-- **Q2 (Payment):** "A — Synchronous payment confirmation. We need to know immediately if payment succeeded before confirming the order."
-- **Q3 (Events):** "B — Use an event broker (Kafka). We need durable, replayable events for downstream consumers."
-- **Q4 (Idempotency):** "A — Yes, all order creation and payment endpoints must be idempotent using client-supplied idempotency keys."
-- **Q5 (Multi-currency):** "C — USD only for now. Document the assumption and we'll add multi-currency later."
+- **Q1 (Token expiry):** "Access tokens expire in 15 minutes, refresh tokens in 7 days."
+- **Q2 (Email verification):** "Verification links expire in 24 hours. Unverified users can log in but cannot update their profile."
+- **Q3 (Password policy):** "Minimum 8 characters, at least one uppercase, one lowercase, one digit. No special character requirement."
 
 ---
 
-## Step 4: Plan — Technical Design
+## Step 4: Plan
 
 ```
 /speckit.plan
 
 I am building with:
-- Language: Go 1.22
-- Framework: Chi router for HTTP, gRPC for inter-service communication
-- Database: PostgreSQL 16 for order storage, Redis for caching and idempotency keys
-- Message broker: Apache Kafka for domain events
-- Containerization: Docker with Kubernetes (Helm charts)
-- CI/CD: GitHub Actions
-- Observability: OpenTelemetry, Prometheus, Grafana, Jaeger
+- Language: Python 3.12
+- Framework: FastAPI with Pydantic v2 for validation
+- Database: PostgreSQL 16 via SQLAlchemy 2.0 (async)
+- Testing: pytest with pytest-cov, pytest-asyncio, unittest.mock
+- Authentication: PyJWT for token generation, bcrypt for password hashing
+- Message broker: Kafka via aiokafka (interface-abstracted for testing)
+- Coverage target: 100% line and branch coverage
+- Architecture: Hexagonal (ports and adapters) — domain layer has zero framework imports
 ```
 
 ---
 
-## Step 5: Tasks — Break Into Tasks
+## Step 5: Tasks
 
 ```
 /speckit.tasks
 ```
 
-*(No arguments needed — the agent reads `plan.md` and `spec.md` and generates the full task breakdown automatically. It will organize tasks into phases:)*
-
-- *Phase 1: Setup (project scaffolding, go.mod, Dockerfile, Helm chart)*
-- *Phase 2: Foundational (database schema, migrations, domain models, Kafka producer/consumer)*
-- *Phase 3+: User Stories (create order, process payment, order lifecycle transitions, order history query, event publishing)*
-- *Final: Polish (health checks, metrics, integration tests, load testing)*
+*(Auto-sent from plan. The agent generates tasks organized as:)*
+- *Phase 1: Setup — project scaffolding, pyproject.toml, conftest.py, coverage config*
+- *Phase 2: Foundational — domain models, repository interfaces, service interfaces, event publisher interface*
+- *Phase 3: User Stories — registration + tests, authentication + tests, profile management + tests, admin operations + tests*
+- *Final: Polish — coverage report validation, edge case tests, integration test stubs*
 
 ---
 
-## Step 6: Checklist — Validate Requirements Quality
+## Step 6: Checklists
 
-Run these separately to generate domain-specific checklists:
-
-### 6a. API Requirements Quality
+### 6a. Test Coverage Requirements
 ```
-/speckit.checklist API contract completeness and consistency — focus on the REST and gRPC interfaces the Order Service exposes and consumes, including error schemas, versioning strategy, and pagination for order history queries
+/speckit.checklist Unit test coverage completeness — verify that requirements exist for testing every domain model, service method, API handler, error path, edge case, and repository adapter. Focus on whether the spec defines what must be tested, not how.
 ```
 
-### 6b. Resilience Requirements Quality
+### 6b. Domain Logic Requirements
 ```
-/speckit.checklist Resilience and failure handling — focus on circuit breakers, retry policies, saga/compensation patterns for the order-payment-inventory coordination, timeout configurations, and graceful degradation requirements
-```
-
-### 6c. Data Requirements Quality
-```
-/speckit.checklist Data model and consistency — focus on order state machine transitions, idempotency guarantees, eventual consistency between services, event ordering, and data retention/archival requirements
+/speckit.checklist Domain model and business rule clarity — verify that registration validation rules, password policy, token lifecycle, account states, and event publishing triggers are specified with enough precision to write deterministic unit tests against them.
 ```
 
-### 6d. Security Requirements Quality
+### 6c. Error Handling Requirements
 ```
-/speckit.checklist Security and access control — focus on authentication between services (mTLS/JWT), input validation at API boundaries, rate limiting, PII handling in order data, and audit logging requirements
+/speckit.checklist Error path coverage — verify that all failure scenarios are specified: invalid input, duplicate email, expired tokens, deactivated accounts, downstream service failures, rate limit exceeded. Each error must have a defined response code and message.
 ```
 
 ---
 
-## Step 7: Analyze — Check Consistency
+## Step 7: Analyze
 
 ```
 /speckit.analyze
 
-Pay special attention to:
-1. Whether all order state transitions have corresponding tasks
-2. Whether the compensation/saga pattern for payment failure → inventory release is fully covered in tasks
-3. Whether observability requirements (tracing, metrics, health checks) have matching implementation tasks
-4. Whether the 500 orders/minute scale target is reflected in performance-related tasks
-5. Constitution alignment — especially service autonomy (no shared DB) and resilience principles
+Focus on:
+1. Whether every domain model and service method has a corresponding test task
+2. Whether error paths have equal coverage to happy paths in the task breakdown
+3. Whether all interfaces (repository, event publisher, HTTP client) are defined as testable abstractions in the plan
+4. Whether the 100% coverage target is reflected in concrete tasks, not just stated as a goal
+5. Constitution alignment — especially test-first development and deterministic test principles
 ```
 
 ---
 
-## Step 8: Implement — Execute the Plan
+## Step 8: Implement
 
 ```
 /speckit.implement
 ```
 
-*(No arguments needed — the agent reads `tasks.md` and executes phase by phase. It will:)*
-
-- *Check all checklists first — if any are incomplete, it asks whether to proceed*
-- *Create `.gitignore`, `.dockerignore` for Go + Docker + Kubernetes*
-- *Execute tasks in order: project setup → database/Kafka → domain models → API handlers → inter-service clients → event publishing → tests*
-- *Mark each task `[X]` as it completes*
-- *Stop and report if any task fails*
+*(The agent will:)*
+- *Check checklists — prompt if any are incomplete*
+- *Create `.gitignore`, `pyproject.toml` with coverage config*
+- *Execute TDD: write test file first, then implementation, for each module*
+- *Mark tasks `[X]` as they complete*
+- *Run `pytest --cov --cov-branch --cov-fail-under=100` at the end*
 
 ---
 
-## Step 9: Tasks to Issues — Sync to GitHub
+## Step 9: Tasks to Issues
 
 ```
 /speckit.taskstoissues
 ```
 
-*(No arguments needed — the agent reads `tasks.md` and creates one GitHub issue per task. Each issue includes the task ID, description, phase label, and dependency references. Only works if the git remote is a GitHub repository.)*
-
 ---
 
-## Quick Reference — Full Pipeline
+## Quick Reference
 
-| Step | Command | When to Run | Wait for User Input? |
-|------|---------|-------------|---------------------|
-| 1 | `/speckit.constitution` | Once per project | Yes — provide principles |
-| 2 | `/speckit.specify <description>` | Once per feature | Yes — answer clarification questions if any |
-| 3 | `/speckit.clarify` | After specify, before plan | Yes — answer up to 5 questions |
-| 4 | `/speckit.plan` | After spec is clarified | Yes — provide tech stack |
-| 5 | `/speckit.tasks` | Auto-sent from plan | No — fully automatic |
-| 6 | `/speckit.checklist <domain>` | After plan, run multiple times | Yes — answer up to 3 scoping questions |
-| 7 | `/speckit.analyze` | After tasks are generated | No — read-only report |
-| 8 | `/speckit.implement` | After analysis passes | Maybe — checklist gate may prompt |
-| 9 | `/speckit.taskstoissues` | After or during implementation | No — fully automatic |
-
----
-
-## Tips
-
-- **Steps 5 and 6 run in parallel** — tasks auto-sends from plan, but you can run checklists at the same time.
-- **Steps 7 and 8 auto-send from tasks** — analyze runs first, then implement. Review the analysis report before implementation proceeds.
-- **You can loop back** — if analyze finds CRITICAL issues, go back to specify or plan to fix them before implementing.
-- **Checklists are cumulative** — each `/speckit.checklist` run creates a new file. Run it for each domain you care about (API, security, resilience, data, etc.).
-- **Constitution is enforced everywhere** — plan checks it, analyze flags violations as CRITICAL, implement follows it. Update it deliberately with `/speckit.constitution` if principles need to change.
+| Step | Command | User Input Required? |
+|------|---------|---------------------|
+| 1 | `/speckit.constitution` | Yes — provide principles |
+| 2 | `/speckit.specify <description>` | Yes — provide feature description |
+| 3 | `/speckit.clarify` | Yes — answer up to 5 questions |
+| 4 | `/speckit.plan` | Yes — provide tech stack |
+| 5 | `/speckit.tasks` | No — automatic |
+| 6 | `/speckit.checklist <domain>` | Yes — answer scoping questions |
+| 7 | `/speckit.analyze` | No — read-only report |
+| 8 | `/speckit.implement` | Maybe — checklist gate may prompt |
+| 9 | `/speckit.taskstoissues` | No — automatic |
