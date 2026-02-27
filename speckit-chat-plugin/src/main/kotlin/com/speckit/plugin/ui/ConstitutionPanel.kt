@@ -155,11 +155,16 @@ class ConstitutionPanel(
 
     private fun loadFromMemoryFile() {
         val memFile = File(memoryFilePath)
-        // Read from Document model (captures unsaved in-memory edits from Copilot agent),
-        // falling back to disk for external writes.
-        val vFile = LocalFileSystem.getInstance().findFileByIoFile(memFile)
+        // Refresh VFS so we pick up any disk changes (e.g. from Copilot agent writes)
+        val vFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(memFile)
         val content = if (vFile != null) {
-            val doc = com.intellij.openapi.fileEditor.FileDocumentManager.getInstance().getDocument(vFile)
+            vFile.refresh(false, false)
+            val fdm = com.intellij.openapi.fileEditor.FileDocumentManager.getInstance()
+            // If the Document has unsaved external changes, reload it from disk
+            if (vFile.timeStamp != vFile.modificationStamp) {
+                fdm.reloadFiles(vFile)
+            }
+            val doc = fdm.getDocument(vFile)
             doc?.text ?: if (memFile.exists()) memFile.readText() else return
         } else {
             if (!memFile.exists()) return
@@ -400,17 +405,30 @@ class ConstitutionPanel(
         }
 
         syncing = true
-        try {
-            val dir = File(basePath, ".specify/memory")
-            dir.mkdirs()
-            val file = File(dir, "discovery.md")
-
-            WriteCommandAction.runWriteCommandAction(project) {
-                file.writeText(sb.toString())
-                LocalFileSystem.getInstance().refreshAndFindFileByIoFile(file)
+        val text = sb.toString()
+        WriteCommandAction.runWriteCommandAction(project) {
+            try {
+                val dir = File(basePath, ".specify/memory")
+                dir.mkdirs()
+                val ioFile = File(dir, "discovery.md")
+                // Ensure VFS knows about the file (create on disk if first time)
+                if (!ioFile.exists()) ioFile.writeText("")
+                val vFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(ioFile) ?: return@runWriteCommandAction
+                // Write through the Document model so the Copilot agent sees the same content
+                val fdm = com.intellij.openapi.fileEditor.FileDocumentManager.getInstance()
+                val doc = fdm.getDocument(vFile)
+                if (doc != null) {
+                    doc.setText(text)
+                    fdm.saveDocument(doc)
+                } else {
+                    // Fallback: no Document cached yet — write to disk directly
+                    vFile.setBinaryContent(text.toByteArray(Charsets.UTF_8))
+                }
+            } finally {
+                // Clear syncing flag on the next EDT cycle so VFS events from
+                // this write are still suppressed when they arrive asynchronously.
+                invokeLater { syncing = false }
             }
-        } finally {
-            syncing = false
         }
     }
 
@@ -418,22 +436,26 @@ class ConstitutionPanel(
 
     private fun refreshFromDisk() {
         invokeLater {
-            // Flush any unsaved Document edits (from Copilot agent) to disk
-            val vFile = LocalFileSystem.getInstance().findFileByPath(memoryFilePath)
-            if (vFile != null) {
-                val fdm = com.intellij.openapi.fileEditor.FileDocumentManager.getInstance()
-                val doc = fdm.getDocument(vFile)
-                if (doc != null && fdm.isDocumentUnsaved(doc)) {
+            val fdm = com.intellij.openapi.fileEditor.FileDocumentManager.getInstance()
+            val vFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(File(memoryFilePath))
+            if (vFile == null) return@invokeLater
+
+            // Sync VFS with disk so we see the latest content
+            vFile.refresh(false, false)
+
+            // If the Document is stale (disk is newer), reload from disk
+            val doc = fdm.getDocument(vFile)
+            if (doc != null) {
+                if (fdm.isDocumentUnsaved(doc)) {
+                    // Copilot agent may have written via Document — flush to disk first
                     fdm.saveDocument(doc)
+                } else {
+                    // Disk may have been updated externally — reload the Document
+                    fdm.reloadFiles(vFile)
                 }
             }
 
-            com.intellij.openapi.application.ApplicationManager.getApplication().executeOnPooledThread {
-                val memFile = File(memoryFilePath)
-                if (!memFile.exists()) return@executeOnPooledThread
-                LocalFileSystem.getInstance().refreshAndFindFileByIoFile(memFile)
-                invokeLater { loadFromMemoryFile() }
-            }
+            loadFromMemoryFile()
         }
     }
 
