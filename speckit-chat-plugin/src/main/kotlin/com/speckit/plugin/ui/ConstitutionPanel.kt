@@ -11,7 +11,6 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.vfs.newvfs.BulkFileListener
-import com.intellij.openapi.vfs.newvfs.events.VFileContentChangeEvent
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import com.intellij.ui.JBColor
 import com.intellij.ui.OnePixelSplitter
@@ -104,15 +103,12 @@ class ConstitutionPanel(
         add(topBar, BorderLayout.NORTH)
         add(splitter, BorderLayout.CENTER)
 
-        // Listen for external changes to the memory file
+        // Listen for external changes to the memory file (content changes, creation, deletion)
         project.messageBus.connect(this).subscribe(VirtualFileManager.VFS_CHANGES, object : BulkFileListener {
             override fun after(events: List<VFileEvent>) {
                 if (syncing) return
                 val memPath = memoryFilePath
-                val relevant = events.any { e ->
-                    val path = e.path ?: (e as? VFileContentChangeEvent)?.file?.path
-                    path == memPath
-                }
+                val relevant = events.any { e -> e.path == memPath }
                 if (relevant) {
                     invokeLater { loadFromMemoryFile() }
                 }
@@ -163,8 +159,10 @@ class ConstitutionPanel(
      * clobbers unsaved editor content.
      */
     private fun loadFromDocument() {
-        val vFile = LocalFileSystem.getInstance().findFileByPath(memoryFilePath) ?: return
-        val doc = com.intellij.openapi.fileEditor.FileDocumentManager.getInstance().getDocument(vFile) ?: return
+        val vFile = LocalFileSystem.getInstance().findFileByPath(memoryFilePath)
+        if (vFile == null) { clearTables(); return }
+        val doc = com.intellij.openapi.fileEditor.FileDocumentManager.getInstance().getDocument(vFile)
+        if (doc == null) { clearTables(); return }
         applyContent(doc.text)
     }
 
@@ -179,12 +177,26 @@ class ConstitutionPanel(
             vFile.refresh(false, false)
             val fdm = com.intellij.openapi.fileEditor.FileDocumentManager.getInstance()
             val doc = fdm.getDocument(vFile)
-            doc?.text ?: if (memFile.exists()) memFile.readText() else return
+            doc?.text ?: if (memFile.exists()) memFile.readText() else { clearTables(); return }
         } else {
-            if (!memFile.exists()) return
+            if (!memFile.exists()) { clearTables(); return }
             memFile.readText()
         }
         applyContent(content)
+    }
+
+    /** Remove all tables and clear the UI when the backing file is gone. */
+    private fun clearTables() {
+        syncing = true
+        try {
+            categoryTables.clear()
+            categoryListModel.clear()
+            detailPanel.removeAll()
+            detailPanel.revalidate()
+            detailPanel.repaint()
+        } finally {
+            syncing = false
+        }
     }
 
     /**
@@ -508,7 +520,7 @@ class ConstitutionPanel(
         invokeLater {
             val fdm = com.intellij.openapi.fileEditor.FileDocumentManager.getInstance()
             val vFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(File(memoryFilePath))
-            if (vFile == null) return@invokeLater
+            if (vFile == null || !vFile.exists()) { clearTables(); return@invokeLater }
 
             // Sync VFS with disk so we see the latest content
             vFile.refresh(false, false)
