@@ -38,6 +38,7 @@ class SpeckitWelcomePanel(
      * Top 5 features shown on the welcome page — flat list, no categories.
      */
     private fun welcomeFeatureDescriptors(): List<SpeckitFeatureDescriptor> = listOf(
+        DiscoveryFeatureDescriptor,
         ConstitutionFeatureDescriptor,
         SpecifyFeatureDescriptor,
         PlanFeatureDescriptor,

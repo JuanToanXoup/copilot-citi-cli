@@ -38,6 +38,22 @@ interface SpeckitFeatureDescriptor {
 
 // ── Getting Started ─────────────────────────────────────────────────────────
 
+object DiscoveryFeatureDescriptor : SpeckitFeatureDescriptor {
+    override val id = "Discovery"
+    override val icon: Icon = AllIcons.Actions.Search
+    override val title = "Discover project properties"
+    override val description = SpeckitFeatureDescriptor.Description(
+        beforeSteps = "Answer project property questions to establish context for all downstream agents:",
+        steps = """
+            Select a discovery template and click <b>Load</b> to populate the categories
+            Select a category and click <b>Ask Copilot</b> to auto-fill answers from your codebase
+            Review and edit answers manually as needed
+            Click <b>Generate Constitution</b> to create the constitution from your answers
+        """.trimIndent(),
+        afterSteps = "Discovery answers are saved to <code>.specify/memory/discovery.md</code> and feed into the Constitution agent."
+    )
+}
+
 object ConstitutionFeatureDescriptor : SpeckitFeatureDescriptor {
     override val id = "Constitution"
     override val icon: Icon = AllIcons.Nodes.HomeFolder

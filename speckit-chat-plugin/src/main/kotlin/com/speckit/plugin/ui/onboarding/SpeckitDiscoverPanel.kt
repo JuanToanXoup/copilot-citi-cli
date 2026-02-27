@@ -33,6 +33,7 @@ class SpeckitDiscoverPanel(
     // ── Feature categories (ordered to match pipeline flow) ─────────────────
 
     private fun gettingStartedDescriptors(): List<SpeckitFeatureDescriptor> = listOf(
+        DiscoveryFeatureDescriptor,
         ConstitutionFeatureDescriptor
     )
 

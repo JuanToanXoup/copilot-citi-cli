@@ -48,8 +48,9 @@ class SpeckitFeaturePanel(
 ) : JPanel(BorderLayout()) {
 
     companion object {
-        /** Maps each feature descriptor to its Pipeline step index (0-based). */
+        /** Maps each feature descriptor to its Pipeline step index (0-based). -1 = no pipeline step. */
         private val DESCRIPTOR_TO_STEP_INDEX = mapOf<SpeckitFeatureDescriptor, Int>(
+            DiscoveryFeatureDescriptor to -1,
             ConstitutionFeatureDescriptor to 0,
             SpecifyFeatureDescriptor to 1,
             ClarifyFeatureDescriptor to 2,
@@ -101,8 +102,17 @@ class SpeckitFeaturePanel(
      */
     private fun createContent(): JComponent {
         return panel {
-            // Embedded Pipeline demo — pre-selects the step matching this feature
-            if (project != null && sessionPanel != null) {
+            // Embedded Discovery demo — shown for Discovery feature
+            if (project != null && sessionPanel != null && descriptor == DiscoveryFeatureDescriptor) {
+                row {
+                    cell(DiscoveryDemoPanel(project, sessionPanel))
+                        .align(AlignX.FILL)
+                        .align(AlignY.FILL)
+                }.customize(UnscaledGapsY(12, 0))
+            }
+
+            // Embedded Pipeline demo — pre-selects the step matching this feature (skip for Discovery)
+            if (project != null && sessionPanel != null && descriptor != DiscoveryFeatureDescriptor) {
                 val stepIndex = DESCRIPTOR_TO_STEP_INDEX[descriptor] ?: 0
                 row {
                     cell(PipelineDemoPanel(project, sessionPanel, initialStepIndex = stepIndex))
