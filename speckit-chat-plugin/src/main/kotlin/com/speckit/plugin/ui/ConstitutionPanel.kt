@@ -160,10 +160,10 @@ class ConstitutionPanel(
      */
     private fun loadFromDocument() {
         val vFile = LocalFileSystem.getInstance().findFileByPath(memoryFilePath)
-        if (vFile == null) { clearTables(); return }
-        val doc = com.intellij.openapi.fileEditor.FileDocumentManager.getInstance().getDocument(vFile)
-        if (doc == null) { clearTables(); return }
-        applyContent(doc.text)
+        val doc = vFile?.let {
+            com.intellij.openapi.fileEditor.FileDocumentManager.getInstance().getDocument(it)
+        }
+        applyContent(doc?.text ?: "")
     }
 
     /**
@@ -177,26 +177,11 @@ class ConstitutionPanel(
             vFile.refresh(false, false)
             val fdm = com.intellij.openapi.fileEditor.FileDocumentManager.getInstance()
             val doc = fdm.getDocument(vFile)
-            doc?.text ?: if (memFile.exists()) memFile.readText() else { clearTables(); return }
+            doc?.text ?: if (memFile.exists()) memFile.readText() else ""
         } else {
-            if (!memFile.exists()) { clearTables(); return }
-            memFile.readText()
+            if (memFile.exists()) memFile.readText() else ""
         }
         applyContent(content)
-    }
-
-    /** Remove all tables and clear the UI when the backing file is gone. */
-    private fun clearTables() {
-        syncing = true
-        try {
-            categoryTables.clear()
-            categoryListModel.clear()
-            detailPanel.removeAll()
-            detailPanel.revalidate()
-            detailPanel.repaint()
-        } finally {
-            syncing = false
-        }
     }
 
     /**
@@ -520,7 +505,7 @@ class ConstitutionPanel(
         invokeLater {
             val fdm = com.intellij.openapi.fileEditor.FileDocumentManager.getInstance()
             val vFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(File(memoryFilePath))
-            if (vFile == null || !vFile.exists()) { clearTables(); return@invokeLater }
+            if (vFile == null || !vFile.exists()) { applyContent(""); return@invokeLater }
 
             // Sync VFS with disk so we see the latest content
             vFile.refresh(false, false)
