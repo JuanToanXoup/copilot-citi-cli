@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Agent Config Panel — Mockup v7</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #2b2d30; color: #bcbec4; font-family: -apple-system, 'Inter', 'Segoe UI', sans-serif; font-size: 13px; height: 100vh; overflow: hidden; }
+
+  .container { display: flex; height: 100vh; }
+
+  /* ════════════════════════════════════════════ */
+  /* LEFT                                        */
+  /* ════════════════════════════════════════════ */
+  .left {
+    width: 300px; min-width: 180px; max-width: 600px;
+    display: flex; flex-direction: column;
+    padding: 10px; gap: 10px;
+    overflow-y: auto;
+  }
+  .left .inner-table-component { margin-bottom: 0; }
+  .left .inner-table-wrap { max-height: none; flex: 1; }
+  .left .inner-table tr.selected td { background: #215d9c; }
+  .left .inner-table tr.selected td { color: #fff; }
+  .left .inner-table tr.selected .dim { color: #a8c8e8; }
+  .left .inner-table tr.selected .badge { opacity: .8; }
+  .left .inner-table td { cursor: pointer; }
+  .badge { display: inline-block; font-size: 9px; padding: 1px 5px; border-radius: 3px; vertical-align: middle; margin-left: 4px; }
+  .badge.builtin { background: #393b40; color: #6e7076; }
+  .badge.project { background: #2d4f1e; color: #73a85c; }
+
+  /* ════════════════════════════════════════════ */
+  /* RESIZABLE SPLITTER                          */
+  /* ════════════════════════════════════════════ */
+  .splitter {
+    width: 5px; min-width: 5px; cursor: col-resize;
+    background: #393b40; flex-shrink: 0;
+    transition: background .15s;
+  }
+  .splitter:hover, .splitter.dragging { background: #4b6eaf; }
+
+  /* ════════════════════════════════════════════ */
+  /* RIGHT                                       */
+  /* ════════════════════════════════════════════ */
+  .right { flex: 1; overflow-y: auto; padding: 14px 20px 60px; min-width: 300px; }
+
+  .config-title {
+    display: flex; align-items: baseline; gap: 8px;
+    margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid #393b40;
+  }
+  .config-title h2 { font-size: 15px; font-weight: 600; color: #bcbec4; }
+  .config-title .src { font-size: 10px; color: #6e7076; background: #393b40; padding: 2px 7px; border-radius: 3px; }
+
+  /* Fields */
+  .field { margin-bottom: 14px; }
+  .field-label { font-size: 12px; font-weight: 600; color: #8c8e94; margin-bottom: 4px; }
+  .field-hint { font-size: 11px; color: #55575e; margin-bottom: 4px; }
+  .field input[type="text"], .field input[type="number"], .field select {
+    width: 100%; background: #1e1f22; border: 1px solid #393b40; border-radius: 4px;
+    color: #bcbec4; padding: 5px 8px; font-size: 13px; outline: none;
+  }
+  .field input:focus, .field select:focus { border-color: #4b6eaf; }
+  .field textarea {
+    width: 100%; background: #1e1f22; border: 1px solid #393b40; border-radius: 4px;
+    color: #bcbec4; padding: 7px 8px; font-size: 12px;
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+    outline: none; line-height: 1.5;
+    overflow: hidden; resize: none; /* auto-sized, no manual resize */
+  }
+  .field textarea:focus { border-color: #4b6eaf; }
+  .field-row { display: flex; gap: 12px; }
+  .field-row .field { flex: 1; }
+  .field-row .field.narrow { flex: 0 0 100px; }
+
+  /* ════════════════════════════════════════════ */
+  /* COLLAPSIBLE SECTION                         */
+  /* ════════════════════════════════════════════ */
+  .collapsible { margin-bottom: 4px; }
+  .collapsible-trigger {
+    display: flex; align-items: center; gap: 6px;
+    padding: 7px 0; cursor: pointer; user-select: none;
+    border-bottom: 1px solid #393b40;
+  }
+  .collapsible-trigger:hover { color: #dfe1e5; }
+  .collapsible-chevron {
+    width: 12px; height: 12px; transition: transform .15s ease;
+    fill: #6e7076; flex-shrink: 0;
+  }
+  .collapsible.collapsed .collapsible-chevron { transform: rotate(-90deg); }
+  .collapsible-label { font-size: 12px; font-weight: 600; color: #8c8e94; }
+  .collapsible-hint { font-size: 11px; color: #55575e; margin-left: auto; }
+  .collapsible-body { padding-top: 10px; padding-bottom: 6px; }
+  .collapsible.collapsed .collapsible-body { display: none; }
+
+  /* ════════════════════════════════════════════ */
+  /* INNER TABLE                                 */
+  /* ════════════════════════════════════════════ */
+  .inner-table-component { margin-bottom: 6px; }
+  .inner-toolbar {
+    display: flex; align-items: center; gap: 1px;
+    padding: 3px 4px; background: #2b2d30;
+    border: 1px solid #393b40; border-bottom: none;
+    border-radius: 4px 4px 0 0;
+  }
+  .inner-toolbar .tb-btn {
+    background: none; border: none; color: #6e7076; cursor: pointer;
+    width: 24px; height: 24px; border-radius: 3px;
+    font-size: 15px; display: flex; align-items: center; justify-content: center;
+  }
+  .inner-toolbar .tb-btn:hover { background: #393b40; color: #bcbec4; }
+  .inner-toolbar .tb-spacer { flex: 1; }
+  .inner-toolbar .tb-label { font-size: 10px; color: #55575e; padding: 0 6px; }
+  .inner-table-wrap {
+    border: 1px solid #393b40; border-radius: 0 0 4px 4px;
+    background: #1e1f22; max-height: 180px; overflow-y: auto;
+  }
+  .inner-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .inner-table thead { position: sticky; top: 0; z-index: 1; }
+  .inner-table th {
+    text-align: left; font-size: 11px; font-weight: 500; color: #6e7076;
+    padding: 5px 10px; background: #27292c; border-bottom: 1px solid #393b40;
+  }
+  .inner-table th.check-col { width: 40px; text-align: center; }
+  .inner-table td { padding: 4px 10px; border-bottom: 1px solid #2b2d30; }
+  .inner-table td.check-col { text-align: center; }
+  .inner-table tr:hover td { background: #2a2c2f; }
+  .inner-table input[type="checkbox"] { accent-color: #5a7abf; width: 15px; height: 15px; cursor: pointer; }
+  .inner-table .mono { font-family: 'JetBrains Mono', 'Consolas', monospace; color: #bcbec4; white-space: nowrap; }
+  .inner-table .dim { color: #6e7076; }
+
+  /* Toggle row */
+  .toggle-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 10px; }
+  .toggle-row label { font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 4px; color: #8c8e94; }
+  .toggle-row input { accent-color: #5a7abf; }
+
+  /* ════════════════════════════════════════════ */
+  /* TOOL TABS                                   */
+  /* ════════════════════════════════════════════ */
+  .tool-tabs {
+    display: flex; border-bottom: 1px solid #393b40;
+    margin-bottom: 0; gap: 0;
+  }
+  .tool-tab {
+    padding: 6px 16px; font-size: 12px; font-weight: 500;
+    color: #6e7076; background: none; border: none;
+    cursor: pointer; border-bottom: 2px solid transparent;
+    transition: color .15s, border-color .15s;
+  }
+  .tool-tab:hover { color: #bcbec4; }
+  .tool-tab.active {
+    color: #bcbec4; border-bottom-color: #4b6eaf;
+  }
+  .tool-tab-count {
+    font-size: 10px; color: #55575e; margin-left: 4px;
+  }
+  .tool-tab.active .tool-tab-count { color: #6e7076; }
+  .tool-tab-panel { display: none; }
+  .tool-tab-panel.active { display: block; }
+
+  /* Compound parent row (used in MCP tab) */
+  .compound-parent td { background: #232528; }
+  .compound-parent .expand-chevron {
+    display: inline-block; width: 10px; height: 10px; margin-right: 4px;
+    fill: #6e7076; cursor: pointer; transition: transform .15s ease;
+    vertical-align: middle;
+  }
+  .compound-parent.collapsed .expand-chevron { transform: rotate(-90deg); }
+  /* Child rows (indented actions inside a compound tool) */
+  .compound-child td:first-child { padding-left: 32px; }
+  .compound-child td { background: #1e1f22; font-size: 11px; }
+  .compound-child .mono { color: #8c8e94; }
+  /* JS-driven hide */
+  tr.child-hidden { display: none; }
+</style>
+<script>
+  function toggleSection(el) {
+    el.closest('.collapsible').classList.toggle('collapsed');
+  }
+  function toggleCompound(el) {
+    const row = el.closest('.compound-parent');
+    const group = row.dataset.group;
+    row.classList.toggle('collapsed');
+    const hidden = row.classList.contains('collapsed');
+    document.querySelectorAll('.compound-child[data-group="' + group + '"]').forEach(r => {
+      r.classList.toggle('child-hidden', hidden);
+    });
+  }
+  function switchToolTab(btn, tabId) {
+    const container = btn.closest('.collapsible-body');
+    container.querySelectorAll('.tool-tab').forEach(t => t.classList.remove('active'));
+    container.querySelectorAll('.tool-tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    container.querySelector('#' + tabId).classList.add('active');
+  }
+  function autoSize(ta) {
+    ta.style.height = 'auto';
+    ta.style.height = ta.scrollHeight + 'px';
+  }
+  window.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('textarea').forEach(ta => {
+      autoSize(ta);
+      ta.addEventListener('input', () => autoSize(ta));
+    });
+
+    // ── Resizable splitter ──
+    const splitter = document.querySelector('.splitter');
+    const left = document.querySelector('.left');
+    let dragging = false;
+    splitter.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      dragging = true;
+      splitter.classList.add('dragging');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    });
+    document.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+      const containerLeft = left.parentElement.getBoundingClientRect().left;
+      let newWidth = e.clientX - containerLeft;
+      const minW = parseInt(getComputedStyle(left).minWidth) || 180;
+      const maxW = parseInt(getComputedStyle(left).maxWidth) || 600;
+      newWidth = Math.max(minW, Math.min(maxW, newWidth));
+      left.style.width = newWidth + 'px';
+    });
+    document.addEventListener('mouseup', () => {
+      if (!dragging) return;
+      dragging = false;
+      splitter.classList.remove('dragging');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    });
+  });
+</script>
+</head>
+<body>
+<div class="container">
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- LEFT                                       -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="left">
+
+    <!-- Lead Agents -->
+    <div class="collapsible">
+      <div class="collapsible-trigger" onclick="toggleSection(this)">
+        <svg class="collapsible-chevron" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></svg>
+        <span class="collapsible-label">Lead Agents</span>
+        <span class="collapsible-hint">3</span>
+      </div>
+      <div class="collapsible-body" style="padding-top: 0; padding-bottom: 0;">
+        <div class="inner-table-component">
+          <div class="inner-toolbar">
+            <button class="tb-btn" title="Add lead agent">+</button>
+            <button class="tb-btn" title="Remove lead agent">&minus;</button>
+            <button class="tb-btn" title="Clone selected">
+              <svg style="width:13px;height:13px;fill:currentColor" viewBox="0 0 16 16"><path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 010 1.5h-1.5a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-1.5a.75.75 0 011.5 0v1.5A1.75 1.75 0 019.25 16h-7.5A1.75 1.75 0 010 14.25zM5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0114.25 11h-7.5A1.75 1.75 0 015 9.25zm1.75-.25a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-7.5a.25.25 0 00-.25-.25z"/></svg>
+            </button>
+          </div>
+          <div class="inner-table-wrap">
+            <table class="inner-table">
+              <thead><tr><th>Name</th><th>Description</th></tr></thead>
+              <tbody>
+                <tr class="selected">
+                  <td>code-review-lead <span class="badge project">project</span></td>
+                  <td class="dim">Coordinates code review</td>
+                </tr>
+                <tr>
+                  <td>feature-dev-lead <span class="badge project">project</span></td>
+                  <td class="dim">Feature dev supervisor</td>
+                </tr>
+                <tr>
+                  <td>default-lead <span class="badge builtin">built-in</span></td>
+                  <td class="dim">Default lead agent</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Subagents -->
+    <div class="collapsible">
+      <div class="collapsible-trigger" onclick="toggleSection(this)">
+        <svg class="collapsible-chevron" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></svg>
+        <span class="collapsible-label">Subagents</span>
+        <span class="collapsible-hint">7</span>
+      </div>
+      <div class="collapsible-body" style="padding-top: 0; padding-bottom: 0;">
+        <div class="inner-table-component">
+          <div class="inner-toolbar">
+            <button class="tb-btn" title="Add subagent">+</button>
+            <button class="tb-btn" title="Remove subagent">&minus;</button>
+            <button class="tb-btn" title="Clone selected">
+              <svg style="width:13px;height:13px;fill:currentColor" viewBox="0 0 16 16"><path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 010 1.5h-1.5a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-1.5a.75.75 0 011.5 0v1.5A1.75 1.75 0 019.25 16h-7.5A1.75 1.75 0 010 14.25zM5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0114.25 11h-7.5A1.75 1.75 0 015 9.25zm1.75-.25a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-7.5a.25.25 0 00-.25-.25z"/></svg>
+            </button>
+          </div>
+          <div class="inner-table-wrap">
+            <table class="inner-table">
+              <thead><tr><th>Name</th><th>Description</th></tr></thead>
+              <tbody>
+                <tr><td>Explore <span class="badge builtin">built-in</span></td>         <td class="dim">Fast codebase exploration</td></tr>
+                <tr><td>Plan <span class="badge builtin">built-in</span></td>            <td class="dim">Implementation planning</td></tr>
+                <tr><td>Bash <span class="badge builtin">built-in</span></td>            <td class="dim">Command execution</td></tr>
+                <tr><td>general-purpose <span class="badge builtin">built-in</span></td> <td class="dim">Multi-step tasks</td></tr>
+                <tr><td>security-checker <span class="badge project">project</span></td> <td class="dim">Security scanning</td></tr>
+                <tr><td>style-reviewer <span class="badge project">project</span></td>  <td class="dim">Code style enforcement</td></tr>
+                <tr><td>test-writer <span class="badge project">project</span></td>     <td class="dim">Unit test generation</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- SPLITTER                                    -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="splitter"></div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- RIGHT                                      -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="right">
+
+    <div class="config-title">
+      <h2>code-review-lead</h2>
+      <span class="src">project</span>
+    </div>
+
+    <!-- ─── General ─────────────────────────── -->
+    <div class="collapsible">
+      <div class="collapsible-trigger" onclick="toggleSection(this)">
+        <svg class="collapsible-chevron" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></svg>
+        <span class="collapsible-label">General</span>
+      </div>
+      <div class="collapsible-body">
+        <div class="field">
+          <div class="field-label">Name</div>
+          <input type="text" value="code-review-lead">
+        </div>
+        <div class="field">
+          <div class="field-label">Description</div>
+          <input type="text" value="Coordinates code review with specialized reviewers">
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <div class="field-label">Model</div>
+            <select><option>inherit</option><option>gpt-4.1</option><option selected>claude-sonnet-4</option></select>
+          </div>
+          <div class="field narrow">
+            <div class="field-label">Max Turns</div>
+            <input type="number" value="30">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── System Prompt ───────────────────── -->
+    <div class="collapsible">
+      <div class="collapsible-trigger" onclick="toggleSection(this)">
+        <svg class="collapsible-chevron" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></svg>
+        <span class="collapsible-label">System Prompt</span>
+      </div>
+      <div class="collapsible-body">
+        <div class="field">
+          <div class="field-hint">Use <code style="background:#393b40; padding:1px 4px; border-radius:3px; font-size:11px;">{{AGENT_LIST}}</code> to inject available agents at runtime.</div>
+          <textarea>You are a code review supervisor. Delegate to your team:
+- Security analysis → security-checker
+- Style compliance → style-reviewer
+- Test coverage → test-writer
+
+Available agents:
+{{AGENT_LIST}}
+
+Workflow:
+1. Analyze the PR diff
+2. Delegate security review to security-checker
+3. Delegate style review to style-reviewer
+4. Delegate test coverage check to test-writer
+5. Collect results and synthesize a unified review report
+
+Be thorough but concise. Flag critical issues prominently.</textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── Subagent Pool ───────────────────── -->
+    <div class="collapsible">
+      <div class="collapsible-trigger" onclick="toggleSection(this)">
+        <svg class="collapsible-chevron" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></svg>
+        <span class="collapsible-label">Subagent Pool</span>
+        <span class="collapsible-hint">3 of 7 included</span>
+      </div>
+      <div class="collapsible-body">
+        <div class="field-hint">Controls which workers this lead can delegate to via delegate_task.</div>
+        <div class="inner-table-component">
+          <div class="inner-toolbar">
+            <button class="tb-btn" title="Add subagent">+</button>
+            <button class="tb-btn" title="Remove subagent">&minus;</button>
+            <button class="tb-btn" title="Reload from disk">&#x21bb;</button>
+          </div>
+          <div class="inner-table-wrap">
+            <table class="inner-table">
+              <thead><tr><th>Agent</th><th>Description</th><th class="check-col">Included</th></tr></thead>
+              <tbody>
+                <tr><td>Explore</td>         <td class="dim">Fast codebase exploration</td>      <td class="check-col"><input type="checkbox" checked></td></tr>
+                <tr><td>Plan</td>            <td class="dim">Implementation planning</td>        <td class="check-col"><input type="checkbox"></td></tr>
+                <tr><td>Bash</td>            <td class="dim">Command execution</td>              <td class="check-col"><input type="checkbox"></td></tr>
+                <tr><td>general-purpose</td> <td class="dim">Multi-step tasks</td>               <td class="check-col"><input type="checkbox"></td></tr>
+                <tr><td>security-checker</td><td class="dim">Security vulnerability scanning</td><td class="check-col"><input type="checkbox" checked></td></tr>
+                <tr><td>style-reviewer</td>  <td class="dim">Code style enforcement</td>        <td class="check-col"><input type="checkbox" checked></td></tr>
+                <tr><td>test-writer</td>     <td class="dim">Unit test generation</td>           <td class="check-col"><input type="checkbox" checked></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── Tools (Tabbed: Built-in / IDE / MCP) ── -->
+    <div class="collapsible">
+      <div class="collapsible-trigger" onclick="toggleSection(this)">
+        <svg class="collapsible-chevron" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></svg>
+        <span class="collapsible-label">Tools</span>
+        <span class="collapsible-hint">33 enabled</span>
+      </div>
+      <div class="collapsible-body">
+        <div class="field-hint" style="margin-bottom: 8px;">Controls which tools are available to this agent.</div>
+
+        <!-- Tab bar -->
+        <div class="tool-tabs">
+          <button class="tool-tab active" onclick="switchToolTab(this,'tab-builtin')">Built-in <span class="tool-tab-count">(11)</span></button>
+          <button class="tool-tab" onclick="switchToolTab(this,'tab-ide')">IDE <span class="tool-tab-count">(19)</span></button>
+          <button class="tool-tab" onclick="switchToolTab(this,'tab-mcp')">MCP <span class="tool-tab-count">(8)</span></button>
+        </div>
+
+        <!-- ── Built-in tab ── -->
+        <div id="tab-builtin" class="tool-tab-panel active">
+          <div class="inner-table-component" style="margin-top: 0;">
+            <div class="inner-toolbar" style="border-radius: 0; border-top: none;">
+              <button class="tb-btn" title="Refresh tools">&#x21bb;</button>
+              <span class="tb-spacer"></span>
+              <span class="tb-label">11 tools</span>
+            </div>
+            <div class="inner-table-wrap" style="max-height: 260px; border-radius: 0 0 4px 4px;">
+              <table class="inner-table">
+                <thead><tr><th>Tool</th><th>Description</th><th class="check-col">Enabled</th></tr></thead>
+                <tbody>
+                  <tr><td class="mono">read_file</td>            <td class="dim">Read the contents of a file, optionally specifying a line range</td>                          <td class="check-col"><input type="checkbox" checked></td></tr>
+                  <tr><td class="mono">list_dir</td>             <td class="dim">List the contents of a directory</td>                                                         <td class="check-col"><input type="checkbox" checked></td></tr>
+                  <tr><td class="mono">grep_search</td>          <td class="dim">Search for a text pattern or regex in files within the workspace</td>                         <td class="check-col"><input type="checkbox" checked></td></tr>
+                  <tr><td class="mono">file_search</td>          <td class="dim">Search for files by name or glob pattern in the workspace</td>                                <td class="check-col"><input type="checkbox" checked></td></tr>
+                  <tr><td class="mono">create_file</td>          <td class="dim">Create a new file with the given content</td>                                                 <td class="check-col"><input type="checkbox" checked></td></tr>
+                  <tr><td class="mono">insert_edit_into_file</td><td class="dim">Insert or replace text in a file. Creates the file if it doesn't exist</td>                   <td class="check-col"><input type="checkbox" checked></td></tr>
+                  <tr><td class="mono">run_in_terminal</td>      <td class="dim">Run a shell command in the terminal</td>                                                      <td class="check-col"><input type="checkbox" checked></td></tr>
+                  <tr><td class="mono">run_tests</td>            <td class="dim">Run tests using the project's test framework</td>                                             <td class="check-col"><input type="checkbox" checked></td></tr>
+                  <tr><td class="mono">get_changed_files</td>    <td class="dim">Get the list of changed, staged, or untracked files from git</td>                             <td class="check-col"><input type="checkbox" checked></td></tr>
+                  <tr><td class="mono">semantic_search</td>      <td class="dim">Search the project's code index for relevant code snippets using semantic similarity</td>     <td class="check-col"><input type="checkbox" checked></td></tr>
+                  <tr><td class="mono">delegate_task</td>        <td class="dim">Delegate a task to a specialized sub-agent for autonomous execution</td>                      <td class="check-col"><input type="checkbox" checked></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── IDE tab ── -->
+        <div id="tab-ide" class="tool-tab-panel">
+          <div class="inner-table-component" style="margin-top: 0;">
+            <div class="inner-toolbar" style="border-radius: 0; border-top: none;">
+              <button class="tb-btn" title="Refresh tools">&#x21bb;</button>
+              <span class="tb-spacer"></span>
+              <span class="tb-label">19 PSI actions via compound <code style="font-size:10px;background:#393b40;padding:1px 4px;border-radius:3px;">ide</code> tool</span>
+            </div>
+            <div class="inner-table-wrap" style="max-height: 260px; border-radius: 0 0 4px 4px;">
+              <table class="inner-table">
+                <thead><tr><th>Action</th><th>Description</th><th class="check-col">Enabled</th></tr></thead>
+                <tbody>
+                  <tr><td class="mono">find_usages</td>          <td class="dim">Find all references/usages of a symbol across the project</td>                                                    <td class="check-col"><input type="checkbox" checked></td></tr>
+                  <tr><td class="mono">find_definition</td>      <td class="dim">Navigate to where a symbol is defined (Go to Definition)</td>                                                     <td class="check-col"><input type="checkbox" checked></td></tr>
+                  <tr><td class="mono">search_text</td>          <td class="dim">Search for exact word matches using the IDE's pre-built word index</td>                                           <td class="check-col"><input type="checkbox" checked></td></tr>
+                  <tr><td class="mono">find_class</td>           <td class="dim">Search for classes and interfaces by name. Supports camelCase, substring, and wildcard matching</td>               <td class="check-col"><input type="checkbox" checked></td></tr>
+                  <tr><td class="mono">find_file</td>            <td class="dim">Search for files by name. Very fast file lookup using the IDE's file index</td>                                   <td class="check-col"><input type="checkbox" checked></td></tr>
+                  <tr><td class="mono">find_symbol</td>          <td class="dim">Search for symbols (classes, methods, fields, functions) by name across the codebase</td>                         <td class="check-col"><input type="checkbox" checked></td></tr>
+                  <tr><td class="mono">type_hierarchy</td>       <td class="dim">Get the complete inheritance hierarchy (parents and children) for a class or interface</td>                       <td class="check-col"><input type="checkbox" checked></td></tr>
+                  <tr><td class="mono">call_hierarchy</td>       <td class="dim">Build a call hierarchy tree for a method/function to trace execution flow</td>                                   <td class="check-col"><input type="checkbox" checked></td></tr>
+                  <tr><td class="mono">find_implementations</td> <td class="dim">Find all implementations of an interface, abstract class, or abstract method</td>                                <td class="check-col"><input type="checkbox" checked></td></tr>
+                  <tr><td class="mono">find_super_methods</td>   <td class="dim">Find parent methods that a method overrides or implements</td>                                                   <td class="check-col"><input type="checkbox" checked></td></tr>
+                  <tr><td class="mono">file_structure</td>       <td class="dim">Get the hierarchical structure of a source file (classes, methods, fields with nesting and line numbers)</td>     <td class="check-col"><input type="checkbox" checked></td></tr>
+                  <tr><td class="mono">diagnostics</td>          <td class="dim">Get code problems (errors, warnings) and available quick fixes for a file</td>                                   <td class="check-col"><input type="checkbox" checked></td></tr>
+                  <tr><td class="mono">quick_doc</td>            <td class="dim">Get rendered documentation (JavaDoc, KDoc, docstrings) for a symbol at a position</td>                           <td class="check-col"><input type="checkbox" checked></td></tr>
+                  <tr><td class="mono">type_info</td>            <td class="dim">Get the type of an expression, variable, parameter, or field at a position</td>                                  <td class="check-col"><input type="checkbox" checked></td></tr>
+                  <tr><td class="mono">parameter_info</td>       <td class="dim">Get parameter signatures for a method or function at a call site or declaration</td>                             <td class="check-col"><input type="checkbox" checked></td></tr>
+                  <tr><td class="mono">structural_search</td>    <td class="dim">Search for code patterns using IntelliJ's structural search engine</td>                                          <td class="check-col"><input type="checkbox" checked></td></tr>
+                  <tr><td class="mono">rename_symbol</td>        <td class="dim">Rename a symbol and update all references across the project</td>                                                <td class="check-col"><input type="checkbox" checked></td></tr>
+                  <tr><td class="mono">safe_delete</td>          <td class="dim">Delete a symbol or file safely by first checking for usages</td>                                                 <td class="check-col"><input type="checkbox" checked></td></tr>
+                  <tr><td class="mono">get_index_status</td>     <td class="dim">Check if the IDE is ready for code intelligence operations</td>                                                  <td class="check-col"><input type="checkbox" checked></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── MCP tab ── -->
+        <div id="tab-mcp" class="tool-tab-panel">
+          <div class="inner-table-component" style="margin-top: 0;">
+            <div class="inner-toolbar" style="border-radius: 0; border-top: none;">
+              <button class="tb-btn" title="Add MCP server">+</button>
+              <button class="tb-btn" title="Remove MCP server">&minus;</button>
+              <button class="tb-btn" title="Refresh">&#x21bb;</button>
+              <span class="tb-spacer"></span>
+              <span class="tb-label">2 servers &middot; 8 tools</span>
+            </div>
+            <div class="inner-table-wrap" style="max-height: 260px; border-radius: 0 0 4px 4px;">
+              <table class="inner-table">
+                <thead><tr><th>Tool</th><th>Description</th><th class="check-col">Enabled</th></tr></thead>
+                <tbody>
+                  <!-- github-mcp server -->
+                  <tr class="compound-parent" data-group="github-mcp" onclick="toggleCompound(this)">
+                    <td class="mono">
+                      <svg class="expand-chevron" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></svg>
+                      github-mcp
+                    </td>
+                    <td class="dim">3 tools &mdash; npx -y @mcp/server-github</td>
+                    <td class="check-col"><input type="checkbox" checked onclick="event.stopPropagation()"></td>
+                  </tr>
+                  <tr class="compound-child" data-group="github-mcp"><td class="mono">search_repos</td>  <td class="dim">Search GitHub repositories by name, topic, or language</td>    <td class="check-col"><input type="checkbox" checked></td></tr>
+                  <tr class="compound-child" data-group="github-mcp"><td class="mono">get_file</td>      <td class="dim">Get file contents from a GitHub repository</td>               <td class="check-col"><input type="checkbox" checked></td></tr>
+                  <tr class="compound-child" data-group="github-mcp"><td class="mono">create_issue</td>  <td class="dim">Create a new issue in a GitHub repository</td>               <td class="check-col"><input type="checkbox" checked></td></tr>
+
+                  <!-- playwright server -->
+                  <tr class="compound-parent collapsed" data-group="playwright" onclick="toggleCompound(this)">
+                    <td class="mono">
+                      <svg class="expand-chevron" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></svg>
+                      playwright
+                    </td>
+                    <td class="dim">5 tools &mdash; npx -y @mcp/server-playwright</td>
+                    <td class="check-col"><input type="checkbox" onclick="event.stopPropagation()"></td>
+                  </tr>
+                  <tr class="compound-child child-hidden" data-group="playwright"><td class="mono">browser_navigate</td> <td class="dim">Navigate the browser to a specified URL</td>                             <td class="check-col"><input type="checkbox"></td></tr>
+                  <tr class="compound-child child-hidden" data-group="playwright"><td class="mono">browser_click</td>    <td class="dim">Click an element on the page using a CSS or text selector</td>         <td class="check-col"><input type="checkbox"></td></tr>
+                  <tr class="compound-child child-hidden" data-group="playwright"><td class="mono">browser_snapshot</td> <td class="dim">Take an accessibility snapshot of the current page</td>                <td class="check-col"><input type="checkbox"></td></tr>
+                  <tr class="compound-child child-hidden" data-group="playwright"><td class="mono">browser_fill_form</td><td class="dim">Fill form fields on the page with specified values</td>                  <td class="check-col"><input type="checkbox"></td></tr>
+                  <tr class="compound-child child-hidden" data-group="playwright"><td class="mono">browser_evaluate</td> <td class="dim">Execute JavaScript code in the browser console and return results</td>  <td class="check-col"><input type="checkbox"></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ─── Handoffs ────────────────────────── -->
+    <div class="collapsible collapsed">
+      <div class="collapsible-trigger" onclick="toggleSection(this)">
+        <svg class="collapsible-chevron" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></svg>
+        <span class="collapsible-label">Handoffs</span>
+        <span class="collapsible-hint">1 configured</span>
+      </div>
+      <div class="collapsible-body">
+        <div class="field-hint">Agent-to-agent transitions. This agent can hand off control to the listed agents.</div>
+        <div class="inner-table-component">
+          <div class="inner-toolbar">
+            <button class="tb-btn" title="Add handoff">+</button>
+            <button class="tb-btn" title="Remove handoff">&minus;</button>
+            <button class="tb-btn" title="Reload">&#x21bb;</button>
+          </div>
+          <div class="inner-table-wrap" style="max-height: 100px;">
+            <table class="inner-table">
+              <thead><tr><th>Agent</th><th>Description</th></tr></thead>
+              <tbody>
+                <tr><td>feature-dev-lead</td><td class="dim">Feature development supervisor</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── Advanced ────────────────────────── -->
+    <div class="collapsible collapsed">
+      <div class="collapsible-trigger" onclick="toggleSection(this)">
+        <svg class="collapsible-chevron" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></svg>
+        <span class="collapsible-label">Advanced</span>
+      </div>
+      <div class="collapsible-body">
+        <div class="toggle-row">
+          <label><input type="checkbox"> Fork Context</label>
+          <label><input type="checkbox"> Background</label>
+          <label><input type="checkbox"> Disable Model Invocation</label>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <div class="field-label">Target</div>
+            <select><option selected>(none)</option><option>vscode</option><option>github-copilot</option></select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+</body>
+</html>
