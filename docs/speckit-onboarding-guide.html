@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speckit Chat Plugin — Onboarding Guide</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.55;
+            color: #24292f;
+            background: #f6f8fa;
+            font-size: 15px;
+        }
+
+        /* ── Hero ── */
+        .hero {
+            background: linear-gradient(135deg, #0969da 0%, #1f6feb 40%, #388bfd 100%);
+            color: white;
+            padding: 36px 24px 32px;
+            text-align: center;
+        }
+        .hero h1 {
+            font-size: 2.2em;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            margin-bottom: 6px;
+        }
+        .hero .subtitle {
+            font-size: 1.05em;
+            opacity: 0.9;
+            max-width: 580px;
+            margin: 0 auto 16px;
+        }
+        .hero .badges {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .hero .badge {
+            background: rgba(255,255,255,0.18);
+            border: 1px solid rgba(255,255,255,0.25);
+            border-radius: 20px;
+            padding: 4px 14px;
+            font-size: 0.8em;
+            font-weight: 500;
+        }
+
+        /* ── Container ── */
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* ── Sections ── */
+        section { margin: 28px 0; }
+        section h2 {
+            font-size: 1.35em;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 4px;
+            padding-bottom: 6px;
+            border-bottom: 2px solid #0969da;
+        }
+        section h2 .step-num {
+            display: inline-block;
+            background: #0969da;
+            color: white;
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 26px;
+            font-size: 0.7em;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+        section p.lead {
+            font-size: 0.95em;
+            color: #57606a;
+            margin: 6px 0 12px;
+        }
+
+        /* ── Cards ── */
+        .card {
+            background: white;
+            border: 1px solid #d0d7de;
+            border-radius: 6px;
+            padding: 16px 20px;
+            margin: 10px 0;
+            box-shadow: 0 1px 2px rgba(27,31,36,0.04);
+        }
+        .card h3 {
+            font-size: 1em;
+            margin-bottom: 4px;
+            color: #24292f;
+        }
+        .card ul, .card ol { padding-left: 20px; margin: 4px 0; }
+        .card li { margin: 3px 0; }
+        code {
+            background: #f0f3f6;
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-size: 0.88em;
+            font-family: 'SF Mono', 'Fira Code', 'Courier New', monospace;
+            color: #0550ae;
+        }
+
+        /* ── Prereq grid ── */
+        .prereq-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin: 10px 0;
+        }
+        .prereq-item {
+            background: white;
+            border: 1px solid #d0d7de;
+            border-radius: 6px;
+            padding: 10px 14px;
+        }
+        .prereq-item .label { font-weight: 600; font-size: 0.92em; }
+        .prereq-item .desc { font-size: 0.83em; color: #57606a; }
+
+        /* ── Steps ── */
+        .steps { counter-reset: step; margin: 8px 0; }
+        .step {
+            background: white;
+            border: 1px solid #d0d7de;
+            border-radius: 6px;
+            padding: 10px 16px 10px 48px;
+            margin: 6px 0;
+            position: relative;
+        }
+        .step::before {
+            counter-increment: step;
+            content: counter(step);
+            position: absolute;
+            left: 12px;
+            top: 10px;
+            width: 26px;
+            height: 26px;
+            background: #0969da;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 26px;
+            font-weight: 700;
+            font-size: 0.82em;
+        }
+        .step h4 { font-size: 0.92em; margin-bottom: 2px; }
+        .step p { color: #57606a; font-size: 0.88em; }
+
+        /* ── Screenshots ── */
+        .step-screenshot {
+            margin-top: 8px;
+            border-radius: 6px;
+            border: 1px solid #d0d7de;
+            box-shadow: 0 1px 4px rgba(27,31,36,0.06);
+            max-width: 100%;
+            height: auto;
+        }
+
+        /* ── Pipeline ── */
+        .pipeline-flow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 3px 0;
+            margin: 10px 0;
+            font-size: 0.84em;
+            font-weight: 600;
+        }
+        .pipeline-flow .node {
+            background: #f0f3f6;
+            border: 1px solid #d0d7de;
+            border-radius: 3px;
+            padding: 2px 8px;
+            white-space: nowrap;
+        }
+        .pipeline-flow .node.start {
+            background: #0969da;
+            border-color: #0969da;
+            color: white;
+        }
+        .pipeline-flow .arrow { color: #8b949e; padding: 0 2px; font-weight: 400; }
+        .pipeline-flow .num { font-size: 0.8em; opacity: 0.6; margin-right: 2px; }
+
+        /* ── Two-column layout ── */
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .two-col .card { margin: 0; }
+
+        /* ── Callout ── */
+        .callout {
+            border-left: 3px solid #0969da;
+            background: #ddf4ff;
+            border-radius: 0 6px 6px 0;
+            padding: 10px 14px;
+            margin: 12px 0;
+            font-size: 0.9em;
+        }
+        .callout strong { display: block; margin-bottom: 2px; }
+
+        /* ── Feature table ── */
+        .feature-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+            background: white;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid #d0d7de;
+            font-size: 0.9em;
+        }
+        .feature-table th {
+            background: #f6f8fa;
+            color: #24292f;
+            font-weight: 600;
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 2px solid #d0d7de;
+        }
+        .feature-table td {
+            padding: 7px 12px;
+            border-bottom: 1px solid #eaeef2;
+            vertical-align: top;
+        }
+        .feature-table tr:last-child td { border-bottom: none; }
+        .feature-table tr:hover td { background: #f6f8fa; }
+
+        /* ── Links / buttons ── */
+        .btn {
+            display: inline-block;
+            padding: 7px 18px;
+            border-radius: 5px;
+            font-weight: 600;
+            font-size: 0.88em;
+            text-decoration: none;
+            transition: background 0.15s;
+        }
+        .btn-primary { background: #238636; color: white; }
+        .btn-primary:hover { background: #2ea043; }
+        .btn-outline { background: transparent; color: #0969da; border: 1px solid #0969da; }
+        .btn-outline:hover { background: #ddf4ff; }
+        .btn-group { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0; }
+
+        /* ── Footer ── */
+        footer {
+            text-align: center;
+            padding: 24px;
+            color: #8b949e;
+            font-size: 0.85em;
+            border-top: 1px solid #d0d7de;
+            margin-top: 28px;
+        }
+        footer a { color: #0969da; text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+<!-- ════════════════════════════════ HERO ════════════════════════════════ -->
+<div class="hero">
+    <h1>Speckit Chat</h1>
+    <p class="subtitle">
+        A 9-stage AI-powered specification and implementation pipeline
+        for IntelliJ, powered by GitHub Copilot Chat.
+    </p>
+    <div class="badges">
+        <span class="badge">IntelliJ 2024.3+</span>
+        <span class="badge">GitHub Copilot Required</span>
+        <span class="badge">v0.1.0</span>
+    </div>
+</div>
+
+<div class="container">
+
+<!-- ═════════════════════════ WHAT IS SPECKIT? ═════════════════════════ -->
+<section>
+    <h2>What is Speckit Chat?</h2>
+    <p class="lead">
+        Speckit Chat is an IntelliJ plugin that brings the
+        <a href="https://github.com/github/spec-kit">Spec-Kit</a> pipeline
+        directly into your IDE. It connects to GitHub Copilot Chat in Agent mode,
+        letting you run specialized AI agents that take you from a one-line feature
+        idea all the way to implemented, tested code and GitHub issues.
+    </p>
+
+    <div class="pipeline-flow">
+        <span class="node start"><span class="num">1.</span>Constitution</span><span class="arrow">&rarr;</span>
+        <span class="node"><span class="num">2.</span>Specify</span><span class="arrow">&rarr;</span>
+        <span class="node"><span class="num">3.</span>Clarify</span><span class="arrow">&rarr;</span>
+        <span class="node"><span class="num">4.</span>Plan</span><span class="arrow">&rarr;</span>
+        <span class="node"><span class="num">5.</span>Tasks</span><span class="arrow">&rarr;</span>
+        <span class="node"><span class="num">6.</span>Checklist</span><span class="arrow">&rarr;</span>
+        <span class="node"><span class="num">7.</span>Analyze</span><span class="arrow">&rarr;</span>
+        <span class="node"><span class="num">8.</span>Implement</span><span class="arrow">&rarr;</span>
+        <span class="node"><span class="num">9.</span>Issues</span>
+    </div>
+    <p style="text-align: center; color: #8b949e; font-size: 0.82em;">
+        Each step produces artifacts that feed into the next. Auto-handoffs keep the flow moving.
+    </p>
+</section>
+
+<!-- ═══════════════════════ PREREQUISITES ═══════════════════════ -->
+<section>
+    <h2><span class="step-num">1</span> Prerequisites</h2>
+    <div class="prereq-grid">
+        <div class="prereq-item">
+            <div class="label">IntelliJ IDEA 2024.3+</div>
+            <div class="desc">Community or Ultimate edition. Build 243 or later.</div>
+        </div>
+        <div class="prereq-item">
+            <div class="label">GitHub Copilot Plugin</div>
+            <div class="desc">Installed and signed in with an active Copilot license.</div>
+        </div>
+        <div class="prereq-item">
+            <div class="label">Git Repository</div>
+            <div class="desc">Your project should be a git repo. Speckit creates branches and feature directories.</div>
+        </div>
+        <div class="prereq-item">
+            <div class="label">Shell Tools</div>
+            <div class="desc">macOS/Linux: <code>bash</code>, <code>curl</code>, <code>unzip</code>. Windows: PowerShell 5+.</div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════════ INSTALL PLUGIN ═══════════════════════ -->
+<section>
+    <h2><span class="step-num">2</span> Install the Plugin</h2>
+    <div class="steps">
+        <div class="step">
+            <h4>Download the plugin ZIP</h4>
+            <p><a href="Speckit-Chat-0.1.0.zip" class="btn btn-primary" download>Download Speckit Chat v0.1.0</a></p>
+        </div>
+        <div class="step">
+            <h4>Open Plugin Settings</h4>
+            <p><strong>IntelliJ IDEA</strong> menu &rarr; <strong>Settings...</strong> (Cmd+, on macOS, Ctrl+Alt+S on Windows/Linux).</p>
+            <img src="install-step1-settings.png" alt="Open Settings from IntelliJ menu" class="step-screenshot" style="max-width: 50%;">
+        </div>
+        <div class="step">
+            <h4>Install from Disk</h4>
+            <p>Go to <strong>Plugins</strong>, click the <strong>gear icon</strong> (&#9881;) &rarr; <strong>Install Plugin from Disk...</strong></p>
+            <img src="install-step2-plugins.png" alt="Plugins gear menu showing Install Plugin from Disk" class="step-screenshot">
+        </div>
+        <div class="step">
+            <h4>Select the ZIP file</h4>
+            <p>Navigate to the downloaded <code>Speckit Chat-0.1.0.zip</code> and click <strong>Open</strong>.</p>
+            <img src="install-step3-select-zip.png" alt="File picker selecting Speckit Chat ZIP" class="step-screenshot">
+        </div>
+        <div class="step">
+            <h4>Restart IntelliJ</h4>
+            <p>Click <strong>Restart IDE</strong>. The <strong>Speckit Chat</strong> tool window appears in the bottom panel.</p>
+            <img src="install-step5-onboarding.png" alt="Speckit Chat Onboarding tab after installation" class="step-screenshot" style="max-width: 50%;">
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════════ INIT SPECKIT ═══════════════════════ -->
+<section>
+    <h2><span class="step-num">3</span> Init Speckit in Your Project</h2>
+    <p class="lead">
+        The plugin needs Speckit agent definitions in your project (<code>.github/agents/</code> and <code>.specify/</code>).
+    </p>
+
+    <div class="two-col">
+        <div class="card">
+            <h3>From the Onboarding Tab</h3>
+            <ol>
+                <li>Open the <strong>Speckit Chat</strong> tool window</li>
+                <li>Select the <strong>Onboarding</strong> tab</li>
+                <li>Click <strong>Init Speckit</strong></li>
+            </ol>
+        </div>
+        <div class="card">
+            <h3>From the Sessions Tab</h3>
+            <ol>
+                <li>Select the <strong>Sessions</strong> tab</li>
+                <li>Click the <strong>&hellip;</strong> menu next to the send button</li>
+                <li>Select <strong>Init Speckit</strong></li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="callout">
+        <strong>What gets downloaded?</strong>
+        The latest <a href="https://github.com/github/spec-kit">Spec-Kit</a> release:
+        <code>.github/agents/*.agent.md</code> (9 agent definitions),
+        <code>.github/prompts/*.prompt.md</code> (slash command mappings), and
+        <code>.specify/</code> (shell scripts, templates, memory).
+    </div>
+</section>
+
+<!-- ═══════════════════════ USING THE PLUGIN ═══════════════════════ -->
+<section>
+    <h2><span class="step-num">4</span> Using the Plugin</h2>
+
+    <table class="feature-table">
+        <thead><tr><th>Tab</th><th>Purpose</th></tr></thead>
+        <tbody>
+            <tr><td><strong>Sessions</strong></td><td>Select an agent, enter arguments, send prompts to Copilot Chat in Agent mode. Track runs with status, duration, and session IDs.</td></tr>
+            <tr><td><strong>Discovery</strong></td><td>Run the Constitution agent to establish or update project engineering principles.</td></tr>
+            <tr><td><strong>Specify</strong></td><td>Quick-launch the Specify agent with a feature description to kick off the pipeline.</td></tr>
+            <tr><td><strong>Onboarding</strong></td><td>Welcome page with Init Speckit, feature overview, and documentation links.</td></tr>
+        </tbody>
+    </table>
+
+    <div class="card">
+        <h3>Running Your First Agent</h3>
+        <div class="steps">
+            <div class="step">
+                <h4>Open the Sessions tab</h4>
+                <p>The agent dropdown lists all available agents from <code>.github/agents/</code> plus bundled defaults.</p>
+            </div>
+            <div class="step">
+                <h4>Select an agent</h4>
+                <p>Start with <strong>constitution</strong> to establish project principles, then <strong>specify</strong> to create your first feature spec.</p>
+            </div>
+            <div class="step">
+                <h4>Enter arguments and send</h4>
+                <p>Type your input and click send (or Ctrl+Enter). The prompt is sent to Copilot Chat in Agent mode.</p>
+            </div>
+            <div class="step">
+                <h4>Track progress</h4>
+                <p>The run table shows status, duration, branch, and session ID. Double-click a row to switch to that Copilot Chat session.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════════ AGENTS REFERENCE ═══════════════════════ -->
+<section>
+    <h2><span class="step-num">5</span> Agent Reference</h2>
+
+    <table class="feature-table">
+        <thead><tr><th>Agent</th><th>Purpose</th><th>Requires</th><th>Produces</th></tr></thead>
+        <tbody>
+            <tr><td><code>constitution</code></td><td>Define governance principles for all agents</td><td>User input</td><td><code>constitution.md</code></td></tr>
+            <tr><td><code>specify</code></td><td>Transform a feature description into a structured spec</td><td>Feature description</td><td><code>spec.md</code>, <code>checklists/requirements.md</code>, git branch</td></tr>
+            <tr><td><code>clarify</code></td><td>Resolve underspecified areas through targeted questions</td><td><code>spec.md</code></td><td>Updated <code>spec.md</code></td></tr>
+            <tr><td><code>plan</code></td><td>Generate technical design with architecture and data models</td><td><code>spec.md</code>, <code>constitution.md</code></td><td><code>plan.md</code>, <code>research.md</code>, <code>data-model.md</code>, <code>contracts/</code></td></tr>
+            <tr><td><code>tasks</code></td><td>Break plan into dependency-ordered, phased task list</td><td><code>plan.md</code>, <code>spec.md</code></td><td><code>tasks.md</code></td></tr>
+            <tr><td><code>checklist</code></td><td>Generate requirement checklists that gate implementation</td><td><code>spec.md</code></td><td><code>checklists/[domain].md</code></td></tr>
+            <tr><td><code>analyze</code></td><td>Read-only cross-artifact consistency check</td><td><code>tasks.md</code>, <code>spec.md</code>, <code>plan.md</code>, <code>constitution.md</code></td><td>Report (stdout only)</td></tr>
+            <tr><td><code>implement</code></td><td>Execute tasks phase-by-phase with TDD and checklist gating</td><td><code>tasks.md</code>, <code>plan.md</code>, checklists</td><td>Source code, updated <code>tasks.md</code></td></tr>
+            <tr><td><code>taskstoissues</code></td><td>Convert tasks into GitHub issues (one per task)</td><td><code>tasks.md</code>, GitHub remote</td><td>GitHub issues</td></tr>
+        </tbody>
+    </table>
+
+    <div class="callout">
+        <strong>Auto-Handoffs:</strong>
+        Specify &rarr; Clarify (if unresolved markers),
+        Plan &rarr; Tasks + Checklist,
+        Tasks &rarr; Analyze + Implement.
+    </div>
+</section>
+
+<!-- ═══════════════════════ CUSTOMIZATION ═══════════════════════ -->
+<section>
+    <h2><span class="step-num">6</span> Customization</h2>
+    <div class="two-col">
+        <div class="card">
+            <h3>Override Bundled Agents</h3>
+            <p>Place custom <code>.agent.md</code> files in <code>.github/agents/</code>.
+            Project-level files take priority over bundled defaults.</p>
+        </div>
+        <div class="card">
+            <h3>Refresh Agents</h3>
+            <p>Click the <strong>&hellip;</strong> menu in the Sessions tab and select
+            <strong>Refresh Agents</strong> to reload without restarting.</p>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════════ LINKS ═══════════════════════ -->
+<section>
+    <h2>Resources</h2>
+    <div class="btn-group">
+        <a href="Speckit-Chat-0.1.0.zip" class="btn btn-primary" download>Download Speckit Chat v0.1.0</a>
+        <a href="https://github.com/github/spec-kit" class="btn btn-outline" target="_blank">Spec-Kit on GitHub</a>
+        <a href="https://github.com/github/spec-kit/releases" class="btn btn-outline" target="_blank">Releases</a>
+    </div>
+</section>
+
+</div>
+
+<footer>
+    Speckit Chat Plugin v0.1.0 &mdash; Built for IntelliJ IDEA 2024.3+
+    &middot; <a href="https://github.com/github/spec-kit">github/spec-kit</a>
+</footer>
+
+</body>
+</html>
