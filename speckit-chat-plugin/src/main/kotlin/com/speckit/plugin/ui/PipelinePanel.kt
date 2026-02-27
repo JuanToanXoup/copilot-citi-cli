@@ -675,6 +675,7 @@ class PipelinePanel(
                                     openFileInEditor(specFile)
                                 }
                             })
+                            addHoverEffect(this)
                         }
                     }
                     markerLabel.alignmentX = Component.LEFT_ALIGNMENT
@@ -715,6 +716,7 @@ class PipelinePanel(
                                     openFileInEditor(file)
                                 }
                             })
+                            addHoverEffect(this)
                         }
                         content.add(fileLabel)
                     }
@@ -754,6 +756,7 @@ class PipelinePanel(
                                     openFileInEditor(cl.file)
                                 }
                             })
+                            addHoverEffect(this)
                         }
                         row.add(label)
                         content.add(row)
@@ -803,7 +806,7 @@ class PipelinePanel(
                 font = font.deriveFont(Font.BOLD)
             }, BorderLayout.WEST)
             if (!isReadOnly) {
-                add(JButton("Reset").apply {
+                add(JButton("Default").apply {
                     isBorderPainted = false
                     isContentAreaFilled = false
                     foreground = JBColor.BLUE
@@ -867,6 +870,7 @@ class PipelinePanel(
                         openFileInEditor(result.resolvedFile!!)
                     }
                 })
+                addHoverEffect(this)
             }
         }
     }
@@ -874,6 +878,17 @@ class PipelinePanel(
     private fun openFileInEditor(file: File) {
         val vFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(file) ?: return
         FileEditorManager.getInstance(project).openFile(vFile, true)
+    }
+
+    private val hoverColor = JBColor(Color(0, 100, 200), Color(100, 180, 255))
+
+    /** Adds hover color-change to a clickable JLabel. */
+    private fun addHoverEffect(label: JLabel) {
+        val normalColor = label.foreground
+        label.addMouseListener(object : java.awt.event.MouseAdapter() {
+            override fun mouseEntered(e: java.awt.event.MouseEvent) { label.foreground = hoverColor }
+            override fun mouseExited(e: java.awt.event.MouseEvent) { label.foreground = normalColor }
+        })
     }
 
     private fun verticalSpacer(height: Int) = JPanel().apply {
