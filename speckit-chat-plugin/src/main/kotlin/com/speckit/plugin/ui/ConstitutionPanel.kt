@@ -227,6 +227,9 @@ class ConstitutionPanel(
         try {
             categoryTables.clear()
             categoryListModel.clear()
+            detailPanel.removeAll()
+            detailPanel.revalidate()
+            detailPanel.repaint()
 
             val grouped = rows.groupBy { it.category }
             for ((category, catRows) in grouped) {
