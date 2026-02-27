@@ -75,7 +75,11 @@ class SpeckitChatPanel(
             isContentAreaFilled = false
             isFocusPainted = false
             margin = java.awt.Insets(0, 0, 0, 0)
-            preferredSize = Dimension(16, 16)
+            // Scale icon to match the send button's height, keep it square
+            val h = sendButton.preferredSize.height
+            preferredSize = Dimension(h, h)
+            val scaled = (icon as javax.swing.ImageIcon).image.getScaledInstance(h, h, java.awt.Image.SCALE_SMOOTH)
+            icon = javax.swing.ImageIcon(scaled)
             addActionListener { e ->
                 val popup = javax.swing.JPopupMenu().apply {
                     border = BorderFactory.createCompoundBorder(
