@@ -78,9 +78,12 @@ class SpeckitChatPanel(
             // Scale down from the high-res source so it stays crisp
             val h = sendButton.preferredSize.height
             preferredSize = Dimension(h, h)
-            val hires = javax.swing.ImageIcon(javaClass.getResource("/icons/speckit-menu-hires.png"))
-            val scaled = hires.image.getScaledInstance(h, h, java.awt.Image.SCALE_SMOOTH)
-            icon = javax.swing.ImageIcon(scaled)
+            val url = SpeckitChatPanel::class.java.getResource("/icons/speckit-menu-hires.png")
+            if (url != null) {
+                val hires = javax.swing.ImageIcon(url)
+                val scaled = hires.image.getScaledInstance(h, h, java.awt.Image.SCALE_SMOOTH)
+                icon = javax.swing.ImageIcon(scaled)
+            }
             addActionListener { e ->
                 val popup = javax.swing.JPopupMenu().apply {
                     border = BorderFactory.createCompoundBorder(
