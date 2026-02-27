@@ -147,7 +147,9 @@ class DiscoveryPanel(
 
         val memFile = File(memoryFilePath)
         if (memFile.exists()) {
-            loadFromMemoryFile()
+            // Read directly from disk for initial load to avoid VFS refresh
+            // in a write-unsafe context (tool window init runs NON_MODAL).
+            applyContent(memFile.readText())
         }
     }
 
