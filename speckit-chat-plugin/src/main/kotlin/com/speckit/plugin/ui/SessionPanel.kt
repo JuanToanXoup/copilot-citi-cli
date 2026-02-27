@@ -22,7 +22,6 @@ import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.event.KeyEvent
 import javax.swing.BorderFactory
-import javax.swing.BoxLayout
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.text.SimpleDateFormat
@@ -30,18 +29,16 @@ import java.util.Date
 import javax.swing.DefaultComboBoxModel
 import javax.swing.JButton
 import javax.swing.JComboBox
-import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.KeyStroke
 import javax.swing.SwingConstants
-import javax.swing.SwingUtilities
 import javax.swing.table.AbstractTableModel
 import javax.swing.table.DefaultTableCellRenderer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-class SpeckitChatPanel(
+class SessionPanel(
     private val project: Project,
     parentDisposable: Disposable
 ) : JPanel(BorderLayout()), Disposable {
@@ -111,7 +108,7 @@ class SpeckitChatPanel(
                     if (promptPanel.preferredSize.height != newHeight) {
                         promptPanel.preferredSize = Dimension(0, newHeight)
                         promptPanel.revalidate()
-                        this@SpeckitChatPanel.revalidate()
+                        this@SessionPanel.revalidate()
                     }
                 }
             }

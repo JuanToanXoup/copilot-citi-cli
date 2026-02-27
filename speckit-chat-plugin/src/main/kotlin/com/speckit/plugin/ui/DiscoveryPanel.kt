@@ -39,10 +39,10 @@ import javax.swing.ListCellRenderer
 import javax.swing.SwingConstants
 import javax.swing.table.DefaultTableModel
 
-class ConstitutionPanel(
+class DiscoveryPanel(
     private val project: Project,
     parentDisposable: Disposable,
-    private val chatPanel: SpeckitChatPanel
+    private val chatPanel: SessionPanel
 ) : JPanel(BorderLayout()), Disposable {
 
     private val templateCombo = javax.swing.JComboBox<String>()
@@ -85,7 +85,7 @@ class ConstitutionPanel(
         }
 
         // Category list
-        categoryList.cellRenderer = CategoryListRenderer()
+        categoryList.cellRenderer = this@DiscoveryPanel.CategoryListRenderer()
         categoryList.addListSelectionListener {
             if (!it.valueIsAdjusting) {
                 val selected = categoryList.selectedValue

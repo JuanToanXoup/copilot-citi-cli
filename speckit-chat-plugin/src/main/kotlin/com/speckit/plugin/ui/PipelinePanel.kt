@@ -37,10 +37,10 @@ import javax.swing.JPanel
 import javax.swing.ListCellRenderer
 import javax.swing.SwingConstants
 
-class SpecifyPanel(
+class PipelinePanel(
     private val project: Project,
     parentDisposable: Disposable,
-    private val chatPanel: SpeckitChatPanel
+    private val chatPanel: SessionPanel
 ) : JPanel(BorderLayout()), Disposable {
 
     // ── Data model ───────────────────────────────────────────────────────────
@@ -257,7 +257,7 @@ class SpecifyPanel(
         }
 
         // Feature list (left pane)
-        featureList.cellRenderer = FeatureListRenderer()
+        featureList.cellRenderer = this@PipelinePanel.FeatureListRenderer()
         featureList.addListSelectionListener {
             if (!it.valueIsAdjusting) {
                 val selected = featureList.selectedValue
@@ -266,7 +266,7 @@ class SpecifyPanel(
         }
 
         // Step list (middle pane)
-        stepList.cellRenderer = StepListRenderer()
+        stepList.cellRenderer = this@PipelinePanel.StepListRenderer()
         stepList.addListSelectionListener {
             if (!it.valueIsAdjusting) {
                 val selected = stepList.selectedValue
@@ -470,12 +470,14 @@ class SpecifyPanel(
                     featureList.selectedIndex = toSelect
                 } else {
                     // No features — still validate with no feature dir
-                    refreshStepsWithPaths(FeaturePaths(
-                        basePath = project.basePath ?: "",
-                        branch = branch,
-                        isFeatureBranch = false,
-                        featureDir = null
-                    ))
+                    refreshStepsWithPaths(
+                        FeaturePaths(
+                            basePath = project.basePath ?: "",
+                            branch = branch,
+                            isFeatureBranch = false,
+                            featureDir = null
+                        )
+                    )
                 }
             }
         }
