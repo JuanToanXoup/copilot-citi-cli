@@ -110,13 +110,24 @@ class ConstitutionPanel(
                 if (syncing) return
                 val memPath = memoryFilePath
                 val relevant = events.any { e ->
-                    e is VFileContentChangeEvent && e.file.path == memPath
+                    val path = e.path ?: (e as? VFileContentChangeEvent)?.file?.path
+                    path == memPath
                 }
                 if (relevant) {
                     invokeLater { loadFromMemoryFile() }
                 }
             }
         })
+
+        // App focus listener — reload when IDE regains focus (catches external writes)
+        com.intellij.openapi.application.ApplicationManager.getApplication().messageBus
+            .connect(this)
+            .subscribe(com.intellij.openapi.application.ApplicationActivationListener.TOPIC,
+                object : com.intellij.openapi.application.ApplicationActivationListener {
+                    override fun applicationActivated(ideFrame: com.intellij.openapi.wm.IdeFrame) {
+                        refreshFromDisk()
+                    }
+                })
 
         refreshTemplateList()
 
@@ -137,7 +148,7 @@ class ConstitutionPanel(
         val fileName = templateCombo.selectedItem as? String ?: return
         val content = ResourceLoader.readDiscovery(basePath, fileName) ?: return
 
-        val rows = parseTable(extractBody(content))
+        val rows = parseDiscovery(extractBody(content))
         buildCategoryTables(rows)
         writeMemoryFile()
     }
@@ -146,7 +157,7 @@ class ConstitutionPanel(
         val memFile = File(memoryFilePath)
         if (!memFile.exists()) return
         val content = memFile.readText()
-        val rows = parseTable(content)
+        val rows = parseDiscovery(content)
         val grouped = rows.groupBy { it.category }
 
         syncing = true
@@ -366,26 +377,18 @@ class ConstitutionPanel(
 
     private fun writeMemoryFile() {
         val basePath = project.basePath ?: return
-        val rows = mutableListOf<TableRow>()
-        for (ct in categoryTables) {
-            for (i in 0 until ct.tableModel.rowCount) {
-                rows.add(TableRow(
-                    ct.category,
-                    ct.tableModel.getValueAt(i, 0).toString(),
-                    ct.tableModel.getValueAt(i, 1).toString()
-                ))
-            }
-        }
-
-        val col1Width = maxOf("Category".length, rows.maxOfOrNull { it.category.length } ?: 0)
-        val col2Width = maxOf("Attribute".length, rows.maxOfOrNull { it.attribute.length } ?: 0)
-        val col3Width = maxOf("Answer".length, rows.maxOfOrNull { it.answer.length } ?: 0)
 
         val sb = StringBuilder()
-        sb.appendLine("| ${"Category".padEnd(col1Width)} | ${"Attribute".padEnd(col2Width)} | ${"Answer".padEnd(col3Width)} |")
-        sb.appendLine("|${"-".repeat(col1Width + 2)}|${"-".repeat(col2Width + 2)}|${"-".repeat(col3Width + 2)}|")
-        for (row in rows) {
-            sb.appendLine("| ${row.category.padEnd(col1Width)} | ${row.attribute.padEnd(col2Width)} | ${row.answer.padEnd(col3Width)} |")
+        var firstCategory = true
+        for (ct in categoryTables) {
+            if (!firstCategory) sb.appendLine()
+            firstCategory = false
+            sb.appendLine("## ${ct.category}")
+            for (i in 0 until ct.tableModel.rowCount) {
+                val attribute = ct.tableModel.getValueAt(i, 0).toString()
+                val answer = ct.tableModel.getValueAt(i, 1).toString()
+                sb.appendLine("- $attribute = $answer")
+            }
         }
 
         syncing = true
@@ -403,22 +406,34 @@ class ConstitutionPanel(
         }
     }
 
+    // ── Disk refresh ─────────────────────────────────────────────────────────
+
+    private fun refreshFromDisk() {
+        com.intellij.openapi.application.ApplicationManager.getApplication().executeOnPooledThread {
+            val memFile = File(memoryFilePath)
+            if (!memFile.exists()) return@executeOnPooledThread
+            // Force VFS to see external changes
+            LocalFileSystem.getInstance().refreshAndFindFileByIoFile(memFile)
+            invokeLater { loadFromMemoryFile() }
+        }
+    }
+
     // ── Copilot actions ──────────────────────────────────────────────────────
 
     private fun askCopilotCategory(category: String) {
         val chatService = project.getService(CopilotChatService::class.java) ?: return
         val dataContext = SimpleDataContext.getProjectContext(project)
         val prompt = "Using your tools and this project as your source of truth, " +
-            "update only the \"$category\" rows in the table in the `.specify/memory/discovery.md` file " +
+            "update only the \"$category\" section in the `.specify/memory/discovery.md` YAML file " +
             "with your answers and evidence of your answer. " +
-            "If you cannot find concrete evidence for an attribute, leave its Answer cell empty. " +
+            "If you cannot find concrete evidence for an attribute, leave its value as an empty string. " +
             "Do not write \"Unknown\" or guess."
 
         chatService.query(dataContext) {
             withInput(prompt)
             withAgentMode()
             withNewSession()
-            onComplete { }
+            onComplete { refreshFromDisk() }
             onError { _, _, _, _, _ -> }
         }
     }
@@ -427,16 +442,16 @@ class ConstitutionPanel(
         val chatService = project.getService(CopilotChatService::class.java) ?: return
         val dataContext = SimpleDataContext.getProjectContext(project)
         val prompt = "Using your tools and this project as your source of truth, " +
-            "update the table in the `.specify/memory/discovery.md` file " +
+            "update the `.specify/memory/discovery.md` YAML file " +
             "with your answers and evidence of your answer. " +
-            "If you cannot find concrete evidence for an attribute, leave its Answer cell empty. " +
+            "If you cannot find concrete evidence for an attribute, leave its value as an empty string. " +
             "Do not write \"Unknown\" or guess."
 
         chatService.query(dataContext) {
             withInput(prompt)
             withAgentMode()
             withNewSession()
-            onComplete { }
+            onComplete { refreshFromDisk() }
             onError { _, _, _, _, _ -> }
         }
     }
@@ -478,16 +493,28 @@ class ConstitutionPanel(
         return content.substring(match.range.last + 1)
     }
 
-    private fun parseTable(content: String): List<TableRow> {
+    private fun parseDiscovery(content: String): List<TableRow> {
         val rows = mutableListOf<TableRow>()
+        var currentCategory = ""
         for (line in content.lines()) {
             val trimmed = line.trim()
-            if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) continue
-            val cells = trimmed.removePrefix("|").removeSuffix("|").split("|").map { it.trim() }
-            if (cells.size < 3) continue
-            if (cells[0].equals("Category", ignoreCase = true)) continue
-            if (cells[0].all { it == '-' }) continue
-            rows.add(TableRow(cells[0], cells[1], cells.getOrElse(2) { "" }))
+            if (trimmed.isBlank()) continue
+
+            // Category: ## heading
+            if (trimmed.startsWith("## ")) {
+                currentCategory = trimmed.removePrefix("## ").trim()
+                continue
+            }
+
+            // Attribute: - Name = Answer
+            if (trimmed.startsWith("- ") && currentCategory.isNotEmpty()) {
+                val eqIdx = trimmed.indexOf('=')
+                if (eqIdx > 0) {
+                    val attribute = trimmed.substring(2, eqIdx).trim()
+                    val answer = trimmed.substring(eqIdx + 1).trim()
+                    rows.add(TableRow(currentCategory, attribute, answer))
+                }
+            }
         }
         return rows
     }

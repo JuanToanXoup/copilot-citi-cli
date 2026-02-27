@@ -1,42 +1,55 @@
 ---
 name: Microservice Constitution Discovery
-description: Flat table of all microservice attributes for constitution discovery
+description: Attributes for constitution discovery
 ---
 
-| Category            | Attribute                                         | Answer |
-|---------------------|---------------------------------------------------|--------|
-| Project             | Programming language                              |        |
-| Project             | Application framework                             |        |
-| Project             | Test frameworks                                   |        |
-| Project             | Logging framework                                 |        |
-| Service - Identity  | Service name                                      |        |
-| Service - Identity  | Business domain                                   |        |
-| Service - Identity  | Single responsibility                             |        |
-| Service - Identity  | Primary business function                         |        |
-| Service - Identity  | Supported business processes                      |        |
-| Service - Identity  | Main users or stakeholders                        |        |
-| Service - Data      | Data entities owned                               |        |
-| Service - Data      | Database technology used                          |        |
-| Service - Data      | Main data models or tables                        |        |
-| Service - Data      | Entities created, updated, or deleted             |        |
-| Service - Data      | Shared entities with other services               |        |
-| Service - API       | API protocol exposed                              |        |
-| Service - API       | Upstream service dependencies                     |        |
-| Service - API       | External APIs or services called                  |        |
-| Service - API       | Third-party services integrated                   |        |
-| Service - API       | Synchronous or asynchronous dependencies          |        |
-| Service - Messaging | Message broker used                               |        |
-| Service - Messaging | Topics or queues published/subscribed             |        |
-| Service - Security  | Authentication method                             |        |
-| Service - Security  | Authentication required for all endpoints         |        |
-| Service - Security  | Supported authentication protocols                |        |
-| Service - Security  | Authentication configuration location             |        |
-| Service - Deploy    | Deployment method                                 |        |
-| Service - Deploy    | Containerized                                     |        |
-| Service - Deploy    | Deployment platform                               |        |
-| Service - Deploy    | Automated via CI/CD                               |        |
-| Service - Deploy    | Health check endpoint                             |        |
-| Service - Perf      | Target response latency                           |        |
-| Service - Perf      | Documented SLO for latency                        |        |
-| Service - Perf      | Expected average response time                    |        |
-| Service - Perf      | Maximum acceptable response time for critical endpoints | |
+## Project
+- Programming language =
+- Application framework =
+- Test frameworks =
+- Logging framework =
+
+## Service - Identity
+- Service name =
+- Business domain =
+- Single responsibility =
+- Primary business function =
+- Supported business processes =
+- Main users or stakeholders =
+
+## Service - Data
+- Data entities owned =
+- Database technology used =
+- Main data models or tables =
+- Entities created, updated, or deleted =
+- Shared entities with other services =
+
+## Service - API
+- API protocol exposed =
+- Upstream service dependencies =
+- External APIs or services called =
+- Third-party services integrated =
+- Synchronous or asynchronous dependencies =
+
+## Service - Messaging
+- Message broker used =
+- Topics or queues published/subscribed =
+
+## Service - Security
+- Authentication method =
+- Authentication required for all endpoints =
+- Supported authentication protocols =
+- Authentication configuration location =
+
+## Service - Deploy
+- Deployment method =
+- Containerized =
+- Deployment platform =
+- Automated via CI/CD =
+- Health check endpoint =
+
+## Service - Perf
+- Target response latency =
+- Documented SLO for latency =
+- Expected average response time =
+- Maximum acceptable response time for critical endpoints =
