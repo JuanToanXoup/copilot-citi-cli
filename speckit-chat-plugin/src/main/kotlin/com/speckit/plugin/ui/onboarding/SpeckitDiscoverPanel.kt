@@ -30,34 +30,34 @@ class SpeckitDiscoverPanel(
     private val onClose: () -> Unit
 ) : JPanel(BorderLayout()) {
 
-    // ── Feature categories (mirrors DiscoverAIWelcomePanel) ─────────────────
+    // ── Feature categories (ordered to match pipeline flow) ─────────────────
 
-    private fun specifyWorkflowDescriptors(): List<SpeckitFeatureDescriptor> = listOf(
-        SpecifyFeatureDescriptor,
-        ClarifyFeatureDescriptor,
-        PlanFeatureDescriptor,
-        TasksFeatureDescriptor
+    private fun gettingStartedDescriptors(): List<SpeckitFeatureDescriptor> = listOf(
+        ConstitutionFeatureDescriptor
     )
 
-    private fun qualityDescriptors(): List<SpeckitFeatureDescriptor> = listOf(
-        AnalyzeFeatureDescriptor,
-        ChecklistFeatureDescriptor
+    private fun specifyDesignDescriptors(): List<SpeckitFeatureDescriptor> = listOf(
+        SpecifyFeatureDescriptor,
+        ClarifyFeatureDescriptor,
+        PlanFeatureDescriptor
+    )
+
+    private fun tasksValidationDescriptors(): List<SpeckitFeatureDescriptor> = listOf(
+        TasksFeatureDescriptor,
+        ChecklistFeatureDescriptor,
+        AnalyzeFeatureDescriptor
     )
 
     private fun implementationDescriptors(): List<SpeckitFeatureDescriptor> = listOf(
         ImplementFeatureDescriptor,
-        CoverageFeatureDescriptor
-    )
-
-    private fun projectSetupDescriptors(): List<SpeckitFeatureDescriptor> = listOf(
-        ConstitutionFeatureDescriptor,
+        CoverageFeatureDescriptor,
         IssuesFeatureDescriptor
     )
 
     // ── Ordered list for navigation service ─────────────────────────────────
 
     val allDescriptors: List<SpeckitFeatureDescriptor> by lazy {
-        specifyWorkflowDescriptors() + qualityDescriptors() + implementationDescriptors() + projectSetupDescriptors()
+        gettingStartedDescriptors() + specifyDesignDescriptors() + tasksValidationDescriptors() + implementationDescriptors()
     }
 
     init {
@@ -99,10 +99,10 @@ class SpeckitDiscoverPanel(
      */
     private fun createContent(): JComponent {
         return panel {
-            featuresBlock("Specify workflow", AllIcons.Actions.Edit, specifyWorkflowDescriptors())
-            featuresBlock("Quality & analysis", AllIcons.Actions.Find, qualityDescriptors())
+            featuresBlock("Getting started", AllIcons.Nodes.HomeFolder, gettingStartedDescriptors())
+            featuresBlock("Specify & design", AllIcons.Actions.Edit, specifyDesignDescriptors())
+            featuresBlock("Tasks & validation", AllIcons.Vcs.Changelist, tasksValidationDescriptors())
             featuresBlock("Implementation", AllIcons.Actions.Execute, implementationDescriptors())
-            featuresBlock("Project setup", AllIcons.Nodes.HomeFolder, projectSetupDescriptors())
         }.apply {
             border = JBUI.Borders.empty(12, 20, 0, 20)
         }

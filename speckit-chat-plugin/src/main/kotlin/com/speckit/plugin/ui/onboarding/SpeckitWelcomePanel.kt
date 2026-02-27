@@ -1,10 +1,8 @@
 package com.speckit.plugin.ui.onboarding
 
-import com.intellij.icons.AllIcons
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
-import com.intellij.ui.dsl.gridLayout.UnscaledGaps
 import com.intellij.ui.dsl.gridLayout.UnscaledGapsY
 import com.intellij.util.ui.JBFont
 import com.intellij.util.ui.JBUI
@@ -38,11 +36,11 @@ class SpeckitWelcomePanel(
      * Mirrors WelcomeUIUtilsKt.welcomeFeatureDescriptors().
      */
     private fun welcomeFeatureDescriptors(): List<SpeckitFeatureDescriptor> = listOf(
+        ConstitutionFeatureDescriptor,
         SpecifyFeatureDescriptor,
         PlanFeatureDescriptor,
         TasksFeatureDescriptor,
-        ImplementFeatureDescriptor,
-        ConstitutionFeatureDescriptor
+        ImplementFeatureDescriptor
     )
 
     init {
@@ -59,12 +57,6 @@ class SpeckitWelcomePanel(
         val descriptors = welcomeFeatureDescriptors()
 
         return panel {
-            // ── Logo icon row ───────────────────────────────────────────────
-            // Matches createShortDiscoverAI: icon row with UnscaledGapsY(30, 30)
-            row {
-                icon(AllIcons.Actions.Lightning)
-            }.customize(UnscaledGapsY(30, 30))
-
             // ── Title row ───────────────────────────────────────────────────
             // Matches: h1 "Welcome to {ProductName}", UnscaledGapsY(0, 8)
             row {
