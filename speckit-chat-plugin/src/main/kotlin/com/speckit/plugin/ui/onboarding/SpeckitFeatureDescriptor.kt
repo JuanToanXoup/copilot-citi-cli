@@ -62,7 +62,7 @@ object SpecifyFeatureDescriptor : SpeckitFeatureDescriptor {
     override val description = SpeckitFeatureDescriptor.Description(
         beforeSteps = "Describe any feature in natural language and Speckit generates a structured spec:",
         steps = """
-            Select the <b>Speckit Specify</b> agent from the Chat tab
+            Select the <b>Speckit Specify</b> agent from the Sessions tab
             Enter a feature description in the prompt field
             Speckit creates a git branch, feature directory, and <code>spec.md</code>
         """.trimIndent(),
