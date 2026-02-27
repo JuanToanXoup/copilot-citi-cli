@@ -46,6 +46,7 @@ class SpeckitOnboardingPanel(
      */
     private fun showWelcomePanel() {
         val welcomePanel = SpeckitWelcomePanel(
+            project = project,
             onFeatureSelected = { descriptor, index -> showFeaturePanel(descriptor, index) },
             onDiscoverAll = { showDiscoverPanel() },
             allDescriptors = allDescriptors

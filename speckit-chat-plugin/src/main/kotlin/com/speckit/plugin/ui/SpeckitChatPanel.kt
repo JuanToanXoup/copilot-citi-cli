@@ -3,9 +3,6 @@ package com.speckit.plugin.ui
 import com.github.copilot.agent.session.CopilotAgentSessionManager
 import com.github.copilot.api.CopilotChatService
 import com.github.copilot.chat.window.ShowChatToolWindowsListener
-import com.intellij.execution.RunContentExecutor
-import com.intellij.execution.configurations.GeneralCommandLine
-import com.intellij.execution.process.OSProcessHandler
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.impl.SimpleDataContext
 import com.intellij.openapi.application.invokeLater
@@ -79,7 +76,7 @@ class SpeckitChatPanel(
                     )
                 }
                 popup.add(createMenuItem("Refresh Agents", com.intellij.icons.AllIcons.Actions.Refresh) { loadAgents() })
-                popup.add(createMenuItem("Download Latest Speckit", com.intellij.icons.AllIcons.Actions.Download) { installSpeckit() })
+                popup.add(createMenuItem("Init Speckit", com.intellij.icons.AllIcons.Actions.Download) { installSpeckit() })
                 val src = e.source as java.awt.Component
                 popup.show(src, 0, src.height)
             }
@@ -305,52 +302,7 @@ class SpeckitChatPanel(
     }
 
     private fun installSpeckit() {
-        val basePath = project.basePath ?: return
-        val isWindows = System.getProperty("os.name").lowercase().contains("win")
-        val shellType = if (isWindows) "ps" else "sh"
-
-        val cmd = if (isWindows) {
-            val psScript = """
-                ${"$"}ErrorActionPreference = 'Stop'
-                Write-Host 'Fetching latest spec-kit release...'
-                ${"$"}release = Invoke-RestMethod -Uri 'https://api.github.com/repos/github/spec-kit/releases/latest'
-                ${"$"}asset = ${"$"}release.assets | Where-Object { ${"$"}_.name -like '*copilot-${shellType}*' } | Select-Object -First 1
-                if (-not ${"$"}asset) { Write-Error 'No copilot-${shellType} asset found'; exit 1 }
-                ${"$"}tmpZip = Join-Path ${"$"}env:TEMP ('speckit-' + [guid]::NewGuid().ToString('N') + '.zip')
-                Write-Host "Downloading ${"$"}(${"$"}asset.browser_download_url)"
-                Invoke-WebRequest -Uri ${"$"}asset.browser_download_url -OutFile ${"$"}tmpZip
-                Write-Host 'Extracting to ${basePath.replace("\\", "\\\\")}...'
-                Expand-Archive -Path ${"$"}tmpZip -DestinationPath '${basePath.replace("'", "''")}' -Force
-                Remove-Item ${"$"}tmpZip -Force
-                Write-Host 'Done.'
-            """.trimIndent()
-            GeneralCommandLine("powershell", "-NoProfile", "-Command", psScript)
-        } else {
-            val shScript = """
-                set -e
-                TMPZIP=${"$"}(mktemp /tmp/speckit-XXXXXX.zip)
-                echo "Fetching latest spec-kit release..."
-                URL=${"$"}(curl -sL https://api.github.com/repos/github/spec-kit/releases/latest \
-                  | grep -o '"browser_download_url":[^,]*copilot-${shellType}[^"]*' \
-                  | cut -d'"' -f4)
-                if [ -z "${"$"}URL" ]; then echo "ERROR: No copilot-${shellType} asset found"; exit 1; fi
-                echo "Downloading ${"$"}URL"
-                curl -Lo "${"$"}TMPZIP" "${"$"}URL"
-                echo "Extracting to ${basePath}..."
-                unzip -o "${"$"}TMPZIP" -d "${basePath}"
-                rm -f "${"$"}TMPZIP"
-                echo "Done."
-            """.trimIndent()
-            GeneralCommandLine("bash", "-c", shScript)
-        }
-
-        cmd.withWorkDirectory(basePath)
-        val handler = OSProcessHandler(cmd)
-
-        RunContentExecutor(project, handler)
-            .withTitle("Speckit Install")
-            .withAfterCompletion { invokeLater { loadAgents() } }
-            .run()
+        SpeckitInstaller.install(project) { invokeLater { loadAgents() } }
     }
 
     private fun activateRun(run: ChatRun) {

@@ -1,11 +1,15 @@
 package com.speckit.plugin.ui.onboarding
 
+import com.intellij.icons.AllIcons
+import com.intellij.ide.BrowserUtil
+import com.intellij.openapi.project.Project
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.dsl.gridLayout.UnscaledGapsY
 import com.intellij.util.ui.JBFont
 import com.intellij.util.ui.JBUI
+import com.speckit.plugin.ui.SpeckitInstaller
 import java.awt.BorderLayout
 import javax.swing.JComponent
 import javax.swing.JPanel
@@ -13,19 +17,18 @@ import javax.swing.ScrollPaneConstants
 
 /**
  * Welcome landing page — the initial screen shown in the Onboarding tab.
- * Mirrors WelcomeUIUtilsKt.createShortDiscoverAI from JetBrains AI Chat plugin.
  *
  * Layout:
- *   - Logo icon row (centered, UnscaledGapsY(30, 30))
  *   - Product title h1 ("Welcome to Speckit", UnscaledGapsY(0, 8))
  *   - Subtitle/greeting text
+ *   - Setup callout: download button + GitHub link
  *   - Top 5 feature DisclosureButtons with icons (flat list, no category headers)
- *     topGap=20, bottomGap=22
  *   - "Discover all features" link
  *
  * All wrapped in a borderless scroll pane. Panel is opaque=false.
  */
 class SpeckitWelcomePanel(
+    private val project: Project,
     private val onFeatureSelected: (SpeckitFeatureDescriptor, Int) -> Unit,
     private val onDiscoverAll: () -> Unit,
     private val allDescriptors: List<SpeckitFeatureDescriptor>
@@ -33,7 +36,6 @@ class SpeckitWelcomePanel(
 
     /**
      * Top 5 features shown on the welcome page — flat list, no categories.
-     * Mirrors WelcomeUIUtilsKt.welcomeFeatureDescriptors().
      */
     private fun welcomeFeatureDescriptors(): List<SpeckitFeatureDescriptor> = listOf(
         ConstitutionFeatureDescriptor,
@@ -58,7 +60,6 @@ class SpeckitWelcomePanel(
 
         return panel {
             // ── Title row ───────────────────────────────────────────────────
-            // Matches: h1 "Welcome to {ProductName}", UnscaledGapsY(0, 8)
             row {
                 text("Welcome to Speckit")
                     .applyToComponent {
@@ -67,13 +68,27 @@ class SpeckitWelcomePanel(
             }.customize(UnscaledGapsY(0, 8))
 
             // ── Greeting / subtitle row ─────────────────────────────────────
-            // Matches: description text with word wrap
             row {
                 text("Here is how Speckit can help you:")
             }
 
+            // ── Setup callout ────────────────────────────────────────────────
+            row {
+                text("Download the latest Speckit agents into your project to get started.")
+            }.customize(UnscaledGapsY(16, 0))
+
+            row {
+                button("Init Speckit") {
+                    SpeckitInstaller.install(project)
+                }.applyToComponent {
+                    icon = AllIcons.Actions.Download
+                }
+                link("View on GitHub") {
+                    BrowserUtil.browse("https://github.com/github/spec-kit")
+                }
+            }.customize(UnscaledGapsY(8, 0))
+
             // ── Feature buttons (flat list with icons) ──────────────────────
-            // Matches createFeaturesButtons: showIcons=true, topGap=20, bottomGap=22
             descriptors.forEachIndexed { i, descriptor ->
                 val featureIndex = allDescriptors.indexOf(descriptor)
                 row {
@@ -94,7 +109,6 @@ class SpeckitWelcomePanel(
             }
 
             // ── "Discover all features" link ────────────────────────────────
-            // Matches createShortDiscoverAI: link at bottom
             row {
                 link("Discover all features") { onDiscoverAll() }
             }
