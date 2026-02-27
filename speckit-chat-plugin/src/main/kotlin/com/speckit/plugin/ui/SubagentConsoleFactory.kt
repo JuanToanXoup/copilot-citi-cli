@@ -13,7 +13,7 @@ class SubagentConsoleFactory : ToolWindowFactory, DumbAware {
         val chatPanel = SpeckitChatPanel(project, toolWindow.disposable)
         cm.addContent(cm.factory.createContent(chatPanel, "Chat", false).apply { isCloseable = false })
 
-        val constitutionPanel = ConstitutionPanel(project, toolWindow.disposable)
+        val constitutionPanel = ConstitutionPanel(project, toolWindow.disposable, chatPanel)
         cm.addContent(cm.factory.createContent(constitutionPanel, "Discovery", false).apply { isCloseable = false })
 
         val specifyPanel = SpecifyPanel(project, toolWindow.disposable, chatPanel)

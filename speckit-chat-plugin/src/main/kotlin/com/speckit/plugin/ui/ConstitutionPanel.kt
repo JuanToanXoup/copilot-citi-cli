@@ -41,7 +41,8 @@ import javax.swing.table.DefaultTableModel
 
 class ConstitutionPanel(
     private val project: Project,
-    parentDisposable: Disposable
+    parentDisposable: Disposable,
+    private val chatPanel: SpeckitChatPanel
 ) : JPanel(BorderLayout()), Disposable {
 
     private val templateCombo = javax.swing.JComboBox<String>()
@@ -542,12 +543,46 @@ class ConstitutionPanel(
             "If you cannot find concrete evidence for an attribute, leave the value empty after the `=`. " +
             "Do not write \"Unknown\" or guess."
 
+        val run = ChatRun(
+            agent = "discovery",
+            prompt = "Ask Copilot: $category",
+            branch = chatPanel.currentGitBranch()
+        )
+        chatPanel.registerRun(run)
+
         chatService.query(dataContext) {
             withInput(prompt)
             withAgentMode()
             withNewSession()
-            onComplete { refreshFromDisk() }
-            onError { _, _, _, _, _ -> }
+            withSessionIdReceiver { sessionId ->
+                invokeLater {
+                    run.sessionId = sessionId
+                    chatPanel.notifyRunChanged()
+                }
+            }
+            onComplete {
+                invokeLater {
+                    run.status = ChatRunStatus.COMPLETED
+                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
+                    chatPanel.notifyRunChanged()
+                    refreshFromDisk()
+                }
+            }
+            onError { message, _, _, _, _ ->
+                invokeLater {
+                    run.status = ChatRunStatus.FAILED
+                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
+                    run.errorMessage = message
+                    chatPanel.notifyRunChanged()
+                }
+            }
+            onCancel {
+                invokeLater {
+                    run.status = ChatRunStatus.CANCELLED
+                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
+                    chatPanel.notifyRunChanged()
+                }
+            }
         }
     }
 
@@ -561,12 +596,46 @@ class ConstitutionPanel(
             "If you cannot find concrete evidence for an attribute, leave the value empty after the `=`. " +
             "Do not write \"Unknown\" or guess."
 
+        val run = ChatRun(
+            agent = "discovery",
+            prompt = "Ask Copilot All",
+            branch = chatPanel.currentGitBranch()
+        )
+        chatPanel.registerRun(run)
+
         chatService.query(dataContext) {
             withInput(prompt)
             withAgentMode()
             withNewSession()
-            onComplete { refreshFromDisk() }
-            onError { _, _, _, _, _ -> }
+            withSessionIdReceiver { sessionId ->
+                invokeLater {
+                    run.sessionId = sessionId
+                    chatPanel.notifyRunChanged()
+                }
+            }
+            onComplete {
+                invokeLater {
+                    run.status = ChatRunStatus.COMPLETED
+                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
+                    chatPanel.notifyRunChanged()
+                    refreshFromDisk()
+                }
+            }
+            onError { message, _, _, _, _ ->
+                invokeLater {
+                    run.status = ChatRunStatus.FAILED
+                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
+                    run.errorMessage = message
+                    chatPanel.notifyRunChanged()
+                }
+            }
+            onCancel {
+                invokeLater {
+                    run.status = ChatRunStatus.CANCELLED
+                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
+                    chatPanel.notifyRunChanged()
+                }
+            }
         }
     }
 
@@ -587,12 +656,45 @@ class ConstitutionPanel(
         val prompt = agentContent.replace("\$ARGUMENTS", arguments.joinToString("\n"))
         val dataContext = SimpleDataContext.getProjectContext(project)
 
+        val run = ChatRun(
+            agent = "constitution",
+            prompt = "Generate Constitution",
+            branch = chatPanel.currentGitBranch()
+        )
+        chatPanel.registerRun(run)
+
         chatService.query(dataContext) {
             withInput(prompt)
             withAgentMode()
             withNewSession()
-            onComplete { }
-            onError { _, _, _, _, _ -> }
+            withSessionIdReceiver { sessionId ->
+                invokeLater {
+                    run.sessionId = sessionId
+                    chatPanel.notifyRunChanged()
+                }
+            }
+            onComplete {
+                invokeLater {
+                    run.status = ChatRunStatus.COMPLETED
+                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
+                    chatPanel.notifyRunChanged()
+                }
+            }
+            onError { message, _, _, _, _ ->
+                invokeLater {
+                    run.status = ChatRunStatus.FAILED
+                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
+                    run.errorMessage = message
+                    chatPanel.notifyRunChanged()
+                }
+            }
+            onCancel {
+                invokeLater {
+                    run.status = ChatRunStatus.CANCELLED
+                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
+                    chatPanel.notifyRunChanged()
+                }
+            }
         }
     }
 
