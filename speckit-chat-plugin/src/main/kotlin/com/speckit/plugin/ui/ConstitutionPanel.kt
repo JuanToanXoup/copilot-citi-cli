@@ -458,8 +458,9 @@ class ConstitutionPanel(
                 val dir = File(basePath, ".specify/memory")
                 dir.mkdirs()
                 val ioFile = File(dir, "discovery.md")
+                val isNew = !ioFile.exists()
                 // Ensure VFS knows about the file (create on disk if first time)
-                if (!ioFile.exists()) ioFile.writeText("")
+                if (isNew) ioFile.writeText("")
                 val vFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(ioFile) ?: return@runWriteCommandAction
                 // Write through the Document model so the Copilot agent sees the same content
                 val fdm = com.intellij.openapi.fileEditor.FileDocumentManager.getInstance()
@@ -471,6 +472,10 @@ class ConstitutionPanel(
                     // Fallback: no Document cached yet — write to disk directly
                     vFile.setBinaryContent(text.toByteArray(Charsets.UTF_8))
                 }
+                // git-add so the Copilot agent's workspace index can find the file
+                if (isNew) {
+                    gitAdd(basePath, ioFile.relativeTo(File(basePath)).path)
+                }
             } finally {
                 // Clear syncing flag on the next EDT cycle so VFS events from
                 // this write are still suppressed when they arrive asynchronously.
@@ -479,6 +484,20 @@ class ConstitutionPanel(
                     // Attach document listener now that the file exists
                     attachDocumentListener()
                 }
+            }
+        }
+    }
+
+    private fun gitAdd(basePath: String, relativePath: String) {
+        com.intellij.openapi.application.ApplicationManager.getApplication().executeOnPooledThread {
+            try {
+                ProcessBuilder("git", "add", relativePath)
+                    .directory(File(basePath))
+                    .redirectErrorStream(true)
+                    .start()
+                    .waitFor(5, java.util.concurrent.TimeUnit.SECONDS)
+            } catch (_: Exception) {
+                // Best-effort — don't block the UI if git isn't available
             }
         }
     }
