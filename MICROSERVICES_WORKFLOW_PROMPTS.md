@@ -68,13 +68,51 @@ I am building with:
 
 ---
 
-## Step 5: Tasks
+## Step 5: Validate the Plan
+
+### 5a. Checklists
+
+Run these to generate quality gates before moving to tasks:
+
+#### Test Coverage Requirements
+```
+/speckit.checklist Unit test coverage completeness — verify that requirements exist for testing every domain model, service method, API handler, error path, edge case, and repository adapter. Focus on whether the spec defines what must be tested, not how.
+```
+
+#### Domain Logic Requirements
+```
+/speckit.checklist Domain model and business rule clarity — verify that registration validation rules, password policy, token lifecycle, account states, and event publishing triggers are specified with enough precision to write deterministic unit tests against them.
+```
+
+#### Error Handling Requirements
+```
+/speckit.checklist Error path coverage — verify that all failure scenarios are specified: invalid input, duplicate email, expired tokens, deactivated accounts, downstream service failures, rate limit exceeded. Each error must have a defined response code and message.
+```
+
+### 5b. Analyze
+
+```
+/speckit.analyze
+
+Focus on:
+1. Whether every domain model and service method has a corresponding test requirement
+2. Whether error paths have equal coverage to happy paths in the specification
+3. Whether all interfaces (repository, event publisher, HTTP client) are defined as testable abstractions in the plan
+4. Whether the 100% coverage target is reflected in concrete plan details, not just stated as a goal
+5. Constitution alignment — especially test-first development and deterministic test principles
+```
+
+*(Fix any gaps the analysis surfaces before proceeding to tasks.)*
+
+---
+
+## Step 6: Tasks
 
 ```
 /speckit.tasks
 ```
 
-*(Auto-sent from plan. The agent generates tasks organized as:)*
+*(Auto-generated from plan. The agent generates tasks organized as:)*
 - *Phase 1: Setup — project scaffolding, pyproject.toml, conftest.py, coverage config*
 - *Phase 2: Foundational — domain models, repository interfaces, service interfaces, event publisher interface*
 - *Phase 3: User Stories — registration + tests, authentication + tests, profile management + tests, admin operations + tests*
@@ -82,41 +120,7 @@ I am building with:
 
 ---
 
-## Step 6: Checklists
-
-### 6a. Test Coverage Requirements
-```
-/speckit.checklist Unit test coverage completeness — verify that requirements exist for testing every domain model, service method, API handler, error path, edge case, and repository adapter. Focus on whether the spec defines what must be tested, not how.
-```
-
-### 6b. Domain Logic Requirements
-```
-/speckit.checklist Domain model and business rule clarity — verify that registration validation rules, password policy, token lifecycle, account states, and event publishing triggers are specified with enough precision to write deterministic unit tests against them.
-```
-
-### 6c. Error Handling Requirements
-```
-/speckit.checklist Error path coverage — verify that all failure scenarios are specified: invalid input, duplicate email, expired tokens, deactivated accounts, downstream service failures, rate limit exceeded. Each error must have a defined response code and message.
-```
-
----
-
-## Step 7: Analyze
-
-```
-/speckit.analyze
-
-Focus on:
-1. Whether every domain model and service method has a corresponding test task
-2. Whether error paths have equal coverage to happy paths in the task breakdown
-3. Whether all interfaces (repository, event publisher, HTTP client) are defined as testable abstractions in the plan
-4. Whether the 100% coverage target is reflected in concrete tasks, not just stated as a goal
-5. Constitution alignment — especially test-first development and deterministic test principles
-```
-
----
-
-## Step 8: Implement
+## Step 7: Implement
 
 ```
 /speckit.implement
@@ -131,24 +135,17 @@ Focus on:
 
 ---
 
-## Step 9: Tasks to Issues
-
-```
-/speckit.taskstoissues
-```
-
----
-
 ## Quick Reference
 
 | Step | Command | User Input Required? |
 |------|---------|---------------------|
 | 1 | `/speckit.constitution` | Yes — provide principles |
 | 2 | `/speckit.specify <description>` | Yes — provide feature description |
-| 3 | `/speckit.clarify` | Yes — answer up to 5 questions |
+| 3 | `/speckit.clarify` | Yes — answer questions |
 | 4 | `/speckit.plan` | Yes — provide tech stack |
-| 5 | `/speckit.tasks` | No — automatic |
-| 6 | `/speckit.checklist <domain>` | Yes — answer scoping questions |
-| 7 | `/speckit.analyze` | No — read-only report |
-| 8 | `/speckit.implement` | Maybe — checklist gate may prompt |
-| 9 | `/speckit.taskstoissues` | No — automatic |
+| 5a | `/speckit.checklist <domain>` | No — generates quality gates |
+| 5b | `/speckit.analyze` | No — read-only audit report |
+| 6 | `/speckit.tasks` | No — automatic from plan |
+| 7 | `/speckit.implement` | Maybe — checklist gate may prompt |
+
+**Commands used:** Only the 8 commands that SpecKit actually provides — 5 core (`constitution`, `specify`, `plan`, `tasks`, `implement`) and 3 optional (`clarify`, `checklist`, `analyze`).
