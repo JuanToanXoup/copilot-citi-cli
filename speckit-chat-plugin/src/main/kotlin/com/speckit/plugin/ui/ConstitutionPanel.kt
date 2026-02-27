@@ -129,6 +129,10 @@ class ConstitutionPanel(
                     }
                 })
 
+        // Listen for in-editor Document changes (typing, paste, Copilot agent edits)
+        // so the Discovery Tab stays in sync without requiring a file save.
+        attachDocumentListener()
+
         refreshTemplateList()
 
         val memFile = File(memoryFilePath)
@@ -386,6 +390,31 @@ class ConstitutionPanel(
         }
     }
 
+    // ── Document listener ─────────────────────────────────────────────────────
+
+    private val docLoadAlarm = com.intellij.util.Alarm(com.intellij.util.Alarm.ThreadToUse.SWING_THREAD, this)
+    private var docListenerAttached = false
+
+    private fun attachDocumentListener() {
+        if (docListenerAttached) return
+        // Try to attach immediately; if the file doesn't exist yet,
+        // writeMemoryFile() will retry after creating the file.
+        val vFile = LocalFileSystem.getInstance().findFileByPath(memoryFilePath) ?: return
+        val fdm = com.intellij.openapi.fileEditor.FileDocumentManager.getInstance()
+        val doc = fdm.getDocument(vFile) ?: return
+
+        doc.addDocumentListener(object : com.intellij.openapi.editor.event.DocumentListener {
+            override fun documentChanged(event: com.intellij.openapi.editor.event.DocumentEvent) {
+                if (syncing) return
+                // Debounce — the Copilot agent can fire many rapid edits.
+                // Reload the tables 300ms after the last keystroke/edit.
+                docLoadAlarm.cancelAllRequests()
+                docLoadAlarm.addRequest({ loadFromMemoryFile() }, 300)
+            }
+        }, this)
+        docListenerAttached = true
+    }
+
     // ── File I/O ─────────────────────────────────────────────────────────────
 
     private fun writeMemoryFile() {
@@ -427,7 +456,11 @@ class ConstitutionPanel(
             } finally {
                 // Clear syncing flag on the next EDT cycle so VFS events from
                 // this write are still suppressed when they arrive asynchronously.
-                invokeLater { syncing = false }
+                invokeLater {
+                    syncing = false
+                    // Attach document listener now that the file exists
+                    attachDocumentListener()
+                }
             }
         }
     }
