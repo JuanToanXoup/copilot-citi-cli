@@ -157,23 +157,40 @@ class ConstitutionPanel(
         writeMemoryFile()
     }
 
+    /**
+     * Read the Document in-memory text and update tables.
+     * Used by the DocumentListener — does NOT touch VFS or disk, so it never
+     * clobbers unsaved editor content.
+     */
+    private fun loadFromDocument() {
+        val vFile = LocalFileSystem.getInstance().findFileByPath(memoryFilePath) ?: return
+        val doc = com.intellij.openapi.fileEditor.FileDocumentManager.getInstance().getDocument(vFile) ?: return
+        applyContent(doc.text)
+    }
+
+    /**
+     * Refresh VFS from disk, then load. Used by the VFS_CHANGES listener and
+     * the initial load where the file may have been written externally.
+     */
     private fun loadFromMemoryFile() {
         val memFile = File(memoryFilePath)
-        // Refresh VFS so we pick up any disk changes (e.g. from Copilot agent writes)
         val vFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(memFile)
         val content = if (vFile != null) {
             vFile.refresh(false, false)
             val fdm = com.intellij.openapi.fileEditor.FileDocumentManager.getInstance()
-            // If the Document has unsaved external changes, reload it from disk
-            if (vFile.timeStamp != vFile.modificationStamp) {
-                fdm.reloadFiles(vFile)
-            }
             val doc = fdm.getDocument(vFile)
             doc?.text ?: if (memFile.exists()) memFile.readText() else return
         } else {
             if (!memFile.exists()) return
             memFile.readText()
         }
+        applyContent(content)
+    }
+
+    /**
+     * Parse markdown content and merge it into the UI tables.
+     */
+    private fun applyContent(content: String) {
         val rows = parseDiscovery(content)
         val grouped = rows.groupBy { it.category }
 
@@ -407,9 +424,10 @@ class ConstitutionPanel(
             override fun documentChanged(event: com.intellij.openapi.editor.event.DocumentEvent) {
                 if (syncing) return
                 // Debounce — the Copilot agent can fire many rapid edits.
-                // Reload the tables 300ms after the last keystroke/edit.
+                // Read from the Document directly (not disk) so we never
+                // clobber unsaved editor content.
                 docLoadAlarm.cancelAllRequests()
-                docLoadAlarm.addRequest({ loadFromMemoryFile() }, 300)
+                docLoadAlarm.addRequest({ loadFromDocument() }, 300)
             }
         }, this)
         docListenerAttached = true
@@ -488,7 +506,8 @@ class ConstitutionPanel(
                 }
             }
 
-            loadFromMemoryFile()
+            // Document is now in sync with disk — read from it
+            loadFromDocument()
         }
     }
 
