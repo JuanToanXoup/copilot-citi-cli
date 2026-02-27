@@ -101,7 +101,20 @@ class DiscoveryPanel(
             }
         }
 
-        add(topBar, BorderLayout.NORTH)
+        val headerPanel = JPanel(BorderLayout()).apply {
+            border = BorderFactory.createEmptyBorder(8, 12, 4, 12)
+            add(JLabel("Discovery").apply {
+                font = font.deriveFont(Font.BOLD, font.size + 2f)
+            }, BorderLayout.NORTH)
+            add(JLabel("Answer project properties to generate your project constitution.").apply {
+                foreground = JBColor.GRAY
+            }, BorderLayout.CENTER)
+        }
+        val northPanel = JPanel(BorderLayout()).apply {
+            add(headerPanel, BorderLayout.NORTH)
+            add(topBar, BorderLayout.CENTER)
+        }
+        add(northPanel, BorderLayout.NORTH)
         add(splitter, BorderLayout.CENTER)
 
         // Listen for external changes to the memory file (content changes, creation, deletion)

@@ -20,6 +20,7 @@ import java.awt.Color
 import java.awt.Component
 import java.awt.Dimension
 import java.awt.FlowLayout
+import java.awt.Font
 import java.awt.event.KeyEvent
 import javax.swing.BorderFactory
 import java.awt.event.MouseAdapter
@@ -29,6 +30,7 @@ import java.util.Date
 import javax.swing.DefaultComboBoxModel
 import javax.swing.JButton
 import javax.swing.JComboBox
+import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.KeyStroke
 import javax.swing.SwingConstants
@@ -154,7 +156,20 @@ class SessionPanel(
             border = BorderFactory.createEmptyBorder(0, 8, 8, 8)
         }
 
-        add(topPanel, BorderLayout.NORTH)
+        val headerPanel = JPanel(BorderLayout()).apply {
+            border = BorderFactory.createEmptyBorder(8, 12, 4, 12)
+            add(JLabel("Sessions").apply {
+                font = font.deriveFont(Font.BOLD, font.size + 2f)
+            }, BorderLayout.NORTH)
+            add(JLabel("Launch agents and track their sessions.").apply {
+                foreground = JBColor.GRAY
+            }, BorderLayout.CENTER)
+        }
+        val northPanel = JPanel(BorderLayout()).apply {
+            add(headerPanel, BorderLayout.NORTH)
+            add(topPanel, BorderLayout.CENTER)
+        }
+        add(northPanel, BorderLayout.NORTH)
         add(tableScrollPane, BorderLayout.CENTER)
 
         sendButton.addActionListener { sendMessage() }

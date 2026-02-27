@@ -286,7 +286,20 @@ class PipelinePanel(
             secondComponent = innerSplitter
         }
 
-        add(topBar, BorderLayout.NORTH)
+        val headerPanel = JPanel(BorderLayout()).apply {
+            border = BorderFactory.createEmptyBorder(8, 12, 4, 12)
+            add(JLabel("Pipeline").apply {
+                font = font.deriveFont(Font.BOLD, font.size + 2f)
+            }, BorderLayout.NORTH)
+            add(JLabel("Validate artifacts and run each step of the spec-driven pipeline.").apply {
+                foreground = JBColor.GRAY
+            }, BorderLayout.CENTER)
+        }
+        val northPanel = JPanel(BorderLayout()).apply {
+            add(headerPanel, BorderLayout.NORTH)
+            add(topBar, BorderLayout.CENTER)
+        }
+        add(northPanel, BorderLayout.NORTH)
         add(outerSplitter, BorderLayout.CENTER)
 
         // VFS listener — auto-refresh on file changes under specs/ or .specify/
@@ -522,11 +535,7 @@ class PipelinePanel(
     private fun autofillArgs(step: PipelineStepDef): String {
         return when (step.id) {
             "constitution" -> "Refer to the `./specify/memory/discovery.md` for project properties"
-            "specify" -> {
-                val dirName = featureList.selectedValue?.dirName ?: return ""
-                val featureName = dirName.replace(Regex("^\\d{3}-"), "").replace('-', ' ')
-                "$featureName\n100% Unit Test Case coverage for all microservices code."
-            }
+            "specify" -> "100% Unit Test Case coverage for all microservices code."
             "implement" -> "all remaining tasks"
             "taskstoissues" -> "all tasks"
             else -> ""
