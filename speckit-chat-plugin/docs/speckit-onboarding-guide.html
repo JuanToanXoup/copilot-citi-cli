@@ -9,7 +9,7 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            line-height: 1.55;
+            line-height: 1.6;
             color: #24292f;
             background: #f6f8fa;
             font-size: 15px;
@@ -17,22 +17,29 @@
 
         /* ── Hero ── */
         .hero {
-            background: linear-gradient(135deg, #0969da 0%, #1f6feb 40%, #388bfd 100%);
+            background: linear-gradient(135deg, #0c2d6b 0%, #0969da 50%, #388bfd 100%);
             color: white;
-            padding: 36px 24px 32px;
+            padding: 48px 24px 40px;
             text-align: center;
         }
         .hero h1 {
-            font-size: 2.2em;
+            font-size: 2.4em;
             font-weight: 800;
             letter-spacing: -0.5px;
-            margin-bottom: 6px;
+            margin-bottom: 10px;
         }
         .hero .subtitle {
-            font-size: 1.05em;
-            opacity: 0.9;
-            max-width: 580px;
-            margin: 0 auto 16px;
+            font-size: 1.15em;
+            opacity: 0.92;
+            max-width: 640px;
+            margin: 0 auto 8px;
+            font-weight: 400;
+        }
+        .hero .tagline {
+            font-size: 0.92em;
+            opacity: 0.7;
+            max-width: 600px;
+            margin: 0 auto 20px;
         }
         .hero .badges {
             display: flex;
@@ -41,8 +48,8 @@
             flex-wrap: wrap;
         }
         .hero .badge {
-            background: rgba(255,255,255,0.18);
-            border: 1px solid rgba(255,255,255,0.25);
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.22);
             border-radius: 20px;
             padding: 4px 14px;
             font-size: 0.8em;
@@ -51,13 +58,13 @@
 
         /* ── Container ── */
         .container {
-            max-width: 900px;
+            max-width: 920px;
             margin: 0 auto;
             padding: 0 20px;
         }
 
         /* ── Sections ── */
-        section { margin: 28px 0; }
+        section { margin: 32px 0; }
         section h2 {
             font-size: 1.35em;
             font-weight: 700;
@@ -82,7 +89,7 @@
         section p.lead {
             font-size: 0.95em;
             color: #57606a;
-            margin: 6px 0 12px;
+            margin: 6px 0 14px;
         }
 
         /* ── Cards ── */
@@ -90,13 +97,13 @@
             background: white;
             border: 1px solid #d0d7de;
             border-radius: 6px;
-            padding: 16px 20px;
+            padding: 18px 22px;
             margin: 10px 0;
             box-shadow: 0 1px 2px rgba(27,31,36,0.04);
         }
         .card h3 {
             font-size: 1em;
-            margin-bottom: 4px;
+            margin-bottom: 6px;
             color: #24292f;
         }
         .card ul, .card ol { padding-left: 20px; margin: 4px 0; }
@@ -109,6 +116,68 @@
             font-family: 'SF Mono', 'Fira Code', 'Courier New', monospace;
             color: #0550ae;
         }
+
+        /* ── Value grid ── */
+        .value-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin: 14px 0;
+        }
+        .value-card {
+            background: white;
+            border: 1px solid #d0d7de;
+            border-radius: 6px;
+            padding: 18px 20px;
+            box-shadow: 0 1px 2px rgba(27,31,36,0.04);
+        }
+        .value-card .icon {
+            display: inline-block;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: #0969da;
+            color: white;
+            text-align: center;
+            line-height: 28px;
+            font-size: 0.82em;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .value-card h3 {
+            font-size: 0.95em;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .value-card p {
+            font-size: 0.88em;
+            color: #57606a;
+            line-height: 1.5;
+        }
+
+        /* ── Problem/solution columns ── */
+        .problem-solution {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            margin: 14px 0;
+        }
+        .problem-col, .solution-col {
+            border-radius: 6px;
+            padding: 18px 20px;
+        }
+        .problem-col {
+            background: #fff5f5;
+            border: 1px solid #e8c4c4;
+        }
+        .problem-col h3 { color: #9a3333; font-size: 0.95em; margin-bottom: 8px; }
+        .problem-col li { color: #5c2020; font-size: 0.9em; margin: 5px 0; }
+        .solution-col {
+            background: #f0fff4;
+            border: 1px solid #b7ddc1;
+        }
+        .solution-col h3 { color: #1a7f37; font-size: 0.95em; margin-bottom: 8px; }
+        .solution-col li { color: #1a4d2e; font-size: 0.9em; margin: 5px 0; }
 
         /* ── Prereq grid ── */
         .prereq-grid {
@@ -172,7 +241,7 @@
             justify-content: center;
             flex-wrap: wrap;
             gap: 3px 0;
-            margin: 10px 0;
+            margin: 14px 0 6px;
             font-size: 0.84em;
             font-weight: 600;
         }
@@ -183,13 +252,33 @@
             padding: 2px 8px;
             white-space: nowrap;
         }
-        .pipeline-flow .node.start {
-            background: #0969da;
-            border-color: #0969da;
-            color: white;
-        }
+        .pipeline-flow .node.governance { background: #0969da; border-color: #0969da; color: white; }
+        .pipeline-flow .node.design { background: #8250df; border-color: #8250df; color: white; }
+        .pipeline-flow .node.validate { background: #bf8700; border-color: #bf8700; color: white; }
+        .pipeline-flow .node.deliver { background: #1a7f37; border-color: #1a7f37; color: white; }
         .pipeline-flow .arrow { color: #8b949e; padding: 0 2px; font-weight: 400; }
-        .pipeline-flow .num { font-size: 0.8em; opacity: 0.6; margin-right: 2px; }
+        .pipeline-flow .num { font-size: 0.8em; opacity: 0.7; margin-right: 2px; }
+        .pipeline-legend {
+            display: flex;
+            justify-content: center;
+            gap: 18px;
+            margin: 8px 0 4px;
+            font-size: 0.78em;
+            color: #57606a;
+        }
+        .pipeline-legend span::before {
+            content: '';
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 2px;
+            margin-right: 4px;
+            vertical-align: middle;
+        }
+        .pipeline-legend .leg-gov::before { background: #0969da; }
+        .pipeline-legend .leg-des::before { background: #8250df; }
+        .pipeline-legend .leg-val::before { background: #bf8700; }
+        .pipeline-legend .leg-del::before { background: #1a7f37; }
 
         /* ── Two-column layout ── */
         .two-col {
@@ -200,13 +289,22 @@
         }
         .two-col .card { margin: 0; }
 
+        /* ── Three-column layout ── */
+        .three-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .three-col .card { margin: 0; }
+
         /* ── Callout ── */
         .callout {
             border-left: 3px solid #0969da;
             background: #ddf4ff;
             border-radius: 0 6px 6px 0;
             padding: 10px 14px;
-            margin: 12px 0;
+            margin: 14px 0;
             font-size: 0.9em;
         }
         .callout strong { display: block; margin-bottom: 2px; }
@@ -254,6 +352,30 @@
         .btn-outline:hover { background: #ddf4ff; }
         .btn-group { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0; }
 
+        /* ── Metric strip ── */
+        .metric-strip {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin: 18px 0 10px;
+            text-align: center;
+        }
+        .metric-strip .metric {
+            display: flex;
+            flex-direction: column;
+        }
+        .metric-strip .metric .number {
+            font-size: 1.8em;
+            font-weight: 800;
+            color: #0969da;
+            line-height: 1.1;
+        }
+        .metric-strip .metric .label {
+            font-size: 0.78em;
+            color: #57606a;
+            font-weight: 500;
+        }
+
         /* ── Footer ── */
         footer {
             text-align: center;
@@ -261,7 +383,7 @@
             color: #8b949e;
             font-size: 0.85em;
             border-top: 1px solid #d0d7de;
-            margin-top: 28px;
+            margin-top: 32px;
         }
         footer a { color: #0969da; text-decoration: none; }
         footer a:hover { text-decoration: underline; }
@@ -273,46 +395,211 @@
 <div class="hero">
     <h1>Speckit Chat</h1>
     <p class="subtitle">
-        A 9-stage AI-powered specification and implementation pipeline
-        for IntelliJ, powered by GitHub Copilot Chat.
+        Your developers are already using AI to write code.
+        Speckit makes sure that code is specified, planned,
+        validated, and traceable &mdash; before it ships.
+    </p>
+    <p class="tagline">
+        An IntelliJ plugin that puts governance guardrails around
+        AI-assisted development, powered by GitHub Copilot.
     </p>
     <div class="badges">
         <span class="badge">IntelliJ 2024.3+</span>
-        <span class="badge">GitHub Copilot Required</span>
+        <span class="badge">GitHub Copilot</span>
         <span class="badge">v0.1.0</span>
     </div>
 </div>
 
 <div class="container">
 
-<!-- ═════════════════════════ WHAT IS SPECKIT? ═════════════════════════ -->
+<!-- ═══════════════════════ THE CHALLENGE ═══════════════════════ -->
 <section>
-    <h2>What is Speckit Chat?</h2>
+    <h2>The Challenge</h2>
     <p class="lead">
-        Speckit Chat is an IntelliJ plugin that brings the
-        <a href="https://github.com/github/spec-kit">Spec-Kit</a> pipeline
-        directly into your IDE. It connects to GitHub Copilot Chat in Agent mode,
-        letting you run specialized AI agents that take you from a one-line feature
-        idea all the way to implemented, tested code and GitHub issues.
+        AI-assisted development is already happening on your team.
+        The question is whether it is happening with the right
+        guardrails in place.
+    </p>
+
+    <div class="problem-solution">
+        <div class="problem-col">
+            <h3>What happens today</h3>
+            <ul>
+                <li>Developers prompt AI directly with no structured requirements &mdash; the output may work, but nobody can trace it back to a documented decision</li>
+                <li>Specs live in Confluence or Jira and go stale the moment coding starts &mdash; there is no feedback loop</li>
+                <li>Inconsistencies between requirements, design, and code surface late, during review or QA, when rework is most expensive</li>
+                <li>Engineering standards and architecture principles are enforced manually and unevenly across teams</li>
+            </ul>
+        </div>
+        <div class="solution-col">
+            <h3>What Speckit changes</h3>
+            <ul>
+                <li>Every feature follows the same governed pipeline: specify, plan, validate, then implement &mdash; in that order</li>
+                <li>Specs, plans, tasks, and checklists are versioned artifacts in the repo, not external documents that drift</li>
+                <li>An automated analysis pass catches inconsistencies across all artifacts <em>before</em> a single line of code is generated</li>
+                <li>A project constitution defines non-negotiable principles that every agent checks against &mdash; violations are flagged as critical</li>
+            </ul>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════════ VALUE ═══════════════════════ -->
+<section>
+    <h2>What You Gain</h2>
+
+    <div class="value-grid">
+        <div class="value-card">
+            <div class="icon">1</div>
+            <h3>Confidence in AI Output</h3>
+            <p>A project constitution encodes your engineering standards.
+               Every agent &mdash; from planning to implementation &mdash;
+               checks its work against those standards. Constitution
+               violations are flagged as critical before code is generated,
+               giving leadership assurance that AI output meets your bar.</p>
+        </div>
+        <div class="value-card">
+            <div class="icon">2</div>
+            <h3>Auditability</h3>
+            <p>Every pipeline stage produces a versioned, in-repo artifact:
+               specs, plans, data models, task lists, checklists, and analysis
+               reports. You can trace any line of generated code back to the
+               requirement that justified it &mdash; critical for regulated
+               environments and architecture reviews.</p>
+        </div>
+        <div class="value-card">
+            <div class="icon">3</div>
+            <h3>Less Rework, Earlier Catches</h3>
+            <p>Clarify finds requirement gaps before design starts.
+               Analyze catches cross-artifact inconsistencies before coding.
+               Checklists gate implementation until criteria are met.
+               Defects found at the spec stage cost a fraction of defects
+               found in code review or production.</p>
+        </div>
+        <div class="value-card">
+            <div class="icon">4</div>
+            <h3>Consistent Process at Scale</h3>
+            <p>Every feature on every team follows the same pipeline.
+               Agents hand off context automatically &mdash; no manual
+               copy-pasting between documents, no steps skipped because
+               someone was in a hurry. The process is encoded, not
+               just documented.</p>
+        </div>
+    </div>
+
+    <div class="metric-strip">
+        <div class="metric">
+            <span class="number">9</span>
+            <span class="label">Specialized Agents</span>
+        </div>
+        <div class="metric">
+            <span class="number">6</span>
+            <span class="label">Quality Gates</span>
+        </div>
+        <div class="metric">
+            <span class="number">0</span>
+            <span class="label">Manual Handoffs</span>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════════ HOW IT WORKS ═══════════════════════ -->
+<section>
+    <h2>How It Works</h2>
+    <p class="lead">
+        The pipeline moves a feature through four phases &mdash; Governance,
+        Design, Validation, and Delivery &mdash; with each agent producing
+        artifacts that feed the next.
     </p>
 
     <div class="pipeline-flow">
-        <span class="node start"><span class="num">1.</span>Constitution</span><span class="arrow">&rarr;</span>
-        <span class="node"><span class="num">2.</span>Specify</span><span class="arrow">&rarr;</span>
-        <span class="node"><span class="num">3.</span>Clarify</span><span class="arrow">&rarr;</span>
-        <span class="node"><span class="num">4.</span>Plan</span><span class="arrow">&rarr;</span>
-        <span class="node"><span class="num">5.</span>Tasks</span><span class="arrow">&rarr;</span>
-        <span class="node"><span class="num">6.</span>Checklist</span><span class="arrow">&rarr;</span>
-        <span class="node"><span class="num">7.</span>Analyze</span><span class="arrow">&rarr;</span>
-        <span class="node"><span class="num">8.</span>Implement</span><span class="arrow">&rarr;</span>
-        <span class="node"><span class="num">9.</span>Issues</span>
+        <span class="node governance"><span class="num">1.</span>Constitution</span><span class="arrow">&rarr;</span>
+        <span class="node design"><span class="num">2.</span>Specify</span><span class="arrow">&rarr;</span>
+        <span class="node design"><span class="num">3.</span>Clarify</span><span class="arrow">&rarr;</span>
+        <span class="node design"><span class="num">4.</span>Plan</span><span class="arrow">&rarr;</span>
+        <span class="node validate"><span class="num">5.</span>Tasks</span><span class="arrow">&rarr;</span>
+        <span class="node validate"><span class="num">6.</span>Checklist</span><span class="arrow">&rarr;</span>
+        <span class="node validate"><span class="num">7.</span>Analyze</span><span class="arrow">&rarr;</span>
+        <span class="node deliver"><span class="num">8.</span>Implement</span><span class="arrow">&rarr;</span>
+        <span class="node deliver"><span class="num">9.</span>Issues</span>
     </div>
-    <p style="text-align: center; color: #8b949e; font-size: 0.82em;">
-        Each step produces artifacts that feed into the next. Auto-handoffs keep the flow moving.
-    </p>
+    <div class="pipeline-legend">
+        <span class="leg-gov">Governance</span>
+        <span class="leg-des">Design</span>
+        <span class="leg-val">Validation</span>
+        <span class="leg-del">Delivery</span>
+    </div>
+
+    <div class="three-col">
+        <div class="card">
+            <h3>Governance &amp; Design</h3>
+            <p style="font-size:0.88em; color:#57606a;">
+                Establish project principles, capture requirements in a structured
+                spec, resolve ambiguities, and produce a technical plan with
+                data models and contracts.
+            </p>
+        </div>
+        <div class="card">
+            <h3>Validation</h3>
+            <p style="font-size:0.88em; color:#57606a;">
+                Break the plan into dependency-ordered tasks, generate domain
+                checklists that gate implementation, and run a 6-pass consistency
+                analysis across all artifacts.
+            </p>
+        </div>
+        <div class="card">
+            <h3>Delivery</h3>
+            <p style="font-size:0.88em; color:#57606a;">
+                Execute tasks phase-by-phase with TDD and checklist gating.
+                Completed work is tracked in tasks.md. Convert final tasks
+                into GitHub issues for team coordination.
+            </p>
+        </div>
+    </div>
+
+    <div class="callout">
+        <strong>Auto-Handoffs</strong>
+        Agents pass context automatically: Specify &rarr; Clarify (if unresolved markers),
+        Plan &rarr; Tasks + Checklist, Tasks &rarr; Analyze + Implement.
+        Each handoff carries the full artifact chain forward.
+    </div>
 </section>
 
-<!-- ═══════════════════════ PREREQUISITES ═══════════════════════ -->
+<!-- ═══════════════════════ PLUGIN TABS ═══════════════════════ -->
+<section>
+    <h2>What You Get</h2>
+    <p class="lead">
+        Four integrated views in the Speckit Chat tool window, each designed
+        for a different stage of your workflow.
+    </p>
+
+    <table class="feature-table">
+        <thead><tr><th>Tab</th><th>Purpose</th><th>Key Actions</th></tr></thead>
+        <tbody>
+            <tr>
+                <td><strong>Onboarding</strong></td>
+                <td>Guided introduction to each pipeline stage with an interactive demo</td>
+                <td>Init Speckit, explore features, try the pipeline</td>
+            </tr>
+            <tr>
+                <td><strong>Discovery</strong></td>
+                <td>Establish project properties and generate the governance constitution</td>
+                <td>Answer prompts, generate <code>constitution.md</code></td>
+            </tr>
+            <tr>
+                <td><strong>Pipeline</strong></td>
+                <td>Validate artifacts and run each stage step-by-step per feature</td>
+                <td>Select feature, check prerequisites, run agents</td>
+            </tr>
+            <tr>
+                <td><strong>Sessions</strong></td>
+                <td>Direct agent execution with full control over arguments and tracking</td>
+                <td>Select agent, enter prompt, monitor runs</td>
+            </tr>
+        </tbody>
+    </table>
+</section>
+
+<!-- ═══════════════════════ GETTING STARTED ═══════════════════════ -->
 <section>
     <h2><span class="step-num">1</span> Prerequisites</h2>
     <div class="prereq-grid">
@@ -335,7 +622,6 @@
     </div>
 </section>
 
-<!-- ═══════════════════════ INSTALL PLUGIN ═══════════════════════ -->
 <section>
     <h2><span class="step-num">2</span> Install the Plugin</h2>
     <div class="steps">
@@ -355,7 +641,7 @@
         </div>
         <div class="step">
             <h4>Select the ZIP file</h4>
-            <p>Navigate to the downloaded <code>Speckit Chat-0.1.0.zip</code> and click <strong>Open</strong>.</p>
+            <p>Navigate to the downloaded <code>Speckit-Chat-0.1.0.zip</code> and click <strong>Open</strong>.</p>
             <img src="install-step3-select-zip.png" alt="File picker selecting Speckit Chat ZIP" class="step-screenshot">
         </div>
         <div class="step">
@@ -366,11 +652,13 @@
     </div>
 </section>
 
-<!-- ═══════════════════════ INIT SPECKIT ═══════════════════════ -->
 <section>
-    <h2><span class="step-num">3</span> Init Speckit in Your Project</h2>
+    <h2><span class="step-num">3</span> Initialize Your Project</h2>
     <p class="lead">
-        The plugin needs Speckit agent definitions in your project (<code>.github/agents/</code> and <code>.specify/</code>).
+        Speckit needs agent definitions and templates in your repository.
+        Initialization downloads the latest
+        <a href="https://github.com/github/spec-kit">Spec-Kit</a> release
+        and sets up the required directory structure.
     </p>
 
     <div class="two-col">
@@ -393,46 +681,45 @@
     </div>
 
     <div class="callout">
-        <strong>What gets downloaded?</strong>
-        The latest <a href="https://github.com/github/spec-kit">Spec-Kit</a> release:
+        <strong>What gets installed?</strong>
         <code>.github/agents/*.agent.md</code> (9 agent definitions),
         <code>.github/prompts/*.prompt.md</code> (slash command mappings), and
         <code>.specify/</code> (shell scripts, templates, memory).
+        All files are version-controlled with your project.
     </div>
 </section>
 
-<!-- ═══════════════════════ USING THE PLUGIN ═══════════════════════ -->
+<!-- ═══════════════════════ FIRST RUN ═══════════════════════ -->
 <section>
-    <h2><span class="step-num">4</span> Using the Plugin</h2>
-
-    <table class="feature-table">
-        <thead><tr><th>Tab</th><th>Purpose</th></tr></thead>
-        <tbody>
-            <tr><td><strong>Sessions</strong></td><td>Select an agent, enter arguments, send prompts to Copilot Chat in Agent mode. Track runs with status, duration, and session IDs.</td></tr>
-            <tr><td><strong>Discovery</strong></td><td>Run the Constitution agent to establish or update project engineering principles.</td></tr>
-            <tr><td><strong>Specify</strong></td><td>Quick-launch the Specify agent with a feature description to kick off the pipeline.</td></tr>
-            <tr><td><strong>Onboarding</strong></td><td>Welcome page with Init Speckit, feature overview, and documentation links.</td></tr>
-        </tbody>
-    </table>
+    <h2><span class="step-num">4</span> Your First Pipeline Run</h2>
+    <p class="lead">
+        The recommended starting point is to establish your project
+        constitution, then specify your first feature.
+    </p>
 
     <div class="card">
-        <h3>Running Your First Agent</h3>
+        <h3>Recommended Workflow</h3>
         <div class="steps">
             <div class="step">
-                <h4>Open the Sessions tab</h4>
-                <p>The agent dropdown lists all available agents from <code>.github/agents/</code> plus bundled defaults.</p>
+                <h4>Establish governance</h4>
+                <p>Open the <strong>Discovery</strong> tab, answer the project property questions,
+                   and run the Constitution agent to generate <code>constitution.md</code>.</p>
             </div>
             <div class="step">
-                <h4>Select an agent</h4>
-                <p>Start with <strong>constitution</strong> to establish project principles, then <strong>specify</strong> to create your first feature spec.</p>
+                <h4>Specify a feature</h4>
+                <p>In the <strong>Sessions</strong> tab, select the <strong>specify</strong> agent
+                   and describe your feature in natural language. Speckit creates a branch,
+                   feature directory, and structured spec.</p>
             </div>
             <div class="step">
-                <h4>Enter arguments and send</h4>
-                <p>Type your input and click send (or Ctrl+Enter). The prompt is sent to Copilot Chat in Agent mode.</p>
+                <h4>Walk the pipeline</h4>
+                <p>Open the <strong>Pipeline</strong> tab, select your feature, and run each
+                   step in order. Prerequisites are validated before each stage.</p>
             </div>
             <div class="step">
-                <h4>Track progress</h4>
-                <p>The run table shows status, duration, branch, and session ID. Double-click a row to switch to that Copilot Chat session.</p>
+                <h4>Monitor progress</h4>
+                <p>The <strong>Sessions</strong> tab tracks every run with status, duration,
+                   branch, and session ID. Double-click a row to open that Copilot Chat session.</p>
             </div>
         </div>
     </div>
@@ -440,7 +727,7 @@
 
 <!-- ═══════════════════════ AGENTS REFERENCE ═══════════════════════ -->
 <section>
-    <h2><span class="step-num">5</span> Agent Reference</h2>
+    <h2>Agent Reference</h2>
 
     <table class="feature-table">
         <thead><tr><th>Agent</th><th>Purpose</th><th>Requires</th><th>Produces</th></tr></thead>
@@ -450,34 +737,29 @@
             <tr><td><code>clarify</code></td><td>Resolve underspecified areas through targeted questions</td><td><code>spec.md</code></td><td>Updated <code>spec.md</code></td></tr>
             <tr><td><code>plan</code></td><td>Generate technical design with architecture and data models</td><td><code>spec.md</code>, <code>constitution.md</code></td><td><code>plan.md</code>, <code>research.md</code>, <code>data-model.md</code>, <code>contracts/</code></td></tr>
             <tr><td><code>tasks</code></td><td>Break plan into dependency-ordered, phased task list</td><td><code>plan.md</code>, <code>spec.md</code></td><td><code>tasks.md</code></td></tr>
-            <tr><td><code>checklist</code></td><td>Generate requirement checklists that gate implementation</td><td><code>spec.md</code></td><td><code>checklists/[domain].md</code></td></tr>
-            <tr><td><code>analyze</code></td><td>Read-only cross-artifact consistency check</td><td><code>tasks.md</code>, <code>spec.md</code>, <code>plan.md</code>, <code>constitution.md</code></td><td>Report (stdout only)</td></tr>
-            <tr><td><code>implement</code></td><td>Execute tasks phase-by-phase with TDD and checklist gating</td><td><code>tasks.md</code>, <code>plan.md</code>, checklists</td><td>Source code, updated <code>tasks.md</code></td></tr>
-            <tr><td><code>taskstoissues</code></td><td>Convert tasks into GitHub issues (one per task)</td><td><code>tasks.md</code>, GitHub remote</td><td>GitHub issues</td></tr>
+            <tr><td><code>checklist</code></td><td>Generate domain checklists that gate implementation</td><td><code>spec.md</code></td><td><code>checklists/[domain].md</code></td></tr>
+            <tr><td><code>analyze</code></td><td>Read-only 6-pass consistency analysis across all artifacts</td><td><code>tasks.md</code>, <code>spec.md</code>, <code>plan.md</code>, <code>constitution.md</code></td><td>Findings report (read-only)</td></tr>
+            <tr><td><code>implement</code></td><td>Execute tasks with TDD and checklist gating</td><td><code>tasks.md</code>, <code>plan.md</code>, checklists</td><td>Source code, updated <code>tasks.md</code></td></tr>
+            <tr><td><code>taskstoissues</code></td><td>Convert tasks into GitHub issues for team coordination</td><td><code>tasks.md</code>, GitHub remote</td><td>GitHub issues with labels and dependency links</td></tr>
         </tbody>
     </table>
-
-    <div class="callout">
-        <strong>Auto-Handoffs:</strong>
-        Specify &rarr; Clarify (if unresolved markers),
-        Plan &rarr; Tasks + Checklist,
-        Tasks &rarr; Analyze + Implement.
-    </div>
 </section>
 
 <!-- ═══════════════════════ CUSTOMIZATION ═══════════════════════ -->
 <section>
-    <h2><span class="step-num">6</span> Customization</h2>
+    <h2>Customization</h2>
     <div class="two-col">
         <div class="card">
             <h3>Override Bundled Agents</h3>
             <p>Place custom <code>.agent.md</code> files in <code>.github/agents/</code>.
-            Project-level files take priority over bundled defaults.</p>
+            Project-level files take priority over bundled defaults, allowing
+            teams to tailor agent behavior per repository.</p>
         </div>
         <div class="card">
             <h3>Refresh Agents</h3>
             <p>Click the <strong>&hellip;</strong> menu in the Sessions tab and select
-            <strong>Refresh Agents</strong> to reload without restarting.</p>
+            <strong>Refresh Agents</strong> to reload definitions without restarting.
+            Re-run <strong>Init Speckit</strong> to pull the latest upstream release.</p>
         </div>
     </div>
 </section>
