@@ -69,7 +69,7 @@ class SpeckitChatPanel(
             margin = java.awt.Insets(6, 8, 6, 8)
         }
         sendButton = JButton(com.intellij.icons.AllIcons.Actions.Execute)
-        moreButton = JButton(com.intellij.icons.AllIcons.Actions.More).apply {
+        moreButton = JButton(javax.swing.ImageIcon(javaClass.getResource("/icons/speckit-menu.png"))).apply {
             toolTipText = "More actions"
             addActionListener { e ->
                 val popup = javax.swing.JPopupMenu().apply {
