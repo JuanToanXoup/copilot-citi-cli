@@ -155,8 +155,16 @@ class ConstitutionPanel(
 
     private fun loadFromMemoryFile() {
         val memFile = File(memoryFilePath)
-        if (!memFile.exists()) return
-        val content = memFile.readText()
+        // Read from Document model (captures unsaved in-memory edits from Copilot agent),
+        // falling back to disk for external writes.
+        val vFile = LocalFileSystem.getInstance().findFileByIoFile(memFile)
+        val content = if (vFile != null) {
+            val doc = com.intellij.openapi.fileEditor.FileDocumentManager.getInstance().getDocument(vFile)
+            doc?.text ?: if (memFile.exists()) memFile.readText() else return
+        } else {
+            if (!memFile.exists()) return
+            memFile.readText()
+        }
         val rows = parseDiscovery(content)
         val grouped = rows.groupBy { it.category }
 
@@ -409,12 +417,23 @@ class ConstitutionPanel(
     // ── Disk refresh ─────────────────────────────────────────────────────────
 
     private fun refreshFromDisk() {
-        com.intellij.openapi.application.ApplicationManager.getApplication().executeOnPooledThread {
-            val memFile = File(memoryFilePath)
-            if (!memFile.exists()) return@executeOnPooledThread
-            // Force VFS to see external changes
-            LocalFileSystem.getInstance().refreshAndFindFileByIoFile(memFile)
-            invokeLater { loadFromMemoryFile() }
+        invokeLater {
+            // Flush any unsaved Document edits (from Copilot agent) to disk
+            val vFile = LocalFileSystem.getInstance().findFileByPath(memoryFilePath)
+            if (vFile != null) {
+                val fdm = com.intellij.openapi.fileEditor.FileDocumentManager.getInstance()
+                val doc = fdm.getDocument(vFile)
+                if (doc != null && fdm.isDocumentUnsaved(doc)) {
+                    fdm.saveDocument(doc)
+                }
+            }
+
+            com.intellij.openapi.application.ApplicationManager.getApplication().executeOnPooledThread {
+                val memFile = File(memoryFilePath)
+                if (!memFile.exists()) return@executeOnPooledThread
+                LocalFileSystem.getInstance().refreshAndFindFileByIoFile(memFile)
+                invokeLater { loadFromMemoryFile() }
+            }
         }
     }
 
@@ -424,9 +443,10 @@ class ConstitutionPanel(
         val chatService = project.getService(CopilotChatService::class.java) ?: return
         val dataContext = SimpleDataContext.getProjectContext(project)
         val prompt = "Using your tools and this project as your source of truth, " +
-            "update only the \"$category\" section in the `.specify/memory/discovery.md` YAML file " +
-            "with your answers and evidence of your answer. " +
-            "If you cannot find concrete evidence for an attribute, leave its value as an empty string. " +
+            "update only the \"$category\" section in the `.specify/memory/discovery.md` file " +
+            "with your answers. The file uses `## Category` headings and `- Attribute = Answer` bullet lines. " +
+            "Keep this exact format — do not change delimiters or structure. Example: `- Service name = order-service`. " +
+            "If you cannot find concrete evidence for an attribute, leave the value empty after the `=`. " +
             "Do not write \"Unknown\" or guess."
 
         chatService.query(dataContext) {
@@ -442,9 +462,10 @@ class ConstitutionPanel(
         val chatService = project.getService(CopilotChatService::class.java) ?: return
         val dataContext = SimpleDataContext.getProjectContext(project)
         val prompt = "Using your tools and this project as your source of truth, " +
-            "update the `.specify/memory/discovery.md` YAML file " +
-            "with your answers and evidence of your answer. " +
-            "If you cannot find concrete evidence for an attribute, leave its value as an empty string. " +
+            "update the `.specify/memory/discovery.md` file " +
+            "with your answers. The file uses `## Category` headings and `- Attribute = Answer` bullet lines. " +
+            "Keep this exact format — do not change delimiters or structure. Example: `- Service name = order-service`. " +
+            "If you cannot find concrete evidence for an attribute, leave the value empty after the `=`. " +
             "Do not write \"Unknown\" or guess."
 
         chatService.query(dataContext) {
