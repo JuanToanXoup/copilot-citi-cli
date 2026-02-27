@@ -690,6 +690,27 @@ class PipelinePanel(
             content.add(sectionHeader("Outputs:"))
             for (result in state.outputResults) {
                 content.add(checkResultLabel(result))
+
+                // For the checklist step, list individual files under the directory output
+                if (step.id == "checklist" && result.artifact.isDirectory && result.exists && result.resolvedFile != null) {
+                    val files = result.resolvedFile.listFiles()
+                        ?.filter { it.isFile && it.extension == "md" }
+                        ?.sortedBy { it.name }
+                        ?: emptyList()
+                    for (file in files) {
+                        val fileLabel = JLabel("      ${file.name}").apply {
+                            alignmentX = Component.LEFT_ALIGNMENT
+                            foreground = JBColor(Color(0, 128, 0), Color(80, 200, 80))
+                            cursor = java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR)
+                            addMouseListener(object : java.awt.event.MouseAdapter() {
+                                override fun mouseClicked(e: java.awt.event.MouseEvent) {
+                                    openFileInEditor(file)
+                                }
+                            })
+                        }
+                        content.add(fileLabel)
+                    }
+                }
             }
             content.add(verticalSpacer(8))
         }
