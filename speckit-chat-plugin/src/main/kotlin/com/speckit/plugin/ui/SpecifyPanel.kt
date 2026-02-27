@@ -48,7 +48,8 @@ class SpecifyPanel(
         val label: String,
         val isDirectory: Boolean = false,
         val requireNonEmpty: Boolean = false,
-        val isRepoRelative: Boolean = false
+        val isRepoRelative: Boolean = false,
+        val altRelativePath: String? = null
     )
 
     data class CheckResult(val artifact: ArtifactCheck, val exists: Boolean, val detail: String)
@@ -106,7 +107,8 @@ class SpecifyPanel(
             description = "Feature spec from natural language description.",
             isOptional = false,
             prerequisites = listOf(
-                ArtifactCheck(".specify/scripts/bash/create-new-feature.sh", "create-new-feature.sh", isRepoRelative = true),
+                ArtifactCheck(".specify/scripts/bash/create-new-feature.sh", "create-new-feature script", isRepoRelative = true,
+                    altRelativePath = ".specify/scripts/powershell/create-new-feature.ps1"),
                 ArtifactCheck(".specify/templates/spec-template.md", "spec-template.md", isRepoRelative = true)
             ),
             outputs = listOf(
@@ -134,7 +136,8 @@ class SpecifyPanel(
             prerequisites = listOf(
                 ArtifactCheck("spec.md", "spec.md"),
                 ArtifactCheck(".specify/memory/constitution.md", "constitution.md", isRepoRelative = true),
-                ArtifactCheck(".specify/scripts/bash/setup-plan.sh", "setup-plan.sh", isRepoRelative = true),
+                ArtifactCheck(".specify/scripts/bash/setup-plan.sh", "setup-plan script", isRepoRelative = true,
+                    altRelativePath = ".specify/scripts/powershell/setup-plan.ps1"),
                 ArtifactCheck(".specify/templates/plan-template.md", "plan-template.md", isRepoRelative = true)
             ),
             outputs = listOf(
@@ -348,10 +351,15 @@ class SpecifyPanel(
                 } else {
                     File(entry.path, artifact.relativePath)
                 }
-                if (artifact.isDirectory) {
-                    file.isDirectory && (!artifact.requireNonEmpty || (file.listFiles()?.isNotEmpty() == true))
+                val effectiveFile = if (!file.exists() && artifact.altRelativePath != null) {
+                    if (artifact.isRepoRelative) File(basePath, artifact.altRelativePath) else File(entry.path, artifact.altRelativePath)
                 } else {
-                    file.isFile
+                    file
+                }
+                if (artifact.isDirectory) {
+                    effectiveFile.isDirectory && (!artifact.requireNonEmpty || (effectiveFile.listFiles()?.isNotEmpty() == true))
+                } else {
+                    effectiveFile.isFile
                 }
             }
             if (allPresent) completed++
@@ -368,27 +376,39 @@ class SpecifyPanel(
     // ── Artifact checking ────────────────────────────────────────────────────
 
     private fun checkArtifact(artifact: ArtifactCheck, paths: FeaturePaths): CheckResult {
-        val resolvedPath = if (artifact.isRepoRelative) {
-            File(paths.basePath, artifact.relativePath)
+        val resolvedPath = resolveArtifactFile(artifact.relativePath, artifact.isRepoRelative, paths)
+            ?: return CheckResult(artifact, false, "no feature dir")
+
+        // Try alternative path if primary doesn't exist
+        val effectivePath = if (!resolvedPath.exists() && artifact.altRelativePath != null) {
+            resolveArtifactFile(artifact.altRelativePath, artifact.isRepoRelative, paths) ?: resolvedPath
         } else {
-            val featureDir = paths.featureDir ?: return CheckResult(artifact, false, "no feature dir")
-            File(featureDir, artifact.relativePath)
+            resolvedPath
         }
 
         if (artifact.isDirectory) {
-            if (!resolvedPath.isDirectory) return CheckResult(artifact, false, "missing")
-            val count = resolvedPath.listFiles()?.size ?: 0
+            if (!effectivePath.isDirectory) return CheckResult(artifact, false, "missing")
+            val count = effectivePath.listFiles()?.size ?: 0
             if (artifact.requireNonEmpty && count == 0) return CheckResult(artifact, false, "empty dir")
             return CheckResult(artifact, true, "$count file(s)")
         }
 
-        if (!resolvedPath.isFile) return CheckResult(artifact, false, "missing")
-        val size = resolvedPath.length()
+        if (!effectivePath.isFile) return CheckResult(artifact, false, "missing")
+        val size = effectivePath.length()
         val detail = when {
             size < 1024 -> "${size} B"
             else -> String.format("%.1f KB", size / 1024.0)
         }
         return CheckResult(artifact, true, detail)
+    }
+
+    private fun resolveArtifactFile(relativePath: String, isRepoRelative: Boolean, paths: FeaturePaths): File? {
+        return if (isRepoRelative) {
+            File(paths.basePath, relativePath)
+        } else {
+            val featureDir = paths.featureDir ?: return null
+            File(featureDir, relativePath)
+        }
     }
 
     // ── Status derivation ────────────────────────────────────────────────────
