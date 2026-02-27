@@ -17,5 +17,11 @@
                     icon="/icons/speckit.png"
                     factoryClass="com.speckit.plugin.ui.SubagentConsoleFactory"
                     canCloseContents="true"/>
+        <postStartupActivity
+            implementation="com.speckit.plugin.tools.IssueToolInstaller"/>
+
+        <applicationService serviceImplementation="com.speckit.plugin.persistence.UserDatabaseService"/>
+        <projectService serviceImplementation="com.speckit.plugin.persistence.SessionDatabaseService"/>
+        <projectService serviceImplementation="com.speckit.plugin.persistence.SessionPersistenceManager"/>
     </extensions>
 </idea-plugin>

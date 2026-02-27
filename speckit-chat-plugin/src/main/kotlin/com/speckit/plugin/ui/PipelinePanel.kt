@@ -20,6 +20,7 @@ import com.intellij.ui.OnePixelSplitter
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
+import com.speckit.plugin.persistence.SessionPersistenceManager
 import com.speckit.plugin.tools.ResourceLoader
 import java.awt.BorderLayout
 import java.awt.Color
@@ -44,7 +45,8 @@ import javax.swing.SwingConstants
 class PipelinePanel(
     private val project: Project,
     parentDisposable: Disposable,
-    private val chatPanel: SessionPanel
+    private val chatPanel: SessionPanel,
+    private val persistenceManager: SessionPersistenceManager? = null
 ) : JPanel(BorderLayout()), Disposable {
 
     // ── Data model ───────────────────────────────────────────────────────────
@@ -225,7 +227,7 @@ class PipelinePanel(
         ),
         PipelineStepDef(
             number = 9, id = "taskstoissues", name = "Tasks \u2192 Issues",
-            description = "Convert tasks into GitHub issues (requires GitHub remote).",
+            description = "Convert tasks into issues (GitHub, Bitbucket, or GitLab).",
             isOptional = false,
             prerequisites = listOf(
                 ArtifactCheck("tasks.md", "tasks.md")
@@ -934,6 +936,7 @@ class PipelinePanel(
                         if (selected != null) updateDetailPanel(selected)
                     }
                 }
+                persistenceManager?.createRun(sessionId, run.agent, run.prompt, run.branch, run.startTimeMillis)
             }
 
             onComplete {
@@ -945,6 +948,7 @@ class PipelinePanel(
                     val selected = stepList.selectedValue
                     if (selected != null) updateDetailPanel(selected)
                 }
+                run.sessionId?.let { persistenceManager?.completeRun(it, System.currentTimeMillis() - run.startTimeMillis) }
             }
 
             onError { message, _, _, _, _ ->
@@ -956,6 +960,7 @@ class PipelinePanel(
                     val selected = stepList.selectedValue
                     if (selected != null) updateDetailPanel(selected)
                 }
+                run.sessionId?.let { persistenceManager?.failRun(it, System.currentTimeMillis() - run.startTimeMillis, message) }
             }
 
             onCancel {
@@ -966,6 +971,7 @@ class PipelinePanel(
                     val selected = stepList.selectedValue
                     if (selected != null) updateDetailPanel(selected)
                 }
+                run.sessionId?.let { persistenceManager?.cancelRun(it, System.currentTimeMillis() - run.startTimeMillis) }
             }
         }
     }
