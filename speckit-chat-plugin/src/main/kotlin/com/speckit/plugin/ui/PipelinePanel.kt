@@ -61,6 +61,15 @@ class PipelinePanel(
 
     data class CheckResult(val artifact: ArtifactCheck, val exists: Boolean, val detail: String, val resolvedFile: File? = null)
 
+    data class ChecklistStatus(
+        val fileName: String,
+        val total: Int,
+        val completed: Int,
+        val file: File
+    ) {
+        val isComplete get() = completed >= total
+    }
+
     data class PipelineStepDef(
         val number: Int,
         val id: String,
@@ -242,6 +251,7 @@ class PipelinePanel(
 
     @Volatile private var currentPaths: FeaturePaths? = null
     @Volatile private var currentBranch: String = ""
+    @Volatile private var lastImplementRun: ChatRun? = null
 
     // ── Init ─────────────────────────────────────────────────────────────────
 
@@ -431,6 +441,34 @@ class PipelinePanel(
         }
     }
 
+    // ── Checklist parsing ─────────────────────────────────────────────────────
+
+    private fun parseChecklists(paths: FeaturePaths): List<ChecklistStatus> {
+        val featureDir = paths.featureDir ?: return emptyList()
+        val checklistsDir = File(featureDir, "checklists")
+        if (!checklistsDir.isDirectory) return emptyList()
+
+        val completedPattern = Regex("""^- \[[xX]]""")
+        val incompletePattern = Regex("""^- \[ ]""")
+
+        return checklistsDir.listFiles()
+            ?.filter { it.isFile && it.extension == "md" }
+            ?.map { file ->
+                var completed = 0
+                var total = 0
+                file.forEachLine { line ->
+                    val trimmed = line.trimStart()
+                    when {
+                        completedPattern.containsMatchIn(trimmed) -> { completed++; total++ }
+                        incompletePattern.containsMatchIn(trimmed) -> { total++ }
+                    }
+                }
+                ChecklistStatus(file.name, total, completed, file)
+            }
+            ?.sortedBy { it.fileName }
+            ?: emptyList()
+    }
+
     // ── Status derivation ────────────────────────────────────────────────────
 
     private fun deriveStatus(step: PipelineStepDef, paths: FeaturePaths): StepStatus {
@@ -599,6 +637,59 @@ class PipelinePanel(
             content.add(verticalSpacer(8))
         }
 
+        // Checklists (implement step only)
+        if (step.id == "implement") {
+            val paths = currentPaths
+            if (paths != null) {
+                val checklists = parseChecklists(paths)
+                if (checklists.isNotEmpty()) {
+                    val totalItems = checklists.sumOf { it.total }
+                    val completedItems = checklists.sumOf { it.completed }
+                    content.add(sectionHeader("Checklists:  $completedItems/$totalItems complete"))
+
+                    val greenColor = JBColor(Color(0, 128, 0), Color(80, 200, 80))
+                    val orangeColor = JBColor(Color(200, 100, 0), Color(255, 160, 60))
+
+                    for (cl in checklists) {
+                        val row = JPanel(FlowLayout(FlowLayout.LEFT, 4, 0)).apply {
+                            isOpaque = false
+                            alignmentX = Component.LEFT_ALIGNMENT
+                        }
+                        val cb = javax.swing.JCheckBox().apply {
+                            isSelected = cl.isComplete
+                            isEnabled = false
+                        }
+                        row.add(cb)
+                        val label = JLabel("${cl.fileName}  (${cl.completed}/${cl.total})").apply {
+                            foreground = if (cl.isComplete) greenColor else orangeColor
+                            cursor = java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR)
+                            addMouseListener(object : java.awt.event.MouseAdapter() {
+                                override fun mouseClicked(e: java.awt.event.MouseEvent) {
+                                    openFileInEditor(cl.file)
+                                }
+                            })
+                        }
+                        row.add(label)
+                        content.add(row)
+                    }
+                    content.add(verticalSpacer(8))
+                }
+            }
+        }
+
+        // "Yes, proceed" reply button (implement step, running with session)
+        val implRun = lastImplementRun
+        if (step.id == "implement" && implRun != null
+            && implRun.status == ChatRunStatus.RUNNING && implRun.sessionId != null) {
+
+            val replyButton = JButton("Yes, proceed with implementation").apply {
+                alignmentX = Component.LEFT_ALIGNMENT
+                addActionListener { replyToSession(implRun.sessionId!!, "yes, proceed with implementation") }
+            }
+            content.add(replyButton)
+            content.add(verticalSpacer(8))
+        }
+
         // Hands off to
         if (step.handsOffTo.isNotEmpty()) {
             content.add(JLabel("Hands off to \u2192 ${step.handsOffTo.joinToString(", ")}").apply {
@@ -717,6 +808,10 @@ class PipelinePanel(
         )
         chatPanel.registerRun(run)
 
+        if (step.id == "implement") {
+            lastImplementRun = run
+        }
+
         chatService.query(dataContext) {
             withInput(prompt)
             withAgentMode()
@@ -725,6 +820,11 @@ class PipelinePanel(
                 invokeLater {
                     run.sessionId = sessionId
                     chatPanel.notifyRunChanged()
+                    // Refresh detail panel so reply button appears once session is available
+                    if (step.id == "implement") {
+                        val selected = stepList.selectedValue
+                        if (selected != null) updateDetailPanel(selected)
+                    }
                 }
             }
 
@@ -734,6 +834,8 @@ class PipelinePanel(
                     run.durationMs = System.currentTimeMillis() - run.startTimeMillis
                     chatPanel.notifyRunChanged()
                     refreshAll()
+                    val selected = stepList.selectedValue
+                    if (selected != null) updateDetailPanel(selected)
                 }
             }
 
@@ -743,6 +845,8 @@ class PipelinePanel(
                     run.durationMs = System.currentTimeMillis() - run.startTimeMillis
                     run.errorMessage = message
                     chatPanel.notifyRunChanged()
+                    val selected = stepList.selectedValue
+                    if (selected != null) updateDetailPanel(selected)
                 }
             }
 
@@ -751,8 +855,20 @@ class PipelinePanel(
                     run.status = ChatRunStatus.CANCELLED
                     run.durationMs = System.currentTimeMillis() - run.startTimeMillis
                     chatPanel.notifyRunChanged()
+                    val selected = stepList.selectedValue
+                    if (selected != null) updateDetailPanel(selected)
                 }
             }
+        }
+    }
+
+    private fun replyToSession(sessionId: String, message: String) {
+        val chatService = project.getService(CopilotChatService::class.java) ?: return
+        val dataContext = SimpleDataContext.getProjectContext(project)
+        chatService.query(dataContext) {
+            withInput(message)
+            withExistingSession(sessionId)
+            withAgentMode()
         }
     }
 
