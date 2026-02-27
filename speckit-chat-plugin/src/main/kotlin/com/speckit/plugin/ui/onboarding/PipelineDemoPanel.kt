@@ -3,7 +3,9 @@ package com.speckit.plugin.ui.onboarding
 import com.github.copilot.api.CopilotChatService
 import com.intellij.openapi.actionSystem.impl.SimpleDataContext
 import com.intellij.openapi.application.invokeLater
+import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.ui.JBColor
 import com.intellij.ui.OnePixelSplitter
 import com.intellij.ui.RoundedLineBorder
@@ -28,6 +30,7 @@ import javax.swing.BorderFactory
 import javax.swing.BoxLayout
 import javax.swing.DefaultListModel
 import javax.swing.JButton
+import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.ListCellRenderer
@@ -61,7 +64,7 @@ class PipelineDemoPanel(
         val altRelativePath: String? = null
     )
 
-    private data class CheckResult(val artifact: ArtifactCheck, val exists: Boolean, val detail: String)
+    private data class CheckResult(val artifact: ArtifactCheck, val exists: Boolean, val detail: String, val resolvedFile: File? = null)
 
     private data class StepDef(
         val number: Int,
@@ -299,29 +302,30 @@ class PipelineDemoPanel(
     }
 
     private fun checkArtifact(artifact: ArtifactCheck, basePath: String, featureDir: String?): CheckResult {
-        // Mock check first
+        // Mock check first — try to resolve the real file anyway so we can link to it
+        val file = resolveArtifact(artifact.relativePath, artifact.isRepoRelative, basePath, featureDir)
+        val effective = if (file != null && !file.exists() && artifact.altRelativePath != null) {
+            resolveArtifact(artifact.altRelativePath, artifact.isRepoRelative, basePath, featureDir) ?: file
+        } else file
+
         if (isMockPresent(artifact)) {
-            val detail = if (artifact.isDirectory) "simulated" else "simulated"
-            return CheckResult(artifact, true, detail)
+            val realExists = effective != null && (if (artifact.isDirectory) effective.isDirectory else effective.isFile)
+            return CheckResult(artifact, true, "simulated", resolvedFile = if (realExists) effective else null)
         }
 
         // Fall back to real filesystem
-        val file = resolveArtifact(artifact.relativePath, artifact.isRepoRelative, basePath, featureDir)
-            ?: return CheckResult(artifact, false, "no feature dir")
-        val effective = if (!file.exists() && artifact.altRelativePath != null) {
-            resolveArtifact(artifact.altRelativePath, artifact.isRepoRelative, basePath, featureDir) ?: file
-        } else file
+        if (effective == null) return CheckResult(artifact, false, "no feature dir")
 
         if (artifact.isDirectory) {
             if (!effective.isDirectory) return CheckResult(artifact, false, "missing")
             val count = effective.listFiles()?.size ?: 0
             if (artifact.requireNonEmpty && count == 0) return CheckResult(artifact, false, "empty dir")
-            return CheckResult(artifact, true, "$count file(s)")
+            return CheckResult(artifact, true, "$count file(s)", resolvedFile = effective)
         }
         if (!effective.isFile) return CheckResult(artifact, false, "missing")
         val size = effective.length()
         val detail = if (size < 1024) "${size} B" else String.format("%.1f KB", size / 1024.0)
-        return CheckResult(artifact, true, detail)
+        return CheckResult(artifact, true, detail, resolvedFile = effective)
     }
 
     /** Returns true if the artifact is in the mock set (repo prereqs + prior step outputs). */
@@ -515,16 +519,32 @@ class PipelineDemoPanel(
         border = BorderFactory.createEmptyBorder(0, 0, 3, 0)
     }
 
-    private fun checkResultLabel(result: CheckResult): JLabel {
+    private fun checkResultLabel(result: CheckResult): JComponent {
         val icon = if (result.exists) "\u2713" else "\u2717"
         val detail = if (result.detail.isNotEmpty()) "  (${result.detail})" else ""
-        return JLabel("  $icon  ${result.artifact.label}$detail").apply {
-            foreground = if (result.exists)
-                JBColor(Color(0, 128, 0), Color(80, 200, 80))
-            else
-                JBColor(Color(200, 100, 0), Color(255, 160, 60))
+        val text = "  $icon  ${result.artifact.label}$detail"
+        val greenColor = JBColor(Color(0, 128, 0), Color(80, 200, 80))
+        val orangeColor = JBColor(Color(200, 100, 0), Color(255, 160, 60))
+
+        // Clickable link for existing, non-directory artifacts with a resolved file
+        val canOpen = result.exists && result.resolvedFile != null && !result.artifact.isDirectory
+        return JLabel(text).apply {
+            foreground = if (result.exists) greenColor else orangeColor
             alignmentX = Component.LEFT_ALIGNMENT
+            if (canOpen) {
+                cursor = java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR)
+                addMouseListener(object : java.awt.event.MouseAdapter() {
+                    override fun mouseClicked(e: java.awt.event.MouseEvent) {
+                        openFileInEditor(result.resolvedFile!!)
+                    }
+                })
+            }
         }
+    }
+
+    private fun openFileInEditor(file: File) {
+        val vFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(file) ?: return
+        FileEditorManager.getInstance(project).openFile(vFile, true)
     }
 
     private fun verticalSpacer(height: Int) = JPanel().apply {

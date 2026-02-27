@@ -5,7 +5,9 @@ import com.intellij.icons.AllIcons
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.impl.SimpleDataContext
 import com.intellij.openapi.application.invokeLater
+import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.vfs.newvfs.BulkFileListener
@@ -32,6 +34,7 @@ import javax.swing.BorderFactory
 import javax.swing.BoxLayout
 import javax.swing.DefaultListModel
 import javax.swing.JButton
+import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.ListCellRenderer
@@ -56,7 +59,7 @@ class PipelinePanel(
         val altRelativePath: String? = null
     )
 
-    data class CheckResult(val artifact: ArtifactCheck, val exists: Boolean, val detail: String)
+    data class CheckResult(val artifact: ArtifactCheck, val exists: Boolean, val detail: String, val resolvedFile: File? = null)
 
     data class PipelineStepDef(
         val number: Int,
@@ -407,7 +410,7 @@ class PipelinePanel(
             if (!effectivePath.isDirectory) return CheckResult(artifact, false, "missing")
             val count = effectivePath.listFiles()?.size ?: 0
             if (artifact.requireNonEmpty && count == 0) return CheckResult(artifact, false, "empty dir")
-            return CheckResult(artifact, true, "$count file(s)")
+            return CheckResult(artifact, true, "$count file(s)", resolvedFile = effectivePath)
         }
 
         if (!effectivePath.isFile) return CheckResult(artifact, false, "missing")
@@ -416,7 +419,7 @@ class PipelinePanel(
             size < 1024 -> "${size} B"
             else -> String.format("%.1f KB", size / 1024.0)
         }
-        return CheckResult(artifact, true, detail)
+        return CheckResult(artifact, true, detail, resolvedFile = effectivePath)
     }
 
     private fun resolveArtifactFile(relativePath: String, isRepoRelative: Boolean, paths: FeaturePaths): File? {
@@ -661,16 +664,32 @@ class PipelinePanel(
         border = BorderFactory.createEmptyBorder(0, 0, 4, 0)
     }
 
-    private fun checkResultLabel(result: CheckResult): JLabel {
+    private fun checkResultLabel(result: CheckResult): JComponent {
         val icon = if (result.exists) "\u2713" else "\u2717"
         val detail = if (result.detail.isNotEmpty()) "  (${result.detail})" else ""
-        return JLabel("  $icon  ${result.artifact.label}$detail").apply {
-            foreground = if (result.exists)
-                JBColor(Color(0, 128, 0), Color(80, 200, 80))
-            else
-                JBColor(Color(200, 100, 0), Color(255, 160, 60))
+        val text = "  $icon  ${result.artifact.label}$detail"
+        val greenColor = JBColor(Color(0, 128, 0), Color(80, 200, 80))
+        val orangeColor = JBColor(Color(200, 100, 0), Color(255, 160, 60))
+
+        // Clickable link for existing, non-directory artifacts with a resolved file
+        val canOpen = result.exists && result.resolvedFile != null && !result.artifact.isDirectory
+        return JLabel(text).apply {
+            foreground = if (result.exists) greenColor else orangeColor
             alignmentX = Component.LEFT_ALIGNMENT
+            if (canOpen) {
+                cursor = java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR)
+                addMouseListener(object : java.awt.event.MouseAdapter() {
+                    override fun mouseClicked(e: java.awt.event.MouseEvent) {
+                        openFileInEditor(result.resolvedFile!!)
+                    }
+                })
+            }
         }
+    }
+
+    private fun openFileInEditor(file: File) {
+        val vFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(file) ?: return
+        FileEditorManager.getInstance(project).openFile(vFile, true)
     }
 
     private fun verticalSpacer(height: Int) = JPanel().apply {
