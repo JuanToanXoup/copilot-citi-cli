@@ -71,6 +71,9 @@ class SpeckitChatPanel(
         sendButton = JButton(com.intellij.icons.AllIcons.Actions.Execute)
         moreButton = JButton(javax.swing.ImageIcon(javaClass.getResource("/icons/speckit-menu.png"))).apply {
             toolTipText = "More actions"
+            isBorderPainted = false
+            isContentAreaFilled = false
+            isFocusPainted = false
             addActionListener { e ->
                 val popup = javax.swing.JPopupMenu().apply {
                     border = BorderFactory.createCompoundBorder(
