@@ -58,7 +58,8 @@ class SpeckitFeaturePanel(
             ChecklistFeatureDescriptor to 5,
             AnalyzeFeatureDescriptor to 6,
             ImplementFeatureDescriptor to 7,
-            IssuesFeatureDescriptor to 8
+            CoverageFeatureDescriptor to 8,
+            IssuesFeatureDescriptor to 9
         )
     }
 
