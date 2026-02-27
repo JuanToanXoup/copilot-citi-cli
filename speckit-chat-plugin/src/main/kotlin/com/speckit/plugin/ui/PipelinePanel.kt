@@ -7,6 +7,7 @@ import com.intellij.openapi.actionSystem.impl.SimpleDataContext
 import com.intellij.openapi.application.invokeLater
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VirtualFileManager
@@ -289,6 +290,20 @@ class PipelinePanel(
             }
         }
 
+        // "Add New Specification" button above the feature list
+        val newFeatureButton = JButton("Add New Specification", AllIcons.General.Add).apply {
+            toolTipText = "Create new feature specification"
+            addActionListener { showNewFeatureDialog() }
+        }
+        val newFeatureButtonPanel = JPanel(BorderLayout()).apply {
+            border = BorderFactory.createEmptyBorder(4, 4, 4, 4)
+            add(newFeatureButton, BorderLayout.CENTER)
+        }
+        val featurePane = JPanel(BorderLayout()).apply {
+            add(newFeatureButtonPanel, BorderLayout.NORTH)
+            add(JBScrollPane(featureList), BorderLayout.CENTER)
+        }
+
         // Three-pane nested splitters
         val innerSplitter = OnePixelSplitter(false, 0.35f).apply {
             firstComponent = JBScrollPane(stepList)
@@ -297,7 +312,7 @@ class PipelinePanel(
             }
         }
         val outerSplitter = OnePixelSplitter(false, 0.15f).apply {
-            firstComponent = JBScrollPane(featureList)
+            firstComponent = featurePane
             secondComponent = innerSplitter
         }
 
@@ -902,6 +917,47 @@ class PipelinePanel(
                 }
             }
         }
+    }
+
+    private fun showNewFeatureDialog() {
+        val textArea = JBTextArea(6, 40).apply {
+            lineWrap = true
+            wrapStyleWord = true
+        }
+
+        val dialog = object : DialogWrapper(project, false) {
+            init {
+                title = "New Feature Specification"
+                init()
+            }
+
+            override fun createCenterPanel(): JComponent {
+                return JPanel(BorderLayout(0, 8)).apply {
+                    add(JLabel("Describe the feature you want to build:"), BorderLayout.NORTH)
+                    add(JBScrollPane(textArea), BorderLayout.CENTER)
+                    preferredSize = Dimension(460, 220)
+                }
+            }
+
+            override fun getPreferredFocusedComponent() = textArea
+        }
+
+        if (!dialog.showAndGet()) return  // user cancelled
+
+        val description = textArea.text.trim()
+        if (description.isBlank()) return
+
+        val specifyStep = pipelineSteps.firstOrNull { it.id == "specify" } ?: return
+        val specifyIndex = pipelineSteps.indexOf(specifyStep)
+
+        // Select the Specify step so the detail panel shows it
+        stepList.selectedIndex = specifyIndex
+
+        // Persist the description as the Specify step's arguments
+        saveArgs(specifyStep.id, description)
+
+        // Run the Specify agent with the description
+        runStep(specifyStep, description)
     }
 
     private fun replyToSession(sessionId: String, message: String) {
