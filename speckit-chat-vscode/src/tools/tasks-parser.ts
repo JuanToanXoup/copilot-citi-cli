@@ -34,7 +34,10 @@ const goalPattern = /^\*\*Goal\*\*:\s*(.+)/;
 const taskPattern = /^-\s+\[([ xX])]\s+(T\d{3,4})\s*(\[P])?\s*(\[US\d+])?\s*(.+)$/;
 
 export function parse(filePath: string): TasksFile | undefined {
-    if (!fs.existsSync(filePath)) { return undefined; }
+    try {
+        const stat = fs.statSync(filePath);
+        if (!stat.isFile()) { return undefined; }
+    } catch { return undefined; }
     const content = fs.readFileSync(filePath, 'utf-8');
     const lines = content.split('\n');
     if (lines.length === 0) { return undefined; }
@@ -80,7 +83,7 @@ export function parse(filePath: string): TasksFile | undefined {
             currentIsMvp = /MVP/i.test(headerText);
             currentPhaseName = headerText
                 .replace(priorityPattern, '')
-                .replace(/MVP/gi, '')
+                .replace(/MVP/i, '')
                 .replace(/\(\s*,?\s*\)/, '')
                 .trim()
                 .replace(/[, ]+$/, '');

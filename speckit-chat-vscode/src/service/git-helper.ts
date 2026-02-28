@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { execFileSync, execSync } from 'child_process';
 
 export function currentBranch(basePath: string, fallback = 'main'): string {
     try {
@@ -15,7 +15,7 @@ export function currentBranch(basePath: string, fallback = 'main'): string {
 
 export function gitAdd(basePath: string, relativePath: string): void {
     try {
-        execSync(`git add ${JSON.stringify(relativePath)}`, {
+        execFileSync('git', ['add', relativePath], {
             cwd: basePath,
             encoding: 'utf-8',
             timeout: 5_000,

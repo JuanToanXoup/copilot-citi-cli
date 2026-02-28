@@ -45,8 +45,9 @@ export function listAgents(basePath: string): string[] {
     let projectAgents: string[] = [];
     if (fs.existsSync(agentsDir)) {
         try {
-            projectAgents = fs.readdirSync(agentsDir)
-                .filter(name => name.endsWith('.agent.md'));
+            projectAgents = fs.readdirSync(agentsDir, { withFileTypes: true })
+                .filter(d => !d.isDirectory() && d.name.endsWith('.agent.md'))
+                .map(d => d.name);
         } catch { /* ignore */ }
     }
     const all = new Set([...projectAgents, ...BUNDLED_AGENTS]);
@@ -66,8 +67,9 @@ export function listDiscoveries(basePath: string): string[] {
     let projectDiscoveries: string[] = [];
     if (fs.existsSync(discDir)) {
         try {
-            projectDiscoveries = fs.readdirSync(discDir)
-                .filter(name => name.endsWith('.discovery.md'));
+            projectDiscoveries = fs.readdirSync(discDir, { withFileTypes: true })
+                .filter(d => !d.isDirectory() && d.name.endsWith('.discovery.md'))
+                .map(d => d.name);
         } catch { /* ignore */ }
     }
     const all = new Set([...projectDiscoveries, ...BUNDLED_DISCOVERIES]);
