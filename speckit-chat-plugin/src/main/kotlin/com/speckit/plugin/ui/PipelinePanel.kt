@@ -17,7 +17,7 @@ import com.intellij.ui.JBColor
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.ui.RoundedLineBorder
 import com.intellij.ui.OnePixelSplitter
-import com.intellij.ui.components.JBList
+import com.intellij.ui.TreeSpeedSearch
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
 import com.speckit.plugin.persistence.SessionPersistenceManager
@@ -34,13 +34,17 @@ import java.awt.RenderingHints
 import java.io.File
 import javax.swing.BorderFactory
 import javax.swing.BoxLayout
-import javax.swing.DefaultListModel
 import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
-import javax.swing.ListCellRenderer
+import javax.swing.JTree
 import javax.swing.SwingConstants
+import javax.swing.UIManager
+import javax.swing.tree.DefaultMutableTreeNode
+import javax.swing.tree.DefaultTreeModel
+import javax.swing.tree.TreePath
+import javax.swing.tree.TreeSelectionModel
 
 class PipelinePanel(
     private val project: Project,
@@ -105,6 +109,16 @@ class PipelinePanel(
         var completedSteps: Int = 0,
         var totalOutputSteps: Int = 0
     )
+
+    // ── Tree node data ────────────────────────────────────────────────────────
+
+    private sealed interface PipelineNodeData
+    private data class FeatureNodeData(val entry: FeatureEntry) : PipelineNodeData {
+        override fun toString() = entry.dirName
+    }
+    private data class StepNodeData(val step: PipelineStepDef, val featureEntry: FeatureEntry) : PipelineNodeData {
+        override fun toString() = step.name
+    }
 
     // ── Pipeline definitions ─────────────────────────────────────────────────
 
@@ -238,19 +252,20 @@ class PipelinePanel(
         )
     )
 
-    private val stepStates = pipelineSteps.associateWith { PipelineStepState() }
+    private val featureStepStates = mutableMapOf<String, Map<PipelineStepDef, PipelineStepState>>()
 
     // ── UI fields ────────────────────────────────────────────────────────────
 
     private val branchLabel = JLabel("Branch: \u2014")
 
-    private val featureListModel = DefaultListModel<FeatureEntry>()
-    private val featureList = JBList(featureListModel)
-
-    private val stepListModel = DefaultListModel<PipelineStepDef>().apply {
-        pipelineSteps.forEach { addElement(it) }
+    private val rootNode = DefaultMutableTreeNode("Pipeline")
+    private val treeModel = DefaultTreeModel(rootNode)
+    private val pipelineTree = com.intellij.ui.treeStructure.Tree(treeModel).apply {
+        isRootVisible = false
+        showsRootHandles = true
+        putClientProperty("JTree.lineStyle", "None")
+        selectionModel.selectionMode = TreeSelectionModel.SINGLE_TREE_SELECTION
     }
-    private val stepList = JBList(stepListModel)
 
     private val detailPanel = JPanel(BorderLayout())
 
@@ -275,25 +290,38 @@ class PipelinePanel(
             add(refreshButton, BorderLayout.EAST)
         }
 
-        // Feature list (left pane)
-        featureList.cellRenderer = this@PipelinePanel.FeatureListRenderer()
-        featureList.addListSelectionListener {
-            if (!it.valueIsAdjusting) {
-                val selected = featureList.selectedValue
-                if (selected != null) refreshStepsForFeature(selected)
+        // Tree configuration
+        pipelineTree.cellRenderer = PipelineTreeCellRenderer()
+        pipelineTree.rowHeight = 28
+        pipelineTree.border = BorderFactory.createEmptyBorder(4, 0, 4, 0)
+        // Minimize the built-in tree indent for child nodes
+        javax.swing.UIManager.put("Tree.leftChildIndent", 4)
+        javax.swing.UIManager.put("Tree.rightChildIndent", 0)
+        pipelineTree.updateUI()
+        // Re-apply our settings after updateUI
+        pipelineTree.isRootVisible = false
+        pipelineTree.showsRootHandles = true
+        pipelineTree.putClientProperty("JTree.lineStyle", "None")
+        pipelineTree.selectionModel.selectionMode = TreeSelectionModel.SINGLE_TREE_SELECTION
+
+        pipelineTree.addTreeSelectionListener {
+            val node = pipelineTree.lastSelectedPathComponent as? DefaultMutableTreeNode ?: return@addTreeSelectionListener
+            when (val data = node.userObject) {
+                is StepNodeData -> {
+                    currentPaths = resolvePathsForFeature(data.featureEntry)
+                    updateDetailPanel(data.step)
+                }
+                is FeatureNodeData -> {
+                    currentPaths = resolvePathsForFeature(data.entry)
+                    updateFeatureDetailPanel(data.entry)
+                }
+                else -> {}
             }
         }
 
-        // Step list (middle pane)
-        stepList.cellRenderer = this@PipelinePanel.StepListRenderer()
-        stepList.addListSelectionListener {
-            if (!it.valueIsAdjusting) {
-                val selected = stepList.selectedValue
-                if (selected != null) updateDetailPanel(selected)
-            }
-        }
+        TreeSpeedSearch.installOn(pipelineTree)
 
-        // "Add New Specification" button above the feature list
+        // "Add New Specification" button above the tree
         val newFeatureButton = JButton("Add New Specification", AllIcons.General.Add).apply {
             toolTipText = "Create new feature specification"
             addActionListener { showNewFeatureDialog() }
@@ -302,21 +330,17 @@ class PipelinePanel(
             border = BorderFactory.createEmptyBorder(4, 4, 4, 4)
             add(newFeatureButton, BorderLayout.CENTER)
         }
-        val featurePane = JPanel(BorderLayout()).apply {
+        val treePane = JPanel(BorderLayout()).apply {
             add(newFeatureButtonPanel, BorderLayout.NORTH)
-            add(JBScrollPane(featureList), BorderLayout.CENTER)
+            add(JBScrollPane(pipelineTree), BorderLayout.CENTER)
         }
 
-        // Three-pane nested splitters
-        val innerSplitter = OnePixelSplitter(false, 0.35f).apply {
-            firstComponent = JBScrollPane(stepList)
+        // Two-pane splitter: tree | detail
+        val splitter = OnePixelSplitter(false, 0.35f).apply {
+            firstComponent = treePane
             secondComponent = JBScrollPane(detailPanel).apply {
                 border = BorderFactory.createEmptyBorder()
             }
-        }
-        val outerSplitter = OnePixelSplitter(false, 0.15f).apply {
-            firstComponent = featurePane
-            secondComponent = innerSplitter
         }
 
         val headerPanel = JPanel(BorderLayout()).apply {
@@ -333,7 +357,7 @@ class PipelinePanel(
             add(topBar, BorderLayout.CENTER)
         }
         add(northPanel, BorderLayout.NORTH)
-        add(outerSplitter, BorderLayout.CENTER)
+        add(splitter, BorderLayout.CENTER)
 
         // VFS listener — auto-refresh on file changes under specs/ or .specify/
         project.messageBus.connect(this).subscribe(VirtualFileManager.VFS_CHANGES, object : BulkFileListener {
@@ -491,9 +515,7 @@ class PipelinePanel(
 
     // ── Status derivation ────────────────────────────────────────────────────
 
-    private fun deriveStatus(step: PipelineStepDef, paths: FeaturePaths): StepStatus {
-        val state = stepStates[step] ?: return StepStatus.NOT_STARTED
-
+    private fun deriveStatus(step: PipelineStepDef, paths: FeaturePaths, state: PipelineStepState): StepStatus {
         val prereqResults = step.prerequisites.map { checkArtifact(it, paths) }
         state.prerequisiteResults = prereqResults
 
@@ -530,38 +552,25 @@ class PipelinePanel(
             val branch = getCurrentBranch()
             currentBranch = branch
             val features = scanFeatures()
+            val basePath = project.basePath ?: ""
+
+            // Compute step states for all features upfront
+            val allStates = mutableMapOf<String, Map<PipelineStepDef, PipelineStepState>>()
+            for (entry in features) {
+                val paths = FeaturePaths(basePath, branch, true, entry.path)
+                val stateMap = pipelineSteps.associateWith { step ->
+                    PipelineStepState().also { state ->
+                        state.status = deriveStatus(step, paths, state)
+                    }
+                }
+                allStates[entry.dirName] = stateMap
+            }
 
             invokeLater {
                 branchLabel.text = "Branch: $branch"
-
-                val previousSelection = featureList.selectedValue?.dirName
-
-                featureListModel.clear()
-                features.forEach { featureListModel.addElement(it) }
-
-                // Auto-select: branch match > previous selection > first
-                val branchPrefix = Regex("^(\\d{3})-").find(branch)?.groupValues?.get(1)
-                val branchMatch = if (branchPrefix != null) {
-                    features.indexOfFirst { it.dirName.startsWith("$branchPrefix-") }.takeIf { it >= 0 }
-                } else null
-                val prevMatch = if (previousSelection != null) {
-                    features.indexOfFirst { it.dirName == previousSelection }.takeIf { it >= 0 }
-                } else null
-                val toSelect = branchMatch ?: prevMatch ?: if (features.isNotEmpty()) 0 else -1
-
-                if (toSelect >= 0) {
-                    featureList.selectedIndex = toSelect
-                } else {
-                    // No features — still validate with no feature dir
-                    refreshStepsWithPaths(
-                        FeaturePaths(
-                            basePath = project.basePath ?: "",
-                            branch = branch,
-                            isFeatureBranch = false,
-                            featureDir = null
-                        )
-                    )
-                }
+                featureStepStates.clear()
+                featureStepStates.putAll(allStates)
+                rebuildTree(features)
 
                 // Re-save pending specify args under the now-selected feature key
                 val pending = pendingSpecifyArgs
@@ -573,31 +582,104 @@ class PipelinePanel(
         }
     }
 
-    private fun refreshStepsForFeature(entry: FeatureEntry) {
-        refreshStepsWithPaths(resolvePathsForFeature(entry))
-    }
-
-    private fun refreshStepsWithPaths(paths: FeaturePaths) {
-        com.intellij.openapi.application.ApplicationManager.getApplication().executeOnPooledThread {
-            currentPaths = paths
-
-            for (step in pipelineSteps) {
-                val state = stepStates[step] ?: continue
-                state.status = deriveStatus(step, paths)
-            }
-
-            invokeLater {
-                stepList.repaint()
-                val selected = stepList.selectedValue
-                if (selected != null) updateDetailPanel(selected)
+    private fun rebuildTree(features: List<FeatureEntry>) {
+        // Save expansion and selection state
+        val expandedDirs = mutableSetOf<String>()
+        for (i in 0 until rootNode.childCount) {
+            val featureNode = rootNode.getChildAt(i) as? DefaultMutableTreeNode ?: continue
+            val data = featureNode.userObject as? FeatureNodeData ?: continue
+            if (pipelineTree.isExpanded(TreePath(featureNode.path))) {
+                expandedDirs.add(data.entry.dirName)
             }
         }
+        val previousFeature = getSelectedFeatureEntry()?.dirName
+        val previousStep = getSelectedStep()?.id
+
+        rootNode.removeAllChildren()
+
+        for (entry in features) {
+            val featureNode = DefaultMutableTreeNode(FeatureNodeData(entry))
+            for (step in pipelineSteps) {
+                featureNode.add(DefaultMutableTreeNode(StepNodeData(step, entry)))
+            }
+            rootNode.add(featureNode)
+        }
+
+        treeModel.reload()
+
+        // Expand: branch-match feature auto-expands, plus any previously expanded
+        val branchPrefix = Regex("^(\\d{3})-").find(currentBranch)?.groupValues?.get(1)
+        var branchMatchNode: DefaultMutableTreeNode? = null
+        for (i in 0 until rootNode.childCount) {
+            val featureNode = rootNode.getChildAt(i) as? DefaultMutableTreeNode ?: continue
+            val data = featureNode.userObject as? FeatureNodeData ?: continue
+            val isBranchMatch = branchPrefix != null && data.entry.dirName.startsWith("$branchPrefix-")
+            if (isBranchMatch) branchMatchNode = featureNode
+            if (isBranchMatch || data.entry.dirName in expandedDirs) {
+                pipelineTree.expandPath(TreePath(featureNode.path))
+            }
+        }
+
+        // Restore selection: try previous step > previous feature > branch match first step > first feature
+        val restored = restoreSelection(previousFeature, previousStep)
+        if (!restored) {
+            val defaultNode = branchMatchNode ?: (if (rootNode.childCount > 0) rootNode.getChildAt(0) as? DefaultMutableTreeNode else null)
+            if (defaultNode != null) {
+                pipelineTree.expandPath(TreePath(defaultNode.path))
+                // Select first step child
+                if (defaultNode.childCount > 0) {
+                    val firstStep = defaultNode.getChildAt(0) as DefaultMutableTreeNode
+                    pipelineTree.selectionPath = TreePath(firstStep.path)
+                } else {
+                    pipelineTree.selectionPath = TreePath(defaultNode.path)
+                }
+            }
+        }
+    }
+
+    private fun restoreSelection(featureDirName: String?, stepId: String?): Boolean {
+        if (featureDirName == null) return false
+        for (i in 0 until rootNode.childCount) {
+            val featureNode = rootNode.getChildAt(i) as? DefaultMutableTreeNode ?: continue
+            val data = featureNode.userObject as? FeatureNodeData ?: continue
+            if (data.entry.dirName != featureDirName) continue
+
+            if (stepId != null) {
+                for (j in 0 until featureNode.childCount) {
+                    val stepNode = featureNode.getChildAt(j) as? DefaultMutableTreeNode ?: continue
+                    val stepData = stepNode.userObject as? StepNodeData ?: continue
+                    if (stepData.step.id == stepId) {
+                        pipelineTree.selectionPath = TreePath(stepNode.path)
+                        return true
+                    }
+                }
+            }
+            pipelineTree.selectionPath = TreePath(featureNode.path)
+            return true
+        }
+        return false
+    }
+
+    // ── Tree selection helpers ───────────────────────────────────────────
+
+    private fun getSelectedFeatureEntry(): FeatureEntry? {
+        val node = pipelineTree.lastSelectedPathComponent as? DefaultMutableTreeNode ?: return null
+        return when (val data = node.userObject) {
+            is FeatureNodeData -> data.entry
+            is StepNodeData -> data.featureEntry
+            else -> null
+        }
+    }
+
+    private fun getSelectedStep(): PipelineStepDef? {
+        val node = pipelineTree.lastSelectedPathComponent as? DefaultMutableTreeNode ?: return null
+        return (node.userObject as? StepNodeData)?.step
     }
 
     // ── Argument persistence & autofill ──────────────────────────────────
 
     private fun argsStorageKey(stepId: String): String {
-        val featureName = featureList.selectedValue?.dirName ?: "_global_"
+        val featureName = getSelectedFeatureEntry()?.dirName ?: "_global_"
         return "speckit.args.$featureName.$stepId"
     }
 
@@ -623,7 +705,9 @@ class PipelinePanel(
 
     private fun updateDetailPanel(step: PipelineStepDef) {
         detailPanel.removeAll()
-        val state = stepStates[step] ?: return
+        val featureEntry = getSelectedFeatureEntry()
+        val state = if (featureEntry != null) featureStepStates[featureEntry.dirName]?.get(step) else null
+        if (state == null) { detailPanel.revalidate(); detailPanel.repaint(); return }
 
         val content = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
@@ -947,7 +1031,7 @@ class PipelinePanel(
                     chatPanel.notifyRunChanged()
                     // Refresh detail panel so reply button appears once session is available
                     if (step.id == "implement") {
-                        val selected = stepList.selectedValue
+                        val selected = getSelectedStep()
                         if (selected != null) updateDetailPanel(selected)
                     }
                 }
@@ -960,7 +1044,7 @@ class PipelinePanel(
                     run.durationMs = System.currentTimeMillis() - run.startTimeMillis
                     chatPanel.notifyRunChanged()
                     refreshAll()
-                    val selected = stepList.selectedValue
+                    val selected = getSelectedStep()
                     if (selected != null) updateDetailPanel(selected)
                 }
                 run.sessionId?.let { persistenceManager?.completeRun(it, System.currentTimeMillis() - run.startTimeMillis) }
@@ -972,7 +1056,7 @@ class PipelinePanel(
                     run.durationMs = System.currentTimeMillis() - run.startTimeMillis
                     run.errorMessage = message
                     chatPanel.notifyRunChanged()
-                    val selected = stepList.selectedValue
+                    val selected = getSelectedStep()
                     if (selected != null) updateDetailPanel(selected)
                 }
                 run.sessionId?.let { persistenceManager?.failRun(it, System.currentTimeMillis() - run.startTimeMillis, message) }
@@ -983,7 +1067,7 @@ class PipelinePanel(
                     run.status = ChatRunStatus.CANCELLED
                     run.durationMs = System.currentTimeMillis() - run.startTimeMillis
                     chatPanel.notifyRunChanged()
-                    val selected = stepList.selectedValue
+                    val selected = getSelectedStep()
                     if (selected != null) updateDetailPanel(selected)
                 }
                 run.sessionId?.let { persistenceManager?.cancelRun(it, System.currentTimeMillis() - run.startTimeMillis) }
@@ -1020,10 +1104,6 @@ class PipelinePanel(
         if (description.isBlank()) return
 
         val specifyStep = pipelineSteps.firstOrNull { it.id == "specify" } ?: return
-        val specifyIndex = pipelineSteps.indexOf(specifyStep)
-
-        // Select the Specify step so the detail panel shows it
-        stepList.selectedIndex = specifyIndex
 
         // Stash the description so onComplete can re-save under the correct feature key
         pendingSpecifyArgs = description
@@ -1042,114 +1122,140 @@ class PipelinePanel(
         }
     }
 
-    // ── Feature list renderer (left pane) ─────────────────────────────────────
+    // ── Feature detail panel ────────────────────────────────────────────────
 
-    private inner class FeatureListRenderer : JPanel(BorderLayout()), ListCellRenderer<FeatureEntry> {
+    private fun updateFeatureDetailPanel(entry: FeatureEntry) {
+        detailPanel.removeAll()
+        val content = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.Y_AXIS)
+            border = BorderFactory.createEmptyBorder(12, 16, 12, 16)
+        }
+
+        content.add(JLabel(entry.dirName).apply {
+            font = font.deriveFont(Font.BOLD, font.size + 4f)
+            alignmentX = Component.LEFT_ALIGNMENT
+        })
+        content.add(JLabel("${entry.completedSteps}/${entry.totalOutputSteps} output steps completed").apply {
+            alignmentX = Component.LEFT_ALIGNMENT
+            border = BorderFactory.createEmptyBorder(4, 0, 12, 0)
+        })
+
+        val states = featureStepStates[entry.dirName]
+        if (states != null) {
+            content.add(sectionHeader("Steps:"))
+            for (step in pipelineSteps) {
+                val status = states[step]?.status ?: StepStatus.NOT_STARTED
+                content.add(JLabel("  ${statusIcon(status)}  ${displayNumber(step)}. ${step.name} \u2014 ${statusText(status)}").apply {
+                    foreground = statusColor(status)
+                    alignmentX = Component.LEFT_ALIGNMENT
+                })
+            }
+        }
+
+        content.add(javax.swing.Box.createVerticalGlue())
+        detailPanel.add(content, BorderLayout.CENTER)
+        detailPanel.revalidate()
+        detailPanel.repaint()
+    }
+
+    // ── Tree cell renderer ───────────────────────────────────────────────────
+
+    private inner class PipelineTreeCellRenderer : JPanel(BorderLayout()), javax.swing.tree.TreeCellRenderer {
+        private val connectorPanel = ConnectorPanel()
+        private val connectorWrapper = JPanel(BorderLayout()).apply {
+            isOpaque = false
+            preferredSize = Dimension(14, 0)
+            add(connectorPanel, BorderLayout.CENTER)
+        }
         private val iconLabel = JLabel().apply { horizontalAlignment = SwingConstants.CENTER }
         private val nameLabel = JLabel()
 
         init {
             isOpaque = true
-            border = BorderFactory.createEmptyBorder(4, 8, 4, 8)
-            val panel = JPanel(FlowLayout(FlowLayout.LEFT, 4, 0)).apply {
+            val textPanel = JPanel().apply {
                 isOpaque = false
+                layout = BoxLayout(this, BoxLayout.X_AXIS)
                 add(iconLabel)
+                add(javax.swing.Box.createHorizontalStrut(4))
                 add(nameLabel)
             }
-            add(panel, BorderLayout.CENTER)
+            add(connectorWrapper, BorderLayout.WEST)
+            add(textPanel, BorderLayout.CENTER)
         }
 
-        override fun getListCellRendererComponent(
-            list: javax.swing.JList<out FeatureEntry>,
-            value: FeatureEntry,
-            index: Int,
-            isSelected: Boolean,
-            cellHasFocus: Boolean
+        override fun getTreeCellRendererComponent(
+            tree: JTree, value: Any?, selected: Boolean,
+            expanded: Boolean, leaf: Boolean, row: Int, hasFocus: Boolean
         ): Component {
+            val node = value as? DefaultMutableTreeNode
+            when (val data = node?.userObject) {
+                is FeatureNodeData -> renderFeature(data, tree, selected)
+                is StepNodeData -> renderStep(data, node, tree, selected)
+                else -> { nameLabel.text = value?.toString() ?: "" }
+            }
+
+            background = if (selected) {
+                UIManager.getColor("Tree.selectionBackground") ?: tree.background
+            } else {
+                tree.background
+            }
+            return this
+        }
+
+        private fun renderFeature(data: FeatureNodeData, tree: JTree, selected: Boolean) {
+            connectorWrapper.isVisible = false
+            border = BorderFactory.createEmptyBorder(2, 0, 2, 4)
+
+            val entry = data.entry
             val icon: String
             val iconColor: Color
             when {
-                value.totalOutputSteps > 0 && value.completedSteps >= value.totalOutputSteps -> {
-                    icon = "\u2713"  // ✓
-                    iconColor = JBColor(Color(0, 128, 0), Color(80, 200, 80))
+                entry.totalOutputSteps > 0 && entry.completedSteps >= entry.totalOutputSteps -> {
+                    icon = "\u2713"; iconColor = JBColor(Color(0, 128, 0), Color(80, 200, 80))
                 }
-                value.completedSteps > 0 -> {
-                    icon = "\u25D0"  // ◐
-                    iconColor = JBColor.BLUE
+                entry.completedSteps > 0 -> {
+                    icon = "\u25D0"; iconColor = JBColor.BLUE
                 }
                 else -> {
-                    icon = "\u25CB"  // ○
-                    iconColor = JBColor.GRAY
+                    icon = "\u25CB"; iconColor = JBColor.GRAY
                 }
             }
             iconLabel.text = icon
             iconLabel.foreground = iconColor
 
-            nameLabel.text = value.dirName
-            nameLabel.foreground = if (isSelected) list.selectionForeground else list.foreground
+            nameLabel.text = entry.dirName
+            nameLabel.foreground = if (selected) {
+                UIManager.getColor("Tree.selectionForeground") ?: tree.foreground
+            } else tree.foreground
 
-            // Bold the feature matching current branch
             val branchPrefix = Regex("^(\\d{3})-").find(currentBranch)?.groupValues?.get(1)
-            val isBranchMatch = branchPrefix != null && value.dirName.startsWith("$branchPrefix-")
+            val isBranchMatch = branchPrefix != null && entry.dirName.startsWith("$branchPrefix-")
             nameLabel.font = nameLabel.font.deriveFont(if (isBranchMatch) Font.BOLD else Font.PLAIN)
-
-            background = if (isSelected) list.selectionBackground else list.background
-
-            return this
-        }
-    }
-
-    // ── Step list renderer (middle pane) ──────────────────────────────────────
-
-    private inner class StepListRenderer : JPanel(BorderLayout()), ListCellRenderer<PipelineStepDef> {
-        private val iconLabel = JLabel().apply { horizontalAlignment = SwingConstants.CENTER }
-        private val nameLabel = JLabel()
-        private val connectorPanel = ConnectorPanel()
-
-        init {
-            isOpaque = true
-            border = BorderFactory.createEmptyBorder(2, 4, 2, 8)
-
-            val leftPanel = JPanel(BorderLayout()).apply {
-                isOpaque = false
-                preferredSize = Dimension(24, 0)
-                add(connectorPanel, BorderLayout.CENTER)
-            }
-            val iconNamePanel = JPanel(FlowLayout(FlowLayout.LEFT, 4, 0)).apply {
-                isOpaque = false
-                add(iconLabel)
-                add(nameLabel)
-            }
-            add(leftPanel, BorderLayout.WEST)
-            add(iconNamePanel, BorderLayout.CENTER)
         }
 
-        override fun getListCellRendererComponent(
-            list: javax.swing.JList<out PipelineStepDef>,
-            value: PipelineStepDef,
-            index: Int,
-            isSelected: Boolean,
-            cellHasFocus: Boolean
-        ): Component {
-            val state = stepStates[value]
-            val status = state?.status ?: StepStatus.NOT_STARTED
-            val isSubStep = value.parentId != null
+        private fun renderStep(data: StepNodeData, node: DefaultMutableTreeNode, tree: JTree, selected: Boolean) {
+            connectorWrapper.isVisible = true
+            val isSubStep = data.step.parentId != null
+            border = BorderFactory.createEmptyBorder(2, if (isSubStep) 12 else 0, 2, 4)
+
+            val states = featureStepStates[data.featureEntry.dirName]
+            val status = states?.get(data.step)?.status ?: StepStatus.NOT_STARTED
 
             iconLabel.text = statusIcon(status)
             iconLabel.foreground = statusColor(status)
-            nameLabel.text = "${displayNumber(value)}. ${value.name}"
-            nameLabel.foreground = if (isSelected) list.selectionForeground else list.foreground
+            nameLabel.text = "${displayNumber(data.step)}. ${data.step.name}"
+            nameLabel.foreground = if (selected) {
+                UIManager.getColor("Tree.selectionForeground") ?: tree.foreground
+            } else tree.foreground
+            nameLabel.font = nameLabel.font.deriveFont(Font.PLAIN)
 
-            connectorPanel.isFirst = index == 0
-            connectorPanel.isLast = index == stepListModel.size() - 1
+            val parent = node.parent as? DefaultMutableTreeNode
+            val siblingIndex = parent?.getIndex(node) ?: 0
+            val siblingCount = parent?.childCount ?: 0
+            connectorPanel.isFirst = siblingIndex == 0
+            connectorPanel.isLast = siblingIndex == siblingCount - 1
             connectorPanel.isSubStep = isSubStep
             connectorPanel.color = JBColor.border()
-
-            border = BorderFactory.createEmptyBorder(2, if (isSubStep) 20 else 4, 2, 8)
-
-            background = if (isSelected) list.selectionBackground else list.background
-
-            return this
         }
     }
 
@@ -1161,7 +1267,7 @@ class PipelinePanel(
 
         init {
             isOpaque = false
-            preferredSize = Dimension(24, 0)
+            preferredSize = Dimension(14, 0)
         }
 
         override fun paintComponent(g: Graphics) {
