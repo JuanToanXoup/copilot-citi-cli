@@ -768,6 +768,21 @@ class PipelinePanel(
             }
         }
 
+        // Task list (tasks, implement, taskstoissues steps)
+        if (step.id in setOf("tasks", "implement", "taskstoissues")) {
+            val paths = currentPaths
+            if (paths != null) {
+                val taskListPanel = TaskListPanel(
+                    project, chatPanel, persistenceManager,
+                    enableActions = step.id == "implement"
+                )
+                taskListPanel.update(paths.featureDir)
+                taskListPanel.alignmentX = Component.LEFT_ALIGNMENT
+                content.add(taskListPanel)
+                content.add(verticalSpacer(8))
+            }
+        }
+
         // "Yes, proceed" reply button (implement step, running with session)
         val implRun = lastImplementRun
         if (step.id == "implement" && implRun != null
