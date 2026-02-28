@@ -18,6 +18,7 @@ import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.table.JBTable
 import com.intellij.util.ui.JBUI
+import com.speckit.plugin.persistence.SessionPersistenceManager
 import com.speckit.plugin.tools.ResourceLoader
 import java.awt.BorderLayout
 import java.awt.Color
@@ -42,7 +43,8 @@ import javax.swing.table.DefaultTableModel
 class DiscoveryPanel(
     private val project: Project,
     parentDisposable: Disposable,
-    private val chatPanel: SessionPanel
+    private val chatPanel: SessionPanel,
+    private val persistenceManager: SessionPersistenceManager? = null
 ) : JPanel(BorderLayout()), Disposable {
 
     private val templateCombo = javax.swing.JComboBox<String>()
@@ -574,6 +576,7 @@ class DiscoveryPanel(
                     run.sessionId = sessionId
                     chatPanel.notifyRunChanged()
                 }
+                persistenceManager?.createRun(sessionId, run.agent, run.prompt, run.branch, run.startTimeMillis)
             }
             onComplete {
                 invokeLater {
@@ -582,6 +585,7 @@ class DiscoveryPanel(
                     chatPanel.notifyRunChanged()
                     refreshFromDisk()
                 }
+                run.sessionId?.let { persistenceManager?.completeRun(it, System.currentTimeMillis() - run.startTimeMillis) }
             }
             onError { message, _, _, _, _ ->
                 invokeLater {
@@ -590,6 +594,7 @@ class DiscoveryPanel(
                     run.errorMessage = message
                     chatPanel.notifyRunChanged()
                 }
+                run.sessionId?.let { persistenceManager?.failRun(it, System.currentTimeMillis() - run.startTimeMillis, message) }
             }
             onCancel {
                 invokeLater {
@@ -597,6 +602,7 @@ class DiscoveryPanel(
                     run.durationMs = System.currentTimeMillis() - run.startTimeMillis
                     chatPanel.notifyRunChanged()
                 }
+                run.sessionId?.let { persistenceManager?.cancelRun(it, System.currentTimeMillis() - run.startTimeMillis) }
             }
         }
     }
@@ -627,6 +633,7 @@ class DiscoveryPanel(
                     run.sessionId = sessionId
                     chatPanel.notifyRunChanged()
                 }
+                persistenceManager?.createRun(sessionId, run.agent, run.prompt, run.branch, run.startTimeMillis)
             }
             onComplete {
                 invokeLater {
@@ -635,6 +642,7 @@ class DiscoveryPanel(
                     chatPanel.notifyRunChanged()
                     refreshFromDisk()
                 }
+                run.sessionId?.let { persistenceManager?.completeRun(it, System.currentTimeMillis() - run.startTimeMillis) }
             }
             onError { message, _, _, _, _ ->
                 invokeLater {
@@ -643,6 +651,7 @@ class DiscoveryPanel(
                     run.errorMessage = message
                     chatPanel.notifyRunChanged()
                 }
+                run.sessionId?.let { persistenceManager?.failRun(it, System.currentTimeMillis() - run.startTimeMillis, message) }
             }
             onCancel {
                 invokeLater {
@@ -650,6 +659,7 @@ class DiscoveryPanel(
                     run.durationMs = System.currentTimeMillis() - run.startTimeMillis
                     chatPanel.notifyRunChanged()
                 }
+                run.sessionId?.let { persistenceManager?.cancelRun(it, System.currentTimeMillis() - run.startTimeMillis) }
             }
         }
     }
@@ -687,6 +697,7 @@ class DiscoveryPanel(
                     run.sessionId = sessionId
                     chatPanel.notifyRunChanged()
                 }
+                persistenceManager?.createRun(sessionId, run.agent, run.prompt, run.branch, run.startTimeMillis)
             }
             onComplete {
                 invokeLater {
@@ -694,6 +705,7 @@ class DiscoveryPanel(
                     run.durationMs = System.currentTimeMillis() - run.startTimeMillis
                     chatPanel.notifyRunChanged()
                 }
+                run.sessionId?.let { persistenceManager?.completeRun(it, System.currentTimeMillis() - run.startTimeMillis) }
             }
             onError { message, _, _, _, _ ->
                 invokeLater {
@@ -702,6 +714,7 @@ class DiscoveryPanel(
                     run.errorMessage = message
                     chatPanel.notifyRunChanged()
                 }
+                run.sessionId?.let { persistenceManager?.failRun(it, System.currentTimeMillis() - run.startTimeMillis, message) }
             }
             onCancel {
                 invokeLater {
@@ -709,6 +722,7 @@ class DiscoveryPanel(
                     run.durationMs = System.currentTimeMillis() - run.startTimeMillis
                     chatPanel.notifyRunChanged()
                 }
+                run.sessionId?.let { persistenceManager?.cancelRun(it, System.currentTimeMillis() - run.startTimeMillis) }
             }
         }
     }

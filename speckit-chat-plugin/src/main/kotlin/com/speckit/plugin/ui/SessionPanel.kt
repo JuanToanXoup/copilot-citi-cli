@@ -14,6 +14,7 @@ import com.intellij.ui.RoundedLineBorder
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
 import com.intellij.ui.table.JBTable
+import com.speckit.plugin.persistence.SessionPersistenceManager
 import com.speckit.plugin.tools.ResourceLoader
 import java.awt.BorderLayout
 import java.awt.Color
@@ -42,7 +43,8 @@ import kotlinx.coroutines.launch
 
 class SessionPanel(
     private val project: Project,
-    parentDisposable: Disposable
+    parentDisposable: Disposable,
+    private val persistenceManager: SessionPersistenceManager? = null
 ) : JPanel(BorderLayout()), Disposable {
 
     private val agentCombo: JComboBox<AgentEntry>
@@ -179,6 +181,18 @@ class SessionPanel(
             override fun actionPerformed(e: java.awt.event.ActionEvent?) { sendMessage() }
         })
         loadAgents()
+
+        // Load persisted session history
+        if (persistenceManager != null) {
+            scope.launch {
+                val history = persistenceManager.loadRecentRuns()
+                invokeLater {
+                    if (project.isDisposed) return@invokeLater
+                    runs.addAll(history)
+                    tableModel.fireTableDataChanged()
+                }
+            }
+        }
     }
 
     private fun loadAgents() {
@@ -241,6 +255,7 @@ class SessionPanel(
                     run.sessionId = sessionId
                     tableModel.fireTableDataChanged()
                 }
+                persistenceManager?.createRun(sessionId, run.agent, run.prompt, run.branch, run.startTimeMillis)
             }
 
             onComplete {
@@ -249,6 +264,7 @@ class SessionPanel(
                     run.durationMs = System.currentTimeMillis() - run.startTimeMillis
                     tableModel.fireTableDataChanged()
                 }
+                run.sessionId?.let { persistenceManager?.completeRun(it, System.currentTimeMillis() - run.startTimeMillis) }
             }
 
             onError { message, _, _, _, _ ->
@@ -258,6 +274,7 @@ class SessionPanel(
                     run.errorMessage = message
                     tableModel.fireTableDataChanged()
                 }
+                run.sessionId?.let { persistenceManager?.failRun(it, System.currentTimeMillis() - run.startTimeMillis, message) }
             }
 
             onCancel {
@@ -266,6 +283,7 @@ class SessionPanel(
                     run.durationMs = System.currentTimeMillis() - run.startTimeMillis
                     tableModel.fireTableDataChanged()
                 }
+                run.sessionId?.let { persistenceManager?.cancelRun(it, System.currentTimeMillis() - run.startTimeMillis) }
             }
         }
     }

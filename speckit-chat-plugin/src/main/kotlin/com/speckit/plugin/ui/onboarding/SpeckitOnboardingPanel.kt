@@ -3,6 +3,7 @@ package com.speckit.plugin.ui.onboarding
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
+import com.speckit.plugin.persistence.SessionPersistenceManager
 import com.speckit.plugin.ui.SessionPanel
 import java.awt.BorderLayout
 import javax.swing.JPanel
@@ -20,7 +21,8 @@ import javax.swing.JPanel
 class SpeckitOnboardingPanel(
     private val project: Project,
     parentDisposable: Disposable,
-    private val sessionPanel: SessionPanel? = null
+    private val sessionPanel: SessionPanel? = null,
+    private val persistenceManager: SessionPersistenceManager? = null
 ) : JPanel(BorderLayout()), Disposable {
 
     /** Ordered list of all feature descriptors for navigation. */
@@ -81,7 +83,8 @@ class SpeckitOnboardingPanel(
             onDiscoverAll = { showDiscoverPanel() },
             onClose = { showWelcomePanel() },
             project = project,
-            sessionPanel = sessionPanel
+            sessionPanel = sessionPanel,
+            persistenceManager = persistenceManager
         )
         replaceContent(featurePanel)
     }

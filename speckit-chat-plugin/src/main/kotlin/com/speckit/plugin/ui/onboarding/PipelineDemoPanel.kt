@@ -13,6 +13,7 @@ import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
 import com.speckit.plugin.tools.ResourceLoader
+import com.speckit.plugin.persistence.SessionPersistenceManager
 import com.speckit.plugin.ui.ChatRun
 import com.speckit.plugin.ui.ChatRunStatus
 import com.speckit.plugin.ui.SessionPanel
@@ -48,7 +49,8 @@ class PipelineDemoPanel(
     private val project: Project,
     private val sessionPanel: SessionPanel,
     /** Index of the step to pre-select (0-based). */
-    private val initialStepIndex: Int = 0
+    private val initialStepIndex: Int = 0,
+    private val persistenceManager: SessionPersistenceManager? = null
 ) : JPanel(BorderLayout()) {
 
     // ── Data model (mirrors PipelinePanel) ────────────────────────────────────
@@ -484,6 +486,7 @@ class PipelineDemoPanel(
                     run.sessionId = sessionId
                     sessionPanel.notifyRunChanged()
                 }
+                persistenceManager?.createRun(sessionId, run.agent, run.prompt, run.branch, run.startTimeMillis)
             }
             onComplete {
                 invokeLater {
@@ -492,6 +495,7 @@ class PipelineDemoPanel(
                     sessionPanel.notifyRunChanged()
                     refreshFeatures()
                 }
+                run.sessionId?.let { persistenceManager?.completeRun(it, System.currentTimeMillis() - run.startTimeMillis) }
             }
             onError { message, _, _, _, _ ->
                 invokeLater {
@@ -500,6 +504,7 @@ class PipelineDemoPanel(
                     run.errorMessage = message
                     sessionPanel.notifyRunChanged()
                 }
+                run.sessionId?.let { persistenceManager?.failRun(it, System.currentTimeMillis() - run.startTimeMillis, message) }
             }
             onCancel {
                 invokeLater {
@@ -507,6 +512,7 @@ class PipelineDemoPanel(
                     run.durationMs = System.currentTimeMillis() - run.startTimeMillis
                     sessionPanel.notifyRunChanged()
                 }
+                run.sessionId?.let { persistenceManager?.cancelRun(it, System.currentTimeMillis() - run.startTimeMillis) }
             }
         }
     }

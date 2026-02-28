@@ -136,32 +136,16 @@ class TaskListPanel(
         if (selected.isEmpty()) return
 
         val popup = JPopupMenu()
-        val multiSelect = selected.size > 1
-
         val unchecked = selected.filter { !it.checked }
         val checked = selected.filter { it.checked }
 
-        if (multiSelect) {
-            // Multi-select: sub-options for sequential/parallel
-            if (unchecked.isNotEmpty()) {
-                popup.add(menuItem("Execute Sequential") { runTaskAction("execute", unchecked, parallel = false) })
-                popup.add(menuItem("Execute Parallel") { runTaskAction("execute", unchecked, parallel = true) })
-            }
-            if (checked.isNotEmpty()) {
-                popup.add(menuItem("Retry Sequential") { runTaskAction("retry", checked, parallel = false) })
-                popup.add(menuItem("Retry Parallel") { runTaskAction("retry", checked, parallel = true) })
-            }
-            popup.add(menuItem("Audit Sequential") { runTaskAction("audit", selected, parallel = false) })
-            popup.add(menuItem("Audit Parallel") { runTaskAction("audit", selected, parallel = true) })
-        } else {
-            val task = selected.first()
-            if (!task.checked) {
-                popup.add(menuItem("Execute") { runTaskAction("execute", listOf(task), parallel = false) })
-            } else {
-                popup.add(menuItem("Retry") { runTaskAction("retry", listOf(task), parallel = false) })
-            }
-            popup.add(menuItem("Audit") { runTaskAction("audit", listOf(task), parallel = false) })
+        if (unchecked.isNotEmpty()) {
+            popup.add(menuItem("Execute") { runTaskAction("execute", unchecked) })
         }
+        if (checked.isNotEmpty()) {
+            popup.add(menuItem("Retry") { runTaskAction("retry", checked) })
+        }
+        popup.add(menuItem("Audit") { runTaskAction("audit", selected) })
 
         popup.show(list, e.x, e.y)
     }
@@ -174,16 +158,23 @@ class TaskListPanel(
 
     // ── Task execution ───────────────────────────────────────────────────────
 
-    private fun runTaskAction(action: String, tasks: List<TaskItem>, parallel: Boolean) {
+    private fun runTaskAction(action: String, tasks: List<TaskItem>) {
         val chatService = project.getService(CopilotChatService::class.java) ?: return
         val dataContext = SimpleDataContext.getProjectContext(project)
 
-        if (parallel) {
-            for (task in tasks) {
-                launchTaskSession(chatService, dataContext, action, task)
+        // Sequential tasks run first (in order), then [P]-marked tasks launch in parallel
+        val (parallel, sequential) = tasks.partition { it.parallel }
+        if (sequential.isNotEmpty()) {
+            launchSequential(chatService, dataContext, action, sequential, index = 0) {
+                // After all sequential tasks complete, fire parallel batch
+                for (task in parallel) {
+                    launchTaskSession(chatService, dataContext, action, task)
+                }
             }
         } else {
-            launchSequential(chatService, dataContext, action, tasks, index = 0)
+            for (task in parallel) {
+                launchTaskSession(chatService, dataContext, action, task)
+            }
         }
     }
 
@@ -192,9 +183,13 @@ class TaskListPanel(
         dataContext: com.intellij.openapi.actionSystem.DataContext,
         action: String,
         tasks: List<TaskItem>,
-        index: Int
+        index: Int,
+        onAllComplete: (() -> Unit)? = null
     ) {
-        if (index >= tasks.size) return
+        if (index >= tasks.size) {
+            onAllComplete?.invoke()
+            return
+        }
         val task = tasks[index]
         val prompt = buildPrompt(action, task)
 
@@ -224,7 +219,7 @@ class TaskListPanel(
                     chatPanel.notifyRunChanged()
                 }
                 run.sessionId?.let { persistenceManager?.completeRun(it, System.currentTimeMillis() - run.startTimeMillis) }
-                launchSequential(chatService, dataContext, action, tasks, index + 1)
+                launchSequential(chatService, dataContext, action, tasks, index + 1, onAllComplete)
             }
 
             onError { message, _, _, _, _ ->

@@ -13,6 +13,7 @@ import com.intellij.ui.dsl.gridLayout.UnscaledGapsY
 import com.intellij.util.ui.JBDimension
 import com.intellij.util.ui.JBFont
 import com.intellij.util.ui.JBUI
+import com.speckit.plugin.persistence.SessionPersistenceManager
 import com.speckit.plugin.ui.SessionPanel
 import java.awt.BorderLayout
 import java.awt.Container
@@ -44,7 +45,8 @@ class SpeckitFeaturePanel(
     private val onDiscoverAll: () -> Unit,
     private val onClose: () -> Unit,
     private val project: Project? = null,
-    private val sessionPanel: SessionPanel? = null
+    private val sessionPanel: SessionPanel? = null,
+    private val persistenceManager: SessionPersistenceManager? = null
 ) : JPanel(BorderLayout()) {
 
     companion object {
@@ -105,7 +107,7 @@ class SpeckitFeaturePanel(
             // Embedded Discovery demo — shown for Discovery feature
             if (project != null && sessionPanel != null && descriptor == DiscoveryFeatureDescriptor) {
                 row {
-                    cell(DiscoveryDemoPanel(project, sessionPanel))
+                    cell(DiscoveryDemoPanel(project, sessionPanel, persistenceManager))
                         .align(AlignX.FILL)
                         .align(AlignY.FILL)
                 }.customize(UnscaledGapsY(12, 0))
@@ -115,7 +117,7 @@ class SpeckitFeaturePanel(
             if (project != null && sessionPanel != null && descriptor != DiscoveryFeatureDescriptor) {
                 val stepIndex = DESCRIPTOR_TO_STEP_INDEX[descriptor] ?: 0
                 row {
-                    cell(PipelineDemoPanel(project, sessionPanel, initialStepIndex = stepIndex))
+                    cell(PipelineDemoPanel(project, sessionPanel, initialStepIndex = stepIndex, persistenceManager = persistenceManager))
                         .align(AlignX.FILL)
                         .align(AlignY.FILL)
                 }.customize(UnscaledGapsY(12, 0))

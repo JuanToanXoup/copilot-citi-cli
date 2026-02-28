@@ -15,6 +15,7 @@ import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.table.JBTable
 import com.intellij.util.ui.JBUI
 import com.speckit.plugin.tools.ResourceLoader
+import com.speckit.plugin.persistence.SessionPersistenceManager
 import com.speckit.plugin.ui.ChatRun
 import com.speckit.plugin.ui.ChatRunStatus
 import com.speckit.plugin.ui.SessionPanel
@@ -47,7 +48,8 @@ import javax.swing.table.DefaultTableModel
  */
 class DiscoveryDemoPanel(
     private val project: Project,
-    private val sessionPanel: SessionPanel
+    private val sessionPanel: SessionPanel,
+    private val persistenceManager: SessionPersistenceManager? = null
 ) : JPanel(BorderLayout()) {
 
     private val categoryTables = mutableListOf<CategoryTable>()
@@ -385,6 +387,7 @@ class DiscoveryDemoPanel(
                     run.sessionId = sessionId
                     sessionPanel.notifyRunChanged()
                 }
+                persistenceManager?.createRun(sessionId, run.agent, run.prompt, run.branch, run.startTimeMillis)
             }
             onComplete {
                 invokeLater {
@@ -392,6 +395,7 @@ class DiscoveryDemoPanel(
                     run.durationMs = System.currentTimeMillis() - run.startTimeMillis
                     sessionPanel.notifyRunChanged()
                 }
+                run.sessionId?.let { persistenceManager?.completeRun(it, System.currentTimeMillis() - run.startTimeMillis) }
             }
             onError { message, _, _, _, _ ->
                 invokeLater {
@@ -400,6 +404,7 @@ class DiscoveryDemoPanel(
                     run.errorMessage = message
                     sessionPanel.notifyRunChanged()
                 }
+                run.sessionId?.let { persistenceManager?.failRun(it, System.currentTimeMillis() - run.startTimeMillis, message) }
             }
             onCancel {
                 invokeLater {
@@ -407,6 +412,7 @@ class DiscoveryDemoPanel(
                     run.durationMs = System.currentTimeMillis() - run.startTimeMillis
                     sessionPanel.notifyRunChanged()
                 }
+                run.sessionId?.let { persistenceManager?.cancelRun(it, System.currentTimeMillis() - run.startTimeMillis) }
             }
         }
     }
@@ -444,6 +450,7 @@ class DiscoveryDemoPanel(
                     run.sessionId = sessionId
                     sessionPanel.notifyRunChanged()
                 }
+                persistenceManager?.createRun(sessionId, run.agent, run.prompt, run.branch, run.startTimeMillis)
             }
             onComplete {
                 invokeLater {
@@ -451,6 +458,7 @@ class DiscoveryDemoPanel(
                     run.durationMs = System.currentTimeMillis() - run.startTimeMillis
                     sessionPanel.notifyRunChanged()
                 }
+                run.sessionId?.let { persistenceManager?.completeRun(it, System.currentTimeMillis() - run.startTimeMillis) }
             }
             onError { message, _, _, _, _ ->
                 invokeLater {
@@ -459,6 +467,7 @@ class DiscoveryDemoPanel(
                     run.errorMessage = message
                     sessionPanel.notifyRunChanged()
                 }
+                run.sessionId?.let { persistenceManager?.failRun(it, System.currentTimeMillis() - run.startTimeMillis, message) }
             }
             onCancel {
                 invokeLater {
@@ -466,6 +475,7 @@ class DiscoveryDemoPanel(
                     run.durationMs = System.currentTimeMillis() - run.startTimeMillis
                     sessionPanel.notifyRunChanged()
                 }
+                run.sessionId?.let { persistenceManager?.cancelRun(it, System.currentTimeMillis() - run.startTimeMillis) }
             }
         }
     }
