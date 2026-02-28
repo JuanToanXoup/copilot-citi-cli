@@ -1,0 +1,118 @@
+{
+  "name": "speckit-chat-vscode",
+  "displayName": "Speckit",
+  "description": "Spec-driven development pipeline with GitHub Copilot Chat integration",
+  "version": "0.1.0",
+  "publisher": "speckit",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": ["AI", "Chat"],
+  "extensionDependencies": [
+    "github.copilot-chat"
+  ],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "chatParticipants": [
+      {
+        "id": "speckit.chat",
+        "name": "speckit",
+        "fullName": "Speckit Pipeline",
+        "description": "Spec-driven development pipeline — discover, specify, plan, implement",
+        "isSticky": false,
+        "commands": [
+          { "name": "discover", "description": "Discover project properties and fill discovery.md" },
+          { "name": "constitution", "description": "Create or update project constitution" },
+          { "name": "specify", "description": "Create a feature specification from a description" },
+          { "name": "clarify", "description": "Clarify underspecified areas in the spec" },
+          { "name": "plan", "description": "Generate technical design from the spec" },
+          { "name": "tasks", "description": "Generate dependency-ordered task list" },
+          { "name": "checklist", "description": "Generate requirement quality checklists" },
+          { "name": "analyze", "description": "Non-destructive cross-artifact consistency analysis" },
+          { "name": "implement", "description": "Execute the implementation plan" },
+          { "name": "taskstoissues", "description": "Convert tasks into VCS issues" }
+        ]
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "speckit",
+          "title": "Speckit",
+          "icon": "resources/icons/speckit.svg"
+        }
+      ]
+    },
+    "views": {
+      "speckit": [
+        {
+          "id": "speckit.pipeline",
+          "name": "Pipeline",
+          "type": "tree"
+        },
+        {
+          "id": "speckit.stepDetail",
+          "name": "Step Detail",
+          "type": "webview"
+        },
+        {
+          "id": "speckit.discovery",
+          "name": "Discovery",
+          "type": "webview"
+        },
+        {
+          "id": "speckit.sessions",
+          "name": "Sessions",
+          "type": "webview"
+        },
+        {
+          "id": "speckit.onboarding",
+          "name": "Onboarding",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "speckit.refreshPipeline",
+        "title": "Speckit: Refresh Pipeline",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "speckit.runStep",
+        "title": "Speckit: Run Pipeline Step"
+      },
+      {
+        "command": "speckit.initSpeckit",
+        "title": "Speckit: Init (Download Agents)"
+      },
+      {
+        "command": "speckit.newFeature",
+        "title": "Speckit: New Feature Specification"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "speckit.refreshPipeline",
+          "when": "view == speckit.pipeline",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
+    "watch": "npm run build -- --watch",
+    "lint": "tsc --noEmit",
+    "test": "tsc -p tsconfig.test.json && node ./out/test/runTests.js",
+    "package": "npm run build -- --minify"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.95.0",
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.7.0"
+  }
+}
