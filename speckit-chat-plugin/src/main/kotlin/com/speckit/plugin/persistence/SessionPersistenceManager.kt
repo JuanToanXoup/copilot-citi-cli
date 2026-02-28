@@ -7,8 +7,8 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
-import com.speckit.plugin.ui.ChatRun
-import com.speckit.plugin.ui.ChatRunStatus
+import com.speckit.plugin.model.ChatRun
+import com.speckit.plugin.model.ChatRunStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

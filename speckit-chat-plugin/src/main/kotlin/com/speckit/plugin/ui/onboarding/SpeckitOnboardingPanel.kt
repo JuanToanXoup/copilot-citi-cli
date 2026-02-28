@@ -4,6 +4,7 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.speckit.plugin.persistence.SessionPersistenceManager
+import com.speckit.plugin.service.ChatRunLauncher
 import com.speckit.plugin.ui.SessionPanel
 import java.awt.BorderLayout
 import javax.swing.JPanel
@@ -22,7 +23,8 @@ class SpeckitOnboardingPanel(
     private val project: Project,
     parentDisposable: Disposable,
     private val sessionPanel: SessionPanel? = null,
-    private val persistenceManager: SessionPersistenceManager? = null
+    private val persistenceManager: SessionPersistenceManager? = null,
+    private val launcher: ChatRunLauncher? = null
 ) : JPanel(BorderLayout()), Disposable {
 
     /** Ordered list of all feature descriptors for navigation. */
@@ -84,7 +86,8 @@ class SpeckitOnboardingPanel(
             onClose = { showWelcomePanel() },
             project = project,
             sessionPanel = sessionPanel,
-            persistenceManager = persistenceManager
+            persistenceManager = persistenceManager,
+            launcher = launcher
         )
         replaceContent(featurePanel)
     }

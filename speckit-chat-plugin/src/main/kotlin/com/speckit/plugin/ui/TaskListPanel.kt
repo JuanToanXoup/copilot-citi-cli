@@ -7,6 +7,9 @@ import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.ui.JBColor
+import com.speckit.plugin.model.ChatRun
+import com.speckit.plugin.model.ChatRunStatus
+import com.speckit.plugin.service.ChatRunLauncher
 import com.speckit.plugin.persistence.SessionPersistenceManager
 import com.speckit.plugin.tools.TaskItem
 import com.speckit.plugin.tools.TaskPhase
@@ -38,7 +41,8 @@ class TaskListPanel(
     private val project: Project,
     private val chatPanel: SessionPanel,
     private val persistenceManager: SessionPersistenceManager?,
-    private val enableActions: Boolean = false
+    private val enableActions: Boolean = false,
+    private val launcher: ChatRunLauncher? = null
 ) : JPanel(BorderLayout()) {
 
     private var tasksFile: TasksFile? = null
@@ -159,28 +163,22 @@ class TaskListPanel(
     // ── Task execution ───────────────────────────────────────────────────────
 
     private fun runTaskAction(action: String, tasks: List<TaskItem>) {
-        val chatService = project.getService(CopilotChatService::class.java) ?: return
-        val dataContext = SimpleDataContext.getProjectContext(project)
-
         // Sequential tasks run first (in order), then [P]-marked tasks launch in parallel
         val (parallel, sequential) = tasks.partition { it.parallel }
         if (sequential.isNotEmpty()) {
-            launchSequential(chatService, dataContext, action, sequential, index = 0) {
-                // After all sequential tasks complete, fire parallel batch
+            launchSequential(action, sequential, index = 0) {
                 for (task in parallel) {
-                    launchTaskSession(chatService, dataContext, action, task)
+                    launchTask(action, task)
                 }
             }
         } else {
             for (task in parallel) {
-                launchTaskSession(chatService, dataContext, action, task)
+                launchTask(action, task)
             }
         }
     }
 
     private fun launchSequential(
-        chatService: CopilotChatService,
-        dataContext: com.intellij.openapi.actionSystem.DataContext,
         action: String,
         tasks: List<TaskItem>,
         index: Int,
@@ -191,115 +189,21 @@ class TaskListPanel(
             return
         }
         val task = tasks[index]
-        val prompt = buildPrompt(action, task)
-
-        val run = ChatRun(
+        launcher?.launch(
+            prompt = buildPrompt(action, task),
             agent = "implement",
-            prompt = "${task.id}: ${task.description}".take(80),
-            branch = chatPanel.currentGitBranch()
+            promptSummary = "${task.id}: ${task.description}".take(80),
+            onDone = { launchSequential(action, tasks, index + 1, onAllComplete) }
+            // Stop chain on error/cancel (onFail defaults to null = no action)
         )
-        chatPanel.registerRun(run)
-
-        chatService.query(dataContext) {
-            withInput(prompt)
-            withAgentMode()
-            withNewSession()
-            withSessionIdReceiver { sessionId ->
-                invokeLater {
-                    run.sessionId = sessionId
-                    chatPanel.notifyRunChanged()
-                }
-                persistenceManager?.createRun(sessionId, run.agent, run.prompt, run.branch, run.startTimeMillis)
-            }
-
-            onComplete {
-                invokeLater {
-                    run.status = ChatRunStatus.COMPLETED
-                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
-                    chatPanel.notifyRunChanged()
-                }
-                run.sessionId?.let { persistenceManager?.completeRun(it, System.currentTimeMillis() - run.startTimeMillis) }
-                launchSequential(chatService, dataContext, action, tasks, index + 1, onAllComplete)
-            }
-
-            onError { message, _, _, _, _ ->
-                invokeLater {
-                    run.status = ChatRunStatus.FAILED
-                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
-                    run.errorMessage = message
-                    chatPanel.notifyRunChanged()
-                }
-                run.sessionId?.let { persistenceManager?.failRun(it, System.currentTimeMillis() - run.startTimeMillis, message) }
-                // Stop chain on error
-            }
-
-            onCancel {
-                invokeLater {
-                    run.status = ChatRunStatus.CANCELLED
-                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
-                    chatPanel.notifyRunChanged()
-                }
-                run.sessionId?.let { persistenceManager?.cancelRun(it, System.currentTimeMillis() - run.startTimeMillis) }
-                // Stop chain on cancel
-            }
-        }
     }
 
-    private fun launchTaskSession(
-        chatService: CopilotChatService,
-        dataContext: com.intellij.openapi.actionSystem.DataContext,
-        action: String,
-        task: TaskItem
-    ) {
-        val prompt = buildPrompt(action, task)
-
-        val run = ChatRun(
+    private fun launchTask(action: String, task: TaskItem) {
+        launcher?.launch(
+            prompt = buildPrompt(action, task),
             agent = "implement",
-            prompt = "${task.id}: ${task.description}".take(80),
-            branch = chatPanel.currentGitBranch()
+            promptSummary = "${task.id}: ${task.description}".take(80)
         )
-        chatPanel.registerRun(run)
-
-        chatService.query(dataContext) {
-            withInput(prompt)
-            withAgentMode()
-            withNewSession()
-            withSessionIdReceiver { sessionId ->
-                invokeLater {
-                    run.sessionId = sessionId
-                    chatPanel.notifyRunChanged()
-                }
-                persistenceManager?.createRun(sessionId, run.agent, run.prompt, run.branch, run.startTimeMillis)
-            }
-
-            onComplete {
-                invokeLater {
-                    run.status = ChatRunStatus.COMPLETED
-                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
-                    chatPanel.notifyRunChanged()
-                }
-                run.sessionId?.let { persistenceManager?.completeRun(it, System.currentTimeMillis() - run.startTimeMillis) }
-            }
-
-            onError { message, _, _, _, _ ->
-                invokeLater {
-                    run.status = ChatRunStatus.FAILED
-                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
-                    run.errorMessage = message
-                    chatPanel.notifyRunChanged()
-                }
-                run.sessionId?.let { persistenceManager?.failRun(it, System.currentTimeMillis() - run.startTimeMillis, message) }
-            }
-
-            onCancel {
-                invokeLater {
-                    run.status = ChatRunStatus.CANCELLED
-                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
-                    chatPanel.notifyRunChanged()
-                }
-                run.sessionId?.let { persistenceManager?.cancelRun(it, System.currentTimeMillis() - run.startTimeMillis) }
-            }
-        }
     }
 
     private fun buildPrompt(action: String, task: TaskItem): String {

@@ -14,6 +14,7 @@ import com.intellij.util.ui.JBDimension
 import com.intellij.util.ui.JBFont
 import com.intellij.util.ui.JBUI
 import com.speckit.plugin.persistence.SessionPersistenceManager
+import com.speckit.plugin.service.ChatRunLauncher
 import com.speckit.plugin.ui.SessionPanel
 import java.awt.BorderLayout
 import java.awt.Container
@@ -46,7 +47,8 @@ class SpeckitFeaturePanel(
     private val onClose: () -> Unit,
     private val project: Project? = null,
     private val sessionPanel: SessionPanel? = null,
-    private val persistenceManager: SessionPersistenceManager? = null
+    private val persistenceManager: SessionPersistenceManager? = null,
+    private val launcher: ChatRunLauncher? = null
 ) : JPanel(BorderLayout()) {
 
     companion object {
@@ -107,7 +109,7 @@ class SpeckitFeaturePanel(
             // Embedded Discovery demo — shown for Discovery feature
             if (project != null && sessionPanel != null && descriptor == DiscoveryFeatureDescriptor) {
                 row {
-                    cell(DiscoveryDemoPanel(project, sessionPanel, persistenceManager))
+                    cell(DiscoveryDemoPanel(project, sessionPanel, persistenceManager, launcher))
                         .align(AlignX.FILL)
                         .align(AlignY.FILL)
                 }.customize(UnscaledGapsY(12, 0))
@@ -117,7 +119,7 @@ class SpeckitFeaturePanel(
             if (project != null && sessionPanel != null && descriptor != DiscoveryFeatureDescriptor) {
                 val stepIndex = DESCRIPTOR_TO_STEP_INDEX[descriptor] ?: 0
                 row {
-                    cell(PipelineDemoPanel(project, sessionPanel, initialStepIndex = stepIndex, persistenceManager = persistenceManager))
+                    cell(PipelineDemoPanel(project, sessionPanel, initialStepIndex = stepIndex, persistenceManager = persistenceManager, launcher = launcher))
                         .align(AlignX.FILL)
                         .align(AlignY.FILL)
                 }.customize(UnscaledGapsY(12, 0))

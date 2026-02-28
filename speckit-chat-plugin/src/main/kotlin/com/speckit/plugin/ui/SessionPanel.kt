@@ -14,6 +14,10 @@ import com.intellij.ui.RoundedLineBorder
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
 import com.intellij.ui.table.JBTable
+import com.speckit.plugin.model.ChatRun
+import com.speckit.plugin.model.ChatRunStatus
+import com.speckit.plugin.service.ChatRunLauncher
+import com.speckit.plugin.service.GitHelper
 import com.speckit.plugin.persistence.SessionPersistenceManager
 import com.speckit.plugin.tools.ResourceLoader
 import java.awt.BorderLayout
@@ -53,6 +57,7 @@ class SessionPanel(
     private val moreButton: JButton
     private val scope = CoroutineScope(Dispatchers.Default)
 
+    var launcher: ChatRunLauncher? = null
     private val runs = mutableListOf<ChatRun>()
     private val tableModel = ChatRunTableModel(runs)
     private val table = JBTable(tableModel)
@@ -213,79 +218,17 @@ class SessionPanel(
 
     internal fun currentGitBranch(): String {
         val basePath = project.basePath ?: return ""
-        return try {
-            val process = ProcessBuilder("git", "rev-parse", "--abbrev-ref", "HEAD")
-                .directory(java.io.File(basePath))
-                .redirectErrorStream(true)
-                .start()
-            val output = process.inputStream.bufferedReader().readText().trim()
-            if (process.waitFor() == 0) output else ""
-        } catch (_: Exception) { "" }
+        return GitHelper.currentBranch(basePath, fallback = "")
     }
 
     private fun sendMessage() {
         val agent = agentCombo.selectedItem as? AgentEntry ?: return
         val argument = argField.text.trim()
         val basePath = project.basePath ?: return
-
-        val agentContent = ResourceLoader.readAgent(basePath, agent.fileName)
-        if (agentContent == null) return
-
+        val agentContent = ResourceLoader.readAgent(basePath, agent.fileName) ?: return
         val prompt = agentContent.replace("\$ARGUMENTS", argument)
         argField.text = ""
-
-        val chatService = project.getService(CopilotChatService::class.java) ?: return
-
-        val run = ChatRun(
-            agent = agent.slug,
-            prompt = argument.ifEmpty { "(no arguments)" },
-            branch = currentGitBranch()
-        )
-        runs.add(0, run)
-        tableModel.fireTableDataChanged()
-
-        val dataContext = SimpleDataContext.getProjectContext(project)
-
-        chatService.query(dataContext) {
-            withInput(prompt)
-            withAgentMode()
-            withNewSession()
-            withSessionIdReceiver { sessionId ->
-                invokeLater {
-                    run.sessionId = sessionId
-                    tableModel.fireTableDataChanged()
-                }
-                persistenceManager?.createRun(sessionId, run.agent, run.prompt, run.branch, run.startTimeMillis)
-            }
-
-            onComplete {
-                invokeLater {
-                    run.status = ChatRunStatus.COMPLETED
-                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
-                    tableModel.fireTableDataChanged()
-                }
-                run.sessionId?.let { persistenceManager?.completeRun(it, System.currentTimeMillis() - run.startTimeMillis) }
-            }
-
-            onError { message, _, _, _, _ ->
-                invokeLater {
-                    run.status = ChatRunStatus.FAILED
-                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
-                    run.errorMessage = message
-                    tableModel.fireTableDataChanged()
-                }
-                run.sessionId?.let { persistenceManager?.failRun(it, System.currentTimeMillis() - run.startTimeMillis, message) }
-            }
-
-            onCancel {
-                invokeLater {
-                    run.status = ChatRunStatus.CANCELLED
-                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
-                    tableModel.fireTableDataChanged()
-                }
-                run.sessionId?.let { persistenceManager?.cancelRun(it, System.currentTimeMillis() - run.startTimeMillis) }
-            }
-        }
+        launcher?.launch(prompt, agent.slug, argument.ifEmpty { "(no arguments)" })
     }
 
     private fun packColumns() {
@@ -363,21 +306,7 @@ class SessionPanel(
     override fun dispose() {}
 }
 
-// ── Data model ──────────────────────────────────────────────────────────────
-
-enum class ChatRunStatus { RUNNING, COMPLETED, FAILED, CANCELLED }
-
-class ChatRun(
-    val agent: String,
-    val prompt: String,
-    val branch: String,
-    val startTimeMillis: Long = System.currentTimeMillis()
-) {
-    @Volatile var status: ChatRunStatus = ChatRunStatus.RUNNING
-    @Volatile var durationMs: Long = 0
-    @Volatile var sessionId: String? = null
-    @Volatile var errorMessage: String? = null
-}
+// ── Data model (see model/ChatModels.kt) ────────────────────────────────────
 
 // ── Table model ─────────────────────────────────────────────────────────────
 

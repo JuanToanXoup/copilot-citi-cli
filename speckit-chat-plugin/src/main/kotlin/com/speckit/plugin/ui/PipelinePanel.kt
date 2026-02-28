@@ -20,6 +20,18 @@ import com.intellij.ui.OnePixelSplitter
 import com.intellij.ui.TreeSpeedSearch
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
+import com.speckit.plugin.model.ArtifactCheck
+import com.speckit.plugin.model.ChecklistStatus
+import com.speckit.plugin.model.CheckResult
+import com.speckit.plugin.model.ChatRun
+import com.speckit.plugin.model.ChatRunStatus
+import com.speckit.plugin.model.FeatureEntry
+import com.speckit.plugin.model.FeaturePaths
+import com.speckit.plugin.model.PipelineStepDef
+import com.speckit.plugin.model.PipelineStepState
+import com.speckit.plugin.model.StepStatus
+import com.speckit.plugin.service.ChatRunLauncher
+import com.speckit.plugin.service.GitHelper
 import com.speckit.plugin.persistence.SessionPersistenceManager
 import com.speckit.plugin.tools.ResourceLoader
 import java.awt.BorderLayout
@@ -50,65 +62,11 @@ class PipelinePanel(
     private val project: Project,
     parentDisposable: Disposable,
     private val chatPanel: SessionPanel,
-    private val persistenceManager: SessionPersistenceManager? = null
+    private val persistenceManager: SessionPersistenceManager? = null,
+    private val launcher: ChatRunLauncher? = null
 ) : JPanel(BorderLayout()), Disposable {
 
-    // ── Data model ───────────────────────────────────────────────────────────
-
-    enum class StepStatus { NOT_STARTED, READY, IN_PROGRESS, COMPLETED, BLOCKED }
-
-    data class ArtifactCheck(
-        val relativePath: String,
-        val label: String,
-        val isDirectory: Boolean = false,
-        val requireNonEmpty: Boolean = false,
-        val isRepoRelative: Boolean = false,
-        val altRelativePath: String? = null
-    )
-
-    data class CheckResult(val artifact: ArtifactCheck, val exists: Boolean, val detail: String, val resolvedFile: File? = null)
-
-    data class ChecklistStatus(
-        val fileName: String,
-        val total: Int,
-        val completed: Int,
-        val file: File
-    ) {
-        val isComplete get() = completed >= total
-    }
-
-    data class PipelineStepDef(
-        val number: Int,
-        val id: String,
-        val name: String,
-        val description: String,
-        val isOptional: Boolean,
-        val prerequisites: List<ArtifactCheck>,
-        val outputs: List<ArtifactCheck>,
-        val handsOffTo: List<String>,
-        val agentFileName: String,
-        val parentId: String? = null
-    )
-
-    class PipelineStepState {
-        @Volatile var status: StepStatus = StepStatus.NOT_STARTED
-        var prerequisiteResults: List<CheckResult> = emptyList()
-        var outputResults: List<CheckResult> = emptyList()
-    }
-
-    data class FeaturePaths(
-        val basePath: String,
-        val branch: String,
-        val isFeatureBranch: Boolean,
-        val featureDir: String?
-    )
-
-    data class FeatureEntry(
-        val dirName: String,
-        val path: String,
-        var completedSteps: Int = 0,
-        var totalOutputSteps: Int = 0
-    )
+    // ── Data model (see model/PipelineModels.kt) ────────────────────────────
 
     // ── Tree node data ────────────────────────────────────────────────────────
 
@@ -389,14 +347,7 @@ class PipelinePanel(
 
     private fun getCurrentBranch(): String {
         val basePath = project.basePath ?: return "main"
-        return try {
-            val process = ProcessBuilder("git", "rev-parse", "--abbrev-ref", "HEAD")
-                .directory(File(basePath))
-                .redirectErrorStream(true)
-                .start()
-            val output = process.inputStream.bufferedReader().readText().trim()
-            if (process.waitFor() == 0) output else "main"
-        } catch (_: Exception) { "main" }
+        return GitHelper.currentBranch(basePath)
     }
 
     private fun scanFeatures(): List<FeatureEntry> {
@@ -1004,74 +955,25 @@ class PipelinePanel(
     private fun runStep(step: PipelineStepDef, arguments: String) {
         saveArgs(step.id, arguments)
         val basePath = project.basePath ?: return
-        val chatService = project.getService(CopilotChatService::class.java) ?: return
         val agentContent = ResourceLoader.readAgent(basePath, step.agentFileName) ?: return
-
         val prompt = agentContent.replace("\$ARGUMENTS", arguments)
-        val dataContext = SimpleDataContext.getProjectContext(project)
 
-        val run = ChatRun(
+        val refreshDetail = {
+            val selected = getSelectedStep()
+            if (selected != null) updateDetailPanel(selected)
+        }
+
+        val run = launcher?.launch(
+            prompt = prompt,
             agent = step.id,
-            prompt = arguments.ifEmpty { "(no arguments)" },
-            branch = chatPanel.currentGitBranch()
-        )
-        chatPanel.registerRun(run)
+            promptSummary = arguments.ifEmpty { "(no arguments)" },
+            onSessionReceived = { if (step.id == "implement") refreshDetail() },
+            onDone = { refreshAll(); refreshDetail() },
+            onFail = { refreshDetail() }
+        ) ?: return
 
         if (step.id == "implement") {
             lastImplementRun = run
-        }
-
-        chatService.query(dataContext) {
-            withInput(prompt)
-            withAgentMode()
-            withNewSession()
-            withSessionIdReceiver { sessionId ->
-                invokeLater {
-                    run.sessionId = sessionId
-                    chatPanel.notifyRunChanged()
-                    // Refresh detail panel so reply button appears once session is available
-                    if (step.id == "implement") {
-                        val selected = getSelectedStep()
-                        if (selected != null) updateDetailPanel(selected)
-                    }
-                }
-                persistenceManager?.createRun(sessionId, run.agent, run.prompt, run.branch, run.startTimeMillis)
-            }
-
-            onComplete {
-                invokeLater {
-                    run.status = ChatRunStatus.COMPLETED
-                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
-                    chatPanel.notifyRunChanged()
-                    refreshAll()
-                    val selected = getSelectedStep()
-                    if (selected != null) updateDetailPanel(selected)
-                }
-                run.sessionId?.let { persistenceManager?.completeRun(it, System.currentTimeMillis() - run.startTimeMillis) }
-            }
-
-            onError { message, _, _, _, _ ->
-                invokeLater {
-                    run.status = ChatRunStatus.FAILED
-                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
-                    run.errorMessage = message
-                    chatPanel.notifyRunChanged()
-                    val selected = getSelectedStep()
-                    if (selected != null) updateDetailPanel(selected)
-                }
-                run.sessionId?.let { persistenceManager?.failRun(it, System.currentTimeMillis() - run.startTimeMillis, message) }
-            }
-
-            onCancel {
-                invokeLater {
-                    run.status = ChatRunStatus.CANCELLED
-                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
-                    chatPanel.notifyRunChanged()
-                    val selected = getSelectedStep()
-                    if (selected != null) updateDetailPanel(selected)
-                }
-                run.sessionId?.let { persistenceManager?.cancelRun(it, System.currentTimeMillis() - run.startTimeMillis) }
-            }
         }
     }
 

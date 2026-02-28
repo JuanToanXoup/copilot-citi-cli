@@ -1,8 +1,6 @@
 package com.speckit.plugin.ui.onboarding
 
-import com.github.copilot.api.CopilotChatService
 import com.intellij.icons.AllIcons
-import com.intellij.openapi.actionSystem.impl.SimpleDataContext
 import com.intellij.openapi.application.invokeLater
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.project.Project
@@ -14,10 +12,11 @@ import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.table.JBTable
 import com.intellij.util.ui.JBUI
+import com.speckit.plugin.model.CategoryTable
+import com.speckit.plugin.model.TableRow
 import com.speckit.plugin.tools.ResourceLoader
 import com.speckit.plugin.persistence.SessionPersistenceManager
-import com.speckit.plugin.ui.ChatRun
-import com.speckit.plugin.ui.ChatRunStatus
+import com.speckit.plugin.service.ChatRunLauncher
 import com.speckit.plugin.ui.SessionPanel
 import java.awt.BorderLayout
 import java.awt.Color
@@ -49,7 +48,8 @@ import javax.swing.table.DefaultTableModel
 class DiscoveryDemoPanel(
     private val project: Project,
     private val sessionPanel: SessionPanel,
-    private val persistenceManager: SessionPersistenceManager? = null
+    private val persistenceManager: SessionPersistenceManager? = null,
+    private val launcher: ChatRunLauncher? = null
 ) : JPanel(BorderLayout()) {
 
     private val categoryTables = mutableListOf<CategoryTable>()
@@ -362,8 +362,6 @@ class DiscoveryDemoPanel(
     // ── Copilot actions ─────────────────────────────────────────────────────────
 
     private fun askCopilotCategory(category: String) {
-        val chatService = project.getService(CopilotChatService::class.java) ?: return
-        val dataContext = SimpleDataContext.getProjectContext(project)
         val prompt = "Using your tools and this project as your source of truth, " +
             "update only the \"$category\" section in the `.specify/memory/discovery.md` file " +
             "with your answers. The file uses `## Category` headings and `- Attribute = Answer` bullet lines. " +
@@ -371,55 +369,15 @@ class DiscoveryDemoPanel(
             "If you cannot find concrete evidence for an attribute, leave the value empty after the `=`. " +
             "Do not write \"Unknown\" or guess."
 
-        val run = ChatRun(
+        launcher?.launch(
+            prompt = prompt,
             agent = "discovery",
-            prompt = "Ask Copilot: $category",
-            branch = sessionPanel.currentGitBranch()
+            promptSummary = "Ask Copilot: $category"
         )
-        sessionPanel.registerRun(run)
-
-        chatService.query(dataContext) {
-            withInput(prompt)
-            withAgentMode()
-            withNewSession()
-            withSessionIdReceiver { sessionId ->
-                invokeLater {
-                    run.sessionId = sessionId
-                    sessionPanel.notifyRunChanged()
-                }
-                persistenceManager?.createRun(sessionId, run.agent, run.prompt, run.branch, run.startTimeMillis)
-            }
-            onComplete {
-                invokeLater {
-                    run.status = ChatRunStatus.COMPLETED
-                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
-                    sessionPanel.notifyRunChanged()
-                }
-                run.sessionId?.let { persistenceManager?.completeRun(it, System.currentTimeMillis() - run.startTimeMillis) }
-            }
-            onError { message, _, _, _, _ ->
-                invokeLater {
-                    run.status = ChatRunStatus.FAILED
-                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
-                    run.errorMessage = message
-                    sessionPanel.notifyRunChanged()
-                }
-                run.sessionId?.let { persistenceManager?.failRun(it, System.currentTimeMillis() - run.startTimeMillis, message) }
-            }
-            onCancel {
-                invokeLater {
-                    run.status = ChatRunStatus.CANCELLED
-                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
-                    sessionPanel.notifyRunChanged()
-                }
-                run.sessionId?.let { persistenceManager?.cancelRun(it, System.currentTimeMillis() - run.startTimeMillis) }
-            }
-        }
     }
 
     private fun generateConstitution() {
         val basePath = project.basePath ?: return
-        val chatService = project.getService(CopilotChatService::class.java) ?: return
 
         val arguments = mutableListOf<String>()
         for (ct in categoryTables) {
@@ -432,57 +390,15 @@ class DiscoveryDemoPanel(
 
         val agentContent = ResourceLoader.readAgent(basePath, "speckit.constitution.agent.md") ?: return
         val prompt = agentContent.replace("\$ARGUMENTS", arguments.joinToString("\n"))
-        val dataContext = SimpleDataContext.getProjectContext(project)
 
-        val run = ChatRun(
+        launcher?.launch(
+            prompt = prompt,
             agent = "constitution",
-            prompt = "Generate Constitution",
-            branch = sessionPanel.currentGitBranch()
+            promptSummary = "Generate Constitution"
         )
-        sessionPanel.registerRun(run)
-
-        chatService.query(dataContext) {
-            withInput(prompt)
-            withAgentMode()
-            withNewSession()
-            withSessionIdReceiver { sessionId ->
-                invokeLater {
-                    run.sessionId = sessionId
-                    sessionPanel.notifyRunChanged()
-                }
-                persistenceManager?.createRun(sessionId, run.agent, run.prompt, run.branch, run.startTimeMillis)
-            }
-            onComplete {
-                invokeLater {
-                    run.status = ChatRunStatus.COMPLETED
-                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
-                    sessionPanel.notifyRunChanged()
-                }
-                run.sessionId?.let { persistenceManager?.completeRun(it, System.currentTimeMillis() - run.startTimeMillis) }
-            }
-            onError { message, _, _, _, _ ->
-                invokeLater {
-                    run.status = ChatRunStatus.FAILED
-                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
-                    run.errorMessage = message
-                    sessionPanel.notifyRunChanged()
-                }
-                run.sessionId?.let { persistenceManager?.failRun(it, System.currentTimeMillis() - run.startTimeMillis, message) }
-            }
-            onCancel {
-                invokeLater {
-                    run.status = ChatRunStatus.CANCELLED
-                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
-                    sessionPanel.notifyRunChanged()
-                }
-                run.sessionId?.let { persistenceManager?.cancelRun(it, System.currentTimeMillis() - run.startTimeMillis) }
-            }
-        }
     }
 
     // ── Parsing ─────────────────────────────────────────────────────────────────
-
-    private data class TableRow(val category: String, val attribute: String, val answer: String)
 
     private fun extractBody(content: String): String {
         val match = Regex("^---\\s*\\n.*?\\n---\\s*\\n?", RegexOption.DOT_MATCHES_ALL).find(content) ?: return content
@@ -513,11 +429,5 @@ class DiscoveryDemoPanel(
         return rows
     }
 
-    // ── Data ────────────────────────────────────────────────────────────────────
-
-    private class CategoryTable(
-        val category: String,
-        val tableModel: DefaultTableModel,
-        val table: JBTable
-    )
+    // ── Data (see model/DiscoveryModels.kt) ────────────────────────────────────
 }

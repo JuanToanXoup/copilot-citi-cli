@@ -6,6 +6,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.speckit.plugin.persistence.SessionPersistenceManager
+import com.speckit.plugin.service.ChatRunLauncher
 import com.speckit.plugin.ui.onboarding.SpeckitOnboardingPanel
 
 class SubagentConsoleFactory : ToolWindowFactory, DumbAware {
@@ -17,14 +18,16 @@ class SubagentConsoleFactory : ToolWindowFactory, DumbAware {
         persistenceManager.initialize()
 
         val sessionPanel = SessionPanel(project, toolWindow.disposable, persistenceManager)
+        val launcher = ChatRunLauncher(project, sessionPanel, persistenceManager)
+        sessionPanel.launcher = launcher
 
-        val onboardingPanel = SpeckitOnboardingPanel(project, toolWindow.disposable, sessionPanel, persistenceManager)
+        val onboardingPanel = SpeckitOnboardingPanel(project, toolWindow.disposable, sessionPanel, persistenceManager, launcher)
         cm.addContent(cm.factory.createContent(onboardingPanel, "Onboarding", false).apply { isCloseable = false })
 
-        val discoveryPanel = DiscoveryPanel(project, toolWindow.disposable, sessionPanel, persistenceManager)
+        val discoveryPanel = DiscoveryPanel(project, toolWindow.disposable, sessionPanel, persistenceManager, launcher)
         cm.addContent(cm.factory.createContent(discoveryPanel, "Discovery", false).apply { isCloseable = false })
 
-        val pipelinePanel = PipelinePanel(project, toolWindow.disposable, sessionPanel, persistenceManager)
+        val pipelinePanel = PipelinePanel(project, toolWindow.disposable, sessionPanel, persistenceManager, launcher)
         cm.addContent(cm.factory.createContent(pipelinePanel, "Pipeline", false).apply { isCloseable = false })
 
         cm.addContent(cm.factory.createContent(sessionPanel, "Sessions", false).apply { isCloseable = false })

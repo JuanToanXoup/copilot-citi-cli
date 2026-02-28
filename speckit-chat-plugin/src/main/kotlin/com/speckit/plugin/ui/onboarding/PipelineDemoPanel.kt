@@ -1,8 +1,5 @@
 package com.speckit.plugin.ui.onboarding
 
-import com.github.copilot.api.CopilotChatService
-import com.intellij.openapi.actionSystem.impl.SimpleDataContext
-import com.intellij.openapi.application.invokeLater
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
@@ -12,10 +9,14 @@ import com.intellij.ui.RoundedLineBorder
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
+import com.speckit.plugin.model.ArtifactCheck
+import com.speckit.plugin.model.CheckResult
+import com.speckit.plugin.model.FeatureEntry
+import com.speckit.plugin.model.PipelineStepDef
+import com.speckit.plugin.model.StepStatus
 import com.speckit.plugin.tools.ResourceLoader
 import com.speckit.plugin.persistence.SessionPersistenceManager
-import com.speckit.plugin.ui.ChatRun
-import com.speckit.plugin.ui.ChatRunStatus
+import com.speckit.plugin.service.ChatRunLauncher
 import com.speckit.plugin.ui.SessionPanel
 import java.awt.BorderLayout
 import java.awt.Color
@@ -50,65 +51,33 @@ class PipelineDemoPanel(
     private val sessionPanel: SessionPanel,
     /** Index of the step to pre-select (0-based). */
     private val initialStepIndex: Int = 0,
-    private val persistenceManager: SessionPersistenceManager? = null
+    private val persistenceManager: SessionPersistenceManager? = null,
+    private val launcher: ChatRunLauncher? = null
 ) : JPanel(BorderLayout()) {
 
-    // ── Data model (mirrors PipelinePanel) ────────────────────────────────────
-
-    private enum class StepStatus { NOT_STARTED, READY, IN_PROGRESS, COMPLETED, BLOCKED }
-
-    private data class ArtifactCheck(
-        val relativePath: String,
-        val label: String,
-        val isDirectory: Boolean = false,
-        val requireNonEmpty: Boolean = false,
-        val isRepoRelative: Boolean = false,
-        val altRelativePath: String? = null
-    )
-
-    private data class CheckResult(val artifact: ArtifactCheck, val exists: Boolean, val detail: String, val resolvedFile: File? = null)
-
-    private data class StepDef(
-        val number: Int,
-        val id: String,
-        val name: String,
-        val description: String,
-        val isOptional: Boolean,
-        val prerequisites: List<ArtifactCheck>,
-        val outputs: List<ArtifactCheck>,
-        val handsOffTo: List<String>,
-        val agentFileName: String,
-        val defaultArgs: String = ""
-    )
-
-    private data class FeatureEntry(
-        val dirName: String,
-        val path: String,
-        var completedSteps: Int = 0,
-        var totalOutputSteps: Int = 0
-    )
+    // ── Data model (see model/PipelineModels.kt) ──────────────────────────────
 
     // ── Pipeline step definitions (same as PipelinePanel) ─────────────────────
 
     private val steps = listOf(
-        StepDef(1, "constitution", "Constitution",
+        PipelineStepDef(1, "constitution", "Constitution",
             "Create or update project governance principles.", false,
             listOf(ArtifactCheck(".specify/templates/constitution-template.md", "constitution-template.md", isRepoRelative = true)),
             listOf(ArtifactCheck(".specify/memory/constitution.md", "constitution.md", isRepoRelative = true)),
             listOf("specify"), "speckit.constitution.agent.md",
             "Refer to the `./specify/memory/discovery.md` for project properties"),
-        StepDef(2, "specify", "Specify",
+        PipelineStepDef(2, "specify", "Specify",
             "Feature spec from natural language description.", false,
             listOf(ArtifactCheck(".specify/scripts/bash/create-new-feature.sh", "create-new-feature script", isRepoRelative = true,
                 altRelativePath = ".specify/scripts/powershell/create-new-feature.ps1"),
                 ArtifactCheck(".specify/templates/spec-template.md", "spec-template.md", isRepoRelative = true)),
             listOf(ArtifactCheck("spec.md", "spec.md"), ArtifactCheck("checklists/requirements.md", "checklists/requirements.md")),
             listOf("clarify", "plan"), "speckit.specify.agent.md"),
-        StepDef(3, "clarify", "Clarify",
+        PipelineStepDef(3, "clarify", "Clarify",
             "Identify and resolve underspecified areas in the spec.", true,
             listOf(ArtifactCheck("spec.md", "spec.md")), emptyList(),
             listOf("plan"), "speckit.clarify.agent.md"),
-        StepDef(4, "plan", "Plan",
+        PipelineStepDef(4, "plan", "Plan",
             "Generate the technical design \u2014 data models, contracts, research.", false,
             listOf(ArtifactCheck("spec.md", "spec.md"),
                 ArtifactCheck(".specify/memory/constitution.md", "constitution.md", isRepoRelative = true),
@@ -119,29 +88,29 @@ class PipelineDemoPanel(
                 ArtifactCheck("data-model.md", "data-model.md"), ArtifactCheck("contracts", "contracts/", isDirectory = true),
                 ArtifactCheck("quickstart.md", "quickstart.md")),
             listOf("tasks", "checklist"), "speckit.plan.agent.md"),
-        StepDef(5, "tasks", "Tasks",
+        PipelineStepDef(5, "tasks", "Tasks",
             "Generate an actionable, dependency-ordered task list.", false,
             listOf(ArtifactCheck("plan.md", "plan.md"), ArtifactCheck("spec.md", "spec.md"),
                 ArtifactCheck(".specify/templates/tasks-template.md", "tasks-template.md", isRepoRelative = true)),
             listOf(ArtifactCheck("tasks.md", "tasks.md")),
             listOf("analyze", "implement"), "speckit.tasks.agent.md"),
-        StepDef(6, "checklist", "Checklist",
+        PipelineStepDef(6, "checklist", "Checklist",
             "Validate requirement quality \u2014 completeness, clarity, consistency.", true,
             listOf(ArtifactCheck("spec.md", "spec.md")),
             listOf(ArtifactCheck("checklists", "checklists/", isDirectory = true, requireNonEmpty = true)),
             emptyList(), "speckit.checklist.agent.md"),
-        StepDef(7, "analyze", "Analyze",
+        PipelineStepDef(7, "analyze", "Analyze",
             "Non-destructive cross-artifact consistency analysis (read-only).", false,
             listOf(ArtifactCheck("tasks.md", "tasks.md"), ArtifactCheck("spec.md", "spec.md"),
                 ArtifactCheck("plan.md", "plan.md"),
                 ArtifactCheck(".specify/memory/constitution.md", "constitution.md", isRepoRelative = true)),
             emptyList(), emptyList(), "speckit.analyze.agent.md"),
-        StepDef(8, "implement", "Implement",
+        PipelineStepDef(8, "implement", "Implement",
             "Execute the implementation plan \u2014 TDD, checklist gating, progress tracking.", false,
             listOf(ArtifactCheck("tasks.md", "tasks.md"), ArtifactCheck("plan.md", "plan.md")),
             emptyList(), listOf("taskstoissues"), "speckit.implement.agent.md",
             "all remaining tasks"),
-        StepDef(9, "taskstoissues", "Tasks \u2192 Issues",
+        PipelineStepDef(9, "taskstoissues", "Tasks \u2192 Issues",
             "Convert tasks into GitHub issues (requires GitHub remote).", false,
             listOf(ArtifactCheck("tasks.md", "tasks.md")),
             emptyList(), emptyList(), "speckit.taskstoissues.agent.md",
@@ -179,7 +148,7 @@ class PipelineDemoPanel(
     private val featureListModel = DefaultListModel<FeatureEntry>()
     private val featureList = JBList(featureListModel)
 
-    private val stepListModel = DefaultListModel<StepDef>().apply {
+    private val stepListModel = DefaultListModel<PipelineStepDef>().apply {
         steps.forEach { addElement(it) }
     }
     private val stepList = JBList(stepListModel)
@@ -372,7 +341,7 @@ class PipelineDemoPanel(
 
     // ── Detail panel ──────────────────────────────────────────────────────────
 
-    private fun updateDetailPanel(step: StepDef) {
+    private fun updateDetailPanel(step: PipelineStepDef) {
         detailPanel.removeAll()
         val status = stepStatuses[step.id] ?: StepStatus.NOT_STARTED
 
@@ -462,59 +431,17 @@ class PipelineDemoPanel(
 
     // ── Run step (real execution) ─────────────────────────────────────────────
 
-    private fun runStep(step: StepDef, arguments: String) {
+    private fun runStep(step: PipelineStepDef, arguments: String) {
         val basePath = project.basePath ?: return
-        val chatService = project.getService(CopilotChatService::class.java) ?: return
         val agentContent = ResourceLoader.readAgent(basePath, step.agentFileName) ?: return
-
         val prompt = agentContent.replace("\$ARGUMENTS", arguments)
-        val dataContext = SimpleDataContext.getProjectContext(project)
 
-        val run = ChatRun(
+        launcher?.launch(
+            prompt = prompt,
             agent = step.id,
-            prompt = arguments.ifEmpty { "(no arguments)" },
-            branch = sessionPanel.currentGitBranch()
+            promptSummary = arguments.ifEmpty { "(no arguments)" },
+            onDone = { refreshFeatures() }
         )
-        sessionPanel.registerRun(run)
-
-        chatService.query(dataContext) {
-            withInput(prompt)
-            withAgentMode()
-            withNewSession()
-            withSessionIdReceiver { sessionId ->
-                invokeLater {
-                    run.sessionId = sessionId
-                    sessionPanel.notifyRunChanged()
-                }
-                persistenceManager?.createRun(sessionId, run.agent, run.prompt, run.branch, run.startTimeMillis)
-            }
-            onComplete {
-                invokeLater {
-                    run.status = ChatRunStatus.COMPLETED
-                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
-                    sessionPanel.notifyRunChanged()
-                    refreshFeatures()
-                }
-                run.sessionId?.let { persistenceManager?.completeRun(it, System.currentTimeMillis() - run.startTimeMillis) }
-            }
-            onError { message, _, _, _, _ ->
-                invokeLater {
-                    run.status = ChatRunStatus.FAILED
-                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
-                    run.errorMessage = message
-                    sessionPanel.notifyRunChanged()
-                }
-                run.sessionId?.let { persistenceManager?.failRun(it, System.currentTimeMillis() - run.startTimeMillis, message) }
-            }
-            onCancel {
-                invokeLater {
-                    run.status = ChatRunStatus.CANCELLED
-                    run.durationMs = System.currentTimeMillis() - run.startTimeMillis
-                    sessionPanel.notifyRunChanged()
-                }
-                run.sessionId?.let { persistenceManager?.cancelRun(it, System.currentTimeMillis() - run.startTimeMillis) }
-            }
-        }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -592,7 +519,7 @@ class PipelineDemoPanel(
 
     // ── Step list renderer ────────────────────────────────────────────────────
 
-    private inner class StepListRenderer : JPanel(BorderLayout()), ListCellRenderer<StepDef> {
+    private inner class StepListRenderer : JPanel(BorderLayout()), ListCellRenderer<PipelineStepDef> {
         private val iconLabel = JLabel().apply { horizontalAlignment = SwingConstants.CENTER }
         private val nameLabel = JLabel()
         private val connectorPanel = ConnectorPanel()
@@ -607,7 +534,7 @@ class PipelineDemoPanel(
         }
 
         override fun getListCellRendererComponent(
-            list: javax.swing.JList<out StepDef>, value: StepDef,
+            list: javax.swing.JList<out PipelineStepDef>, value: PipelineStepDef,
             index: Int, isSelected: Boolean, cellHasFocus: Boolean
         ): Component {
             val status = stepStatuses[value.id] ?: StepStatus.NOT_STARTED

@@ -3,8 +3,8 @@ package com.speckit.plugin.persistence
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
-import com.speckit.plugin.ui.ChatRun
-import com.speckit.plugin.ui.ChatRunStatus
+import com.speckit.plugin.model.ChatRun
+import com.speckit.plugin.model.ChatRunStatus
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
