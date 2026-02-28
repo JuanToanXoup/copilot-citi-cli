@@ -531,7 +531,8 @@ class PipelinePanel(
             if (paths != null) {
                 val taskListPanel = TaskListPanel(
                     project, chatPanel, persistenceManager,
-                    enableActions = step.id == "implement"
+                    enableActions = step.id == "implement",
+                    launcher = launcher
                 )
                 taskListPanel.update(paths.featureDir)
                 taskListPanel.alignmentX = Component.LEFT_ALIGNMENT
