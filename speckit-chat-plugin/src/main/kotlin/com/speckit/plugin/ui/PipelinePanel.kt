@@ -30,8 +30,12 @@ import com.speckit.plugin.service.ChatRunLauncher
 import com.speckit.plugin.service.GitHelper
 import com.speckit.plugin.service.PipelineService
 import com.speckit.plugin.service.PipelineStepRegistry
-import com.speckit.plugin.ui.component.ConnectorPanel
 import com.speckit.plugin.ui.component.PipelineUiHelpers
+import com.speckit.plugin.ui.pipeline.FeatureNodeData
+import com.speckit.plugin.ui.pipeline.PipelineTreeDataProvider
+import com.speckit.plugin.ui.pipeline.PipelineTreeRenderer
+import com.speckit.plugin.ui.pipeline.StepDetailPanel
+import com.speckit.plugin.ui.pipeline.StepNodeData
 import com.speckit.plugin.persistence.SessionPersistenceManager
 import com.speckit.plugin.tools.ResourceLoader
 import java.awt.BorderLayout
@@ -47,9 +51,6 @@ import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
-import javax.swing.JTree
-import javax.swing.SwingConstants
-import javax.swing.UIManager
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
 import javax.swing.tree.TreePath
@@ -61,19 +62,7 @@ class PipelinePanel(
     private val chatPanel: SessionPanel,
     private val persistenceManager: SessionPersistenceManager? = null,
     private val launcher: ChatRunLauncher? = null
-) : JPanel(BorderLayout()), Disposable {
-
-    // ── Data model (see model/PipelineModels.kt) ────────────────────────────
-
-    // ── Tree node data ────────────────────────────────────────────────────────
-
-    private sealed interface PipelineNodeData
-    private data class FeatureNodeData(val entry: FeatureEntry) : PipelineNodeData {
-        override fun toString() = entry.dirName
-    }
-    private data class StepNodeData(val step: PipelineStepDef, val featureEntry: FeatureEntry) : PipelineNodeData {
-        override fun toString() = step.name
-    }
+) : JPanel(BorderLayout()), Disposable, PipelineTreeDataProvider {
 
     // ── Pipeline definitions (see service/PipelineService.kt) ──────────────
 
@@ -94,7 +83,7 @@ class PipelinePanel(
         selectionModel.selectionMode = TreeSelectionModel.SINGLE_TREE_SELECTION
     }
 
-    private val detailPanel = JPanel(BorderLayout())
+    private val stepDetailPanel = StepDetailPanel(project, chatPanel, persistenceManager, launcher)
 
     @Volatile private var currentPaths: FeaturePaths? = null
     @Volatile private var currentBranch: String = ""
@@ -118,7 +107,7 @@ class PipelinePanel(
         }
 
         // Tree configuration
-        pipelineTree.cellRenderer = PipelineTreeCellRenderer()
+        pipelineTree.cellRenderer = PipelineTreeRenderer(this)
         pipelineTree.rowHeight = 28
         pipelineTree.border = BorderFactory.createEmptyBorder(4, 0, 4, 0)
         // Minimize the built-in tree indent for child nodes
@@ -131,16 +120,23 @@ class PipelinePanel(
         pipelineTree.putClientProperty("JTree.lineStyle", "None")
         pipelineTree.selectionModel.selectionMode = TreeSelectionModel.SINGLE_TREE_SELECTION
 
+        // Wire StepDetailPanel callbacks
+        stepDetailPanel.onRunStep = { step, args -> runStep(step, args) }
+        stepDetailPanel.onReplyToSession = { sessionId, msg -> replyToSession(sessionId, msg) }
+        stepDetailPanel.displayNumber = { step -> displayNumber(step) }
+        stepDetailPanel.loadArgs = { stepId -> loadArgs(stepId) }
+
         pipelineTree.addTreeSelectionListener {
             val node = pipelineTree.lastSelectedPathComponent as? DefaultMutableTreeNode ?: return@addTreeSelectionListener
             when (val data = node.userObject) {
                 is StepNodeData -> {
                     currentPaths = resolvePathsForFeature(data.featureEntry)
-                    updateDetailPanel(data.step)
+                    val state = featureStepStates[data.featureEntry.dirName]?.get(data.step)
+                    stepDetailPanel.showStep(data.step, state, currentPaths, lastImplementRun)
                 }
                 is FeatureNodeData -> {
                     currentPaths = resolvePathsForFeature(data.entry)
-                    updateFeatureDetailPanel(data.entry)
+                    stepDetailPanel.showFeature(data.entry, featureStepStates[data.entry.dirName], pipelineSteps)
                 }
                 else -> {}
             }
@@ -165,7 +161,7 @@ class PipelinePanel(
         // Two-pane splitter: tree | detail
         val splitter = OnePixelSplitter(false, 0.35f).apply {
             firstComponent = treePane
-            secondComponent = JBScrollPane(detailPanel).apply {
+            secondComponent = JBScrollPane(stepDetailPanel).apply {
                 border = BorderFactory.createEmptyBorder()
             }
         }
@@ -214,11 +210,6 @@ class PipelinePanel(
 
     // ── Feature scanning ──────────────────────────────────────────────────────
 
-    private fun getCurrentBranch(): String {
-        val basePath = project.basePath ?: return "main"
-        return GitHelper.currentBranch(basePath)
-    }
-
     private fun scanFeatures(): List<FeatureEntry> {
         val basePath = project.basePath ?: return emptyList()
         return PipelineService.scanFeatures(basePath, pipelineSteps)
@@ -233,7 +224,7 @@ class PipelinePanel(
 
     private fun refreshAll() {
         com.intellij.openapi.application.ApplicationManager.getApplication().executeOnPooledThread {
-            val branch = getCurrentBranch()
+            val branch = GitHelper.currentBranch(project.basePath ?: "main")
             currentBranch = branch
             val features = scanFeatures()
             val basePath = project.basePath ?: ""
@@ -374,258 +365,6 @@ class PipelinePanel(
         return PropertiesComponent.getInstance(project).getValue(argsStorageKey(stepId))
     }
 
-    // ── Detail panel ─────────────────────────────────────────────────────────
-
-    private fun updateDetailPanel(step: PipelineStepDef) {
-        detailPanel.removeAll()
-        val featureEntry = getSelectedFeatureEntry()
-        val state = if (featureEntry != null) featureStepStates[featureEntry.dirName]?.get(step) else null
-        if (state == null) { detailPanel.revalidate(); detailPanel.repaint(); return }
-
-        val content = JPanel().apply {
-            layout = BoxLayout(this, BoxLayout.Y_AXIS)
-            border = BorderFactory.createEmptyBorder(12, 16, 12, 16)
-        }
-
-        // Header
-        content.add(JLabel("Step ${displayNumber(step)}: ${step.name}").apply {
-            font = font.deriveFont(Font.BOLD, font.size + 4f)
-            alignmentX = Component.LEFT_ALIGNMENT
-        })
-        if (step.isOptional) {
-            content.add(JLabel("(optional)").apply {
-                foreground = JBColor.GRAY
-                alignmentX = Component.LEFT_ALIGNMENT
-            })
-        }
-        content.add(JLabel(step.description).apply {
-            alignmentX = Component.LEFT_ALIGNMENT
-            border = BorderFactory.createEmptyBorder(4, 0, 12, 0)
-        })
-
-        // Status
-        val statusLabel = JLabel("Status: ${statusText(state.status)}").apply {
-            foreground = statusColor(state.status)
-            font = font.deriveFont(Font.BOLD)
-            alignmentX = Component.LEFT_ALIGNMENT
-            border = BorderFactory.createEmptyBorder(0, 0, 12, 0)
-        }
-        content.add(statusLabel)
-
-        // Clarification markers (clarify step only)
-        if (step.id == "clarify") {
-            val paths = currentPaths
-            if (paths != null) {
-                val specFile = PipelineService.resolveArtifactFile("spec.md", false, paths.basePath, paths.featureDir)
-                if (specFile != null && specFile.isFile) {
-                    val markerCount = Regex("\\[NEEDS CLARIFICATION").findAll(specFile.readText()).count()
-                    val greenColor = JBColor(Color(0, 128, 0), Color(80, 200, 80))
-                    val orangeColor = JBColor(Color(200, 100, 0), Color(255, 160, 60))
-                    val markerLabel = if (markerCount == 0) {
-                        JLabel("No clarification markers in spec.md").apply {
-                            foreground = greenColor
-                        }
-                    } else {
-                        JLabel("$markerCount [NEEDS CLARIFICATION] marker(s) in spec.md").apply {
-                            foreground = orangeColor
-                            cursor = java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR)
-                            addMouseListener(object : java.awt.event.MouseAdapter() {
-                                override fun mouseClicked(e: java.awt.event.MouseEvent) {
-                                    openFileInEditor(specFile)
-                                }
-                            })
-                            addHoverEffect(this)
-                        }
-                    }
-                    markerLabel.alignmentX = Component.LEFT_ALIGNMENT
-                    markerLabel.border = BorderFactory.createEmptyBorder(0, 0, 12, 0)
-                    content.add(markerLabel)
-                }
-            }
-        }
-
-        // Prerequisites
-        if (step.prerequisites.isNotEmpty()) {
-            content.add(sectionHeader("Prerequisites:"))
-            for (result in state.prerequisiteResults) {
-                content.add(checkResultLabel(result))
-            }
-            content.add(verticalSpacer(8))
-        }
-
-        // Outputs
-        if (step.outputs.isNotEmpty()) {
-            content.add(sectionHeader("Outputs:"))
-            for (result in state.outputResults) {
-                content.add(checkResultLabel(result))
-
-                // For the checklist step, list individual files under the directory output
-                if (step.id == "checklist" && result.artifact.isDirectory && result.exists && result.resolvedFile != null) {
-                    val files = result.resolvedFile.listFiles()
-                        ?.filter { it.isFile && it.extension == "md" }
-                        ?.sortedBy { it.name }
-                        ?: emptyList()
-                    for (file in files) {
-                        val fileLabel = JLabel("      ${file.name}").apply {
-                            alignmentX = Component.LEFT_ALIGNMENT
-                            foreground = JBColor(Color(0, 128, 0), Color(80, 200, 80))
-                            cursor = java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR)
-                            addMouseListener(object : java.awt.event.MouseAdapter() {
-                                override fun mouseClicked(e: java.awt.event.MouseEvent) {
-                                    openFileInEditor(file)
-                                }
-                            })
-                            addHoverEffect(this)
-                        }
-                        content.add(fileLabel)
-                    }
-                }
-            }
-            content.add(verticalSpacer(8))
-        }
-
-        // Checklists (implement step only)
-        if (step.id == "implement") {
-            val paths = currentPaths
-            if (paths != null) {
-                val checklists = PipelineService.parseChecklists(paths.featureDir ?: "")
-                if (checklists.isNotEmpty()) {
-                    val totalItems = checklists.sumOf { it.total }
-                    val completedItems = checklists.sumOf { it.completed }
-                    content.add(sectionHeader("Checklists:  $completedItems/$totalItems complete"))
-
-                    val greenColor = JBColor(Color(0, 128, 0), Color(80, 200, 80))
-                    val orangeColor = JBColor(Color(200, 100, 0), Color(255, 160, 60))
-
-                    for (cl in checklists) {
-                        val row = JPanel(FlowLayout(FlowLayout.LEFT, 4, 0)).apply {
-                            isOpaque = false
-                            alignmentX = Component.LEFT_ALIGNMENT
-                        }
-                        val cb = javax.swing.JCheckBox().apply {
-                            isSelected = cl.isComplete
-                            isEnabled = false
-                        }
-                        row.add(cb)
-                        val label = JLabel("${cl.fileName}  (${cl.completed}/${cl.total})").apply {
-                            foreground = if (cl.isComplete) greenColor else orangeColor
-                            cursor = java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR)
-                            addMouseListener(object : java.awt.event.MouseAdapter() {
-                                override fun mouseClicked(e: java.awt.event.MouseEvent) {
-                                    openFileInEditor(cl.file)
-                                }
-                            })
-                            addHoverEffect(this)
-                        }
-                        row.add(label)
-                        content.add(row)
-                    }
-                    content.add(verticalSpacer(8))
-                }
-            }
-        }
-
-        // Task list (tasks, implement, taskstoissues steps)
-        if (step.id in setOf("tasks", "implement", "taskstoissues")) {
-            val paths = currentPaths
-            if (paths != null) {
-                val taskListPanel = TaskListPanel(
-                    project, chatPanel, persistenceManager,
-                    enableActions = step.id == "implement",
-                    launcher = launcher
-                )
-                taskListPanel.update(paths.featureDir)
-                taskListPanel.alignmentX = Component.LEFT_ALIGNMENT
-                content.add(taskListPanel)
-                content.add(verticalSpacer(8))
-            }
-        }
-
-        // "Yes, proceed" reply button (implement step, running with session)
-        val implRun = lastImplementRun
-        if (step.id == "implement" && implRun != null
-            && implRun.status == ChatRunStatus.RUNNING && implRun.sessionId != null) {
-
-            val replyButton = JButton("Yes, proceed with implementation").apply {
-                alignmentX = Component.LEFT_ALIGNMENT
-                addActionListener { replyToSession(implRun.sessionId!!, "yes, proceed with implementation") }
-            }
-            content.add(replyButton)
-            content.add(verticalSpacer(8))
-        }
-
-        // Hands off to
-        if (step.handsOffTo.isNotEmpty()) {
-            content.add(JLabel("Hands off to \u2192 ${step.handsOffTo.joinToString(", ")}").apply {
-                foreground = JBColor.GRAY
-                alignmentX = Component.LEFT_ALIGNMENT
-                border = BorderFactory.createEmptyBorder(0, 0, 12, 0)
-            })
-        }
-
-        // Arguments (persisted per feature+step, with autofill defaults)
-        val isReadOnly = step.id == "specify"
-        val argsField = JBTextArea(3, 0).apply {
-            lineWrap = true
-            wrapStyleWord = true
-            margin = java.awt.Insets(6, 8, 6, 8)
-            text = loadArgs(step.id) ?: step.defaultArgs
-            isEditable = !isReadOnly
-            if (isReadOnly) background = JBColor(Color(245, 245, 245), Color(60, 63, 65))
-        }
-        val argsHeader = JPanel(BorderLayout()).apply {
-            isOpaque = false
-            alignmentX = Component.LEFT_ALIGNMENT
-            maximumSize = Dimension(Int.MAX_VALUE, 24)
-            add(JLabel("Arguments:").apply {
-                font = font.deriveFont(Font.BOLD)
-            }, BorderLayout.WEST)
-            if (!isReadOnly) {
-                add(JButton("Default").apply {
-                    isBorderPainted = false
-                    isContentAreaFilled = false
-                    foreground = JBColor.BLUE
-                    cursor = java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR)
-                    font = font.deriveFont(font.size - 1f)
-                    toolTipText = "Reset to default"
-                    addActionListener { argsField.text = step.defaultArgs }
-                }, BorderLayout.EAST)
-            }
-            border = BorderFactory.createEmptyBorder(0, 0, 4, 0)
-        }
-        content.add(argsHeader)
-        val argsScroll = JBScrollPane(argsField).apply {
-            alignmentX = Component.LEFT_ALIGNMENT
-            maximumSize = Dimension(Int.MAX_VALUE, 80)
-            border = BorderFactory.createCompoundBorder(
-                BorderFactory.createEmptyBorder(0, 0, 8, 0),
-                RoundedLineBorder(JBColor.GRAY, 6)
-            )
-        }
-        content.add(argsScroll)
-
-        // Run button (hidden for Specify — use "Add New Specification" instead)
-        if (!isReadOnly) {
-            val runButton = JButton("Run ${step.name} \u25B7").apply {
-                alignmentX = Component.LEFT_ALIGNMENT
-                addActionListener { runStep(step, argsField.text.trim()) }
-            }
-            content.add(runButton)
-        }
-
-        content.add(javax.swing.Box.createVerticalGlue())
-
-        detailPanel.add(content, BorderLayout.CENTER)
-        detailPanel.revalidate()
-        detailPanel.repaint()
-    }
-
-    private fun sectionHeader(text: String) = PipelineUiHelpers.sectionHeader(text)
-    private fun checkResultLabel(result: CheckResult) = PipelineUiHelpers.checkResultLabel(result, project)
-    private fun openFileInEditor(file: File) = PipelineUiHelpers.openFileInEditor(project, file)
-    private fun addHoverEffect(label: JLabel) = PipelineUiHelpers.addHoverEffect(label)
-    private fun verticalSpacer(height: Int) = PipelineUiHelpers.verticalSpacer(height)
-
     // ── Run step ─────────────────────────────────────────────────────────────
 
     private fun runStep(step: PipelineStepDef, arguments: String) {
@@ -636,7 +375,11 @@ class PipelinePanel(
 
         val refreshDetail = {
             val selected = getSelectedStep()
-            if (selected != null) updateDetailPanel(selected)
+            val featureEntry = getSelectedFeatureEntry()
+            if (selected != null && featureEntry != null) {
+                val state = featureStepStates[featureEntry.dirName]?.get(selected)
+                stepDetailPanel.showStep(selected, state, currentPaths, lastImplementRun)
+            }
         }
 
         val run = launcher?.launch(
@@ -700,144 +443,13 @@ class PipelinePanel(
         }
     }
 
-    // ── Feature detail panel ────────────────────────────────────────────────
+    // ── PipelineTreeDataProvider implementation ─────────────────────────────
 
-    private fun updateFeatureDetailPanel(entry: FeatureEntry) {
-        detailPanel.removeAll()
-        val content = JPanel().apply {
-            layout = BoxLayout(this, BoxLayout.Y_AXIS)
-            border = BorderFactory.createEmptyBorder(12, 16, 12, 16)
-        }
+    override fun getStepStates(featureDirName: String) = featureStepStates[featureDirName]
+    override fun getCurrentBranch(): String = currentBranch
+    override fun getPipelineSteps(): List<PipelineStepDef> = pipelineSteps
 
-        content.add(JLabel(entry.dirName).apply {
-            font = font.deriveFont(Font.BOLD, font.size + 4f)
-            alignmentX = Component.LEFT_ALIGNMENT
-        })
-        content.add(JLabel("${entry.completedSteps}/${entry.totalOutputSteps} output steps completed").apply {
-            alignmentX = Component.LEFT_ALIGNMENT
-            border = BorderFactory.createEmptyBorder(4, 0, 12, 0)
-        })
-
-        val states = featureStepStates[entry.dirName]
-        if (states != null) {
-            content.add(sectionHeader("Steps:"))
-            for (step in pipelineSteps) {
-                val status = states[step]?.status ?: StepStatus.NOT_STARTED
-                content.add(JLabel("  ${statusIcon(status)}  ${displayNumber(step)}. ${step.name} \u2014 ${statusText(status)}").apply {
-                    foreground = statusColor(status)
-                    alignmentX = Component.LEFT_ALIGNMENT
-                })
-            }
-        }
-
-        content.add(javax.swing.Box.createVerticalGlue())
-        detailPanel.add(content, BorderLayout.CENTER)
-        detailPanel.revalidate()
-        detailPanel.repaint()
-    }
-
-    // ── Tree cell renderer ───────────────────────────────────────────────────
-
-    private inner class PipelineTreeCellRenderer : JPanel(BorderLayout()), javax.swing.tree.TreeCellRenderer {
-        private val connectorPanel = ConnectorPanel()
-        private val connectorWrapper = JPanel(BorderLayout()).apply {
-            isOpaque = false
-            preferredSize = Dimension(14, 0)
-            add(connectorPanel, BorderLayout.CENTER)
-        }
-        private val iconLabel = JLabel().apply { horizontalAlignment = SwingConstants.CENTER }
-        private val nameLabel = JLabel()
-
-        init {
-            isOpaque = true
-            val textPanel = JPanel().apply {
-                isOpaque = false
-                layout = BoxLayout(this, BoxLayout.X_AXIS)
-                add(iconLabel)
-                add(javax.swing.Box.createHorizontalStrut(4))
-                add(nameLabel)
-            }
-            add(connectorWrapper, BorderLayout.WEST)
-            add(textPanel, BorderLayout.CENTER)
-        }
-
-        override fun getTreeCellRendererComponent(
-            tree: JTree, value: Any?, selected: Boolean,
-            expanded: Boolean, leaf: Boolean, row: Int, hasFocus: Boolean
-        ): Component {
-            val node = value as? DefaultMutableTreeNode
-            when (val data = node?.userObject) {
-                is FeatureNodeData -> renderFeature(data, tree, selected)
-                is StepNodeData -> renderStep(data, node, tree, selected)
-                else -> { nameLabel.text = value?.toString() ?: "" }
-            }
-
-            background = if (selected) {
-                UIManager.getColor("Tree.selectionBackground") ?: tree.background
-            } else {
-                tree.background
-            }
-            return this
-        }
-
-        private fun renderFeature(data: FeatureNodeData, tree: JTree, selected: Boolean) {
-            connectorWrapper.isVisible = false
-            border = BorderFactory.createEmptyBorder(2, 0, 2, 4)
-
-            val entry = data.entry
-            val icon: String
-            val iconColor: Color
-            when {
-                entry.totalOutputSteps > 0 && entry.completedSteps >= entry.totalOutputSteps -> {
-                    icon = "\u2713"; iconColor = JBColor(Color(0, 128, 0), Color(80, 200, 80))
-                }
-                entry.completedSteps > 0 -> {
-                    icon = "\u25D0"; iconColor = JBColor.BLUE
-                }
-                else -> {
-                    icon = "\u25CB"; iconColor = JBColor.GRAY
-                }
-            }
-            iconLabel.text = icon
-            iconLabel.foreground = iconColor
-
-            nameLabel.text = entry.dirName
-            nameLabel.foreground = if (selected) {
-                UIManager.getColor("Tree.selectionForeground") ?: tree.foreground
-            } else tree.foreground
-
-            val branchPrefix = Regex("^(\\d{3})-").find(currentBranch)?.groupValues?.get(1)
-            val isBranchMatch = branchPrefix != null && entry.dirName.startsWith("$branchPrefix-")
-            nameLabel.font = nameLabel.font.deriveFont(if (isBranchMatch) Font.BOLD else Font.PLAIN)
-        }
-
-        private fun renderStep(data: StepNodeData, node: DefaultMutableTreeNode, tree: JTree, selected: Boolean) {
-            connectorWrapper.isVisible = true
-            val isSubStep = data.step.parentId != null
-            border = BorderFactory.createEmptyBorder(2, if (isSubStep) 12 else 0, 2, 4)
-
-            val states = featureStepStates[data.featureEntry.dirName]
-            val status = states?.get(data.step)?.status ?: StepStatus.NOT_STARTED
-
-            iconLabel.text = statusIcon(status)
-            iconLabel.foreground = statusColor(status)
-            nameLabel.text = "${displayNumber(data.step)}. ${data.step.name}"
-            nameLabel.foreground = if (selected) {
-                UIManager.getColor("Tree.selectionForeground") ?: tree.foreground
-            } else tree.foreground
-            nameLabel.font = nameLabel.font.deriveFont(Font.PLAIN)
-
-            val parent = node.parent as? DefaultMutableTreeNode
-            val siblingIndex = parent?.getIndex(node) ?: 0
-            val siblingCount = parent?.childCount ?: 0
-            connectorPanel.isFirst = siblingIndex == 0
-            connectorPanel.isLast = siblingIndex == siblingCount - 1
-            connectorPanel.isSubStep = isSubStep
-            connectorPanel.color = JBColor.border()
-        }
-    }
-
-    // ── Display helpers ────────────────────────────────────────────────────
+    // ── Display/status helpers (used by detail panels, delegated) ─────────
 
     private fun displayNumber(step: PipelineStepDef): String {
         if (step.parentId == null) return step.number.toString()
@@ -847,8 +459,6 @@ class PipelinePanel(
             .indexOf(step) + 1
         return "${parent.number}.$siblingIndex"
     }
-
-    // ── Status helpers (delegated to PipelineUiHelpers) ─────────────────────
 
     private fun statusIcon(status: StepStatus) = PipelineUiHelpers.statusIcon(status)
     private fun statusText(status: StepStatus) = PipelineUiHelpers.statusText(status)
