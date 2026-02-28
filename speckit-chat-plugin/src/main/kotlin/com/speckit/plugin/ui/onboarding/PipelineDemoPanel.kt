@@ -1,15 +1,12 @@
 package com.speckit.plugin.ui.onboarding
 
-import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.ui.JBColor
 import com.intellij.ui.OnePixelSplitter
 import com.intellij.ui.RoundedLineBorder
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
-import com.speckit.plugin.model.ArtifactCheck
 import com.speckit.plugin.model.CheckResult
 import com.speckit.plugin.model.FeatureEntry
 import com.speckit.plugin.model.PipelineStepDef
@@ -17,6 +14,10 @@ import com.speckit.plugin.model.StepStatus
 import com.speckit.plugin.tools.ResourceLoader
 import com.speckit.plugin.persistence.SessionPersistenceManager
 import com.speckit.plugin.service.ChatRunLauncher
+import com.speckit.plugin.service.PipelineService
+import com.speckit.plugin.service.PipelineStepRegistry
+import com.speckit.plugin.ui.component.ConnectorPanel
+import com.speckit.plugin.ui.component.PipelineUiHelpers
 import com.speckit.plugin.ui.SessionPanel
 import java.awt.BorderLayout
 import java.awt.Color
@@ -24,10 +25,6 @@ import java.awt.Component
 import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.Font
-import java.awt.Graphics
-import java.awt.Graphics2D
-import java.awt.RenderingHints
-import java.io.File
 import javax.swing.BorderFactory
 import javax.swing.BoxLayout
 import javax.swing.DefaultListModel
@@ -55,67 +52,9 @@ class PipelineDemoPanel(
     private val launcher: ChatRunLauncher? = null
 ) : JPanel(BorderLayout()) {
 
-    // ── Data model (see model/PipelineModels.kt) ──────────────────────────────
+    // ── Pipeline step definitions (see service/PipelineService.kt) ──────────
 
-    // ── Pipeline step definitions (same as PipelinePanel) ─────────────────────
-
-    private val steps = listOf(
-        PipelineStepDef(1, "constitution", "Constitution",
-            "Create or update project governance principles.", false,
-            listOf(ArtifactCheck(".specify/templates/constitution-template.md", "constitution-template.md", isRepoRelative = true)),
-            listOf(ArtifactCheck(".specify/memory/constitution.md", "constitution.md", isRepoRelative = true)),
-            listOf("specify"), "speckit.constitution.agent.md",
-            "Refer to the `./specify/memory/discovery.md` for project properties"),
-        PipelineStepDef(2, "specify", "Specify",
-            "Feature spec from natural language description.", false,
-            listOf(ArtifactCheck(".specify/scripts/bash/create-new-feature.sh", "create-new-feature script", isRepoRelative = true,
-                altRelativePath = ".specify/scripts/powershell/create-new-feature.ps1"),
-                ArtifactCheck(".specify/templates/spec-template.md", "spec-template.md", isRepoRelative = true)),
-            listOf(ArtifactCheck("spec.md", "spec.md"), ArtifactCheck("checklists/requirements.md", "checklists/requirements.md")),
-            listOf("clarify", "plan"), "speckit.specify.agent.md"),
-        PipelineStepDef(3, "clarify", "Clarify",
-            "Identify and resolve underspecified areas in the spec.", true,
-            listOf(ArtifactCheck("spec.md", "spec.md")), emptyList(),
-            listOf("plan"), "speckit.clarify.agent.md"),
-        PipelineStepDef(4, "plan", "Plan",
-            "Generate the technical design \u2014 data models, contracts, research.", false,
-            listOf(ArtifactCheck("spec.md", "spec.md"),
-                ArtifactCheck(".specify/memory/constitution.md", "constitution.md", isRepoRelative = true),
-                ArtifactCheck(".specify/scripts/bash/setup-plan.sh", "setup-plan script", isRepoRelative = true,
-                    altRelativePath = ".specify/scripts/powershell/setup-plan.ps1"),
-                ArtifactCheck(".specify/templates/plan-template.md", "plan-template.md", isRepoRelative = true)),
-            listOf(ArtifactCheck("plan.md", "plan.md"), ArtifactCheck("research.md", "research.md"),
-                ArtifactCheck("data-model.md", "data-model.md"), ArtifactCheck("contracts", "contracts/", isDirectory = true),
-                ArtifactCheck("quickstart.md", "quickstart.md")),
-            listOf("tasks", "checklist"), "speckit.plan.agent.md"),
-        PipelineStepDef(5, "tasks", "Tasks",
-            "Generate an actionable, dependency-ordered task list.", false,
-            listOf(ArtifactCheck("plan.md", "plan.md"), ArtifactCheck("spec.md", "spec.md"),
-                ArtifactCheck(".specify/templates/tasks-template.md", "tasks-template.md", isRepoRelative = true)),
-            listOf(ArtifactCheck("tasks.md", "tasks.md")),
-            listOf("analyze", "implement"), "speckit.tasks.agent.md"),
-        PipelineStepDef(6, "checklist", "Checklist",
-            "Validate requirement quality \u2014 completeness, clarity, consistency.", true,
-            listOf(ArtifactCheck("spec.md", "spec.md")),
-            listOf(ArtifactCheck("checklists", "checklists/", isDirectory = true, requireNonEmpty = true)),
-            emptyList(), "speckit.checklist.agent.md"),
-        PipelineStepDef(7, "analyze", "Analyze",
-            "Non-destructive cross-artifact consistency analysis (read-only).", false,
-            listOf(ArtifactCheck("tasks.md", "tasks.md"), ArtifactCheck("spec.md", "spec.md"),
-                ArtifactCheck("plan.md", "plan.md"),
-                ArtifactCheck(".specify/memory/constitution.md", "constitution.md", isRepoRelative = true)),
-            emptyList(), emptyList(), "speckit.analyze.agent.md"),
-        PipelineStepDef(8, "implement", "Implement",
-            "Execute the implementation plan \u2014 TDD, checklist gating, progress tracking.", false,
-            listOf(ArtifactCheck("tasks.md", "tasks.md"), ArtifactCheck("plan.md", "plan.md")),
-            emptyList(), listOf("taskstoissues"), "speckit.implement.agent.md",
-            "all remaining tasks"),
-        PipelineStepDef(9, "taskstoissues", "Tasks \u2192 Issues",
-            "Convert tasks into GitHub issues (requires GitHub remote).", false,
-            listOf(ArtifactCheck("tasks.md", "tasks.md")),
-            emptyList(), emptyList(), "speckit.taskstoissues.agent.md",
-            "all tasks")
-    )
+    private val steps = PipelineStepRegistry.steps
 
     // ── Mock artifact set ────────────────────────────────────────────────────
     // Simulates the pipeline progression: all repo-relative prerequisites are
@@ -214,96 +153,19 @@ class PipelineDemoPanel(
 
     private fun refreshFeatures() {
         val basePath = project.basePath ?: return
-        val specsDir = File(basePath, "specs")
         featureListModel.clear()
 
-        if (specsDir.isDirectory) {
-            specsDir.listFiles()
-                ?.filter { it.isDirectory && it.name.matches(Regex("^\\d{3}-.*")) }
-                ?.sortedBy { it.name }
-                ?.forEach { dir ->
-                    val entry = FeatureEntry(dir.name, dir.absolutePath)
-                    computeFeatureCompletion(entry, basePath)
-                    featureListModel.addElement(entry)
-                }
-        }
+        val features = PipelineService.scanFeatures(basePath, steps, mockExistingArtifacts).toMutableList()
 
-        if (featureListModel.size() == 0) {
+        if (features.isEmpty()) {
             // No real features — add a mock feature so the demo isn't empty
             val mockEntry = FeatureEntry("001-sample-feature", "$basePath/specs/001-sample-feature")
-            computeFeatureCompletion(mockEntry, basePath)
-            featureListModel.addElement(mockEntry)
+            PipelineService.computeFeatureStatus(mockEntry, basePath, steps, mockExistingArtifacts)
+            features.add(mockEntry)
         }
 
+        features.forEach { featureListModel.addElement(it) }
         featureList.selectedIndex = 0
-    }
-
-    private fun computeFeatureCompletion(entry: FeatureEntry, basePath: String) {
-        val outputSteps = steps.filter { it.outputs.isNotEmpty() }
-        var completed = 0
-        for (step in outputSteps) {
-            if (step.outputs.all { artifactExists(it, basePath, entry.path) }) completed++
-        }
-        entry.completedSteps = completed
-        entry.totalOutputSteps = outputSteps.size
-    }
-
-    // ── Artifact checking (mock-aware) ──────────────────────────────────────
-    // Checks the mock set first; if the artifact is in mockExistingArtifacts it
-    // is treated as present. Otherwise falls back to the real filesystem so
-    // that real artifacts (e.g. after running Init Speckit) also show up.
-
-    private fun artifactExists(artifact: ArtifactCheck, basePath: String, featureDir: String?): Boolean {
-        if (isMockPresent(artifact)) return true
-        val file = resolveArtifact(artifact.relativePath, artifact.isRepoRelative, basePath, featureDir) ?: return false
-        val effective = if (!file.exists() && artifact.altRelativePath != null) {
-            resolveArtifact(artifact.altRelativePath, artifact.isRepoRelative, basePath, featureDir) ?: file
-        } else file
-
-        return if (artifact.isDirectory) {
-            effective.isDirectory && (!artifact.requireNonEmpty || (effective.listFiles()?.isNotEmpty() == true))
-        } else {
-            effective.isFile
-        }
-    }
-
-    private fun resolveArtifact(path: String, isRepoRelative: Boolean, basePath: String, featureDir: String?): File? {
-        return if (isRepoRelative) File(basePath, path)
-        else featureDir?.let { File(it, path) }
-    }
-
-    private fun checkArtifact(artifact: ArtifactCheck, basePath: String, featureDir: String?): CheckResult {
-        // Mock check first — try to resolve the real file anyway so we can link to it
-        val file = resolveArtifact(artifact.relativePath, artifact.isRepoRelative, basePath, featureDir)
-        val effective = if (file != null && !file.exists() && artifact.altRelativePath != null) {
-            resolveArtifact(artifact.altRelativePath, artifact.isRepoRelative, basePath, featureDir) ?: file
-        } else file
-
-        if (isMockPresent(artifact)) {
-            val realExists = effective != null && (if (artifact.isDirectory) effective.isDirectory else effective.isFile)
-            return CheckResult(artifact, true, "simulated", resolvedFile = if (realExists) effective else null)
-        }
-
-        // Fall back to real filesystem
-        if (effective == null) return CheckResult(artifact, false, "no feature dir")
-
-        if (artifact.isDirectory) {
-            if (!effective.isDirectory) return CheckResult(artifact, false, "missing")
-            val count = effective.listFiles()?.size ?: 0
-            if (artifact.requireNonEmpty && count == 0) return CheckResult(artifact, false, "empty dir")
-            return CheckResult(artifact, true, "$count file(s)", resolvedFile = effective)
-        }
-        if (!effective.isFile) return CheckResult(artifact, false, "missing")
-        val size = effective.length()
-        val detail = if (size < 1024) "${size} B" else String.format("%.1f KB", size / 1024.0)
-        return CheckResult(artifact, true, detail, resolvedFile = effective)
-    }
-
-    /** Returns true if the artifact is in the mock set (repo prereqs + prior step outputs). */
-    private fun isMockPresent(artifact: ArtifactCheck): Boolean {
-        if (artifact.relativePath in mockExistingArtifacts) return true
-        if (artifact.altRelativePath != null && artifact.altRelativePath in mockExistingArtifacts) return true
-        return false
     }
 
     // ── Status derivation ─────────────────────────────────────────────────────
@@ -313,8 +175,8 @@ class PipelineDemoPanel(
         val featureDir = selectedFeatureEntry?.path
 
         for ((i, step) in steps.withIndex()) {
-            val prereqs = step.prerequisites.map { checkArtifact(it, basePath, featureDir) }
-            val outputs = step.outputs.map { checkArtifact(it, basePath, featureDir) }
+            val prereqs = step.prerequisites.map { PipelineService.checkArtifact(it, basePath, featureDir, mockExistingArtifacts) }
+            val outputs = step.outputs.map { PipelineService.checkArtifact(it, basePath, featureDir, mockExistingArtifacts) }
             stepPrereqs[step.id] = prereqs
             stepOutputs[step.id] = outputs
 
@@ -444,48 +306,11 @@ class PipelineDemoPanel(
         )
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // ── Helpers (delegated to PipelineUiHelpers) ───────────────────────────
 
-    private fun sectionHeader(text: String) = JLabel(text).apply {
-        font = font.deriveFont(Font.BOLD)
-        alignmentX = Component.LEFT_ALIGNMENT
-        border = BorderFactory.createEmptyBorder(0, 0, 3, 0)
-    }
-
-    private fun checkResultLabel(result: CheckResult): JComponent {
-        val icon = if (result.exists) "\u2713" else "\u2717"
-        val detail = if (result.detail.isNotEmpty()) "  (${result.detail})" else ""
-        val text = "  $icon  ${result.artifact.label}$detail"
-        val greenColor = JBColor(Color(0, 128, 0), Color(80, 200, 80))
-        val orangeColor = JBColor(Color(200, 100, 0), Color(255, 160, 60))
-
-        // Clickable link for existing, non-directory artifacts with a resolved file
-        val canOpen = result.exists && result.resolvedFile != null && !result.artifact.isDirectory
-        return JLabel(text).apply {
-            foreground = if (result.exists) greenColor else orangeColor
-            alignmentX = Component.LEFT_ALIGNMENT
-            if (canOpen) {
-                cursor = java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR)
-                addMouseListener(object : java.awt.event.MouseAdapter() {
-                    override fun mouseClicked(e: java.awt.event.MouseEvent) {
-                        openFileInEditor(result.resolvedFile!!)
-                    }
-                })
-            }
-        }
-    }
-
-    private fun openFileInEditor(file: File) {
-        val vFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(file) ?: return
-        FileEditorManager.getInstance(project).openFile(vFile, true)
-    }
-
-    private fun verticalSpacer(height: Int) = JPanel().apply {
-        maximumSize = Dimension(Int.MAX_VALUE, height)
-        preferredSize = Dimension(0, height)
-        isOpaque = false
-        alignmentX = Component.LEFT_ALIGNMENT
-    }
+    private fun sectionHeader(text: String) = PipelineUiHelpers.sectionHeader(text)
+    private fun checkResultLabel(result: CheckResult) = PipelineUiHelpers.checkResultLabel(result, project)
+    private fun verticalSpacer(height: Int) = PipelineUiHelpers.verticalSpacer(height)
 
     // ── Feature list renderer ─────────────────────────────────────────────────
 
@@ -549,34 +374,9 @@ class PipelineDemoPanel(
         }
     }
 
-    private class ConnectorPanel : JPanel() {
-        var isFirst = false; var isLast = false; var color: Color = JBColor.border()
-        init { isOpaque = false; preferredSize = Dimension(24, 0) }
-        override fun paintComponent(g: Graphics) {
-            super.paintComponent(g)
-            val g2 = g as Graphics2D
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-            g2.color = color
-            val cx = width / 2
-            g2.drawLine(cx, if (isFirst) height / 2 else 0, cx, if (isLast) height / 2 else height)
-            g2.fillOval(cx - 3, height / 2 - 3, 6, 6)
-        }
-    }
+    // ── Status helpers (delegated to PipelineUiHelpers) ─────────────────────
 
-    // ── Status helpers ────────────────────────────────────────────────────────
-
-    private fun statusIcon(s: StepStatus) = when (s) {
-        StepStatus.COMPLETED -> "\u2713"; StepStatus.READY -> "\u25CB"
-        StepStatus.IN_PROGRESS -> "\u25D0"; StepStatus.BLOCKED -> "\u2717"; StepStatus.NOT_STARTED -> "\u25CB"
-    }
-    private fun statusText(s: StepStatus) = when (s) {
-        StepStatus.COMPLETED -> "Completed"; StepStatus.READY -> "Ready"
-        StepStatus.IN_PROGRESS -> "In Progress"; StepStatus.BLOCKED -> "Blocked"; StepStatus.NOT_STARTED -> "Not Started"
-    }
-    private fun statusColor(s: StepStatus): Color = when (s) {
-        StepStatus.COMPLETED -> JBColor(Color(0, 128, 0), Color(80, 200, 80))
-        StepStatus.READY, StepStatus.IN_PROGRESS -> JBColor.BLUE
-        StepStatus.BLOCKED -> JBColor(Color(200, 100, 0), Color(255, 160, 60))
-        StepStatus.NOT_STARTED -> JBColor.GRAY
-    }
+    private fun statusIcon(s: StepStatus) = PipelineUiHelpers.statusIcon(s)
+    private fun statusText(s: StepStatus) = PipelineUiHelpers.statusText(s)
+    private fun statusColor(s: StepStatus) = PipelineUiHelpers.statusColor(s)
 }

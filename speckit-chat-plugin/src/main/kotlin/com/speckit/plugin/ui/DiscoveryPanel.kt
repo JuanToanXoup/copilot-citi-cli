@@ -20,6 +20,7 @@ import com.intellij.ui.table.JBTable
 import com.intellij.util.ui.JBUI
 import com.speckit.plugin.model.CategoryTable
 import com.speckit.plugin.service.ChatRunLauncher
+import com.speckit.plugin.service.DiscoveryService
 import com.speckit.plugin.service.GitHelper
 import com.speckit.plugin.model.ChatRun
 import com.speckit.plugin.model.ChatRunStatus
@@ -173,7 +174,7 @@ class DiscoveryPanel(
         val fileName = templateCombo.selectedItem as? String ?: return
         val content = ResourceLoader.readDiscovery(basePath, fileName) ?: return
 
-        val rows = parseDiscovery(extractBody(content))
+        val rows = DiscoveryService.parseDiscovery(DiscoveryService.extractBody(content))
         buildCategoryTables(rows)
         writeMemoryFile()
     }
@@ -213,7 +214,7 @@ class DiscoveryPanel(
      * Parse markdown content and merge it into the UI tables.
      */
     private fun applyContent(content: String) {
-        val rows = parseDiscovery(content)
+        val rows = DiscoveryService.parseDiscovery(content)
         val grouped = rows.groupBy { it.category }
 
         syncing = true
@@ -463,21 +464,14 @@ class DiscoveryPanel(
     private fun writeMemoryFile() {
         val basePath = project.basePath ?: return
 
-        val sb = StringBuilder()
-        var firstCategory = true
-        for (ct in categoryTables) {
-            if (!firstCategory) sb.appendLine()
-            firstCategory = false
-            sb.appendLine("## ${ct.category}")
-            for (i in 0 until ct.tableModel.rowCount) {
-                val attribute = ct.tableModel.getValueAt(i, 0).toString()
-                val answer = ct.tableModel.getValueAt(i, 1).toString()
-                sb.appendLine("- $attribute = $answer")
+        val categories = categoryTables.map { ct ->
+            ct.category to (0 until ct.tableModel.rowCount).map { i ->
+                ct.tableModel.getValueAt(i, 0).toString() to ct.tableModel.getValueAt(i, 1).toString()
             }
         }
 
         syncing = true
-        val text = sb.toString()
+        val text = DiscoveryService.serializeToMarkdown(categories)
         WriteCommandAction.runWriteCommandAction(project) {
             try {
                 val dir = File(basePath, ".specify/memory")
@@ -584,38 +578,7 @@ class DiscoveryPanel(
 
     override fun dispose() {}
 
-    // ── Parsing ──────────────────────────────────────────────────────────────
-
-    private fun extractBody(content: String): String {
-        val match = Regex("^---\\s*\\n.*?\\n---\\s*\\n?", RegexOption.DOT_MATCHES_ALL).find(content) ?: return content
-        return content.substring(match.range.last + 1)
-    }
-
-    private fun parseDiscovery(content: String): List<TableRow> {
-        val rows = mutableListOf<TableRow>()
-        var currentCategory = ""
-        for (line in content.lines()) {
-            val trimmed = line.trim()
-            if (trimmed.isBlank()) continue
-
-            // Category: ## heading
-            if (trimmed.startsWith("## ")) {
-                currentCategory = trimmed.removePrefix("## ").trim()
-                continue
-            }
-
-            // Attribute: - Name = Answer
-            if (trimmed.startsWith("- ") && currentCategory.isNotEmpty()) {
-                val eqIdx = trimmed.indexOf('=')
-                if (eqIdx > 0) {
-                    val attribute = trimmed.substring(2, eqIdx).trim()
-                    val answer = trimmed.substring(eqIdx + 1).trim()
-                    rows.add(TableRow(currentCategory, attribute, answer))
-                }
-            }
-        }
-        return rows
-    }
+    // ── Parsing (see service/DiscoveryService.kt) ─────────────────────────
 }
 
 // ── Rounded border panel ─────────────────────────────────────────────────────

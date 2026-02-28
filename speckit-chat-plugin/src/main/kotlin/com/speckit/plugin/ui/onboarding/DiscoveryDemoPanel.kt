@@ -17,6 +17,7 @@ import com.speckit.plugin.model.TableRow
 import com.speckit.plugin.tools.ResourceLoader
 import com.speckit.plugin.persistence.SessionPersistenceManager
 import com.speckit.plugin.service.ChatRunLauncher
+import com.speckit.plugin.service.DiscoveryService
 import com.speckit.plugin.ui.SessionPanel
 import java.awt.BorderLayout
 import java.awt.Color
@@ -126,7 +127,7 @@ class DiscoveryDemoPanel(
         val memFile = File(memoryFilePath)
         if (memFile.exists()) {
             val content = memFile.readText()
-            val rows = parseDiscovery(content)
+            val rows = DiscoveryService.parseDiscovery(content)
             if (rows.isNotEmpty()) {
                 buildCategoryTables(rows)
                 return
@@ -139,7 +140,7 @@ class DiscoveryDemoPanel(
         val templates = ResourceLoader.listDiscoveries(basePath)
         if (templates.isNotEmpty()) {
             val content = ResourceLoader.readDiscovery(basePath, templates.first()) ?: return
-            val rows = parseDiscovery(extractBody(content))
+            val rows = DiscoveryService.parseDiscovery(DiscoveryService.extractBody(content))
             buildCategoryTables(rows)
             writeMemoryFile()
         }
@@ -150,7 +151,7 @@ class DiscoveryDemoPanel(
         val fileName = combo.selectedItem as? String ?: return
         val content = ResourceLoader.readDiscovery(basePath, fileName) ?: return
 
-        val rows = parseDiscovery(extractBody(content))
+        val rows = DiscoveryService.parseDiscovery(DiscoveryService.extractBody(content))
         buildCategoryTables(rows)
         writeMemoryFile()
     }
@@ -331,21 +332,14 @@ class DiscoveryDemoPanel(
     private fun writeMemoryFile() {
         val basePath = project.basePath ?: return
 
-        val sb = StringBuilder()
-        var firstCategory = true
-        for (ct in categoryTables) {
-            if (!firstCategory) sb.appendLine()
-            firstCategory = false
-            sb.appendLine("## ${ct.category}")
-            for (i in 0 until ct.tableModel.rowCount) {
-                val attribute = ct.tableModel.getValueAt(i, 0).toString()
-                val answer = ct.tableModel.getValueAt(i, 1).toString()
-                sb.appendLine("- $attribute = $answer")
+        val categories = categoryTables.map { ct ->
+            ct.category to (0 until ct.tableModel.rowCount).map { i ->
+                ct.tableModel.getValueAt(i, 0).toString() to ct.tableModel.getValueAt(i, 1).toString()
             }
         }
 
         syncing = true
-        val text = sb.toString()
+        val text = DiscoveryService.serializeToMarkdown(categories)
         WriteCommandAction.runWriteCommandAction(project) {
             try {
                 val dir = File(basePath, ".specify/memory")
@@ -398,36 +392,5 @@ class DiscoveryDemoPanel(
         )
     }
 
-    // ── Parsing ─────────────────────────────────────────────────────────────────
-
-    private fun extractBody(content: String): String {
-        val match = Regex("^---\\s*\\n.*?\\n---\\s*\\n?", RegexOption.DOT_MATCHES_ALL).find(content) ?: return content
-        return content.substring(match.range.last + 1)
-    }
-
-    private fun parseDiscovery(content: String): List<TableRow> {
-        val rows = mutableListOf<TableRow>()
-        var currentCategory = ""
-        for (line in content.lines()) {
-            val trimmed = line.trim()
-            if (trimmed.isBlank()) continue
-
-            if (trimmed.startsWith("## ")) {
-                currentCategory = trimmed.removePrefix("## ").trim()
-                continue
-            }
-
-            if (trimmed.startsWith("- ") && currentCategory.isNotEmpty()) {
-                val eqIdx = trimmed.indexOf('=')
-                if (eqIdx > 0) {
-                    val attribute = trimmed.substring(2, eqIdx).trim()
-                    val answer = trimmed.substring(eqIdx + 1).trim()
-                    rows.add(TableRow(currentCategory, attribute, answer))
-                }
-            }
-        }
-        return rows
-    }
-
-    // ── Data (see model/DiscoveryModels.kt) ────────────────────────────────────
+    // ── Parsing (see service/DiscoveryService.kt) ─────────────────────────────
 }
