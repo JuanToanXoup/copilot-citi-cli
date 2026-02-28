@@ -1,5 +1,7 @@
 [versions]
 gson = "2.11.0"
+exposed = "0.58.0"
+sqlite-jdbc = "3.47.2.0"
 
 # plugins
 intellij = "1.17.4"
@@ -7,6 +9,11 @@ kotlin = "2.1.20"
 
 [libraries]
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
+exposed-core = { group = "org.jetbrains.exposed", name = "exposed-core", version.ref = "exposed" }
+exposed-dao = { group = "org.jetbrains.exposed", name = "exposed-dao", version.ref = "exposed" }
+exposed-jdbc = { group = "org.jetbrains.exposed", name = "exposed-jdbc", version.ref = "exposed" }
+exposed-java-time = { group = "org.jetbrains.exposed", name = "exposed-java-time", version.ref = "exposed" }
+sqlite-jdbc = { group = "org.xerial", name = "sqlite-jdbc", version.ref = "sqlite-jdbc" }
 
 [plugins]
 intellij = { id = "org.jetbrains.intellij", version.ref = "intellij" }
